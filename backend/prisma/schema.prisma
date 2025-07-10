@@ -1,0 +1,236 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  password        String
+  role            UserRole @default(USER)
+  isActive        Boolean  @default(true)
+  passwordChanged Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  
+  partner         Partner?
+  profile         UserProfile?
+  registrations   Registration[]
+}
+
+enum UserRole {
+  ADMIN
+  PARTNER
+  USER
+}
+
+model Partner {
+  id                      String   @id @default(uuid())
+  userId                  String   @unique
+  parentId                String?
+  referralCode            String   @unique
+  canCreateChildren       Boolean  @default(false)
+  commissionPerUser       Decimal  @default(1000)
+  commissionToAdmin       Decimal  @default(3000)
+  promotedFromChild       Boolean  @default(false)
+  createdAt               DateTime @default(now())
+  
+  user                    User     @relation(fields: [userId], references: [id])
+  parent                  Partner? @relation("PartnerHierarchy", fields: [parentId], references: [id])
+  children                Partner[] @relation("PartnerHierarchy")
+  registrations           Registration[]
+  offers                  PartnerOffer[]
+  coupons                 Coupon[]
+}
+
+model Course {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  
+  offers      PartnerOffer[]
+}
+
+model PartnerOffer {
+  id                      String   @id @default(uuid())
+  partnerId               String
+  courseId                String
+  name                    String
+  totalAmount             Decimal
+  installments            Int
+  installmentFrequency    Int      // months
+  isActive                Boolean  @default(true)
+  createdAt               DateTime @default(now())
+  
+  partner                 Partner  @relation(fields: [partnerId], references: [id])
+  course                  Course   @relation(fields: [courseId], references: [id])
+  registrations           Registration[]
+}
+
+model Coupon {
+  id                String   @id @default(uuid())
+  partnerId         String
+  code              String
+  discountType      DiscountType
+  discountAmount    Decimal?
+  discountPercent   Decimal?
+  maxUses           Int?
+  usedCount         Int      @default(0)
+  validFrom         DateTime
+  validUntil        DateTime
+  isActive          Boolean  @default(true)
+  
+  partner           Partner  @relation(fields: [partnerId], references: [id])
+  uses              CouponUse[]
+  
+  @@unique([partnerId, code])
+}
+
+enum DiscountType {
+  FIXED
+  PERCENTAGE
+}
+
+model UserProfile {
+  id                      String   @id @default(uuid())
+  userId                  String   @unique
+  
+  // Anagrafica
+  cognome                 String
+  nome                    String
+  dataNascita             DateTime
+  luogoNascita            String
+  codiceFiscale           String   @unique
+  telefono                String
+  nomePadre               String?
+  nomeMadre               String?
+  
+  // Residenza
+  residenzaVia            String
+  residenzaCitta          String
+  residenzaProvincia      String
+  residenzaCap            String
+  
+  // Domicilio
+  hasDifferentDomicilio   Boolean  @default(false)
+  domicilioVia            String?
+  domicilioCitta          String?
+  domicilioProvincia      String?
+  domicilioCap            String?
+  
+  // Istruzione
+  tipoLaurea              String
+  laureaConseguita        String
+  laureaUniversita        String
+  laureaData              DateTime
+  
+  // Professione
+  tipoProfessione         String
+  scuolaDenominazione     String?
+  scuolaCitta             String?
+  scuolaProvincia         String?
+  
+  createdAt               DateTime @default(now())
+  
+  user                    User     @relation(fields: [userId], references: [id])
+}
+
+model Registration {
+  id              String   @id @default(uuid())
+  userId          String
+  partnerId       String
+  courseId        String
+  partnerOfferId  String?
+  couponId        String?
+  
+  originalAmount  Decimal
+  finalAmount     Decimal
+  installments    Int
+  
+  status          RegistrationStatus @default(PENDING)
+  
+  dataVerifiedAt      DateTime?
+  contractGeneratedAt DateTime?
+  contractSignedAt    DateTime?
+  enrolledAt          DateTime?
+  
+  createdAt       DateTime @default(now())
+  
+  user            User         @relation(fields: [userId], references: [id])
+  partner         Partner      @relation(fields: [partnerId], references: [id])
+  offer           PartnerOffer? @relation(fields: [partnerOfferId], references: [id])
+  documents       Document[]
+  payments        Payment[]
+  deadlines       PaymentDeadline[]
+}
+
+enum RegistrationStatus {
+  PENDING
+  DATA_VERIFIED
+  CONTRACT_GENERATED
+  CONTRACT_SIGNED
+  ENROLLED
+  COMPLETED
+}
+
+model Document {
+  id              String   @id @default(uuid())
+  registrationId  String
+  type            String
+  fileName        String
+  filePath        String
+  uploadedAt      DateTime @default(now())
+  
+  registration    Registration @relation(fields: [registrationId], references: [id])
+}
+
+model Payment {
+  id              String   @id @default(uuid())
+  registrationId  String
+  amount          Decimal
+  paymentDate     DateTime
+  paymentNumber   Int
+  isFirstPayment  Boolean  @default(false)
+  isConfirmed     Boolean  @default(false)
+  confirmedBy     String?
+  confirmedAt     DateTime?
+  createdBy       String
+  createdAt       DateTime @default(now())
+  
+  registration    Registration @relation(fields: [registrationId], references: [id])
+}
+
+model PaymentDeadline {
+  id              String   @id @default(uuid())
+  registrationId  String
+  amount          Decimal
+  dueDate         DateTime
+  paymentNumber   Int
+  isPaid          Boolean  @default(false)
+  
+  registration    Registration @relation(fields: [registrationId], references: [id])
+}
+
+model CouponUse {
+  id              String   @id @default(uuid())
+  couponId        String
+  registrationId  String
+  discountApplied Decimal
+  usedAt          DateTime @default(now())
+  
+  coupon          Coupon   @relation(fields: [couponId], references: [id])
+}
+
+model ChatConversation {
+  id              String   @id @default(uuid())
+  userId          String
+  telegramChatId  String?
+  isActive        Boolean  @default(true)
+  messages        Json     @default("[]")
+  createdAt       DateTime @default(now())
+}
