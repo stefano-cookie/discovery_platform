@@ -76,7 +76,7 @@ router.get('/users', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req
         select: { id: true }
       });
       whereClause = { 
-        partnerId: { in: childrenPartners.map(p => p.id) } 
+        partnerId: { in: childrenPartners.map((p: { id: string }) => p.id) } 
       };
     } else {
       // All users (direct + children)
@@ -85,7 +85,7 @@ router.get('/users', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req
         select: { id: true }
       });
       whereClause = { 
-        partnerId: { in: [partnerId, ...childrenPartners.map(p => p.id)] } 
+        partnerId: { in: [partnerId, ...childrenPartners.map((p: { id: string }) => p.id)] } 
       };
     }
 
@@ -101,7 +101,7 @@ router.get('/users', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req
       }
     });
 
-    const users = registrations.map(reg => ({
+    const users = registrations.map((reg: any) => ({
       id: reg.user.id,
       email: reg.user.email,
       profile: reg.user.profile,
