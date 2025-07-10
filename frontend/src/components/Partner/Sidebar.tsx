@@ -1,0 +1,208 @@
+import React, { useState } from 'react';
+import { useAuth } from '../../hooks/useAuth';
+
+interface SidebarProps {
+  activeTab: 'dashboard' | 'users' | 'chat';
+  onTabChange: (tab: 'dashboard' | 'users' | 'chat') => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
+  const { user, logout } = useAuth();
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showReferralModal, setShowReferralModal] = useState(false);
+
+  const referralCode = 'PARTNER001';
+  const referralLink = `${window.location.origin}/registration/${referralCode}`;
+
+  const copyReferralLink = () => {
+    navigator.clipboard.writeText(referralLink);
+    setShowReferralModal(true);
+    setTimeout(() => setShowReferralModal(false), 2000);
+  };
+
+  const menuItems = [
+    {
+      id: 'dashboard',
+      name: 'Dashboard',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v6H8V5z" />
+        </svg>
+      )
+    },
+    {
+      id: 'users',
+      name: 'Gestione Utenti',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+        </svg>
+      )
+    },
+    {
+      id: 'chat',
+      name: 'Chat',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+      )
+    }
+  ];
+
+  return (
+    <>
+      {/* Sidebar Desktop */}
+      <div className={`hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 ${isCollapsed ? 'lg:w-16' : 'lg:w-64'} transition-all duration-300`}>
+        <div className="flex flex-col flex-1 min-h-0 bg-gradient-to-b from-gray-900 to-gray-800 shadow-xl">
+          {/* Header */}
+          <div className="flex items-center h-16 flex-shrink-0 px-4 bg-gray-900">
+            <div className="flex items-center w-full">
+              {!isCollapsed && (
+                <div className="flex-1">
+                  <h1 className="text-white text-lg font-bold">Piattaforma Diamante</h1>
+                  <p className="text-gray-300 text-xs">Partner Dashboard</p>
+                </div>
+              )}
+              <button
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="p-1 rounded-md text-gray-300 hover:text-white hover:bg-gray-700"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isCollapsed ? "M9 5l7 7-7 7" : "M15 19l-7-7 7-7"} />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 px-2 py-4 space-y-1">
+            {menuItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => onTabChange(item.id as any)}
+                className={`group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md transition-colors ${
+                  activeTab === item.id
+                    ? 'bg-gray-700 text-white'
+                    : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                }`}
+              >
+                <div className="mr-3 flex-shrink-0">
+                  {item.icon}
+                </div>
+                {!isCollapsed && item.name}
+              </button>
+            ))}
+          </nav>
+
+          {/* Referral Link Section */}
+          <div className="flex-shrink-0 p-4">
+            <div className={`bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg p-3 ${isCollapsed ? 'text-center' : ''}`}>
+              {!isCollapsed && (
+                <>
+                  <h3 className="text-white text-sm font-medium mb-2">🔗 Link Referral</h3>
+                  <p className="text-blue-100 text-xs mb-3">Condividi per acquisire nuovi clienti</p>
+                </>
+              )}
+              <button
+                onClick={copyReferralLink}
+                className={`w-full bg-white/20 hover:bg-white/30 text-white text-xs font-medium py-2 px-3 rounded-md transition-colors ${
+                  isCollapsed ? 'p-2' : ''
+                }`}
+              >
+                {isCollapsed ? '🔗' : '📋 Copia Link'}
+              </button>
+              {!isCollapsed && (
+                <p className="text-blue-100 text-xs mt-2 font-mono break-all">
+                  {referralCode}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* User Profile */}
+          <div className="flex-shrink-0 flex border-t border-gray-700 p-4">
+            <div className="flex items-center w-full">
+              <div className="flex-shrink-0">
+                <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center">
+                  <span className="text-white text-sm font-medium">
+                    {user?.email?.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              </div>
+              {!isCollapsed && (
+                <div className="ml-3 flex-1">
+                  <p className="text-sm font-medium text-white truncate">
+                    {user?.email}
+                  </p>
+                  <p className="text-xs text-gray-300">Partner</p>
+                </div>
+              )}
+              <button
+                onClick={logout}
+                className="ml-2 p-1 rounded-md text-gray-300 hover:text-white hover:bg-gray-700"
+                title="Logout"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="lg:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 z-10">
+        <nav className="flex justify-around">
+          {menuItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => onTabChange(item.id as any)}
+              className={`flex flex-col items-center py-2 px-3 ${
+                activeTab === item.id
+                  ? 'text-blue-600'
+                  : 'text-gray-400 hover:text-gray-500'
+              }`}
+            >
+              {item.icon}
+              <span className="text-xs mt-1">{item.name.split(' ')[0]}</span>
+            </button>
+          ))}
+          <button
+            onClick={copyReferralLink}
+            className="flex flex-col items-center py-2 px-3 text-green-600"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+            <span className="text-xs mt-1">Link</span>
+          </button>
+        </nav>
+      </div>
+
+      {/* Referral Link Copied Modal */}
+      {showReferralModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50">
+          <div className="bg-black bg-opacity-50 absolute inset-0"></div>
+          <div className="relative bg-white rounded-lg p-6 mx-4 max-w-sm">
+            <div className="flex items-center justify-center w-12 h-12 mx-auto bg-green-100 rounded-full mb-4">
+              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 text-center mb-2">
+              Link Copiato!
+            </h3>
+            <p className="text-sm text-gray-500 text-center">
+              Il link referral è stato copiato negli appunti
+            </p>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+export default Sidebar;

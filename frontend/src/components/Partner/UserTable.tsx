@@ -50,35 +50,44 @@ const UserTable: React.FC<UserTableProps> = ({
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Caricamento utenti...</p>
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-100">
+        <div className="p-12 text-center">
+          <div className="relative">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600 mx-auto"></div>
+            <div className="absolute inset-0 rounded-full border-4 border-blue-100 animate-pulse"></div>
+          </div>
+          <p className="mt-4 text-gray-600 font-medium">Caricamento utenti...</p>
+          <p className="text-gray-400 text-sm mt-1">Preparazione dei dati in corso</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-medium text-gray-900">Gestione Utenti</h3>
+    <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+      <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
+          <h3 className="text-xl font-semibold text-gray-900 flex items-center">
+            <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+            </svg>
+            Gestione Utenti
+          </h3>
           
-          <div className="flex space-x-2">
+          <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-3">
             <select
               value={currentFilter}
               onChange={(e) => onFilterChange(e.target.value as any)}
-              className="border border-gray-300 rounded-md px-3 py-1 text-sm"
+              className="bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
             >
-              <option value="all">Tutti gli Utenti</option>
-              <option value="direct">Utenti Diretti</option>
-              <option value="children">Da Partner Figli</option>
+              <option value="all">🔄 Tutti gli Utenti</option>
+              <option value="direct">👤 Utenti Diretti</option>
+              <option value="children">👥 Da Partner Figli</option>
             </select>
             
             {selectedUsers.length > 0 && (
-              <Button size="sm" variant="outline">
-                Azioni su {selectedUsers.length} utenti
+              <Button size="sm" variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100">
+                ⚡ Azioni su {selectedUsers.length} utenti
               </Button>
             )}
           </div>
@@ -86,10 +95,10 @@ const UserTable: React.FC<UserTableProps> = ({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+        <table className="min-w-full divide-y divide-gray-100">
+          <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 <input
                   type="checkbox"
                   onChange={(e) => {
@@ -103,29 +112,29 @@ const UserTable: React.FC<UserTableProps> = ({
                   className="rounded border-gray-300"
                 />
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Utente
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                👤 Utente
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Corso
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                📚 Corso
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                📊 Status
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Partner
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                🤝 Partner
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Data Iscrizione
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                📅 Data Iscrizione
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Azioni
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                ⚡ Azioni
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {users.map((user) => (
-              <tr key={user.id} className="hover:bg-gray-50">
+          <tbody className="bg-white divide-y divide-gray-50">
+            {users.map((user, index) => (
+              <tr key={user.id} className={`hover:bg-blue-50/50 transition-colors duration-200 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <input
                     type="checkbox"
@@ -162,17 +171,17 @@ const UserTable: React.FC<UserTableProps> = ({
                   {formatDate(user.createdAt)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <div className="flex space-x-2">
-                    <button className="text-blue-600 hover:text-blue-900">
-                      Dettagli
+                  <div className="flex flex-wrap gap-2">
+                    <button className="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-200 transition-colors">
+                      👁️ Dettagli
                     </button>
                     {user.canManagePayments && (
                       <>
-                        <button className="text-green-600 hover:text-green-900">
-                          + Pagamento
+                        <button className="inline-flex items-center px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-medium hover:bg-green-200 transition-colors">
+                          💰 Pagamento
                         </button>
-                        <button className="text-red-600 hover:text-red-900">
-                          Gestisci
+                        <button className="inline-flex items-center px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-xs font-medium hover:bg-orange-200 transition-colors">
+                          ⚙️ Gestisci
                         </button>
                       </>
                     )}
@@ -185,8 +194,16 @@ const UserTable: React.FC<UserTableProps> = ({
       </div>
 
       {users.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-500">Nessun utente trovato</p>
+        <div className="text-center py-16">
+          <div className="flex flex-col items-center">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+              </svg>
+            </div>
+            <p className="text-gray-500 text-lg font-medium mb-2">Nessun utente trovato</p>
+            <p className="text-gray-400 text-sm">I tuoi utenti registrati appariranno qui</p>
+          </div>
         </div>
       )}
     </div>

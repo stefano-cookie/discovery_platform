@@ -17,8 +17,6 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
     nextStep,
     prevStep,
     goToStep,
-    isFirstStep,
-    isLastStep,
   } = useMultiStepForm({ referralCode });
 
   const handleStepComplete = (stepData: any) => {
