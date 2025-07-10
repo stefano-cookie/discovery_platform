@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../hooks/useAuth';
+import PartnerDashboard from '../components/Partner/Dashboard';
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -17,15 +18,7 @@ const Dashboard: React.FC = () => {
           </div>
         );
       case 'PARTNER':
-        return (
-          <div>
-            <h2 className="text-2xl font-bold mb-4">Dashboard Partner</h2>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <p>Benvenuto, partner!</p>
-              <p>Qui puoi gestire i tuoi utenti e le commissioni.</p>
-            </div>
-          </div>
-        );
+        return <PartnerDashboard />;
       case 'USER':
         return (
           <div>

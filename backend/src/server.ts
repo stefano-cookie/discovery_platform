@@ -21,11 +21,13 @@ app.get('/api/health', (req, res) => {
 // Routes
 import authRoutes from './routes/auth';
 import partnerRoutes from './routes/partner';
+import registrationRoutes from './routes/registration';
+import paymentRoutes from './routes/payment';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/partners', partnerRoutes);
-// app.use('/api/registration', registrationRoutes);
-// app.use('/api/payments', paymentRoutes);
+app.use('/api/registration', registrationRoutes);
+app.use('/api/payments', paymentRoutes);
 
 const PORT = process.env.PORT || 5000;
 
