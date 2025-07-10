@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import LoginForm from '../components/Auth/LoginForm';
 
 const Login: React.FC = () => {
@@ -12,6 +13,14 @@ const Login: React.FC = () => {
         </div>
         <div className="bg-white py-8 px-6 shadow rounded-lg">
           <LoginForm />
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              Non hai un account?{' '}
+              <Link to="/registration" className="font-medium text-blue-600 hover:text-blue-500">
+                Registrati qui
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>
