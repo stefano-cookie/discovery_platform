@@ -47,6 +47,43 @@ const upload = multer({
   }
 });
 
+// GET /api/registration/check-user/:email - Check if user exists
+router.get('/check-user/:email', async (req: Request, res: Response) => {
+  try {
+    const { email } = req.params;
+    
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+      include: {
+        profile: true,
+        registrations: {
+          include: {
+            offer: true
+          }
+        }
+      }
+    });
+    
+    if (existingUser) {
+      return res.json({
+        exists: true,
+        user: {
+          id: existingUser.id,
+          email: existingUser.email,
+          hasProfile: !!existingUser.profile,
+          registrationsCount: existingUser.registrations.length,
+          hasTemporaryPassword: existingUser.hasTemporaryPassword
+        }
+      });
+    }
+    
+    return res.json({ exists: false });
+  } catch (error) {
+    console.error('Error checking user existence:', error);
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
 // GET /api/registration/offer-info/:referralLink - Get offer information for registration
 router.get('/offer-info/:referralLink', async (req, res) => {
   try {
@@ -182,7 +219,9 @@ router.post('/submit', upload.fields([
           data: {
             password: 'temp_password', // To be changed on first login
             isActive: true,
-            passwordChanged: false
+            passwordChanged: false,
+            // Associate to partner if not already associated
+            associatedPartnerId: existingUser.associatedPartnerId || partner?.id || null
             // Non tocchiamo emailVerified, emailVerificationToken - la verifica è un processo separato
           }
         });
@@ -194,7 +233,8 @@ router.post('/submit', upload.fields([
             password: 'temp_password', // To be changed on first login
             role: 'USER',
             isActive: true,
-            passwordChanged: false
+            passwordChanged: false,
+            associatedPartnerId: partner?.id || null  // Associate user to partner permanently
           }
         });
       }
@@ -223,16 +263,16 @@ router.post('/submit', upload.fields([
         domicilioCitta: domicilioCitta || null,
         domicilioProvincia: domicilioProvincia || null,
         domicilioCap: domicilioCap || null,
-        tipoLaurea,
-        laureaConseguita,
+        tipoLaurea: tipoLaurea || null,
+        laureaConseguita: laureaConseguita || null,
         laureaConseguitaCustom: laureaConseguitaCustom || null,
-        laureaUniversita,
-        laureaData: new Date(laureaData),
+        laureaUniversita: laureaUniversita || null,
+        laureaData: laureaData ? new Date(laureaData) : null,
         tipoLaureaTriennale: tipoLaureaTriennale || null,
         laureaConseguitaTriennale: laureaConseguitaTriennale || null,
         laureaUniversitaTriennale: laureaUniversitaTriennale || null,
         laureaDataTriennale: laureaDataTriennale ? new Date(laureaDataTriennale) : null,
-        tipoProfessione,
+        tipoProfessione: tipoProfessione || null,
         scuolaDenominazione: scuolaDenominazione || null,
         scuolaCitta: scuolaCitta || null,
         scuolaProvincia: scuolaProvincia || null
@@ -260,16 +300,16 @@ router.post('/submit', upload.fields([
             domicilioCitta: domicilioCitta || null,
             domicilioProvincia: domicilioProvincia || null,
             domicilioCap: domicilioCap || null,
-            tipoLaurea,
-            laureaConseguita,
+            tipoLaurea: tipoLaurea || null,
+            laureaConseguita: laureaConseguita || null,
             laureaConseguitaCustom: laureaConseguitaCustom || null,
-            laureaUniversita,
-            laureaData: new Date(laureaData),
+            laureaUniversita: laureaUniversita || null,
+            laureaData: laureaData ? new Date(laureaData) : null,
             tipoLaureaTriennale: tipoLaureaTriennale || null,
             laureaConseguitaTriennale: laureaConseguitaTriennale || null,
             laureaUniversitaTriennale: laureaUniversitaTriennale || null,
             laureaDataTriennale: laureaDataTriennale ? new Date(laureaDataTriennale) : null,
-            tipoProfessione,
+            tipoProfessione: tipoProfessione || null,
             scuolaDenominazione: scuolaDenominazione || null,
             scuolaCitta: scuolaCitta || null,
             scuolaProvincia: scuolaProvincia || null
@@ -286,14 +326,24 @@ router.post('/submit', upload.fields([
         throw new Error('Nessun corso disponibile');
       }
 
-      // Get partner offer
-      const offer = await tx.partnerOffer.findFirst({
-        where: {
-          partnerId: partner?.id,
-          courseId: course.id,
-          isActive: true
-        }
-      });
+      // Get partner offer - use specific partnerOfferId if provided, otherwise find by partner and course
+      let offer = null;
+      if (partnerOfferId) {
+        offer = await tx.partnerOffer.findFirst({
+          where: {
+            id: partnerOfferId,
+            isActive: true
+          }
+        });
+      } else if (partner) {
+        offer = await tx.partnerOffer.findFirst({
+          where: {
+            partnerId: partner.id,
+            courseId: course.id,
+            isActive: true
+          }
+        });
+      }
 
       let originalAmount = Number(offer?.totalAmount) || 5000;
       let finalAmount = originalAmount;
@@ -349,6 +399,7 @@ router.post('/submit', upload.fields([
         partnerId: partner?.id || null,
         courseId: course.id,
         partnerOfferId: offer?.id || null,
+        offerType: offer?.offerType || 'TFA_ROMANIA',
         originalAmount: originalAmount,
         finalAmount: finalAmount,
         installments: offer?.installments || 1,
@@ -397,16 +448,33 @@ router.post('/submit', upload.fields([
       return { user, profile, registration, fileDocuments };
     });
 
-    // Send confirmation email
+    // Generate temporary password and send credentials email
     try {
-      await emailService.sendRegistrationConfirmation(email, {
+      const temporaryPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+      const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login`;
+      
+      // Update user with temporary password
+      const bcrypt = require('bcrypt');
+      const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+      
+      await prisma.user.update({
+        where: { id: result.user.id },
+        data: { 
+          password: hashedPassword,
+          hasTemporaryPassword: true
+        }
+      });
+      
+      await emailService.sendTemporaryCredentials(email, {
+        temporaryPassword: temporaryPassword,
+        loginUrl: loginUrl
+      }, {
         nome: result.profile.nome,
         cognome: result.profile.cognome,
-        email: email,
-        registrationId: result.registration.id
+        email: email
       });
     } catch (emailError) {
-      console.error('Failed to send confirmation email:', emailError);
+      console.error('Failed to send temporary credentials email:', emailError);
     }
 
     res.json({
@@ -428,6 +496,107 @@ router.post('/submit', upload.fields([
     } else {
       res.status(500).json({ error: 'Errore interno del server' });
     }
+  }
+});
+
+// POST /api/registration/additional-enrollment - Additional enrollment for existing users
+router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { 
+      courseId, 
+      partnerOfferId, 
+      paymentPlan, 
+      couponCode,
+      documents = []
+    } = req.body;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Utente non autenticato' });
+    }
+    
+    // Check if user has profile and get associated partner
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { 
+        profile: true,
+        associatedPartner: true  // Get the permanently associated partner
+      }
+    });
+    
+    if (!user || !user.profile) {
+      return res.status(400).json({ error: 'Profilo utente non trovato' });
+    }
+    
+    // Use user's associated partner, not the one from request
+    const partnerId = user.associatedPartnerId;
+    
+    // Get offer information - must be from user's associated partner
+    let offer = null;
+    
+    if (partnerOfferId) {
+      if (!partnerId) {
+        return res.status(400).json({ error: 'Utente non associato a nessun partner' });
+      }
+      
+      offer = await prisma.partnerOffer.findUnique({
+        where: { 
+          id: partnerOfferId,
+          partnerId: partnerId  // Ensure offer belongs to user's partner
+        },
+        include: { partner: true, course: true }
+      });
+      
+      if (!offer) {
+        return res.status(400).json({ error: 'Offerta non trovata o non autorizzata per il tuo partner' });
+      }
+    }
+    
+    const result = await prisma.$transaction(async (tx) => {
+      // Create new registration
+      const registration = await tx.registration.create({
+        data: {
+          userId: userId,
+          partnerId: partnerId,
+          courseId: courseId,
+          partnerOfferId: partnerOfferId,
+          offerType: offer?.offerType || 'TFA_ROMANIA',
+          originalAmount: paymentPlan.originalAmount || 0,
+          finalAmount: paymentPlan.finalAmount || 0,
+          installments: paymentPlan.installments || 1,
+          status: 'PENDING'
+        }
+      });
+      
+      // Handle coupon if provided
+      if (couponCode && partnerId) {
+        // Coupon validation logic here
+      }
+      
+      // Link existing user documents to new registration if needed
+      if (documents && documents.length > 0) {
+        for (const docId of documents) {
+          await tx.documentUsage.create({
+            data: {
+              registrationId: registration.id,
+              documentId: docId
+            }
+          });
+        }
+      }
+      
+      return registration;
+    });
+    
+    res.json({
+      success: true,
+      registrationId: result.id,
+      message: 'Iscrizione aggiuntiva completata con successo'
+    });
+    
+  } catch (error) {
+    console.error('Additional enrollment error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
   }
 });
 

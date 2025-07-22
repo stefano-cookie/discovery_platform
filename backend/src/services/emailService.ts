@@ -388,6 +388,366 @@ class EmailService {
     `;
   }
 
+  async sendTemporaryCredentials(email: string, credentials: { temporaryPassword: string, loginUrl: string }, userData: any): Promise<void> {
+    const mailOptions = {
+      from: this.fromEmail,
+      to: email,
+      subject: 'Credenziali di accesso - Piattaforma Diamante',
+      html: this.getTemporaryCredentialsTemplate(credentials, userData),
+      text: `
+        Ciao ${userData.nome},
+        
+        La tua registrazione alla Piattaforma Diamante è stata completata con successo!
+        
+        Ecco le tue credenziali di accesso temporanee:
+        Email: ${email}
+        Password temporanea: ${credentials.temporaryPassword}
+        
+        Link di accesso: ${credentials.loginUrl}
+        
+        IMPORTANTE: Per motivi di sicurezza, dovrai cambiare la password al primo accesso.
+        
+        Conserva queste informazioni in luogo sicuro.
+        
+        Il team Piattaforma Diamante
+      `
+    };
+
+    try {
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('Temporary credentials email sent:', info.messageId);
+      
+      if (process.env.NODE_ENV === 'development' && info.previewURL) {
+        console.log('Preview email:', nodemailer.getTestMessageUrl(info));
+      }
+    } catch (error) {
+      console.error('Email sending error:', error);
+      throw new Error('Unable to send temporary credentials email');
+    }
+  }
+
+  private getTemporaryCredentialsTemplate(credentials: { temporaryPassword: string, loginUrl: string }, userData: any): string {
+    return `
+    <!DOCTYPE html>
+    <html lang="it">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Credenziali di Accesso - Piattaforma Diamante</title>
+        <style>
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+                background-color: #f8fafc;
+            }
+            .container {
+                background-color: white;
+                border-radius: 12px;
+                padding: 40px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            }
+            .header {
+                text-align: center;
+                margin-bottom: 30px;
+            }
+            .logo {
+                font-size: 28px;
+                font-weight: bold;
+                color: #3b82f6;
+                margin-bottom: 10px;
+            }
+            .title {
+                font-size: 24px;
+                font-weight: bold;
+                color: #1f2937;
+                margin-bottom: 20px;
+            }
+            .content {
+                margin-bottom: 30px;
+                color: #4b5563;
+            }
+            .credentials-box {
+                background-color: #fef3c7;
+                border: 2px solid #f59e0b;
+                border-radius: 8px;
+                padding: 20px;
+                margin: 20px 0;
+                text-align: center;
+            }
+            .credentials-box h3 {
+                color: #92400e;
+                margin-top: 0;
+                margin-bottom: 15px;
+            }
+            .credential-item {
+                margin: 15px 0;
+                padding: 10px;
+                background-color: white;
+                border-radius: 4px;
+                border: 1px solid #fbbf24;
+            }
+            .credential-label {
+                font-weight: bold;
+                color: #92400e;
+                display: block;
+                margin-bottom: 5px;
+            }
+            .credential-value {
+                font-family: 'Courier New', monospace;
+                font-size: 16px;
+                color: #1f2937;
+                background-color: #f3f4f6;
+                padding: 8px;
+                border-radius: 4px;
+                word-break: break-all;
+            }
+            .login-button {
+                display: inline-block;
+                background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+                color: white;
+                text-decoration: none;
+                padding: 15px 30px;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 16px;
+                text-align: center;
+                margin: 20px 0;
+            }
+            .security-warning {
+                background-color: #fef2f2;
+                border: 2px solid #ef4444;
+                border-radius: 8px;
+                padding: 20px;
+                margin: 20px 0;
+                color: #dc2626;
+            }
+            .security-warning h3 {
+                color: #dc2626;
+                margin-top: 0;
+            }
+            .footer {
+                margin-top: 30px;
+                padding-top: 20px;
+                border-top: 1px solid #e5e7eb;
+                text-align: center;
+                color: #6b7280;
+                font-size: 14px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <div class="logo">💎 Piattaforma Diamante</div>
+                <h1 class="title">🎉 Benvenuto nella piattaforma!</h1>
+            </div>
+            
+            <div class="content">
+                <p>Ciao <strong>${userData.nome}</strong>,</p>
+                <p>La tua registrazione è stata completata con successo! Ora puoi accedere alla tua area personale.</p>
+                
+                <div class="credentials-box">
+                    <h3>🔐 Le tue credenziali di accesso:</h3>
+                    <div class="credential-item">
+                        <span class="credential-label">Email:</span>
+                        <div class="credential-value">${userData.email}</div>
+                    </div>
+                    <div class="credential-item">
+                        <span class="credential-label">Password temporanea:</span>
+                        <div class="credential-value">${credentials.temporaryPassword}</div>
+                    </div>
+                </div>
+                
+                <div style="text-align: center;">
+                    <a href="${credentials.loginUrl}" class="login-button">
+                        🚀 Accedi alla Piattaforma
+                    </a>
+                </div>
+                
+                <div class="security-warning">
+                    <h3>⚠️ Importante - Sicurezza</h3>
+                    <ul>
+                        <li><strong>Devi cambiare la password al primo accesso</strong></li>
+                        <li>La password temporanea è valida solo per il primo login</li>
+                        <li>Conserva queste credenziali in luogo sicuro</li>
+                        <li>Non condividere mai le tue credenziali</li>
+                    </ul>
+                </div>
+                
+                <p>Nella tua area personale potrai:</p>
+                <ul>
+                    <li>📝 Visualizzare le tue iscrizioni</li>
+                    <li>📄 Gestire i tuoi documenti</li>
+                    <li>🎓 Accedere a nuovi corsi disponibili</li>
+                    <li>💬 Comunicare con il tuo partner di riferimento</li>
+                </ul>
+            </div>
+            
+            <div class="footer">
+                <p><strong>Piattaforma Diamante</strong></p>
+                <p>Per assistenza tecnica, contatta il nostro supporto.</p>
+                <p>Questo messaggio contiene informazioni riservate.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    `;
+  }
+
+  async sendPasswordChangeConfirmation(email: string, userData: { nome: string, timestamp: string }): Promise<void> {
+    const mailOptions = {
+      from: this.fromEmail,
+      to: email,
+      subject: '🔒 Password modificata con successo - Piattaforma Diamante',
+      html: this.getPasswordChangeConfirmationTemplate(userData),
+      text: `
+        Ciao ${userData.nome},
+        
+        Ti confermiamo che la tua password è stata modificata con successo.
+        
+        Data e ora modifica: ${userData.timestamp}
+        
+        Se non hai effettuato tu questa modifica, contattaci immediatamente per mettere in sicurezza il tuo account.
+        
+        Cordiali saluti,
+        Il Team di Piattaforma Diamante
+      `
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log('Password change confirmation email sent to:', email);
+    } catch (error) {
+      console.error('Error sending password change confirmation email:', error);
+      throw new Error('Unable to send password change confirmation email');
+    }
+  }
+
+  private getPasswordChangeConfirmationTemplate(userData: { nome: string, timestamp: string }): string {
+    return `
+    <!DOCTYPE html>
+    <html lang="it">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Password Modificata - Piattaforma Diamante</title>
+        <style>
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+                background-color: #f8f9fa;
+            }
+            .container {
+                background-color: white;
+                padding: 40px;
+                border-radius: 10px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            }
+            .header {
+                text-align: center;
+                margin-bottom: 30px;
+                border-bottom: 2px solid #0066cc;
+                padding-bottom: 20px;
+            }
+            .logo {
+                font-size: 28px;
+                font-weight: bold;
+                color: #0066cc;
+                margin-bottom: 10px;
+            }
+            .success-icon {
+                font-size: 48px;
+                color: #28a745;
+                margin-bottom: 20px;
+            }
+            .content {
+                text-align: center;
+                margin-bottom: 30px;
+            }
+            .info-box {
+                background-color: #e8f4fd;
+                border: 1px solid #b8daff;
+                border-radius: 8px;
+                padding: 20px;
+                margin: 20px 0;
+            }
+            .timestamp {
+                font-weight: bold;
+                color: #0066cc;
+            }
+            .security-notice {
+                background-color: #fff3cd;
+                border: 1px solid #ffeaa7;
+                border-radius: 8px;
+                padding: 15px;
+                margin: 20px 0;
+            }
+            .footer {
+                text-align: center;
+                margin-top: 30px;
+                padding-top: 20px;
+                border-top: 1px solid #eee;
+                font-size: 14px;
+                color: #666;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <div class="logo">PIATTAFORMA DIAMANTE</div>
+                <div style="font-size: 16px; color: #666;">Formazione Professionale</div>
+            </div>
+            
+            <div class="content">
+                <div class="success-icon">✓</div>
+                <h2 style="color: #28a745; margin-bottom: 20px;">Password Modificata con Successo!</h2>
+                
+                <p>Ciao <strong>${userData.nome}</strong>,</p>
+                
+                <p>Ti confermiamo che la tua password è stata modificata con successo sulla Piattaforma Diamante.</p>
+                
+                <div class="info-box">
+                    <h3 style="margin-top: 0; color: #0066cc;">Dettagli Modifica:</h3>
+                    <p class="timestamp">Data e ora: ${userData.timestamp}</p>
+                </div>
+                
+                <div class="security-notice">
+                    <h4 style="margin-top: 0; color: #856404;">Importante per la Sicurezza:</h4>
+                    <p style="margin-bottom: 0;">Se <strong>NON</strong> hai effettuato tu questa modifica, contattaci immediatamente per mettere in sicurezza il tuo account.</p>
+                </div>
+                
+                <p>La tua password è ora aggiornata e potrai utilizzarla per i prossimi accessi alla piattaforma.</p>
+                
+                <div style="margin: 30px 0;">
+                    <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/login" 
+                       style="background-color: #0066cc; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                        Accedi alla Piattaforma
+                    </a>
+                </div>
+            </div>
+            
+            <div class="footer">
+                <p><strong>Piattaforma Diamante</strong><br>
+                Formazione Professionale di Qualità</p>
+                <p style="font-size: 12px; margin-top: 15px;">
+                    Questo messaggio è stato inviato automaticamente. Per favore non rispondere a questa email.
+                </p>
+            </div>
+        </div>
+    </body>
+    </html>
+    `;
+  }
+
   async testConnection(): Promise<boolean> {
     try {
       await this.transporter.verify();

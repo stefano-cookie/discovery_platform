@@ -55,35 +55,22 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// GET /api/offers/:id - Get specific offer
+// GET /api/offers/:id - Get specific offer (accessible to authenticated users)
 router.get('/:id', authenticate, async (req: AuthRequest, res) => {
   try {
-    const partner = await prisma.partner.findUnique({
-      where: { userId: req.user!.id }
-    });
-
-    if (!partner) {
-      return res.status(404).json({ error: 'Partner not found' });
-    }
-
     const offer = await prisma.partnerOffer.findFirst({
       where: {
         id: req.params.id,
-        partnerId: partner.id
+        isActive: true
       },
       include: {
         course: true,
-        registrations: {
-          include: {
+        partner: {
+          select: {
+            referralCode: true,
             user: {
               select: {
-                email: true,
-                profile: {
-                  select: {
-                    nome: true,
-                    cognome: true
-                  }
-                }
+                email: true
               }
             }
           }
@@ -95,7 +82,18 @@ router.get('/:id', authenticate, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Offer not found' });
     }
 
-    res.json(offer);
+    // Return simplified offer data for enrollment
+    const simplifiedOffer = {
+      id: offer.id,
+      name: offer.name,
+      offerType: offer.offerType,
+      course: offer.course,
+      totalAmount: offer.totalAmount,
+      installments: offer.installments,
+      referralLink: offer.referralLink
+    };
+
+    res.json({ offer: simplifiedOffer });
   } catch (error) {
     console.error('Error fetching offer:', error);
     res.status(500).json({ error: 'Internal server error' });

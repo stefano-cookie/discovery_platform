@@ -24,17 +24,35 @@ import partnerRoutes from './routes/partner';
 import registrationRoutes from './routes/registration';
 import paymentRoutes from './routes/payment';
 import offerRoutes from './routes/offers';
+import userRoutes from './routes/user';
+import courseRoutes from './routes/courses';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/partners', partnerRoutes);
 app.use('/api/registration', registrationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/offers', offerRoutes);
+app.use('/api/user', userRoutes);
+app.use('/api/courses', courseRoutes);
 
-const PORT = process.env.PORT || 3001;
+const PORT = parseInt(process.env.PORT || '8000', 10);
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+const server = app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
+
+server.on('error', (err) => {
+  console.error('Server error:', err);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled rejection:', err);
+  process.exit(1);
 });
 
 export default app;

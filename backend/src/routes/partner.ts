@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Response as ExpressResponse } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, requireRole, AuthRequest } from '../middleware/auth';
 
@@ -309,6 +309,132 @@ router.post('/coupons/validate', authenticate, requireRole(['PARTNER', 'ADMIN'])
     });
   } catch (error) {
     console.error('Validate coupon error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// GET /api/partners/offer-visibility/:offerId - Get offer visibility settings for users
+router.get('/offer-visibility/:offerId', authenticate, async (req: AuthRequest, res: ExpressResponse) => {
+  try {
+    const partner = await prisma.partner.findUnique({
+      where: { userId: req.user!.id }
+    });
+
+    if (!partner) {
+      return res.status(404).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify that the offer belongs to this partner
+    const offer = await prisma.partnerOffer.findFirst({
+      where: {
+        id: req.params.offerId,
+        partnerId: partner.id
+      }
+    });
+
+    if (!offer) {
+      return res.status(404).json({ error: 'Offerta non trovata' });
+    }
+
+    // Get all users associated with this partner
+    const associatedUsers = await prisma.user.findMany({
+      where: { associatedPartnerId: partner.id },
+      include: {
+        profile: true
+      }
+    });
+
+    // Get visibility settings for this offer
+    const visibilitySettings = await prisma.offerVisibility.findMany({
+      where: {
+        partnerOfferId: req.params.offerId
+      }
+    });
+
+    const visibilityMap = new Map(
+      visibilitySettings.map(v => [v.userId, v.isVisible])
+    );
+
+    // Format response with user info and visibility status
+    const userVisibility = associatedUsers.map(user => ({
+      id: user.id,
+      email: user.email,
+      name: user.profile ? `${user.profile.nome} ${user.profile.cognome}` : 'Nome non disponibile',
+      isVisible: visibilityMap.get(user.id) ?? true // Default to visible
+    }));
+
+    res.json({ 
+      offerId: req.params.offerId,
+      users: userVisibility 
+    });
+  } catch (error) {
+    console.error('Error getting offer visibility:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// PUT /api/partners/offer-visibility/:offerId - Update offer visibility for users
+router.put('/offer-visibility/:offerId', authenticate, async (req: AuthRequest, res: ExpressResponse) => {
+  try {
+    const partner = await prisma.partner.findUnique({
+      where: { userId: req.user!.id }
+    });
+
+    if (!partner) {
+      return res.status(404).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify that the offer belongs to this partner
+    const offer = await prisma.partnerOffer.findFirst({
+      where: {
+        id: req.params.offerId,
+        partnerId: partner.id
+      }
+    });
+
+    if (!offer) {
+      return res.status(404).json({ error: 'Offerta non trovata' });
+    }
+
+    const { userVisibility } = req.body;
+    
+    if (!Array.isArray(userVisibility)) {
+      return res.status(400).json({ error: 'userVisibility deve essere un array' });
+    }
+
+    // Update visibility settings for each user
+    for (const setting of userVisibility) {
+      const { userId, isVisible } = setting;
+      
+      if (typeof userId !== 'string' || typeof isVisible !== 'boolean') {
+        continue; // Skip invalid entries
+      }
+
+      // Upsert visibility setting
+      await prisma.offerVisibility.upsert({
+        where: {
+          partnerOfferId_userId: {
+            partnerOfferId: req.params.offerId,
+            userId: userId
+          }
+        },
+        update: {
+          isVisible: isVisible
+        },
+        create: {
+          partnerOfferId: req.params.offerId,
+          userId: userId,
+          isVisible: isVisible
+        }
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Visibilità offerta aggiornata con successo' 
+    });
+  } catch (error) {
+    console.error('Error updating offer visibility:', error);
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
