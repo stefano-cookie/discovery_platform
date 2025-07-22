@@ -184,19 +184,27 @@ router.post('/submit', upload.fields([
 
 
     if (existingUser) {
-      // Check if it's a truly complete registration
+      // Check if user has a complete profile (meaning they're truly registered)
       const hasCompleteProfile = !!existingUser.profile;
-      const hasActiveRegistration = existingUser.registrations.length > 0;
-      // Only consider user truly registered if they have BOTH profile AND registrations
-      // Email verification alone is not enough
-      const isTrulyRegistered = hasCompleteProfile && hasActiveRegistration;
       
-      if (isTrulyRegistered) {
+      if (hasCompleteProfile) {
+        // User is already registered - they should login and enroll in additional courses
         return res.status(400).json({ 
-          error: 'Un utente con questa email è già registrato',
-          code: 'EMAIL_ALREADY_EXISTS'
+          error: 'Un utente con questa email è già registrato. Se hai già un account, effettua il login per iscriverti a nuovi corsi.',
+          code: 'USER_ALREADY_EXISTS',
+          suggestion: 'LOGIN_REQUIRED',
+          data: {
+            hasExistingRegistrations: existingUser.registrations.length > 0,
+            courses: existingUser.registrations.map(reg => ({
+              courseId: reg.courseId,
+              status: reg.status,
+              createdAt: reg.createdAt
+            }))
+          }
         });
       }
+      
+      // If user exists but has no profile, allow overwriting (incomplete registration)
     }
 
     // Find partner by referral code

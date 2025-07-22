@@ -32,6 +32,7 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
 
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [showLoginPrompt, setShowLoginPrompt] = useState<boolean>(false);
   const [couponValidation, setCouponValidation] = useState<{
     isValid: boolean;
     message: string;
@@ -140,8 +141,16 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
       let userFriendlyMessage = 'Si è verificato un errore durante la registrazione. Riprova tra qualche minuto.';
       
       if ((error as any).response?.data?.error?.includes('email è già registrato') || 
-          (error as any).response?.data?.code === 'EMAIL_ALREADY_EXISTS') {
-        userFriendlyMessage = 'Un utente con questa email è già registrato. Se hai già un account, effettua il login invece di registrarti nuovamente.';
+          (error as any).response?.data?.code === 'EMAIL_ALREADY_EXISTS' ||
+          (error as any).response?.data?.code === 'USER_ALREADY_EXISTS') {
+        
+        const errorData = (error as any).response?.data;
+        userFriendlyMessage = errorData?.error || 'Un utente con questa email è già registrato. Se hai già un account, effettua il login per iscriverti a nuovi corsi.';
+        
+        // Show login prompt for existing users
+        if (errorData?.code === 'USER_ALREADY_EXISTS' || errorData?.suggestion === 'LOGIN_REQUIRED') {
+          setShowLoginPrompt(true);
+        }
       } else if ((error as any).response?.data?.details) {
         // Show more specific error in development
         userFriendlyMessage = (error as any).response.data.details;
@@ -735,14 +744,29 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
                 <p className="text-red-700 text-sm">
                   {errorMessage}
                 </p>
-                {errorMessage.includes('email è già registrato') && (
-                  <div className="mt-3">
+                {showLoginPrompt && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-red-700 text-xs font-medium">
+                      Hai già un account? Effettua il login per iscriverti a nuovi corsi.
+                    </p>
                     <button
                       type="button"
-                      onClick={() => window.location.href = '/login'}
+                      onClick={() => {
+                        // Save the current referral code to use after login
+                        const currentUrl = window.location.pathname;
+                        const referralCode = formData.referralCode;
+                        if (referralCode) {
+                          sessionStorage.setItem('pendingEnrollment', JSON.stringify({
+                            referralCode: referralCode,
+                            courseId: formData.courseId,
+                            returnUrl: currentUrl
+                          }));
+                        }
+                        window.location.href = '/login';
+                      }}
                       className="inline-flex items-center px-3 py-1.5 border border-red-300 text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 transition-colors"
                     >
-                      Vai al Login
+                      Vai al Login per Iscriverti
                     </button>
                   </div>
                 )}

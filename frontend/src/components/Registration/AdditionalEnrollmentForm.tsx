@@ -63,6 +63,7 @@ const AdditionalEnrollmentForm: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const courseId = searchParams.get('courseId');
+  const referralCodeFromQuery = searchParams.get('referralCode');
   
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [offerInfo, setOfferInfo] = useState<OfferInfo | null>(null);
@@ -96,13 +97,23 @@ const AdditionalEnrollmentForm: React.FC = () => {
           console.error('Error loading offer info:', error);
           setError('Errore nel caricamento dell\'offerta');
         }
-      } else if (courseId) {
-        // If no partnerOfferId but courseId is provided, try to get the course from available courses
+      } else if (courseId || referralCodeFromQuery) {
+        // If no partnerOfferId but courseId/referralCode is provided, try to get the course from available courses
         try {
           const availableCoursesResponse = await api.get('/user/available-courses');
-          const availableCourse = availableCoursesResponse.data.courses.find(
-            (course: any) => course.id === courseId
-          );
+          
+          let availableCourse = null;
+          
+          if (courseId) {
+            availableCourse = availableCoursesResponse.data.courses.find(
+              (course: any) => course.id === courseId
+            );
+          } else if (referralCodeFromQuery) {
+            // Find course by referral code
+            availableCourse = availableCoursesResponse.data.courses.find(
+              (course: any) => course.referralLink === referralCodeFromQuery
+            );
+          }
           
           if (availableCourse && availableCourse.partnerOfferId) {
             const response = await api.get(`/offers/${availableCourse.partnerOfferId}`);
@@ -132,7 +143,7 @@ const AdditionalEnrollmentForm: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [partnerOfferId, courseId]);
+  }, [partnerOfferId, courseId, referralCodeFromQuery]);
 
   useEffect(() => {
     loadEnrollmentData();
