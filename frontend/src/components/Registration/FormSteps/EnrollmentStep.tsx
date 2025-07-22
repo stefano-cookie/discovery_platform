@@ -156,6 +156,16 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, partnerId, formDa
               isRecommended: false,
             },
             {
+              id: 'biannual',
+              name: '2 Rate',
+              description: 'Pagamento semestrale',
+              installments: 2,
+              frequency: 'Ogni 6 mesi',
+              totalAmount: baseWithCoupon.finalAmount,
+              monthlyAmount: baseWithCoupon.finalAmount / 2,
+              isRecommended: false,
+            },
+            {
               id: 'quarterly',
               name: '4 Rate',
               description: 'Pagamento trimestrale',

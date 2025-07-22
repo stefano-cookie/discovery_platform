@@ -22,18 +22,38 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
   });
   
   const [formData, setFormData] = useState<Partial<RegistrationData>>(() => {
+    // Check for pre-compiled data from additional enrollment
+    const preCompiledData = localStorage.getItem('registrationFormData');
+    const isAdditionalEnrollment = localStorage.getItem('isAdditionalEnrollment') === 'true';
+    
     // Carica dati salvati dal localStorage se disponibili
     const saved = localStorage.getItem('registrationForm');
     const baseData = { ...initialData, referralCode };
     
+    // Priority: preCompiledData > saved > baseData
+    let finalData = baseData || {};
+    
     if (saved) {
       try {
-        return { ...JSON.parse(saved), ...baseData };
+        finalData = { ...finalData, ...JSON.parse(saved) };
       } catch {
-        return baseData || {};
+        // Keep finalData as is
       }
     }
-    return baseData || {};
+    
+    // If this is an additional enrollment, override with pre-compiled data
+    if (isAdditionalEnrollment && preCompiledData) {
+      try {
+        const preCompiled = JSON.parse(preCompiledData);
+        finalData = { ...finalData, ...preCompiled };
+        // Clear the pre-compiled flag after use
+        localStorage.removeItem('isAdditionalEnrollment');
+      } catch {
+        // Keep finalData as is
+      }
+    }
+    
+    return finalData;
   });
 
   // Dynamic steps based on offer type (for now we use default configuration)

@@ -178,6 +178,22 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
   offerType = 'TFA_ROMANIA',
   requiredFields = []
 }) => {
+  // Check if this is additional enrollment and load existing documents
+  const isAdditionalEnrollment = localStorage.getItem('registrationFormData') !== null;
+  const [existingDocuments, setExistingDocuments] = useState<any[]>([]);
+  
+  useEffect(() => {
+    if (isAdditionalEnrollment) {
+      const storedDocs = localStorage.getItem('userDocuments');
+      if (storedDocs) {
+        try {
+          setExistingDocuments(JSON.parse(storedDocs));
+        } catch (error) {
+          console.error('Error loading existing documents:', error);
+        }
+      }
+    }
+  }, [isAdditionalEnrollment]);
   const {
     handleSubmit,
     watch,
@@ -283,6 +299,46 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
         <p className="text-gray-600 mb-6">
           Puoi caricare i documenti ora oppure in un secondo momento. Tutti i file devono essere in formato PDF, JPG o PNG e non superare i 10MB.
         </p>
+
+        {/* Existing documents section for additional enrollment */}
+        {isAdditionalEnrollment && existingDocuments.length > 0 && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h4 className="text-sm font-medium text-green-800">
+                  📄 Documenti già caricati in precedenza
+                </h4>
+                <p className="mt-1 text-sm text-green-700 mb-3">
+                  Questi documenti sono disponibili dal tuo account e possono essere riutilizzati per questa iscrizione:
+                </p>
+                <div className="space-y-2">
+                  {existingDocuments.map((doc) => (
+                    <div key={doc.id} className="flex items-center justify-between bg-white border border-green-200 rounded-md p-2">
+                      <div className="flex items-center space-x-2">
+                        <span className={`inline-block w-2 h-2 rounded-full ${doc.isVerified ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
+                        <span className="text-sm font-medium text-green-800">{doc.fileName}</span>
+                        <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
+                          {doc.type.replace('_', ' ')}
+                        </span>
+                      </div>
+                      <span className="text-xs text-green-600">
+                        {doc.isVerified ? '✓ Verificato' : '⏳ In verifica'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-green-600">
+                  💡 Suggerimento: Puoi riutilizzare questi documenti dove applicabile o caricare nuovi file se necessario.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Messaggio file precedentemente caricati */}
         {previousFileInfo && Object.values(previousFileInfo).some(info => info !== null) && (

@@ -81,75 +81,107 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto m-4">
+      <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto m-4 shadow-2xl">
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-700 p-6 rounded-t-xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-white">✏️ Modifica Offerta</h2>
+              <p className="text-indigo-100 mt-1">{offer.name}</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-white hover:text-indigo-200 text-2xl"
+            >
+              ×
+            </button>
+          </div>
+        </div>
         <div className="p-6">
-          <h2 className="text-xl font-bold mb-6">Modifica Offerta: {offer.name}</h2>
-          
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nome Offerta
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Stato
-                </label>
-                <label className="flex items-center">
+          <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Configurazione Base */}
+            <div className="bg-gray-50 p-6 rounded-lg">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                ⚙️ Configurazione Base
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    📝 Nome Offerta
+                  </label>
                   <input
-                    type="checkbox"
-                    name="isActive"
-                    checked={formData.isActive}
+                    type="text"
+                    name="name"
+                    value={formData.name}
                     onChange={handleInputChange}
-                    className="mr-2"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   />
-                  Offerta attiva
-                </label>
-              </div>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Importo Totale (€)
-                </label>
-                <input
-                  type="number"
-                  name="totalAmount"
-                  value={formData.totalAmount}
-                  onChange={handleInputChange}
-                  min="0"
-                  step="0.01"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {!useCustomPlan && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Numero Rate
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    💰 Importo Totale (€)
+                  </label>
+                  <input
+                    type="number"
+                    name="totalAmount"
+                    value={formData.totalAmount}
+                    onChange={handleInputChange}
+                    min="0"
+                    step="0.01"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    🟢 Stato Offerta
+                  </label>
+                  <div className="flex items-center h-12">
+                    <label className={`flex items-center px-4 py-2 rounded-lg cursor-pointer transition-all ${
+                      formData.isActive 
+                        ? 'bg-green-100 text-green-700 border-2 border-green-300' 
+                        : 'bg-red-100 text-red-700 border-2 border-red-300'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        name="isActive"
+                        checked={formData.isActive}
+                        onChange={handleInputChange}
+                        className="mr-2"
+                      />
+                      {formData.isActive ? '✓ Attiva' : '✖ Disattiva'}
                     </label>
-                    <input
-                      type="number"
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {!useCustomPlan && (
+              <div className="bg-blue-50 p-6 rounded-lg">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  💳 Piano Pagamenti Standard
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      📊 Numero Rate
+                    </label>
+                    <select
                       name="installments"
                       value={formData.installments}
                       onChange={handleInputChange}
-                      min="1"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value={1}>Pagamento unico</option>
+                      <option value={2}>2 rate</option>
+                      <option value={4}>4 rate</option>
+                      <option value={12}>12 rate</option>
+                    </select>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Frequenza Rate (mesi)
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      🗓️ Frequenza Rate (mesi)
                     </label>
                     <input
                       type="number"
@@ -157,38 +189,78 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
                       value={formData.installmentFrequency}
                       onChange={handleInputChange}
                       min="1"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      max="12"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Ogni quanti mesi scade una rata</p>
                   </div>
-                </>
-              )}
-            </div>
+                </div>
+              </div>
+            )}
 
+            {/* Informazioni Offerta */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="text-lg font-medium mb-3">Informazioni Offerta</h3>
-                <div className="bg-gray-50 p-4 rounded space-y-2">
-                  <div><strong>Tipo:</strong> {offer.offerType === 'TFA_ROMANIA' ? 'TFA Romania' : 'Certificazione'}</div>
-                  <div><strong>Corso:</strong> {offer.course?.name}</div>
-                  <div><strong>Link Referral:</strong> {offer.referralLink}</div>
-                  <div><strong>Creata il:</strong> {new Date(offer.createdAt).toLocaleDateString('it-IT')}</div>
-                  {offer._count && <div><strong>Registrazioni:</strong> {offer._count.registrations}</div>}
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  📊 Informazioni Offerta
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3">
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      offer.offerType === 'TFA_ROMANIA' 
+                        ? 'bg-purple-100 text-purple-800' 
+                        : 'bg-green-100 text-green-800'
+                    }`}>
+                      {offer.offerType === 'TFA_ROMANIA' ? '🎓 TFA Romania' : '📜 Certificazione'}
+                    </span>
+                  </div>
+                  <div className="text-sm space-y-2">
+                    <div><span className="font-medium">Corso:</span> {offer.course?.name || 'Non specificato'}</div>
+                    <div className="break-all">
+                      <span className="font-medium">Link:</span> 
+                      <span className="text-blue-600 text-xs ml-1">{offer.referralLink}</span>
+                    </div>
+                    <div><span className="font-medium">Creata il:</span> {new Date(offer.createdAt).toLocaleDateString('it-IT')}</div>
+                    {offer._count && (
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium">Registrazioni:</span> 
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-bold">
+                          {offer._count.registrations}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <h3 className="text-lg font-medium mb-3">Piano Pagamenti Attuale</h3>
-                <div className="bg-gray-50 p-4 rounded max-h-40 overflow-y-auto">
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-lg border border-green-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  💳 Piano Pagamenti Attuale
+                </h3>
+                <div className="bg-white p-4 rounded-lg border max-h-40 overflow-y-auto">
                   {currentPayments.length > 0 ? (
                     currentPayments.map((payment, index) => (
-                      <div key={index} className="flex justify-between py-1 text-sm">
-                        <span>Rata {index + 1}:</span>
-                        <span>€{payment.amount.toLocaleString('it-IT')} - {payment.formattedDate}</span>
+                      <div key={index} className="flex justify-between items-center py-2 border-b last:border-b-0">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs">
+                            {index + 1}
+                          </div>
+                          <span className="text-sm font-medium">Rata {index + 1}</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-bold text-green-600">€{payment.amount.toLocaleString('it-IT')}</div>
+                          <div className="text-xs text-gray-500">{payment.formattedDate}</div>
+                        </div>
                       </div>
                     ))
                   ) : (
-                    <div className="text-sm text-gray-500">
-                      {offer.installments} rate da €{(offer.totalAmount / offer.installments).toFixed(2)} ogni {offer.installmentFrequency} mese/i
+                    <div className="text-center py-4 text-gray-500">
+                      <div className="text-sm">
+                        {offer.installments} rate da €{(offer.totalAmount / offer.installments).toFixed(2)}
+                      </div>
+                      <div className="text-xs mt-1">
+                        ogni {offer.installmentFrequency} mese/i
+                      </div>
                     </div>
                   )}
                 </div>
@@ -196,11 +268,20 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
             </div>
 
             {offer.offerType === 'CERTIFICATION' && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium">Modifica Piano Pagamenti</h3>
-                  <div className="space-x-2">
-                    <label className="flex items-center">
+              <div className="bg-yellow-50 p-6 rounded-lg border border-yellow-200">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                      🛠️ Modifica Piano Pagamenti
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">Personalizza il piano di pagamento per questa certificazione</p>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <label className={`flex items-center px-4 py-2 rounded-lg cursor-pointer transition-all ${
+                      useCustomPlan 
+                        ? 'bg-green-100 text-green-700 border-2 border-green-300' 
+                        : 'bg-gray-100 text-gray-700 border-2 border-gray-300'
+                    }`}>
                       <input
                         type="checkbox"
                         checked={useCustomPlan}
@@ -213,56 +294,82 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
                       <button
                         type="button"
                         onClick={addCustomPayment}
-                        className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+                        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-2 shadow-md"
                       >
-                        + Aggiungi Rata
+                        <span>+</span>
+                        <span>Aggiungi Rata</span>
                       </button>
                     )}
                   </div>
                 </div>
 
                 {useCustomPlan && (
-                  <div className="space-y-3">
-                    {customPayments.map((payment, index) => (
-                      <div key={index} className="flex items-center gap-4 p-3 border border-gray-200 rounded">
-                        <div className="flex-1">
-                          <label className="block text-sm text-gray-600">Importo (€)</label>
-                          <input
-                            type="number"
-                            value={payment.amount}
-                            onChange={(e) => updateCustomPayment(index, 'amount', e.target.value)}
-                            min="0"
-                            step="0.01"
-                            className="w-full px-2 py-1 border border-gray-300 rounded"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <label className="block text-sm text-gray-600">Scadenza</label>
-                          <input
-                            type="date"
-                            value={payment.dueDate}
-                            onChange={(e) => updateCustomPayment(index, 'dueDate', e.target.value)}
-                            className="w-full px-2 py-1 border border-gray-300 rounded"
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeCustomPayment(index)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          🗑️
-                        </button>
+                  <div className="space-y-4">
+                    {customPayments.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <div className="text-4xl mb-2">💳</div>
+                        <p>Nessuna rata personalizzata configurata</p>
+                        <p className="text-sm">Clicca "Aggiungi Rata" per iniziare</p>
                       </div>
-                    ))}
+                    ) : (
+                      customPayments.map((payment, index) => (
+                        <div key={index} className="flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+                          <div className="flex-shrink-0 w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600 font-bold">
+                            {index + 1}
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">💰 Importo (€)</label>
+                            <input
+                              type="number"
+                              value={payment.amount}
+                              onChange={(e) => updateCustomPayment(index, 'amount', e.target.value)}
+                              min="0"
+                              step="0.01"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                              placeholder="0.00"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">📅 Scadenza</label>
+                            <input
+                              type="date"
+                              value={payment.dueDate}
+                              onChange={(e) => updateCustomPayment(index, 'dueDate', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeCustomPayment(index)}
+                            className="flex-shrink-0 w-10 h-10 bg-red-100 text-red-600 rounded-full hover:bg-red-200 flex items-center justify-center"
+                            title="Rimuovi rata"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      ))
+                    )}
 
                     {customPayments.length > 0 && (
-                      <div className="mt-4 p-3 bg-gray-50 rounded">
-                        <div className="text-sm text-gray-600">
-                          Totale rate: €{customPayments.reduce((sum, p) => sum + p.amount, 0).toLocaleString('it-IT')}
+                      <div className="mt-6 p-4 bg-white border-2 border-dashed border-gray-200 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
+                              <span className="text-yellow-600 font-bold">Σ</span>
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900">
+                                Totale rate: €{customPayments.reduce((sum, p) => sum + p.amount, 0).toLocaleString('it-IT')}
+                              </p>
+                              <p className="text-sm text-gray-500">
+                                {customPayments.length} rata/e configurata/e
+                              </p>
+                            </div>
+                          </div>
                           {customPayments.reduce((sum, p) => sum + p.amount, 0) !== formData.totalAmount && (
-                            <span className="text-red-600 ml-2">
-                              (Non corrisponde all'importo totale!)
-                            </span>
+                            <div className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium">
+                              ⚠️ Non corrisponde all'importo totale!
+                            </div>
                           )}
                         </div>
                       </div>
@@ -272,20 +379,26 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
               </div>
             )}
 
-            <div className="flex justify-end space-x-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
-              >
-                Annulla
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Salva Modifiche
-              </button>
+            <div className="bg-gray-50 p-6 rounded-lg flex justify-between items-center">
+              <div className="text-sm text-gray-600">
+                <p>✏️ Le modifiche saranno applicate immediatamente</p>
+                <p className="text-xs mt-1">Il link referral rimarrà invariato</p>
+              </div>
+              <div className="flex space-x-4">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-6 py-3 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+                >
+                  Annulla
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-700 text-white rounded-lg hover:from-indigo-700 hover:to-purple-800 font-medium shadow-md"
+                >
+                  💾 Salva Modifiche
+                </button>
+              </div>
             </div>
           </form>
         </div>

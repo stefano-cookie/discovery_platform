@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useMultiStepForm } from '../../hooks/useMultiStepForm';
 import { OfferService } from '../../services/offerService';
 import { OfferInfo } from '../../types/offers';
+import { useAuth } from '../../hooks/useAuth';
+import { apiRequest } from '../../services/api';
 import StepIndicator from './StepIndicator';
 import GeneralDataStep from './FormSteps/GeneralDataStep';
 import ResidenceStep from './FormSteps/ResidenceStep';
@@ -16,10 +18,13 @@ interface MultiStepFormProps {
 }
 
 const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
+  const { user: currentUser } = useAuth();
   const [registrationCompleted, setRegistrationCompleted] = useState(false);
   const [offerInfo, setOfferInfo] = useState<OfferInfo | null>(null);
   const [loadingOffer, setLoadingOffer] = useState(false);
   const [offerError, setOfferError] = useState<string | null>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
   
   const stepConfig = useMemo(() => {
     if (offerInfo?.offerType === 'CERTIFICATION') {
@@ -65,6 +70,63 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
     };
   }, [offerInfo, loadingOffer, referralCode]);
 
+  // Convert user profile to form data
+  const initialFormData = useMemo(() => {
+    if (!userProfile) return undefined;
+    
+    // Convert profile data to form format
+    return {
+      // Email comes from user object, not profile
+      email: currentUser?.email || '',
+      // General data
+      cognome: userProfile.cognome || '',
+      nome: userProfile.nome || '',
+      dataNascita: userProfile.dataNascita ? (() => {
+        try {
+          return new Date(userProfile.dataNascita).toISOString().split('T')[0];
+        } catch {
+          return '';
+        }
+      })() : '',
+      luogoNascita: userProfile.luogoNascita || '',
+      codiceFiscale: userProfile.codiceFiscale || '',
+      telefono: userProfile.telefono || '',
+      nomePadre: userProfile.nomePadre || '',
+      nomeMadre: userProfile.nomeMadre || '',
+      // Note: sesso and provinciaNascita are not in UserProfile schema - will be empty and editable
+      sesso: '',
+      provinciaNascita: '',
+      // Residence data
+      residenzaVia: userProfile.residenzaVia || '',
+      residenzaCitta: userProfile.residenzaCitta || '',
+      residenzaProvincia: userProfile.residenzaProvincia || '',
+      residenzaCap: userProfile.residenzaCap || '',
+      hasDifferentDomicilio: userProfile.hasDifferentDomicilio || false,
+      domicilioVia: userProfile.domicilioVia || '',
+      domicilioCitta: userProfile.domicilioCitta || '',
+      domicilioProvincia: userProfile.domicilioProvincia || '',
+      domicilioCap: userProfile.domicilioCap || '',
+      // Education data
+      tipoLaurea: userProfile.tipoLaurea || '',
+      laureaConseguita: userProfile.laureaConseguita || '',
+      laureaUniversita: userProfile.laureaUniversita || '',
+      laureaData: userProfile.laureaData ? (() => {
+        try {
+          return new Date(userProfile.laureaData).toISOString().split('T')[0];
+        } catch {
+          return '';
+        }
+      })() : '',
+      // Profession data
+      tipoProfessione: userProfile.tipoProfessione || '',
+      scuolaDenominazione: userProfile.scuolaDenominazione || '',
+      scuolaCitta: userProfile.scuolaCitta || '',
+      scuolaProvincia: userProfile.scuolaProvincia || '',
+      // Add referral code if present
+      referralCode: referralCode || ''
+    };
+  }, [userProfile, currentUser, referralCode]);
+
   const {
     currentStep,
     formData,
@@ -78,7 +140,11 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
     getStepProgress,
     isStepValid,
     canNavigateToStep,
-  } = useMultiStepForm({ referralCode, stepConfig: stepConfig as any });
+  } = useMultiStepForm({ 
+    referralCode, 
+    stepConfig: stepConfig as any,
+    initialData: initialFormData
+  });
 
   const handleStepComplete = (stepData: any) => {
     updateFormData(stepData);
@@ -138,6 +204,32 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
 
     loadOfferInfo();
   }, [referralCode]);
+
+  // Load user profile when user is authenticated
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      if (!currentUser) {
+        setUserProfile(null);
+        return;
+      }
+
+      try {
+        setLoadingProfile(true);
+        const response = await apiRequest<{profile: any}>({
+          url: '/user/profile',
+          method: 'GET'
+        });
+        setUserProfile(response.profile);
+      } catch (error) {
+        console.error('Error loading user profile:', error);
+        setUserProfile(null);
+      } finally {
+        setLoadingProfile(false);
+      }
+    };
+
+    loadUserProfile();
+  }, [currentUser]);
 
 
 
@@ -269,6 +361,16 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
       {/* Main content */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         
+        {/* Loading Profile for Authenticated Users */}
+        {currentUser && loadingProfile && (
+          <div className="bg-white rounded-2xl shadow-xl p-6 mb-4 sm:mb-8">
+            <div className="flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
+              <span className="text-gray-600">Caricamento dati profilo...</span>
+            </div>
+          </div>
+        )}
+        
         {/* Offer Error Display */}
         {offerError && (
           <div className="bg-red-50 border border-red-200 rounded-2xl shadow-xl p-6 mb-4 sm:mb-8">
@@ -313,7 +415,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
         )}
 
         {/* Progress indicator */}
-        {!offerError && !registrationCompleted && (
+        {!offerError && !registrationCompleted && !(currentUser && loadingProfile) && (
         <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-6 mb-4 sm:mb-8">
           <StepIndicator 
             steps={dynamicSteps} 
@@ -341,7 +443,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
         )}
 
         {/* Form content */}
-        {!offerError && (
+        {!offerError && !(currentUser && loadingProfile) && (
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           <div className="p-4 sm:p-8 md:p-12">
             <div className="mb-6 sm:mb-8">

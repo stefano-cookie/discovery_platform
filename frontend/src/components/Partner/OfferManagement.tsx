@@ -5,6 +5,7 @@ import apiClient from '../../services/api';
 import CreateOfferModal from './CreateOfferModal';
 import EditOfferModal from './EditOfferModal';
 import CopiedModal from '../UI/CopiedModal';
+import OfferVisibilityModal from './OfferVisibilityModal';
 
 const OfferManagement: React.FC = () => {
   const [offers, setOffers] = useState<PartnerOffer[]>([]);
@@ -13,7 +14,9 @@ const OfferManagement: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingOffer, setEditingOffer] = useState<PartnerOffer | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showCopiedModal, setShowCopiedModal] = useState(false);
+  const [visibilityOffer, setVisibilityOffer] = useState<PartnerOffer | null>(null);
 
   useEffect(() => {
     loadData();
@@ -41,9 +44,20 @@ const OfferManagement: React.FC = () => {
       await OfferService.createOffer(offerData);
       await loadData();
       setShowCreateModal(false);
-    } catch (error) {
+      setError(null); // Clear any previous errors
+      setSuccessMessage('Offerta creata con successo!');
+      setTimeout(() => setSuccessMessage(null), 5000);
+    } catch (error: any) {
       console.error('Error creating offer:', error);
-      setError('Errore nella creazione dell\'offerta');
+      let errorMessage = 'Errore nella creazione dell\'offerta';
+      
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
     }
   };
 
@@ -113,6 +127,12 @@ const OfferManagement: React.FC = () => {
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
           {error}
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-4">
+          {successMessage}
         </div>
       )}
 
@@ -201,20 +221,31 @@ const OfferManagement: React.FC = () => {
                       {offer.referralLink}
                     </button>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                    <button
-                      onClick={() => setEditingOffer(offer)}
-                      className="text-indigo-600 hover:text-indigo-900"
-                    >
-                      Modifica
-                    </button>
-                    <button
-                      onClick={() => handleDeleteOffer(offer.id)}
-                      className="text-red-600 hover:text-red-900"
-                      disabled={(offer._count?.registrations || 0) > 0}
-                    >
-                      Elimina
-                    </button>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex flex-col space-y-1">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => setEditingOffer(offer)}
+                          className="text-indigo-600 hover:text-indigo-900"
+                        >
+                          Modifica
+                        </button>
+                        <button
+                          onClick={() => setVisibilityOffer(offer)}
+                          className="text-green-600 hover:text-green-900"
+                          title="Gestisci visibilità utenti"
+                        >
+                          Visibilità
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteOffer(offer.id)}
+                        className="text-red-600 hover:text-red-900 text-left"
+                        disabled={(offer._count?.registrations || 0) > 0}
+                      >
+                        Elimina
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -246,6 +277,15 @@ const OfferManagement: React.FC = () => {
         title="Link Offerta Copiato!"
         message="Il link dell'offerta è stato copiato negli appunti"
       />
+
+      {visibilityOffer && (
+        <OfferVisibilityModal
+          isOpen={!!visibilityOffer}
+          onClose={() => setVisibilityOffer(null)}
+          offerId={visibilityOffer.id}
+          offerName={visibilityOffer.name}
+        />
+      )}
     </div>
   );
 };

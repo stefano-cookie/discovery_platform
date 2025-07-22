@@ -120,7 +120,7 @@ const CouponManagement: React.FC = () => {
         throw new Error(errorData.error || 'Errore nella creazione del coupon');
       }
 
-      const result = await response.json();
+      // const result = await response.json();
       
       // Reload coupons to get the updated list
       await loadCoupons();

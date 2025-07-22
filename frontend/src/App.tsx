@@ -4,8 +4,11 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import UserDashboard from './pages/UserDashboard';
 import Registration from './pages/Registration';
+import AdditionalEnrollment from './pages/AdditionalEnrollment';
 import EmailVerification from './pages/EmailVerification';
+import ChangePassword from './pages/ChangePassword';
 
 const AppContent: React.FC = () => {
   const { user, isLoading } = useAuth();
@@ -18,15 +21,31 @@ const AppContent: React.FC = () => {
     );
   }
 
+  // Helper function to determine where authenticated user should go
+  const getAuthenticatedRedirect = () => {
+    if (user?.mustChangePassword) {
+      return "/change-password";
+    }
+    return "/dashboard";
+  };
+
   return (
     <Routes>
       <Route 
         path="/" 
-        element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} 
+        element={user ? <Navigate to={getAuthenticatedRedirect()} replace /> : <Navigate to="/login" replace />} 
       />
       <Route 
         path="/login" 
-        element={user ? <Navigate to="/dashboard" replace /> : <Login />} 
+        element={user ? <Navigate to={getAuthenticatedRedirect()} replace /> : <Login />} 
+      />
+      <Route 
+        path="/change-password" 
+        element={
+          <ProtectedRoute>
+            <ChangePassword />
+          </ProtectedRoute>
+        } 
       />
       <Route 
         path="/registration/:referralCode?" 
@@ -40,7 +59,23 @@ const AppContent: React.FC = () => {
         path="/dashboard" 
         element={
           <ProtectedRoute>
-            <Dashboard />
+            {user?.mustChangePassword ? (
+              <Navigate to="/change-password" replace />
+            ) : (
+              user?.role === 'USER' ? <UserDashboard /> : <Dashboard />
+            )}
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/enrollment/:partnerOfferId?" 
+        element={
+          <ProtectedRoute>
+            {user?.mustChangePassword ? (
+              <Navigate to="/change-password" replace />
+            ) : (
+              <AdditionalEnrollment />
+            )}
           </ProtectedRoute>
         } 
       />

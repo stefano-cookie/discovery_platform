@@ -13,14 +13,54 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
     courseId: '',
     name: '',
     offerType: 'TFA_ROMANIA',
-    totalAmount: 0,
+    totalAmount: 4000,
     installments: 1,
     installmentFrequency: 1,
   });
 
   const [customPayments, setCustomPayments] = useState<Array<{ amount: number; dueDate: string }>>([]);
-  const [useCustomPlan, setUseCustomPlan] = useState(false);
+  const [useCustomPlan, setUseCustomPlan] = useState(true);
   const [previewPayments, setPreviewPayments] = useState<Array<{ amount: number; dueDate: string }>>([]);
+
+  // Set first available course when courses are loaded and initialize payments
+  React.useEffect(() => {
+    if (courses.length > 0 && !formData.courseId) {
+      setFormData(prev => ({
+        ...prev,
+        courseId: courses[0].id
+      }));
+      
+      // Initialize default payments for TFA Romania
+      if (customPayments.length === 0) {
+        const defaultPayments = [];
+        for (let i = 0; i < 3; i++) {
+          const dueDate = new Date();
+          dueDate.setMonth(dueDate.getMonth() + i + 1);
+          dueDate.setDate(30);
+          defaultPayments.push({
+            amount: Number((4000 / 3).toFixed(2)),
+            dueDate: dueDate.toISOString().split('T')[0]
+          });
+        }
+        setCustomPayments(defaultPayments);
+        setUseCustomPlan(true);
+        // Aggiorna anche installments nel formData
+        setFormData(prev => ({ ...prev, installments: defaultPayments.length }));
+      }
+    }
+  }, [courses, formData.courseId, customPayments.length]);
+
+  // Update custom payment amounts when total amount changes
+  React.useEffect(() => {
+    if (useCustomPlan && customPayments.length > 0 && formData.totalAmount > 0) {
+      const amountPerPayment = formData.totalAmount / customPayments.length;
+      const updatedPayments = customPayments.map(payment => ({
+        ...payment,
+        amount: Number(amountPerPayment.toFixed(2))
+      }));
+      setCustomPayments(updatedPayments);
+    }
+  }, [formData.totalAmount, useCustomPlan]); // Note: not including customPayments to avoid infinite loop
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -45,20 +85,86 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
 
   const handleOfferTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const offerType = e.target.value as 'TFA_ROMANIA' | 'CERTIFICATION';
-    setFormData({ ...formData, offerType });
     
     // Set default values based on offer type
     if (offerType === 'CERTIFICATION') {
-      setFormData(prev => ({
-        ...prev,
+      const newFormData = {
+        ...formData,
         offerType,
-        totalAmount: prev.totalAmount || 1500,
-        installments: prev.installments || 3
-      }));
+        totalAmount: 1500,
+        installments: 3,
+        name: formData.name || 'Certificazione Personalizzata'
+      };
+      setFormData(newFormData);
       setUseCustomPlan(true);
+      
+      // Generate default payments
+      const defaultPayments = [];
+      for (let i = 0; i < 3; i++) {
+        const dueDate = new Date();
+        dueDate.setMonth(dueDate.getMonth() + i + 1);
+        dueDate.setDate(30);
+        defaultPayments.push({
+          amount: Number((1500 / 3).toFixed(2)),
+          dueDate: dueDate.toISOString().split('T')[0]
+        });
+      }
+      setCustomPayments(defaultPayments);
+      // Aggiorna anche installments nel formData
+      newFormData.installments = defaultPayments.length;
+      setFormData(newFormData);
     } else {
-      setUseCustomPlan(false);
+      const newFormData = {
+        ...formData,
+        offerType,
+        totalAmount: 4000,
+        installments: 3,
+        name: formData.name || 'TFA Romania'
+      };
+      setFormData(newFormData);
+      setUseCustomPlan(true);
+      
+      // Generate default payments
+      const defaultPayments = [];
+      for (let i = 0; i < 3; i++) {
+        const dueDate = new Date();
+        dueDate.setMonth(dueDate.getMonth() + i + 1);
+        dueDate.setDate(30);
+        defaultPayments.push({
+          amount: Number((4000 / 3).toFixed(2)),
+          dueDate: dueDate.toISOString().split('T')[0]
+        });
+      }
+      setCustomPayments(defaultPayments);
+      // Aggiorna anche installments nel formData
+      newFormData.installments = defaultPayments.length;
+      setFormData(newFormData);
     }
+  };
+
+  const generateCustomPayments = (numPayments: number) => {
+    if (numPayments === 0) {
+      setCustomPayments([]);
+      return;
+    }
+
+    const amountPerPayment = formData.totalAmount / numPayments;
+    const payments = [];
+    
+    for (let i = 0; i < numPayments; i++) {
+      const dueDate = new Date();
+      dueDate.setMonth(dueDate.getMonth() + i + 1);
+      dueDate.setDate(30);
+      
+      payments.push({
+        amount: Number(amountPerPayment.toFixed(2)),
+        dueDate: dueDate.toISOString().split('T')[0]
+      });
+    }
+    
+    setCustomPayments(payments);
+    // Aggiorna anche installments nel formData
+    setFormData(prev => ({ ...prev, installments: payments.length }));
   };
 
   const addCustomPayment = () => {
@@ -66,13 +172,17 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
     nextMonth.setMonth(nextMonth.getMonth() + customPayments.length + 1);
     nextMonth.setDate(30);
     
-    setCustomPayments([
+    const newPayments = [
       ...customPayments,
       {
         amount: 0,
         dueDate: nextMonth.toISOString().split('T')[0]
       }
-    ]);
+    ];
+    
+    setCustomPayments(newPayments);
+    // Aggiorna anche il campo installments nel formData
+    setFormData(prev => ({ ...prev, installments: newPayments.length }));
   };
 
   const updateCustomPayment = (index: number, field: 'amount' | 'dueDate', value: string | number) => {
@@ -85,7 +195,10 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
   };
 
   const removeCustomPayment = (index: number) => {
-    setCustomPayments(customPayments.filter((_, i) => i !== index));
+    const newPayments = customPayments.filter((_, i) => i !== index);
+    setCustomPayments(newPayments);
+    // Aggiorna anche il campo installments nel formData
+    setFormData(prev => ({ ...prev, installments: newPayments.length }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -93,6 +206,7 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
     
     const submitData: CreateOfferData = {
       ...formData,
+      installments: customPayments.length, // Aggiorna con il numero effettivo di rate
       customPaymentPlan: useCustomPlan && customPayments.length > 0
         ? { payments: customPayments }
         : undefined
@@ -102,7 +216,10 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
   };
 
   const isFormValid = () => {
-    const baseValid = formData.courseId && formData.name && formData.totalAmount > 0 && formData.installments > 0;
+    const baseValid = formData.courseId && 
+                     formData.name.trim() && 
+                     formData.totalAmount > 0 && 
+                     formData.installments > 0;
     
     if (useCustomPlan) {
       const totalCustomAmount = customPayments.reduce((sum, payment) => sum + payment.amount, 0);
@@ -114,202 +231,268 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto m-4">
+      <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto m-4 shadow-2xl">
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 rounded-t-xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-white">✨ Crea Nuova Offerta</h2>
+              <p className="text-blue-100 mt-1">Configura la tua offerta personalizzata per i clienti</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-white hover:text-blue-200 text-2xl"
+            >
+              ×
+            </button>
+          </div>
+        </div>
         <div className="p-6">
-          <h2 className="text-xl font-bold mb-6">Crea Nuova Offerta</h2>
-          
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nome Offerta *
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tipo Offerta *
-                </label>
-                <select
-                  name="offerType"
-                  value={formData.offerType}
-                  onChange={handleOfferTypeChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Tipo Offerta - Prima sezione prominente */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                Tipo di Offerta
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div
+                  className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                    formData.offerType === 'TFA_ROMANIA'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-blue-300'
+                  }`}
+                  onClick={() => handleOfferTypeChange({ target: { value: 'TFA_ROMANIA' } } as any)}
                 >
-                  <option value="TFA_ROMANIA">TFA Romania (Form Completo)</option>
-                  <option value="CERTIFICATION">Certificazione (Form Semplificato)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Corso *
-                </label>
-                <select
-                  name="courseId"
-                  value={formData.courseId}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
+                  <div className="flex items-center mb-2">
+                    <input
+                      type="radio"
+                      name="offerType"
+                      value="TFA_ROMANIA"
+                      checked={formData.offerType === 'TFA_ROMANIA'}
+                      onChange={(e) => handleOfferTypeChange(e as any)}
+                      className="mr-3"
+                    />
+                    <span className="font-medium text-purple-700">TFA Romania</span>
+                  </div>
+                  <p className="text-sm text-gray-600">Form completo con tutti i passaggi di registrazione</p>
+                </div>
+                
+                <div
+                  className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                    formData.offerType === 'CERTIFICATION'
+                      ? 'border-green-500 bg-green-50'
+                      : 'border-gray-200 hover:border-green-300'
+                  }`}
+                  onClick={() => handleOfferTypeChange({ target: { value: 'CERTIFICATION' } } as any)}
                 >
-                  <option value="">Seleziona corso...</option>
-                  {courses.map(course => (
-                    <option key={course.id} value={course.id}>
-                      {course.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Importo Totale (€) *
-                </label>
-                <input
-                  type="number"
-                  name="totalAmount"
-                  value={formData.totalAmount}
-                  onChange={handleInputChange}
-                  min="0"
-                  step="0.01"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-
-              {!useCustomPlan && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Numero Rate *
-                    </label>
+                  <div className="flex items-center mb-2">
                     <input
-                      type="number"
-                      name="installments"
-                      value={formData.installments}
-                      onChange={handleInputChange}
-                      min="1"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
+                      type="radio"
+                      name="offerType"
+                      value="CERTIFICATION"
+                      checked={formData.offerType === 'CERTIFICATION'}
+                      onChange={(e) => handleOfferTypeChange(e as any)}
+                      className="mr-3"
                     />
+                    <span className="font-medium text-green-700">Certificazione</span>
                   </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Frequenza Rate (mesi)
-                    </label>
-                    <input
-                      type="number"
-                      name="installmentFrequency"
-                      value={formData.installmentFrequency}
-                      onChange={handleInputChange}
-                      min="1"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </>
-              )}
+                  <p className="text-sm text-gray-600">Form semplificato con meno documenti richiesti</p>
+                </div>
+              </div>
             </div>
 
-            {formData.offerType === 'CERTIFICATION' && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium">Piano Pagamenti Personalizzato</h3>
-                  <button
-                    type="button"
-                    onClick={addCustomPayment}
-                    className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+            {/* Dettagli Offerta */}
+            <div className="bg-gray-50 p-6 rounded-lg">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Configurazione Offerta
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Corso *
+                  </label>
+                  <select
+                    name="courseId"
+                    value={formData.courseId}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
                   >
-                    + Aggiungi Rata
-                  </button>
+                    <option value="">Seleziona un corso</option>
+                    {courses.map(course => (
+                      <option key={course.id} value={course.id}>
+                        {course.name}
+                      </option>
+                    ))}
+                  </select>
+                  {courses.length === 0 && (
+                    <p className="text-xs text-red-500 mt-1">
+                      Nessun corso disponibile. Contatta l'amministratore.
+                    </p>
+                  )}
                 </div>
 
-                <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Nome Offerta *
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="es. TFA Romania Promozionale"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Importo Totale (€) *
+                  </label>
+                  <input
+                    type="number"
+                    name="totalAmount"
+                    value={formData.totalAmount}
+                    onChange={handleInputChange}
+                    min="0"
+                    step="0.01"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {formData.offerType === 'TFA_ROMANIA' ? 'Prezzo suggerito: €4.000' : 'Prezzo suggerito: €1.500'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Piano Pagamenti Personalizzato per entrambi i tipi */}
+            <div className={`p-6 rounded-lg border ${
+              formData.offerType === 'TFA_ROMANIA' 
+                ? 'bg-purple-50 border-purple-200' 
+                : 'bg-green-50 border-green-200'
+            }`}>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                    Piano Pagamenti Personalizzato
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {formData.offerType === 'TFA_ROMANIA' 
+                      ? 'Configura le rate e scadenze per TFA Romania' 
+                      : 'Per le certificazioni è richiesto un piano di pagamento personalizzato'
+                    }
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addCustomPayment}
+                  className={`px-4 py-2 rounded-lg text-white flex items-center space-x-2 shadow-md ${
+                    formData.offerType === 'TFA_ROMANIA'
+                      ? 'bg-purple-600 hover:bg-purple-700'
+                      : 'bg-green-600 hover:bg-green-700'
+                  }`}
+                >
+                  <span>Aggiungi Rata</span>
+                </button>
+              </div>
+
+              {customPayments.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <div className="text-6xl mb-2 text-gray-300">💳</div>
+                  <p>Nessuna rata configurata</p>
+                  <p className="text-sm">Clicca "Aggiungi Rata" per iniziare</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
                   {customPayments.map((payment, index) => (
-                    <div key={index} className="flex items-center gap-4 p-3 border border-gray-200 rounded">
-                      <div className="flex-1">
-                        <label className="block text-sm text-gray-600">Importo (€)</label>
-                        <input
-                          type="number"
-                          value={payment.amount}
-                          onChange={(e) => updateCustomPayment(index, 'amount', e.target.value)}
-                          min="0"
-                          step="0.01"
-                          className="w-full px-2 py-1 border border-gray-300 rounded"
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <label className="block text-sm text-gray-600">Scadenza</label>
-                        <input
-                          type="date"
-                          value={payment.dueDate}
-                          onChange={(e) => updateCustomPayment(index, 'dueDate', e.target.value)}
-                          className="w-full px-2 py-1 border border-gray-300 rounded"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeCustomPayment(index)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        🗑️
-                      </button>
+                    <div key={index} className="flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+                        <div className="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">
+                          {index + 1}
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Importo (€)</label>
+                          <input
+                            type="number"
+                            value={payment.amount}
+                            onChange={(e) => updateCustomPayment(index, 'amount', e.target.value)}
+                            min="0"
+                            step="0.01"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Scadenza</label>
+                          <input
+                            type="date"
+                            value={payment.dueDate}
+                            onChange={(e) => updateCustomPayment(index, 'dueDate', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeCustomPayment(index)}
+                          className="flex-shrink-0 w-10 h-10 bg-red-100 text-red-600 rounded-full hover:bg-red-200 flex items-center justify-center"
+                          title="Rimuovi rata"
+                        >
+                          ✕
+                        </button>
                     </div>
                   ))}
                 </div>
+              )}
 
                 {customPayments.length > 0 && (
-                  <div className="mt-4 p-3 bg-gray-50 rounded">
-                    <div className="text-sm text-gray-600">
-                      Totale rate: €{customPayments.reduce((sum, p) => sum + p.amount, 0).toLocaleString('it-IT')}
+                  <div className="mt-6 p-4 bg-white border-2 border-dashed border-gray-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <span className="text-blue-600 font-bold">Σ</span>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            Totale rate: €{customPayments.reduce((sum, p) => sum + p.amount, 0).toLocaleString('it-IT')}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {customPayments.length} rata/e configurata/e
+                          </p>
+                        </div>
+                      </div>
                       {customPayments.reduce((sum, p) => sum + p.amount, 0) !== formData.totalAmount && (
-                        <span className="text-red-600 ml-2">
-                          (Non corrisponde all'importo totale!)
-                        </span>
+                        <div className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium">
+                          Non corrisponde all'importo totale!
+                        </div>
                       )}
                     </div>
                   </div>
                 )}
-              </div>
-            )}
+            </div>
 
-            {!useCustomPlan && previewPayments.length > 0 && (
-              <div>
-                <h3 className="text-lg font-medium mb-3">Anteprima Piano Pagamenti</h3>
-                <div className="bg-gray-50 p-4 rounded">
-                  {previewPayments.map((payment, index) => (
-                    <div key={index} className="flex justify-between py-1">
-                      <span>Rata {index + 1}:</span>
-                      <span>€{payment.amount.toLocaleString('it-IT')} - {new Date(payment.dueDate).toLocaleDateString('it-IT')}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
-            <div className="flex justify-end space-x-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
-              >
-                Annulla
-              </button>
-              <button
-                type="submit"
-                disabled={!isFormValid()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                Crea Offerta
-              </button>
+            <div className="bg-gray-50 p-6 rounded-lg flex justify-between items-center">
+              <div className="text-sm text-gray-600">
+                <p>L'offerta sarà disponibile tramite link referral univoco</p>
+                <p className="text-xs mt-1">I clienti potranno registrarsi utilizzando il tuo link personalizzato</p>
+              </div>
+              <div className="flex space-x-4">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-6 py-3 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+                >
+                  Annulla
+                </button>
+                <button
+                  type="submit"
+                  disabled={!isFormValid()}
+                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium shadow-md"
+                >
+                  {isFormValid() ? 'Crea Offerta' : 'Compila tutti i campi'}
+                </button>
+              </div>
             </div>
           </form>
         </div>

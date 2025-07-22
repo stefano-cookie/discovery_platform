@@ -5,9 +5,11 @@ import { generalDataSchema, GeneralDataForm } from '../../../utils/validation';
 import { OfferInfo } from '../../../types/offers';
 import Input from '../../UI/Input';
 import Select from '../../UI/Select';
+import ExistingUserPrompt from '../ExistingUserPrompt';
 import { generateCodiceFiscale, decodeFiscalCode } from '../../../utils/codiceFiscale';
 import { getProvinceOptions, getCityOptions, GENDER_OPTIONS } from '../../../services/geoService';
-import { checkEmailVerification } from '../../../services/api';
+import { checkUserExists, ExistingUser } from '../../../services/api';
+import { useAuth } from '../../../hooks/useAuth';
 
 interface GeneralDataStepProps {
   data: Partial<GeneralDataForm>;
@@ -28,6 +30,33 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
   requiredFields = [],
   offerInfo
 }) => {
+  // Get authentication status to prevent popup when user is already logged in
+  const { user: currentUser } = useAuth();
+  
+  // Determine which fields are pre-populated and which are missing
+  const isAdditionalEnrollment = localStorage.getItem('registrationFormData') !== null;
+  const isAuthenticatedUser = currentUser !== null;
+  const isNewEnrollmentForExistingUser = isAuthenticatedUser && !isAdditionalEnrollment;
+  
+  const getFieldStatus = (fieldName: keyof GeneralDataForm) => {
+    const hasValue = data[fieldName] && data[fieldName] !== '';
+    const isRequired = offerType === 'TFA_ROMANIA' 
+      ? ['email', 'cognome', 'nome', 'dataNascita', 'luogoNascita', 'codiceFiscale', 'telefono', 'nomePadre', 'nomeMadre'].includes(fieldName)
+      : ['email', 'cognome', 'nome', 'dataNascita', 'luogoNascita', 'codiceFiscale', 'telefono'].includes(fieldName);
+    
+    // Always show all fields and allow editing
+    // Pre-populate with existing data but never make readonly
+    const shouldShowField = true;
+    const isFieldReadonly = false;
+    
+    return {
+      hasValue,
+      isRequired,
+      shouldShow: shouldShowField,
+      isReadonly: isFieldReadonly
+    };
+  };
+
   const [isCodiceFiscaleManual, setIsCodiceFiscaleManual] = useState(false);
   const [provinceOptions] = useState(getProvinceOptions());
   const [cityOptions, setCityOptions] = useState<Array<{ value: string; label: string }>>([]);
@@ -36,6 +65,8 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
     exists: boolean;
     message: string;
   } | null>(null);
+  const [existingUser, setExistingUser] = useState<ExistingUser | null>(null);
+  const [showExistingUserPrompt, setShowExistingUserPrompt] = useState(false);
   const [formError, setFormError] = useState<string>('');
   
   const {
@@ -115,24 +146,43 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
       setEmailValidation({ isChecking: true, exists: false, message: '' });
 
       try {
-        const result = await checkEmailVerification(watchedEmail);
+        const result = await checkUserExists(watchedEmail);
         
-        if (result.exists) {
-          setEmailValidation({
-            isChecking: false,
-            exists: true,
-            message: 'Un utente con questa email è già registrato'
-          });
+        if (result.exists && result.user) {
+          setExistingUser(result.user);
+          
+          // Only show the popup if the user is NOT already logged in
+          // If they're already logged in, they're probably enrolling in a new course
+          if (!currentUser) {
+            setEmailValidation({
+              isChecking: false,
+              exists: true,
+              message: 'Un utente con questa email è già registrato'
+            });
+            setShowExistingUserPrompt(true);
+          } else {
+            // User is logged in, so they can use their existing email for new enrollments
+            setEmailValidation({
+              isChecking: false,
+              exists: false,
+              message: 'Email confermata per nuova iscrizione'
+            });
+            setShowExistingUserPrompt(false);
+          }
         } else {
           setEmailValidation({
             isChecking: false,
             exists: false,
             message: 'Email disponibile'
           });
+          setExistingUser(null);
+          setShowExistingUserPrompt(false);
         }
       } catch (error) {
         console.error('Error checking email:', error);
         setEmailValidation(null);
+        setExistingUser(null);
+        setShowExistingUserPrompt(false);
       }
     };
 
@@ -141,7 +191,7 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
     }, 1000); // Debounce di 1 secondo
 
     return () => clearTimeout(timer);
-  }, [watchedEmail]);
+  }, [watchedEmail, currentUser]);
 
   // Auto-decode fiscal code when user types it manually
   useEffect(() => {
@@ -263,10 +313,28 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
     return () => subscription.unsubscribe();
   }, [watch, onChange]);
 
+  const handleLoginRedirect = () => {
+    // Salva i dati del referral se presenti
+    if (referralCode) {
+      localStorage.setItem('pendingReferralCode', referralCode);
+    }
+    window.location.href = '/login';
+  };
+
+  const handleContinueAsNew = () => {
+    setShowExistingUserPrompt(false);
+    setExistingUser(null);
+    setEmailValidation(null);
+    // Reset email field to force user to use a different email
+    setValue('email', '');
+  };
+
   const onSubmit = (formData: GeneralDataForm) => {
     setFormError('');
     
-    if (emailValidation?.exists) {
+    // Only prevent submission for existing email if user is NOT logged in
+    // If user is logged in, they should be able to use their existing email for new enrollments
+    if (emailValidation?.exists && !showExistingUserPrompt && !currentUser) {
       setFormError('Non puoi procedere con un\'email già registrata. Usa un\'email diversa o effettua il login.');
       return;
     }
@@ -276,6 +344,8 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {/* Pre-populated data notice for additional enrollment */}
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
           <div className="relative">
@@ -285,7 +355,7 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
               {...register('email')}
               error={errors.email?.message}
               className={`pr-10 ${
-                emailValidation?.exists 
+                emailValidation?.exists && !currentUser
                   ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
                   : emailValidation && !emailValidation.exists && !emailValidation.isChecking
                     ? 'border-green-300 focus:ring-green-500 focus:border-green-500'
@@ -301,7 +371,7 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
               )}
-              {emailValidation && !emailValidation.isChecking && emailValidation.exists && (
+              {emailValidation && !emailValidation.isChecking && emailValidation.exists && !currentUser && (
                 <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                 </svg>
@@ -318,7 +388,7 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
           {emailValidation && !emailValidation.isChecking && (
             <div className={`text-sm ${emailValidation.exists ? 'text-red-600' : 'text-green-600'}`}>
               {emailValidation.message}
-              {emailValidation.exists && (
+              {emailValidation.exists && !currentUser && (
                 <div className="mt-1">
                   <button
                     type="button"
@@ -334,75 +404,118 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
           
         </div>
 
-        <Input
-          label="Telefono *"
-          type="tel"
-          {...register('telefono')}
-          error={errors.telefono?.message}
-        />
-
-        <Input
-          label="Cognome *"
-          {...register('cognome')}
-          error={errors.cognome?.message}
-        />
-
-        <Input
-          label="Nome *"
-          {...register('nome')}
-          error={errors.nome?.message}
-        />
-
-        <Input
-          label="Data di Nascita *"
-          type="date"
-          {...register('dataNascita')}
-          error={errors.dataNascita?.message}
-        />
-
-        <Select
-          label="Sesso *"
-          options={GENDER_OPTIONS}
-          {...register('sesso')}
-          error={errors.sesso?.message as string}
-          placeholder="Seleziona sesso"
-        />
-
-        <div className="col-span-1 md:col-span-2">
-          <Select
-            label="Provincia di Nascita *"
-            options={provinceOptions}
-            {...register('provinciaNascita')}
-            error={errors.provinciaNascita?.message as string}
-            placeholder="Seleziona provincia"
-          />
-        </div>
-
-        <div className="col-span-1 md:col-span-2">
-          <Select
-            label={watchedProvinciaNascita === 'EE' ? "Stato di Nascita*" : "Luogo di Nascita*"}
-            options={cityOptions}
-            {...register('luogoNascita')}
-            error={errors.luogoNascita?.message as string}
-            placeholder={
-              !watchedProvinciaNascita ? "Prima seleziona una provincia" :
-              watchedProvinciaNascita === 'EE' ? "Seleziona stato di nascita" : "Seleziona città"
-            }
-            disabled={!watchedProvinciaNascita}
-          />
-        </div>
-
-
-        <div className="space-y-2">
-          <div className="relative">
+        {(() => {
+          const telefonoStatus = getFieldStatus('telefono');
+          return telefonoStatus.shouldShow ? (
             <Input
-              label="Codice Fiscale *"
-              {...register('codiceFiscale', {
-                onChange: () => setIsCodiceFiscaleManual(true)
-              })}
-              error={errors.codiceFiscale?.message}
-              className="uppercase pr-10"
+              label="Telefono *"
+              type="tel"
+              {...register('telefono')}
+              error={errors.telefono?.message}
             />
+          ) : null;
+        })()}
+
+        {(() => {
+          const cognomeStatus = getFieldStatus('cognome');
+          return cognomeStatus.shouldShow ? (
+            <Input
+              label="Cognome *"
+              {...register('cognome')}
+              error={errors.cognome?.message}
+            />
+          ) : null;
+        })()}
+
+        {(() => {
+          const nomeStatus = getFieldStatus('nome');
+          return nomeStatus.shouldShow ? (
+            <Input
+              label="Nome *"
+              {...register('nome')}
+              error={errors.nome?.message}
+            />
+          ) : null;
+        })()}
+
+        {(() => {
+          const dataNascitaStatus = getFieldStatus('dataNascita');
+          return dataNascitaStatus.shouldShow ? (
+            <Input
+              label="Data di Nascita *"
+              type="date"
+              {...register('dataNascita')}
+              error={errors.dataNascita?.message}
+            />
+          ) : null;
+        })()}
+
+        {(() => {
+          const sessoStatus = getFieldStatus('sesso');
+          return sessoStatus.shouldShow ? (
+            <Select
+              label="Sesso *"
+              options={GENDER_OPTIONS}
+              {...register('sesso')}
+              error={errors.sesso?.message as string}
+              placeholder="Seleziona sesso"
+              disabled={sessoStatus.isReadonly || undefined}
+              className={sessoStatus.isReadonly ? 'bg-gray-50 cursor-not-allowed' : ''}
+            />
+          ) : null;
+        })()}
+
+        {(() => {
+          const provinciaNascitaStatus = getFieldStatus('provinciaNascita');
+          return provinciaNascitaStatus.shouldShow ? (
+            <div className="col-span-1 md:col-span-2">
+              <Select
+                label="Provincia di Nascita *"
+                options={provinceOptions}
+                {...register('provinciaNascita')}
+                error={errors.provinciaNascita?.message as string}
+                placeholder="Seleziona provincia"
+                disabled={provinciaNascitaStatus.isReadonly || undefined}
+                className={provinciaNascitaStatus.isReadonly ? 'bg-gray-50 cursor-not-allowed' : ''}
+              />
+            </div>
+          ) : null;
+        })()}
+
+        {(() => {
+          const luogoNascitaStatus = getFieldStatus('luogoNascita');
+          return luogoNascitaStatus.shouldShow ? (
+            <div className="col-span-1 md:col-span-2">
+              <Select
+                label={watchedProvinciaNascita === 'EE' ? "Stato di Nascita *" : "Luogo di Nascita *"}
+                options={cityOptions}
+                {...register('luogoNascita')}
+                error={errors.luogoNascita?.message as string}
+                placeholder={
+                  !watchedProvinciaNascita ? "Prima seleziona una provincia" :
+                  watchedProvinciaNascita === 'EE' ? "Seleziona stato di nascita" : "Seleziona città"
+                }
+                disabled={!watchedProvinciaNascita || Boolean(luogoNascitaStatus.isReadonly)}
+                className={luogoNascitaStatus.isReadonly ? 'bg-gray-50 cursor-not-allowed' : ''}
+              />
+            </div>
+          ) : null;
+        })()}
+
+
+        {(() => {
+          const codiceFiscaleStatus = getFieldStatus('codiceFiscale');
+          return codiceFiscaleStatus.shouldShow ? (
+            <div className="space-y-2">
+              <div className="relative">
+                <Input
+                  label="Codice Fiscale *"
+                  {...register('codiceFiscale', {
+                    onChange: () => setIsCodiceFiscaleManual(true)
+                  })}
+                  error={errors.codiceFiscale?.message}
+                  className="uppercase pr-10"
+                />
             <div className="absolute right-3 top-8 flex items-center space-x-1">
               {!isCodiceFiscaleManual && watchedCodiceFiscale && (
                 <div className="flex items-center space-x-1">
@@ -457,25 +570,36 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
 Rigenera automaticamente
             </button>
           )}
-        </div>
+            </div>
+          ) : null;
+        })()}
 
         <div></div>
 
-        {offerType === 'TFA_ROMANIA' && (
-          <>
-            <Input
-              label="Nome del Padre *"
-              {...register('nomePadre')}
-              error={errors.nomePadre?.message}
-            />
-
-            <Input
-              label="Nome della Madre *"
-              {...register('nomeMadre')}
-              error={errors.nomeMadre?.message}
-            />
-          </>
-        )}
+        {offerType === 'TFA_ROMANIA' && (() => {
+          const padreStatus = getFieldStatus('nomePadre');
+          const madreStatus = getFieldStatus('nomeMadre');
+          
+          return (
+            <>
+              {padreStatus.shouldShow && (
+                <Input
+                  label="Nome del Padre *"
+                  {...register('nomePadre')}
+                  error={errors.nomePadre?.message}
+                />
+              )}
+              
+              {madreStatus.shouldShow && (
+                <Input
+                  label="Nome della Madre *"
+                  {...register('nomeMadre')}
+                  error={errors.nomeMadre?.message}
+                />
+              )}
+            </>
+          );
+        })()}
       </div>
 
       <div className="mt-8">
@@ -503,7 +627,7 @@ Rigenera automaticamente
               <p className="text-red-700 text-sm">
                 {formError}
               </p>
-              {formError.includes('email già registrata') && (
+              {formError.includes('email già registrata') && !currentUser && (
                 <div className="mt-3">
                   <button
                     type="button"
@@ -519,6 +643,15 @@ Rigenera automaticamente
         </div>
       )}
 
+      {/* Existing User Prompt Modal */}
+      {showExistingUserPrompt && existingUser && (
+        <ExistingUserPrompt
+          user={existingUser}
+          onLoginRedirect={handleLoginRedirect}
+          onContinueAsNew={handleContinueAsNew}
+        />
+      )}
+      
     </form>
   );
 };

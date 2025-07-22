@@ -155,4 +155,19 @@ export const checkEmailVerification = async (email: string) => {
   });
 };
 
+export interface ExistingUser {
+  id: string;
+  email: string;
+  hasProfile: boolean;
+  registrationsCount: number;
+  hasTemporaryPassword: boolean;
+}
+
+export const checkUserExists = async (email: string) => {
+  return apiRequest<{ exists: boolean; user?: ExistingUser }>({
+    method: 'GET',
+    url: `/registration/check-user/${encodeURIComponent(email)}`
+  });
+};
+
 export default api;
