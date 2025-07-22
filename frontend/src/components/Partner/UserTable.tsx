@@ -80,14 +80,14 @@ const UserTable: React.FC<UserTableProps> = ({
               onChange={(e) => onFilterChange(e.target.value as any)}
               className="bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
             >
-              <option value="all">🔄 Tutti gli Utenti</option>
-              <option value="direct">👤 Utenti Diretti</option>
-              <option value="children">👥 Da Partner Figli</option>
+              <option value="all">Tutti gli Utenti</option>
+              <option value="direct">Utenti Diretti</option>
+              <option value="children">Da Partner Figli</option>
             </select>
             
             {selectedUsers.length > 0 && (
               <Button size="sm" variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100">
-                ⚡ Azioni su {selectedUsers.length} utenti
+                Azioni su {selectedUsers.length} utenti
               </Button>
             )}
           </div>
@@ -113,10 +113,10 @@ const UserTable: React.FC<UserTableProps> = ({
                 />
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                👤 Utente
+                Utente
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                📚 Corso
+                Corso
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 📊 Status
@@ -128,7 +128,7 @@ const UserTable: React.FC<UserTableProps> = ({
                 📅 Data Iscrizione
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                ⚡ Azioni
+                Azioni
               </th>
             </tr>
           </thead>

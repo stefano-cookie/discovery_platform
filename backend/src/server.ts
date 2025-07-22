@@ -23,13 +23,15 @@ import authRoutes from './routes/auth';
 import partnerRoutes from './routes/partner';
 import registrationRoutes from './routes/registration';
 import paymentRoutes from './routes/payment';
+import offerRoutes from './routes/offers';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/partners', partnerRoutes);
 app.use('/api/registration', registrationRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/offers', offerRoutes);
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3001;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

@@ -14,6 +14,9 @@ model User {
   role            UserRole @default(USER)
   isActive        Boolean  @default(true)
   passwordChanged Boolean  @default(false)
+  emailVerified   Boolean  @default(false)
+  emailVerificationToken String?
+  emailVerificationTokenExpiry DateTime?
   createdAt       DateTime @default(now())
   
   partner         Partner?
@@ -61,15 +64,23 @@ model PartnerOffer {
   partnerId               String
   courseId                String
   name                    String
+  offerType               OfferType @default(TFA_ROMANIA)
   totalAmount             Decimal
   installments            Int
   installmentFrequency    Int      // months
+  customPaymentPlan       Json?    // For custom payment plans
+  referralLink            String   @unique
   isActive                Boolean  @default(true)
   createdAt               DateTime @default(now())
   
   partner                 Partner  @relation(fields: [partnerId], references: [id])
   course                  Course   @relation(fields: [courseId], references: [id])
   registrations           Registration[]
+}
+
+enum OfferType {
+  TFA_ROMANIA
+  CERTIFICATION
 }
 
 model Coupon {
@@ -123,14 +134,25 @@ model UserProfile {
   domicilioProvincia      String?
   domicilioCap            String?
   
-  // Istruzione
-  tipoLaurea              String
-  laureaConseguita        String
-  laureaUniversita        String
-  laureaData              DateTime
+  // Istruzione (opzionale per certificazioni)
+  tipoLaurea              String?
+  laureaConseguita        String?
+  laureaConseguitaCustom  String?
+  laureaUniversita        String?
+  laureaData              DateTime?
   
-  // Professione
-  tipoProfessione         String
+  // Laurea Triennale (per magistrali)
+  tipoLaureaTriennale     String?
+  laureaConseguitaTriennale String?
+  laureaUniversitaTriennale String?
+  laureaDataTriennale     DateTime?
+  
+  // Dati pergamena (compilati dal partner)
+  numeroPergamena         String?
+  dataRilascioPergamena   DateTime?
+  
+  // Professione (opzionale per certificazioni)
+  tipoProfessione         String?
   scuolaDenominazione     String?
   scuolaCitta             String?
   scuolaProvincia         String?
@@ -143,10 +165,11 @@ model UserProfile {
 model Registration {
   id              String   @id @default(uuid())
   userId          String
-  partnerId       String
+  partnerId       String?
   courseId        String
   partnerOfferId  String?
   couponId        String?
+  offerType       OfferType @default(TFA_ROMANIA)
   
   originalAmount  Decimal
   finalAmount     Decimal
@@ -162,7 +185,7 @@ model Registration {
   createdAt       DateTime @default(now())
   
   user            User         @relation(fields: [userId], references: [id])
-  partner         Partner      @relation(fields: [partnerId], references: [id])
+  partner         Partner?     @relation(fields: [partnerId], references: [id])
   offer           PartnerOffer? @relation(fields: [partnerOfferId], references: [id])
   documents       Document[]
   payments        Payment[]

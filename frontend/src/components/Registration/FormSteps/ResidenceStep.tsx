@@ -1,22 +1,26 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { residenceSchema, ResidenceForm } from '../../../utils/validation';
 import Input from '../../UI/Input';
-import Button from '../../UI/Button';
+import Select from '../../UI/Select';
+import { getItalianProvinceOptions } from '../../../services/geoService';
 
 interface ResidenceStepProps {
   data: Partial<ResidenceForm>;
   onNext: (data: ResidenceForm) => void;
-  onBack: () => void;
+  onChange?: (data: Partial<ResidenceForm>) => void;
 }
 
-const ResidenceStep: React.FC<ResidenceStepProps> = ({ data, onNext, onBack }) => {
+const ResidenceStep: React.FC<ResidenceStepProps> = ({ data, onNext, onChange }) => {
+  const [provinceOptions] = useState(getItalianProvinceOptions());
+  
   const {
     register,
     handleSubmit,
     control,
-    formState: { errors, isValid },
+    watch,
+    formState: { errors },
   } = useForm<ResidenceForm>({
     resolver: zodResolver(residenceSchema),
     defaultValues: data,
@@ -27,6 +31,18 @@ const ResidenceStep: React.FC<ResidenceStepProps> = ({ data, onNext, onBack }) =
     control,
     name: 'hasDifferentDomicilio',
   });
+
+
+
+  // Watch all form values and update parent in real-time
+  useEffect(() => {
+    const subscription = watch((value) => {
+      if (onChange) {
+        onChange(value as Partial<ResidenceForm>);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [watch, onChange]);
 
   const onSubmit = (formData: ResidenceForm) => {
     onNext(formData);
@@ -51,11 +67,14 @@ const ResidenceStep: React.FC<ResidenceStepProps> = ({ data, onNext, onBack }) =
             error={errors.residenzaCitta?.message}
           />
 
-          <Input
+          <Select
             label="Provincia *"
+            options={provinceOptions}
             {...register('residenzaProvincia')}
-            error={errors.residenzaProvincia?.message}
+            error={errors.residenzaProvincia?.message as string}
+            placeholder="Seleziona provincia"
           />
+
 
           <Input
             label="CAP *"
@@ -96,11 +115,14 @@ const ResidenceStep: React.FC<ResidenceStepProps> = ({ data, onNext, onBack }) =
                 error={errors.domicilioCitta?.message}
               />
 
-              <Input
+              <Select
                 label="Provincia *"
+                options={provinceOptions}
                 {...register('domicilioProvincia')}
-                error={errors.domicilioProvincia?.message}
+                error={errors.domicilioProvincia?.message as string}
+                placeholder="Seleziona provincia"
               />
+
 
               <Input
                 label="CAP *"
@@ -112,22 +134,19 @@ const ResidenceStep: React.FC<ResidenceStepProps> = ({ data, onNext, onBack }) =
         )}
       </div>
 
-      <div className="flex justify-between">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onBack}
-        >
-          Indietro
-        </Button>
-        
-        <Button
-          type="submit"
-          disabled={!isValid}
-        >
-          Avanti
-        </Button>
+      <div className="mt-8">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <svg className="w-5 h-5 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            <p className="text-blue-800 text-sm">
+              Il domicilio è necessario solo se diverso dalla residenza. Inserisci solo indirizzi italiani.
+            </p>
+          </div>
+        </div>
       </div>
+
     </form>
   );
 };

@@ -5,6 +5,7 @@ import ProtectedRoute from './components/Auth/ProtectedRoute';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Registration from './pages/Registration';
+import EmailVerification from './pages/EmailVerification';
 
 const AppContent: React.FC = () => {
   const { user, isLoading } = useAuth();
@@ -30,6 +31,10 @@ const AppContent: React.FC = () => {
       <Route 
         path="/registration/:referralCode?" 
         element={<Registration />} 
+      />
+      <Route 
+        path="/email-verification" 
+        element={<EmailVerification />} 
       />
       <Route 
         path="/dashboard" 

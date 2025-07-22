@@ -17,6 +17,7 @@
   "type": "commonjs",
   "dependencies": {
     "@prisma/client": "^6.11.1",
+    "@types/nodemailer": "^6.4.17",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",
@@ -24,6 +25,7 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.1",
+    "nodemailer": "^7.0.5",
     "prisma": "^6.11.1"
   },
   "devDependencies": {

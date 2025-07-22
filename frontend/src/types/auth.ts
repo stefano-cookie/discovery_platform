@@ -3,6 +3,7 @@ export interface User {
   email: string;
   role: 'ADMIN' | 'PARTNER' | 'USER';
   mustChangePassword: boolean;
+  referralCode?: string | null;
 }
 
 export interface LoginRequest {

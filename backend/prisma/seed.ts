@@ -58,18 +58,56 @@ async function main() {
     }
   });
 
-  // Create partner offer
+  // Create TFA Romania offer
   await prisma.partnerOffer.upsert({
-    where: { id: 'default-offer' },
+    where: { id: 'tfa-romania-offer' },
     update: {},
     create: {
-      id: 'default-offer',
+      id: 'tfa-romania-offer',
       partnerId: partner.id,
       courseId: course.id,
-      name: 'Offerta Standard',
+      name: 'TFA Romania - Corso Completo',
+      offerType: 'TFA_ROMANIA',
       totalAmount: 5000,
       installments: 10,
       installmentFrequency: 1,
+      referralLink: 'MAIN001-TFA',
+      isActive: true
+    }
+  });
+
+  // Create Certification offer
+  const certificationCourse = await prisma.course.upsert({
+    where: { id: 'certification-course' },
+    update: {},
+    create: {
+      id: 'certification-course',
+      name: 'Certificazioni Professionali',
+      description: 'Corsi di certificazione per professionisti',
+      isActive: true
+    }
+  });
+
+  await prisma.partnerOffer.upsert({
+    where: { id: 'certification-offer' },
+    update: {},
+    create: {
+      id: 'certification-offer',
+      partnerId: partner.id,
+      courseId: certificationCourse.id,
+      name: 'Certificazione Digitale',
+      offerType: 'CERTIFICATION',
+      totalAmount: 1500,
+      installments: 3,
+      installmentFrequency: 1,
+      referralLink: 'MAIN001-CERT',
+      customPaymentPlan: {
+        payments: [
+          { amount: 500, dueDate: '2025-01-30' },
+          { amount: 500, dueDate: '2025-02-28' },
+          { amount: 500, dueDate: '2025-03-30' }
+        ]
+      },
       isActive: true
     }
   });

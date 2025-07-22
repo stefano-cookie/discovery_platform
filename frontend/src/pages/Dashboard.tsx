@@ -4,10 +4,12 @@ import Sidebar from '../components/Partner/Sidebar';
 import DashboardView from '../components/Partner/DashboardView';
 import UsersView from '../components/Partner/UsersView';
 import ChatView from '../components/Partner/ChatView';
+import CouponManagement from '../components/Partner/CouponManagement';
+import OfferManagement from '../components/Partner/OfferManagement';
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'chat'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'chat' | 'coupons' | 'offers'>('dashboard');
 
   const getDashboardContent = () => {
     switch (user?.role) {
@@ -29,6 +31,8 @@ const Dashboard: React.FC = () => {
               <div className="p-6 lg:p-8">
                 {activeTab === 'dashboard' && <DashboardView />}
                 {activeTab === 'users' && <UsersView />}
+                {activeTab === 'coupons' && <CouponManagement />}
+                {activeTab === 'offers' && <OfferManagement />}
                 {activeTab === 'chat' && <ChatView />}
               </div>
             </div>

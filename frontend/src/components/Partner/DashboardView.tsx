@@ -171,9 +171,9 @@ const DashboardView: React.FC = () => {
                     </p>
                   </div>
                   <div className="text-xs text-gray-400">
-                    {user.status === 'PENDING' && '⏳'}
-                    {user.status === 'ENROLLED' && '✅'}
-                    {user.status === 'COMPLETED' && '🎓'}
+                    {user.status === 'PENDING' && 'Pending'}
+                    {user.status === 'ENROLLED' && 'Active'}
+                    {user.status === 'COMPLETED' && 'Done'}
                   </div>
                 </div>
               ))}

@@ -7,8 +7,8 @@ export interface RegistrationData {
   luogoNascita: string;
   codiceFiscale: string;
   telefono: string;
-  nomePadre?: string;
-  nomeMadre?: string;
+  nomePadre: string;
+  nomeMadre: string;
   
   // Residenza
   residenzaVia: string;
@@ -26,6 +26,7 @@ export interface RegistrationData {
   // Istruzione
   tipoLaurea: string;
   laureaConseguita: string;
+  laureaConseguitaCustom?: string;
   laureaUniversita: string;
   laureaData: string;
   
@@ -37,12 +38,21 @@ export interface RegistrationData {
   
   // Documenti
   cartaIdentita?: File;
-  certificatoLaureaTriennale?: File;
-  certificatoLaureaMagistrale?: File;
+  certificatoTriennale?: File;
+  certificatoMagistrale?: File;
+  pianoStudioTriennale?: File;
+  pianoStudioMagistrale?: File;
   certificatoMedico?: File;
+  certificatoNascita?: File;
+  diplomoLaurea?: File;
+  pergamenaLaurea?: File;
   
-  // Iscrizione
+  // Opzioni Iscrizione
   courseId?: string;
+  paymentPlan?: string;
+  customInstallments?: number;
+  
+  // Riepilogo
   partnerOfferId?: string;
   couponCode?: string;
   referralCode?: string;
