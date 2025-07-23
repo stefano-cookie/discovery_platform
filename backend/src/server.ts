@@ -8,13 +8,18 @@ dotenv.config();
 
 const app = express();
 const prisma = new PrismaClient();
+const corsOptions = {
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true,
+  optionsSuccessStatus: 200
+};
 
 app.use(helmet());
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Basic health check
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
@@ -38,7 +43,8 @@ app.use('/api/courses', courseRoutes);
 const PORT = parseInt(process.env.PORT || '8000', 10);
 
 const server = app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  const host = process.env.HOST || 'localhost';
+  console.log(`Server running on http://${host}:${PORT}`);
 });
 
 server.on('error', (err) => {

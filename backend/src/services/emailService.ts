@@ -728,7 +728,7 @@ class EmailService {
                 <p>La tua password è ora aggiornata e potrai utilizzarla per i prossimi accessi alla piattaforma.</p>
                 
                 <div style="margin: 30px 0;">
-                    <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/login" 
+                    <a href="${process.env.FRONTEND_URL}/login" 
                        style="background-color: #0066cc; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
                         Accedi alla Piattaforma
                     </a>

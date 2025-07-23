@@ -459,7 +459,7 @@ router.post('/submit', upload.fields([
     // Generate temporary password and send credentials email
     try {
       const temporaryPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
-      const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login`;
+      const loginUrl = `${process.env.FRONTEND_URL}/login`;
       
       // Update user with temporary password
       const bcrypt = require('bcrypt');
