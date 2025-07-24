@@ -35,4 +35,13 @@ uploads/
 *.db
 *.sqlite
 
+# Documentation
 CLAUDE.md
+*.md
+!README.md
+
+# Deployment files
+sync-db*.sh
+server-info-commands.sh
+nginx*.conf
+start-production-local.sh
