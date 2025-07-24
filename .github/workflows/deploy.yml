@@ -38,7 +38,7 @@ jobs:
         REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
         REMOTE_USER: ${{ secrets.REMOTE_USER }}
         SOURCE: "./"
-        TARGET: "/home/${{ secrets.REMOTE_USER }}/discovery_platform_temp/"
+        TARGET: "/var/www/vhosts/cfoeducation.it/discovery_platform_temp/"
         EXCLUDE: ".git/,.github/,node_modules/,backend/uploads/,backend/.env,frontend/.env,*.log,.DS_Store"
           
     - name: Execute deployment script on server
@@ -48,5 +48,5 @@ jobs:
         username: ${{ secrets.REMOTE_USER }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          cd ~/discovery_platform_temp
+          cd /var/www/vhosts/cfoeducation.it/discovery_platform_temp
           bash deploy-on-server.sh
