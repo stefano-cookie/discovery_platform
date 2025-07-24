@@ -33,7 +33,7 @@ const AppContent: React.FC = () => {
     <div>
       {/* Deploy indicator */}
       <div className="bg-green-600 text-white text-center py-1 text-sm">
-        🚀 Deploy Test - {new Date().toLocaleString('it-IT')}
+        ✅ Deploy Success - {new Date().toLocaleString('it-IT')} - GitHub Actions Working!
       </div>
       
       <Routes>
