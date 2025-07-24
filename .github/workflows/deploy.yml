@@ -10,12 +10,14 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
-    - name: Setup Node.js
+    - name: Setup Node.js without cache
       uses: actions/setup-node@v4
       with:
         node-version: '20'
+        # Explicitly disable cache to avoid lock file errors
+        cache: ''
 
     - name: Install and build frontend
       working-directory: ./frontend
