@@ -34,9 +34,9 @@ jobs:
     - name: Deploy to server via SSH
       uses: easingthemes/ssh-deploy@v4.1.10
       env:
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
-        REMOTE_USER: ${{ secrets.REMOTE_USER }}
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY || '' }}
+        REMOTE_HOST: ${{ secrets.REMOTE_HOST || '' }}
+        REMOTE_USER: ${{ secrets.REMOTE_USER || '' }}
         SOURCE: "./"
         TARGET: "/var/www/vhosts/cfoeducation.it/discovery_platform_temp/"
         EXCLUDE: ".git/,.github/,node_modules/,backend/uploads/,backend/.env,frontend/.env,*.log,.DS_Store"
@@ -44,9 +44,9 @@ jobs:
     - name: Execute deployment script on server
       uses: appleboy/ssh-action@v1.0.0
       with:
-        host: ${{ secrets.REMOTE_HOST }}
-        username: ${{ secrets.REMOTE_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        host: ${{ secrets.REMOTE_HOST || '' }}
+        username: ${{ secrets.REMOTE_USER || '' }}
+        key: ${{ secrets.SSH_PRIVATE_KEY || '' }}
         script: |
           cd /var/www/vhosts/cfoeducation.it/discovery_platform_temp
           bash deploy-on-server.sh
