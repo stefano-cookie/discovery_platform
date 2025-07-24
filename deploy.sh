@@ -5,6 +5,15 @@
 
 set -e
 
+# Check if SSH key exists
+SSH_KEY="$HOME/.ssh/discovery_deploy"
+if [ ! -f "$SSH_KEY" ]; then
+    echo "❌ SSH key not found: $SSH_KEY"
+    echo "Run: ssh-keygen -t rsa -b 4096 -f ~/.ssh/discovery_deploy -N ''"
+    echo "Then add ~/.ssh/discovery_deploy.pub to server authorized_keys"
+    exit 1
+fi
+
 # Configurazione
 ENVIRONMENT=${1:-produzione}
 SERVER_USER="cfoeducation.it_f55qsn6wucc"
@@ -42,11 +51,11 @@ tar -czf deployment.tar.gz \
 
 # 4. Upload su server
 echo "📤 Upload su server..."
-scp deployment.tar.gz $SERVER_USER@$SERVER_HOST:$SERVER_PATH/
+scp -i "$SSH_KEY" -o StrictHostKeyChecking=no deployment.tar.gz $SERVER_USER@$SERVER_HOST:$SERVER_PATH/
 
 # 5. Esegui comandi remoti
 echo "🔧 Configurazione server..."
-ssh $SERVER_USER@$SERVER_HOST << 'ENDSSH'
+ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST << 'ENDSSH'
 cd $SERVER_PATH
 
 # Backup precedente

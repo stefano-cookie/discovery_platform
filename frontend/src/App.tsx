@@ -30,7 +30,12 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <Routes>
+    <div>
+      {/* Deploy Test Banner */}
+      <div className="bg-blue-600 text-white text-center py-1 text-sm">
+        🔧 Deploy Fix Test - {new Date().toLocaleString('it-IT')}
+      </div>
+      <Routes>
         <Route 
           path="/" 
           element={user ? <Navigate to={getAuthenticatedRedirect()} replace /> : <Navigate to="/login" replace />} 
@@ -80,7 +85,8 @@ const AppContent: React.FC = () => {
         } 
       />
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </div>
   );
 };
 
