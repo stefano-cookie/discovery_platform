@@ -16,6 +16,9 @@ const Landing: React.FC = () => {
           <p className="mx-auto mt-6 max-w-2xl text-lg tracking-tight text-slate-700">
             La piattaforma di formazione professionale che ti accompagna nel tuo percorso di crescita.
           </p>
+          <p className="mt-4 text-sm text-green-600 font-semibold">
+            ✅ Deploy Test - {new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome' })}
+          </p>
           <div className="mt-10 flex justify-center gap-x-6">
             <Link to="/registration">
               <Button size="lg">
