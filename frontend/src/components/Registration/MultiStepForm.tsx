@@ -207,7 +207,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
     };
 
     loadOfferInfo();
-  }, [referralCode]);
+  }, [referralCode, updateFormData]);
 
   // Load user profile when user is authenticated
   useEffect(() => {

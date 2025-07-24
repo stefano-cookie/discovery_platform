@@ -31,10 +31,6 @@ const AppContent: React.FC = () => {
 
   return (
     <div>
-      {/* Deploy Test Banner */}
-      <div className="bg-green-600 text-white text-center py-1 text-sm">
-        ✅ FTP Deploy Test - {new Date().toLocaleString('it-IT')} - Password Updated!
-      </div>
       <Routes>
         <Route 
           path="/" 

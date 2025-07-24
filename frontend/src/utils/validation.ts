@@ -15,8 +15,8 @@ export const generalDataSchema = z.object({
   nomeMadre: z.string().min(1, 'Nome della madre richiesto'),
 });
 
-// Step 2: Residence
-export const residenceSchema = z.object({
+// Step 2: Residence - base schema
+const residenceBaseSchema = z.object({
   residenzaVia: z.string().min(1, 'Via richiesta'),
   residenzaCitta: z.string().min(1, 'Città richiesta'),
   residenzaProvincia: z.string().min(2, 'Provincia richiesta'),
@@ -26,7 +26,10 @@ export const residenceSchema = z.object({
   domicilioCitta: z.string().optional(),
   domicilioProvincia: z.string().optional(),
   domicilioCap: z.string().optional(),
-}).refine((data) => {
+});
+
+// Step 2: Residence - with validation
+export const residenceSchema = residenceBaseSchema.refine((data) => {
   if (data.hasDifferentDomicilio) {
     return data.domicilioVia && data.domicilioCitta && data.domicilioProvincia && data.domicilioCap;
   }
@@ -36,8 +39,8 @@ export const residenceSchema = z.object({
   path: ['domicilioVia'],
 });
 
-// Step 3: Education
-export const educationSchema = z.object({
+// Step 3: Education - base schema
+const educationBaseSchema = z.object({
   tipoLaurea: z.string().min(1, 'Tipo laurea richiesto'),
   laureaConseguita: z.string().min(1, 'Laurea conseguita richiesta'),
   laureaConseguitaCustom: z.string().optional(),
@@ -49,7 +52,10 @@ export const educationSchema = z.object({
   laureaConseguitaTriennale: z.string().optional(),
   laureaUniversitaTriennale: z.string().optional(),
   laureaDataTriennale: z.string().optional(),
-}).refine((data) => {
+});
+
+// Step 3: Education - with validation
+export const educationSchema = educationBaseSchema.refine((data) => {
   if (data.laureaConseguita === 'ALTRO') {
     return data.laureaConseguitaCustom && data.laureaConseguitaCustom.trim().length > 0;
   }
@@ -92,13 +98,16 @@ export const educationSchema = z.object({
   path: ['laureaDataTriennale'],
 });
 
-// Step 4: Profession
-export const professionSchema = z.object({
+// Step 4: Profession - base schema
+const professionBaseSchema = z.object({
   tipoProfessione: z.string().min(1, 'Tipo professione richiesto'),
   scuolaDenominazione: z.string().optional(),
   scuolaCitta: z.string().optional(),
   scuolaProvincia: z.string().optional(),
-}).refine((data) => {
+});
+
+// Step 4: Profession - with validation
+export const professionSchema = professionBaseSchema.refine((data) => {
   if (data.tipoProfessione === 'Docente di ruolo' || data.tipoProfessione === 'Docente a tempo determinato') {
     return data.scuolaDenominazione && data.scuolaCitta && data.scuolaProvincia;
   }
@@ -136,11 +145,11 @@ export const registrationSchema = z.object({
   referralCode: z.string().optional(),
 });
 
-// Complete schema
+// Complete schema - using base schemas for merging
 export const completeRegistrationSchema = generalDataSchema
-  .merge(residenceSchema)
-  .merge(educationSchema)
-  .merge(professionSchema)
+  .merge(residenceBaseSchema)
+  .merge(educationBaseSchema)
+  .merge(professionBaseSchema)
   .merge(documentsSchema)
   .merge(registrationSchema);
 
