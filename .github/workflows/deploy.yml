@@ -7,6 +7,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
@@ -22,14 +23,37 @@ jobs:
       run: |
         npm ci
         npm run build
+        
+    - name: Install and build backend
+      working-directory: ./backend
+      run: |
+        npm ci
+        npm run build
 
-    - name: Deploy to server via FTP
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+    - name: Deploy to server via SSH
+      uses: easingthemes/ssh-deploy@v4.1.10
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
+        REMOTE_USER: ${{ secrets.REMOTE_USER }}
+        SOURCE: "./"
+        TARGET: "/home/${{ secrets.REMOTE_USER }}/discovery_platform_temp/"
+        EXCLUDE: |
+          .git/
+          .github/
+          node_modules/
+          backend/uploads/
+          backend/.env
+          frontend/.env
+          *.log
+          .DS_Store
+          
+    - name: Execute deployment script on server
+      uses: appleboy/ssh-action@v1.0.0
       with:
-        server: cfoeducation.it
-        username: ${{ secrets.FTP_USER }}
-        password: ${{ secrets.FTP_PASSWORD }}
-        local-dir: "./frontend/build/"
-        server-dir: "/"
-        dry-run: false
-        log-level: verbose
+        host: ${{ secrets.REMOTE_HOST }}
+        username: ${{ secrets.REMOTE_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          cd ~/discovery_platform_temp
+          bash deploy-on-server.sh
