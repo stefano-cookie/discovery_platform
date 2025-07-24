@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 
 interface User {
@@ -26,13 +26,7 @@ const OfferVisibilityModal: React.FC<OfferVisibilityModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen && offerId) {
-      loadOfferVisibility();
-    }
-  }, [isOpen, offerId]);
-
-  const loadOfferVisibility = async () => {
+  const loadOfferVisibility = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -45,7 +39,13 @@ const OfferVisibilityModal: React.FC<OfferVisibilityModalProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [offerId]);
+
+  useEffect(() => {
+    if (isOpen && offerId) {
+      loadOfferVisibility();
+    }
+  }, [isOpen, offerId, loadOfferVisibility]);
 
   const toggleUserVisibility = (userId: string) => {
     setUsers(prev => prev.map(user => 

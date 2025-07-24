@@ -20,7 +20,6 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
 
   const [customPayments, setCustomPayments] = useState<Array<{ amount: number; dueDate: string }>>([]);
   const [useCustomPlan, setUseCustomPlan] = useState(true);
-  const [previewPayments, setPreviewPayments] = useState<Array<{ amount: number; dueDate: string }>>([]);
 
   // Set first available course when courses are loaded and initialize payments
   React.useEffect(() => {
@@ -54,13 +53,14 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
   React.useEffect(() => {
     if (useCustomPlan && customPayments.length > 0 && formData.totalAmount > 0) {
       const amountPerPayment = formData.totalAmount / customPayments.length;
-      const updatedPayments = customPayments.map(payment => ({
-        ...payment,
-        amount: Number(amountPerPayment.toFixed(2))
-      }));
-      setCustomPayments(updatedPayments);
+      setCustomPayments(prevPayments => 
+        prevPayments.map(payment => ({
+          ...payment,
+          amount: Number(amountPerPayment.toFixed(2))
+        }))
+      );
     }
-  }, [formData.totalAmount, useCustomPlan]); // Note: not including customPayments to avoid infinite loop
+  }, [formData.totalAmount, useCustomPlan, customPayments.length]); // customPayments.length to avoid infinite loop but still track changes
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -75,11 +75,10 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
     
     // Update preview if not using custom plan
     if (!useCustomPlan && updatedData.totalAmount > 0 && updatedData.installments > 0) {
-      const preview = OfferService.generatePaymentPlan(
+      OfferService.generatePaymentPlan(
         updatedData.totalAmount,
         updatedData.installments
       );
-      setPreviewPayments(preview);
     }
   };
 
@@ -142,30 +141,6 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
     }
   };
 
-  const generateCustomPayments = (numPayments: number) => {
-    if (numPayments === 0) {
-      setCustomPayments([]);
-      return;
-    }
-
-    const amountPerPayment = formData.totalAmount / numPayments;
-    const payments = [];
-    
-    for (let i = 0; i < numPayments; i++) {
-      const dueDate = new Date();
-      dueDate.setMonth(dueDate.getMonth() + i + 1);
-      dueDate.setDate(30);
-      
-      payments.push({
-        amount: Number(amountPerPayment.toFixed(2)),
-        dueDate: dueDate.toISOString().split('T')[0]
-      });
-    }
-    
-    setCustomPayments(payments);
-    // Aggiorna anche installments nel formData
-    setFormData(prev => ({ ...prev, installments: payments.length }));
-  };
 
   const addCustomPayment = () => {
     const nextMonth = new Date();

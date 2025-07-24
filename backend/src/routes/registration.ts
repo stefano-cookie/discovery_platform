@@ -343,6 +343,13 @@ router.post('/submit', upload.fields([
             isActive: true
           }
         });
+        
+        if (!offer) {
+          console.error(`Partner offer not found with ID: ${partnerOfferId}`);
+          throw new Error(`Offerta partner non trovata con ID: ${partnerOfferId}`);
+        } else {
+          console.log(`Partner offer found: ${offer.name}, type: ${offer.offerType}`);
+        }
       } else if (partner) {
         offer = await tx.partnerOffer.findFirst({
           where: {
@@ -414,6 +421,8 @@ router.post('/submit', upload.fields([
         status: 'PENDING'
       }
       });
+      
+      console.log(`Registration created with offerType: ${registration.offerType}, offerId: ${offer?.id || 'no offer'}, partnerOfferId param: ${partnerOfferId}`);
 
       // Create coupon use record if coupon was applied
       if (couponData) {

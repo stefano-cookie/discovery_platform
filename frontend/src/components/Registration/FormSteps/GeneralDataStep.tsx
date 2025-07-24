@@ -27,16 +27,12 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
   onChange, 
   referralCode,
   offerType = 'TFA_ROMANIA',
-  requiredFields = [],
-  offerInfo
+  requiredFields: _requiredFields = [],
+  offerInfo: _offerInfo
 }) => {
   // Get authentication status to prevent popup when user is already logged in
   const { user: currentUser } = useAuth();
   
-  // Determine which fields are pre-populated and which are missing
-  const isAdditionalEnrollment = localStorage.getItem('registrationFormData') !== null;
-  const isAuthenticatedUser = currentUser !== null;
-  const isNewEnrollmentForExistingUser = isAuthenticatedUser && !isAdditionalEnrollment;
   
   const getFieldStatus = (fieldName: keyof GeneralDataForm) => {
     const hasValue = data[fieldName] && data[fieldName] !== '';

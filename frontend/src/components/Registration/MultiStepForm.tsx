@@ -188,6 +188,10 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
           setOfferError(null);
           const info = await OfferService.getOfferByLink(referralCode);
           setOfferInfo(info);
+          // Save partnerOfferId in formData when offer is loaded
+          if (info && info.id) {
+            updateFormData({ partnerOfferId: info.id });
+          }
         } catch (error) {
           console.error('Error loading offer info:', error);
           const errorMessage = (error as any).response?.data?.message || 
