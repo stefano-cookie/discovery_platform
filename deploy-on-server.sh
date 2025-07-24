@@ -46,27 +46,36 @@ rsync -av \
     --exclude='*.log' \
     "$TEMP_DIR/backend/" "$DEPLOY_DIR/backend/"
 
-# 4. Installa dipendenze backend
+# 4. Copia file .env.production come .env
+echo -e "${YELLOW}🔐 Setting up environment variables...${NC}"
+if [ -f "$DEPLOY_DIR/backend/.env.production" ]; then
+    cp "$DEPLOY_DIR/backend/.env.production" "$DEPLOY_DIR/backend/.env"
+    echo -e "${GREEN}✓ Environment file configured${NC}"
+else
+    echo -e "${RED}⚠️ Warning: .env.production not found!${NC}"
+fi
+
+# 5. Installa dipendenze backend
 echo -e "${YELLOW}📦 Installing backend dependencies...${NC}"
 cd "$DEPLOY_DIR/backend"
 npm ci --production
 
-# 5. Esegui migrazioni database
+# 6. Esegui migrazioni database
 echo -e "${YELLOW}🗄️ Running database migrations...${NC}"
 npx prisma migrate deploy
 
-# 6. Riavvia backend con PM2
+# 7. Riavvia backend con PM2
 echo -e "${YELLOW}🔄 Restarting backend service...${NC}"
 pm2 restart ecosystem.config.js --update-env || pm2 start ecosystem.config.js
 
-# 7. Salva configurazione PM2
+# 8. Salva configurazione PM2
 pm2 save
 
-# 8. Cleanup
+# 9. Cleanup
 echo -e "${YELLOW}🧹 Cleaning up...${NC}"
 rm -rf "$TEMP_DIR"
 
-# 9. Rimuovi backup vecchi (mantieni solo ultimi 5)
+# 10. Rimuovi backup vecchi (mantieni solo ultimi 5)
 cd "$BACKUP_DIR"
 ls -t discovery_backup_*.tar.gz | tail -n +6 | xargs -r rm
 
