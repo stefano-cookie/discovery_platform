@@ -30,6 +30,6 @@ jobs:
         username: ${{ secrets.FTP_USER }}
         password: ${{ secrets.FTP_PASSWORD }}
         local-dir: "./frontend/build/"
-        server-dir: "/discovery.cfoeducation.it/httpdocs/"
+        server-dir: "/"
         dry-run: false
         log-level: verbose
