@@ -283,7 +283,7 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, onNext, offerInfo, isSubmitting, acceptedPrivacy, emailVerified, verifiedEmail, user]);
+  }, [formData, onNext, offerInfo, isSubmitting, acceptedPrivacy, emailVerified, verifiedEmail, user, couponValidation?.discount, couponValidation?.isValid]);
 
   // Watch all form values and update parent in real-time
   useEffect(() => {
@@ -388,7 +388,7 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
     } finally {
       setValidatingCoupon(false);
     }
-  }, [offerInfo?.partnerId, formData.partnerId, formData.referralCode]);
+  }, [offerInfo?.partnerId, formData.partnerId, formData.referralCode, onChange]);
 
   // Watch coupon code changes
   const couponCode = watch('couponCode');
