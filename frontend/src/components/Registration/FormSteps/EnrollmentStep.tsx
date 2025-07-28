@@ -8,22 +8,12 @@ import { OfferInfo } from '../../../types/offers';
 const enrollmentSchema = z.object({
   courseId: z.string().min(1, 'Corso richiesto'),
   paymentPlan: z.string().min(1, 'Piano di pagamento richiesto'),
-  customInstallments: z.number().optional(),
-}).refine((data) => {
-  if (data.paymentPlan === 'custom') {
-    return data.customInstallments && data.customInstallments >= 1 && data.customInstallments <= 24;
-  }
-  return true;
-}, {
-  message: 'Per il piano personalizzato inserisci un numero di rate tra 1 e 24',
-  path: ['customInstallments'],
 });
 
 type EnrollmentForm = z.infer<typeof enrollmentSchema>;
 
 interface EnrollmentStepProps {
   data: Partial<EnrollmentForm>;
-  partnerId?: string;
   formData?: any; // Per accedere al coupon applicato
   onNext: (data: EnrollmentForm) => void;
   onChange?: (data: Partial<EnrollmentForm>) => void;
@@ -49,7 +39,7 @@ interface PaymentPlan {
   isRecommended?: boolean;
 }
 
-const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, partnerId, formData, onNext, onChange, offerInfo }) => {
+const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext, onChange, offerInfo }) => {
   const {
     register,
     handleSubmit,
@@ -70,21 +60,49 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, partnerId, formDa
   const selectedCourse = useWatch({ control, name: 'courseId' });
   const selectedPaymentPlan = useWatch({ control, name: 'paymentPlan' });
 
-  // Calcola sconto da coupon applicato
-  // NOTA: Il calcolo finale del coupon viene fatto nel backend durante la registrazione
-  // Qui mostriamo solo un'indicazione visiva se è presente un coupon
-  const calculateCouponDiscount = useCallback((baseAmount: number) => {
+  // Calcola sconto da coupon applicato - CORRETTO per TFA Romania
+  const calculateCouponDiscount = useCallback((baseAmount: number, isTfaRomania: boolean = false) => {
     const couponCode = formData?.couponCode;
-    if (!couponCode) return { discountAmount: 0, finalAmount: baseAmount };
+    const couponValidation = formData?.couponValidation;
+    
+    if (!couponCode || !couponValidation?.isValid || !couponValidation.discount) {
+      return { 
+        discountAmount: 0, 
+        finalAmount: baseAmount,
+        imponibileAmount: isTfaRomania ? baseAmount - 1500 : baseAmount,
+        accontoAmount: isTfaRomania ? 1500 : 0
+      };
+    }
 
-    // Per ora mostriamo il prezzo originale - il calcolo esatto sarà fatto nel backend
-    // In futuro si potrebbe chiamare l'API per ottenere l'anteprima dello sconto
+    const discount = couponValidation.discount;
+    let discountAmount = 0;
+    let imponibileAmount = isTfaRomania ? baseAmount - 1500 : baseAmount; // Calcola imponibile (esclude acconto)
+    let finalImponibileAmount = imponibileAmount;
+    
+    // Applica sconto SOLO sull'imponibile (non sull'acconto)
+    if (discount.type === 'PERCENTAGE') {
+      discountAmount = imponibileAmount * (discount.amount / 100);
+      finalImponibileAmount = imponibileAmount - discountAmount;
+    } else if (discount.type === 'FIXED') {
+      discountAmount = Math.min(discount.amount, imponibileAmount);
+      finalImponibileAmount = Math.max(0, imponibileAmount - discount.amount);
+    }
+    
+    // Il totale finale include l'acconto (non scontato) + imponibile scontato
+    const finalAmount = (isTfaRomania ? 1500 : 0) + finalImponibileAmount;
+    
     return {
-      discountAmount: 0, // Will be calculated by backend
-      finalAmount: baseAmount,
-      coupon: { code: couponCode, type: 'UNKNOWN', amount: 0 }
+      discountAmount: discountAmount,
+      finalAmount: finalAmount,
+      imponibileAmount: finalImponibileAmount, // Imponibile dopo sconto (per calcolo rate)
+      accontoAmount: isTfaRomania ? 1500 : 0,
+      coupon: { 
+        code: couponCode, 
+        type: discount.type, 
+        amount: discount.amount 
+      }
     };
-  }, [formData?.couponCode]);
+  }, [formData?.couponCode, formData?.couponValidation]);
 
   // Load courses from offer info
   useEffect(() => {
@@ -122,27 +140,60 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, partnerId, formDa
     if (selectedCourse) {
       const selectedCourseData = courses.find(c => c.id === selectedCourse);
       if (selectedCourseData) {
-        if (offerInfo?.offerType === 'CERTIFICATION' && offerInfo.customPaymentPlan) {
-          // For certifications: use the fixed payment plan from the partner
+        // Check if offer has custom payment plan
+        if (offerInfo?.customPaymentPlan && offerInfo.customPaymentPlan.payments.length > 0) {
+          // Use the partner's custom payment plan
           const totalAmount = Number(offerInfo.totalAmount);
-          const customPlanWithCoupon = calculateCouponDiscount(totalAmount);
           
-          const certificationPlan: PaymentPlan = {
-            id: 'certification-plan',
-            name: `Piano Certificazione - ${offerInfo.installments} Rate`,
-            description: `Piano di pagamento personalizzato dal partner`,
-            installments: offerInfo.installments,
-            frequency: offerInfo.installmentFrequency === 1 ? 'Mensile' : `Ogni ${offerInfo.installmentFrequency} mesi`,
+          // Determina se è TFA Romania
+          const isTfaRomaniaOffer = offerInfo?.offerType === 'TFA_ROMANIA' ||
+                                   offerInfo?.name?.includes('TFA') ||
+                                   offerInfo?.name?.includes('Corso di Formazione Diamante');
+          
+          const customPlanWithCoupon = calculateCouponDiscount(totalAmount, isTfaRomaniaOffer);
+          
+          const customPayments = offerInfo.customPaymentPlan.payments;
+          const numberOfPayments = customPayments.length;
+          
+          // Calculate correct payment amount considering discounts
+          let averagePaymentAmount;
+          if (isTfaRomaniaOffer) {
+            // For TFA Romania: use the discounted imponibile amount divided by number of payments
+            averagePaymentAmount = customPlanWithCoupon.imponibileAmount / numberOfPayments;
+          } else {
+            // For other courses: use the full discounted amount divided by number of payments
+            averagePaymentAmount = customPlanWithCoupon.finalAmount / numberOfPayments;
+          }
+          
+          let description;
+          if (isTfaRomaniaOffer) {
+            description = `Piano Personalizzato Partner (${numberOfPayments} rate) - Include acconto €1.500`;
+          } else {
+            description = `Piano Personalizzato Partner (${numberOfPayments} rate)`;
+          }
+          
+          const customPlan: PaymentPlan = {
+            id: 'partner-custom-plan',
+            name: `Piano Personalizzato Partner (${numberOfPayments} rate)`,
+            description: description,
+            installments: numberOfPayments,
+            frequency: numberOfPayments === 1 ? 'Immediato' : 'Personalizzato',
             totalAmount: customPlanWithCoupon.finalAmount,
-            monthlyAmount: customPlanWithCoupon.finalAmount / offerInfo.installments,
+            monthlyAmount: averagePaymentAmount,
             isRecommended: true,
           };
 
-          setPaymentPlans([certificationPlan]);
+          setPaymentPlans([customPlan]);
         } else {
+          // Fallback to static payment plans if no custom plan is available
           const baseAmount = selectedCourseData.totalAmount;
+          
+          // Determina se è TFA Romania (stesso controllo usato ovunque)
+          const isTfaRomania = offerInfo?.offerType === 'TFA_ROMANIA' || 
+                               offerInfo?.name?.includes('TFA') ||
+                               offerInfo?.name?.includes('Corso di Formazione Diamante');
 
-          const baseWithCoupon = calculateCouponDiscount(baseAmount);
+          const baseWithCoupon = calculateCouponDiscount(baseAmount, isTfaRomania);
 
           const tfaPaymentPlans: PaymentPlan[] = [
             {
@@ -158,41 +209,31 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, partnerId, formDa
             {
               id: 'biannual',
               name: '2 Rate',
-              description: 'Pagamento semestrale',
+              description: isTfaRomania ? 'Acconto €1.500 + 2 rate' : 'Pagamento semestrale',
               installments: 2,
               frequency: 'Ogni 6 mesi',
               totalAmount: baseWithCoupon.finalAmount,
-              monthlyAmount: baseWithCoupon.finalAmount / 2,
+              monthlyAmount: isTfaRomania ? baseWithCoupon.imponibileAmount / 2 : baseWithCoupon.finalAmount / 2,
               isRecommended: false,
             },
             {
               id: 'quarterly',
               name: '4 Rate',
-              description: 'Pagamento trimestrale',
+              description: isTfaRomania ? 'Acconto €1.500 + 4 rate' : 'Pagamento trimestrale',
               installments: 4,
               frequency: 'Ogni 3 mesi',
               totalAmount: baseWithCoupon.finalAmount,
-              monthlyAmount: baseWithCoupon.finalAmount / 4,
+              monthlyAmount: isTfaRomania ? baseWithCoupon.imponibileAmount / 4 : baseWithCoupon.finalAmount / 4,
               isRecommended: true,
             },
             {
               id: 'monthly',
               name: '12 Rate',
-              description: 'Pagamento mensile',
+              description: isTfaRomania ? 'Acconto €1.500 + 12 rate' : 'Pagamento mensile',
               installments: 12,
               frequency: 'Mensile',
               totalAmount: baseWithCoupon.finalAmount,
-              monthlyAmount: baseWithCoupon.finalAmount / 12,
-              isRecommended: false,
-            },
-            {
-              id: 'custom',
-              name: 'Piano Personalizzato',
-              description: 'Scegli il numero di rate che preferisci (1-24)',
-              installments: 0,
-              frequency: 'Personalizzabile',
-              totalAmount: baseWithCoupon.finalAmount,
-              monthlyAmount: 0,
+              monthlyAmount: isTfaRomania ? baseWithCoupon.imponibileAmount / 12 : baseWithCoupon.finalAmount / 12,
               isRecommended: false,
             },
           ];
@@ -218,14 +259,21 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, partnerId, formDa
     }
   }, [offerInfo, courses, selectedCourse, register]);
 
-  // Auto-select payment plan for certifications
+  // Auto-select payment plan for custom plans and certifications
   useEffect(() => {
-    if (offerInfo?.offerType === 'CERTIFICATION' && paymentPlans.length > 0 && !selectedPaymentPlan) {
-      // Auto-select the certification plan
-      const certificationPlan = paymentPlans.find(plan => plan.id === 'certification-plan');
-      if (certificationPlan) {
-        const event = { target: { value: certificationPlan.id } };
+    if (paymentPlans.length > 0 && !selectedPaymentPlan) {
+      // Auto-select the partner custom plan if available
+      const customPlan = paymentPlans.find(plan => plan.id === 'partner-custom-plan');
+      if (customPlan) {
+        const event = { target: { value: customPlan.id } };
         register('paymentPlan').onChange(event);
+      } else if (offerInfo?.offerType === 'CERTIFICATION') {
+        // Fallback to certification plan for certifications
+        const certificationPlan = paymentPlans.find(plan => plan.id === 'certification-plan');
+        if (certificationPlan) {
+          const event = { target: { value: certificationPlan.id } };
+          register('paymentPlan').onChange(event);
+        }
       }
     }
   }, [offerInfo, paymentPlans, selectedPaymentPlan, register]);
@@ -251,36 +299,129 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, partnerId, formDa
     }).format(amount);
   };
 
-  const calculateCustomPlan = (installments: number) => {
-    const selectedCourseData = courses.find(c => c.id === selectedCourse);
-    if (!selectedCourseData || installments < 1) return null;
-
-    // Applica coupon al prezzo base
-    const withCoupon = calculateCouponDiscount(selectedCourseData.totalAmount);
-    const monthlyAmount = withCoupon.finalAmount / installments;
-    
-    return {
-      totalAmount: withCoupon.finalAmount,
-      originalAmount: selectedCourseData.totalAmount,
-      discountAmount: withCoupon.discountAmount,
-      monthlyAmount,
-      installments,
-      coupon: withCoupon.coupon,
-    };
-  };
 
   // Generate payment schedule for displaying to customer
   const generatePaymentSchedule = (plan: PaymentPlan) => {
     if (!plan || plan.installments <= 0) return [];
 
-    const schedule = [];
+    const schedule: Array<{
+      installmentNumber: number;
+      dueDate: string;
+      amount: number;
+      isAcconto: boolean;
+      isFirst: boolean;
+    }> = [];
+    
+    // Check if this is a partner custom plan
+    if (plan.id === 'partner-custom-plan' && offerInfo?.customPaymentPlan) {
+      // Use the actual custom payment plan from the partner but recalculate amounts with discounts
+      const customPayments = offerInfo.customPaymentPlan.payments;
+      
+      // Determine if TFA Romania for correct calculation
+      const isTfaRomania = offerInfo?.offerType === 'TFA_ROMANIA' || 
+                           offerInfo?.name?.includes('TFA') ||
+                           offerInfo?.name?.includes('Corso di Formazione Diamante');
+      
+      // Calculate discount info - need to access formData for coupon information
+      const totalAmount = Number(offerInfo.totalAmount);
+      const couponCode = formData?.couponCode;
+      const couponValidation = formData?.couponValidation;
+      
+      let discountInfo;
+      if (!couponCode || !couponValidation?.isValid || !couponValidation.discount) {
+        discountInfo = { 
+          discountAmount: 0, 
+          finalAmount: totalAmount,
+          imponibileAmount: isTfaRomania ? totalAmount - 1500 : totalAmount,
+          accontoAmount: isTfaRomania ? 1500 : 0
+        };
+      } else {
+        const discount = couponValidation.discount;
+        let discountAmount = 0;
+        let imponibileAmount = isTfaRomania ? totalAmount - 1500 : totalAmount;
+        let finalImponibileAmount = imponibileAmount;
+        
+        if (discount.type === 'PERCENTAGE') {
+          discountAmount = imponibileAmount * (discount.amount / 100);
+          finalImponibileAmount = imponibileAmount - discountAmount;
+        } else if (discount.type === 'FIXED') {
+          discountAmount = Math.min(discount.amount, imponibileAmount);
+          finalImponibileAmount = Math.max(0, imponibileAmount - discount.amount);
+        }
+        
+        const finalAmount = (isTfaRomania ? 1500 : 0) + finalImponibileAmount;
+        
+        discountInfo = {
+          discountAmount: discountAmount,
+          finalAmount: finalAmount,
+          imponibileAmount: finalImponibileAmount,
+          accontoAmount: isTfaRomania ? 1500 : 0
+        };
+      }
+      
+      // Calculate the corrected amount per installment
+      let correctedAmountPerInstallment: number;
+      if (isTfaRomania) {
+        // For TFA Romania: divide discounted imponibile by number of payments
+        correctedAmountPerInstallment = discountInfo.imponibileAmount / customPayments.length;
+      } else {
+        // For other courses: divide discounted total by number of payments
+        correctedAmountPerInstallment = discountInfo.finalAmount / customPayments.length;
+      }
+      
+      customPayments.forEach((payment, index) => {
+        const dueDate = new Date(payment.dueDate);
+        
+        schedule.push({
+          installmentNumber: index + 1,
+          dueDate: dueDate.toLocaleDateString('it-IT', {
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric'
+          }),
+          amount: correctedAmountPerInstallment, // Use corrected amount instead of original
+          isAcconto: false,
+          isFirst: index === 0
+        });
+      });
+      
+      return schedule;
+    }
+
+    // For non-custom plans, use the original logic
     const today = new Date();
-    const monthlyAmount = plan.monthlyAmount;
+    
+    // Determina se è TFA Romania
+    const isTfaRomania = offerInfo?.offerType === 'TFA_ROMANIA' || 
+                         offerInfo?.name?.includes('TFA') ||
+                         offerInfo?.name?.includes('Corso di Formazione Diamante');
+    
+    const downPayment = isTfaRomania ? 1500 : 0;
+    
+    // Per TFA Romania: aggiungi l'acconto come primo elemento
+    if (isTfaRomania && plan.installments > 1) {
+      const accontoDueDate = new Date(today);
+      accontoDueDate.setDate(today.getDate() + 1); // Acconto immediato
+      
+      schedule.push({
+        installmentNumber: 0,
+        dueDate: accontoDueDate.toLocaleDateString('it-IT', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric'
+        }),
+        amount: downPayment,
+        isAcconto: true,
+        isFirst: true
+      });
+    }
     
     // Determine frequency in months
     let frequencyMonths = 1;
     if (plan.frequency === 'Ogni 3 mesi') {
       frequencyMonths = 3;
+    } else if (plan.frequency === 'Ogni 6 mesi') {
+      frequencyMonths = 6;
     } else if (plan.frequency === 'Immediato') {
       frequencyMonths = 0;
     }
@@ -291,8 +432,13 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, partnerId, formDa
         // Immediate payment
         dueDate.setDate(today.getDate() + 1);
       } else {
-        dueDate.setMonth(today.getMonth() + (i * frequencyMonths));
+        // Per TFA Romania: le rate iniziano dopo l'acconto
+        const monthOffset = isTfaRomania && plan.installments > 1 ? (i + 1) * frequencyMonths : i * frequencyMonths;
+        dueDate.setMonth(today.getMonth() + monthOffset);
       }
+      
+      // Tutte le rate sono uguali
+      let amount = plan.monthlyAmount;
       
       schedule.push({
         installmentNumber: i + 1,
@@ -301,8 +447,9 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, partnerId, formDa
           month: 'long',
           year: 'numeric'
         }),
-        amount: monthlyAmount,
-        isFirst: i === 0
+        amount: amount,
+        isAcconto: false,
+        isFirst: !isTfaRomania && i === 0
       });
     }
 
@@ -327,7 +474,22 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, partnerId, formDa
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
       <div>
         <h3 className="text-lg font-medium text-gray-900 mb-4">Opzioni di Iscrizione</h3>
-        {offerInfo?.offerType === 'CERTIFICATION' ? (
+        {offerInfo?.customPaymentPlan && offerInfo.customPaymentPlan.payments.length > 0 ? (
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <svg className="w-5 h-5 text-blue-600 mt-0.5 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              <div>
+                <h4 className="text-blue-900 font-semibold mb-1">Piano Pagamento Personalizzato</h4>
+                <p className="text-blue-800 text-sm">
+                  Stai utilizzando il piano di pagamento personalizzato creato dal partner per l'offerta "{offerInfo.name}". 
+                  Il piano include {offerInfo.customPaymentPlan.payments.length} rate con scadenze e importi specifici.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : offerInfo?.offerType === 'CERTIFICATION' ? (
           <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-start">
               <svg className="w-5 h-5 text-blue-600 mt-0.5 mr-3" fill="currentColor" viewBox="0 0 20 20">
@@ -352,7 +514,12 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, partnerId, formDa
         {formData?.couponCode && (() => {
           const courseData = courses.find(c => c.id === selectedCourse);
           if (courseData) {
-            const discount = calculateCouponDiscount(courseData.totalAmount);
+            // Determina se è TFA Romania per il calcolo corretto
+            const isTfaRomania = offerInfo?.offerType === 'TFA_ROMANIA' || 
+                                 offerInfo?.name?.includes('TFA') ||
+                                 offerInfo?.name?.includes('Corso di Formazione Diamante');
+            
+            const discount = calculateCouponDiscount(courseData.totalAmount, isTfaRomania);
             if (discount.discountAmount > 0) {
               return (
                 <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
@@ -367,6 +534,11 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, partnerId, formDa
                       <p className="text-green-700 text-sm">
                         Risparmio: {formatCurrency(discount.discountAmount)} 
                         {discount.coupon?.type === 'PERCENTAGE' && ` (${discount.coupon.amount}%)`}
+                        {isTfaRomania && (
+                          <span className="block text-xs mt-1">
+                            * Sconto applicato solo sull'imponibile (escluso acconto €1.500)
+                          </span>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -431,7 +603,12 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, partnerId, formDa
         {selectedCourse && paymentPlans.length > 0 && (
           <div className="mb-8">
             <label className="block text-sm font-medium text-gray-700 mb-3">
-              {offerInfo?.offerType === 'CERTIFICATION' ? 'Piano di Pagamento Predefinito' : 'Piano di Pagamento *'}
+              {offerInfo?.customPaymentPlan && offerInfo.customPaymentPlan.payments.length > 0
+                ? 'Piano di Pagamento Personalizzato Partner'
+                : offerInfo?.offerType === 'CERTIFICATION'
+                  ? 'Piano di Pagamento Predefinito'
+                  : 'Piano di Pagamento *'
+              }
             </label>
             
             <div className="space-y-3">
@@ -467,25 +644,20 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, partnerId, formDa
                         <h4 className="text-md font-semibold text-gray-900">{plan.name}</h4>
                         <div className="text-right">
                           <div className="text-lg font-bold text-green-600">
-                            {plan.id === 'custom' 
-                              ? 'Personalizzabile' 
-                              : formatCurrency(plan.monthlyAmount)
-                            }
-                            {plan.id !== 'custom' && plan.installments > 1 && (
+                            {formatCurrency(plan.monthlyAmount)}
+                            {plan.installments > 1 && (
                               <span className="text-sm font-normal text-gray-500"> / rata</span>
                             )}
                           </div>
-                          {plan.id !== 'custom' && (
-                            <div className="text-sm text-gray-600">
-                              Totale: {formatCurrency(plan.totalAmount)}
-                            </div>
-                          )}
+                          <div className="text-sm text-gray-600">
+                            Totale: {formatCurrency(plan.totalAmount)}
+                          </div>
                         </div>
                       </div>
                       
                       <p className="text-sm text-gray-600 mt-1">{plan.description}</p>
                       
-                      {plan.id !== 'custom' && plan.installments > 1 && (
+                      {plan.installments > 1 && (
                         <div className="text-xs text-gray-500 mt-2">
                           {plan.installments} rate • {plan.frequency}
                         </div>
@@ -494,7 +666,7 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, partnerId, formDa
                   </label>
 
                   {/* Payment Schedule Table - shown when plan is selected */}
-                  {selectedPaymentPlan === plan.id && plan.id !== 'custom' && plan.installments > 1 && (
+                  {selectedPaymentPlan === plan.id && plan.installments > 1 && (
                     <div className="ml-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                       <h5 className="text-sm font-semibold text-blue-900 mb-3 flex items-center">
                         <svg className="w-4 h-4 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -520,31 +692,26 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, partnerId, formDa
                             </thead>
                             <tbody className="divide-y divide-blue-200">
                               {generatePaymentSchedule(plan).map((payment, index) => (
-                                <tr key={index} className={payment.isFirst ? 'bg-green-50' : 'bg-white hover:bg-blue-50'}>
+                                <tr key={index} className={payment.isAcconto || payment.isFirst ? 'bg-green-50' : 'bg-white hover:bg-blue-50'}>
                                   <td className="px-3 py-2 text-sm">
                                     <div className="flex items-center">
-                                      {payment.isFirst && (
+                                      {(payment.isAcconto || payment.isFirst) && (
                                         <svg className="w-4 h-4 text-green-600 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                         </svg>
                                       )}
                                       <span className={`font-medium ${
-                                        payment.isFirst ? 'text-green-700' : 'text-gray-900'
+                                        payment.isAcconto || payment.isFirst ? 'text-green-700' : 'text-gray-900'
                                       }`}>
-                                        {payment.installmentNumber}° rata
+                                        {payment.isAcconto ? 'Acconto' : `${payment.installmentNumber}° rata`}
                                       </span>
-                                      {payment.isFirst && (
-                                        <span className="ml-2 text-xs text-green-600 font-medium">
-                                          (Acconto)
-                                        </span>
-                                      )}
                                     </div>
                                   </td>
                                   <td className="px-3 py-2 text-sm text-gray-700">
                                     {payment.dueDate}
                                   </td>
                                   <td className="px-3 py-2 text-sm font-medium text-right">
-                                    <span className={payment.isFirst ? 'text-green-700' : 'text-gray-900'}>
+                                    <span className={payment.isAcconto || payment.isFirst ? 'text-green-700' : 'text-gray-900'}>
                                       {formatCurrency(payment.amount)}
                                     </span>
                                   </td>
@@ -560,148 +727,6 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, partnerId, formDa
               ))}
             </div>
 
-            {/* Piano Personalizzato */}
-            {selectedPaymentPlan === 'custom' && (
-              <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Numero di Rate Desiderate *
-                </label>
-                <div className="flex items-center space-x-4">
-                  <input
-                    type="number"
-                    min="1"
-                    max="24"
-                    {...register('customInstallments', { valueAsNumber: true })}
-                    className="w-24 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="12"
-                  />
-                  <span className="text-sm text-gray-600">rate (da 1 a 24)</span>
-                </div>
-                
-{watch('customInstallments') && (() => {
-                  const customPlan = calculateCustomPlan(watch('customInstallments') || 0);
-                  if (!customPlan) {
-                    return (
-                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded">
-                        <div className="text-red-600 text-sm">
-                          Inserisci un numero valido di rate (1-24)
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  // Create a temporary plan for schedule generation
-                  const tempPlan: PaymentPlan = {
-                    id: 'temp-custom',
-                    name: `Piano Personalizzato - ${watch('customInstallments')} Rate`,
-                    description: 'Piano personalizzato',
-                    installments: watch('customInstallments') || 0,
-                    frequency: 'Mensile',
-                    totalAmount: customPlan.totalAmount,
-                    monthlyAmount: customPlan.monthlyAmount
-                  };
-
-                  return (
-                    <>
-                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
-                        <div className="text-sm space-y-2">
-                          <div className="font-medium text-blue-800">
-                            Piano Personalizzato: {watch('customInstallments')} rate
-                          </div>
-                          {customPlan.discountAmount > 0 && (
-                            <div className="bg-green-100 border border-green-200 rounded p-2">
-                              <div className="text-green-800 text-xs font-medium">
-                                💰 Coupon applicato!
-                              </div>
-                              <div className="text-green-700 text-xs">
-                                Prezzo originale: {formatCurrency(customPlan.originalAmount)}
-                              </div>
-                              <div className="text-green-700 text-xs">
-                                Sconto: -{formatCurrency(customPlan.discountAmount)}
-                              </div>
-                            </div>
-                          )}
-                          <div className="text-blue-700 mt-1">
-                            <strong>{formatCurrency(customPlan.monthlyAmount)}</strong> per rata
-                          </div>
-                          <div className="text-blue-600">
-                            Totale: {formatCurrency(customPlan.totalAmount)}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Custom Plan Payment Schedule */}
-                      {customPlan.installments > 1 && (
-                        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                          <h5 className="text-sm font-semibold text-blue-900 mb-3 flex items-center">
-                            <svg className="w-4 h-4 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                            </svg>
-                            Calendario Pagamenti Personalizzato
-                          </h5>
-                          <div className="overflow-hidden border border-blue-300 rounded-lg">
-                            <div className="overflow-x-auto">
-                              <table className="min-w-full bg-white">
-                                <thead className="bg-blue-100">
-                                  <tr>
-                                    <th className="px-3 py-2 text-left text-xs font-semibold text-blue-900 uppercase tracking-wider">
-                                      Rata
-                                    </th>
-                                    <th className="px-3 py-2 text-left text-xs font-semibold text-blue-900 uppercase tracking-wider">
-                                      Scadenza
-                                    </th>
-                                    <th className="px-3 py-2 text-right text-xs font-semibold text-blue-900 uppercase tracking-wider">
-                                      Importo
-                                    </th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-blue-200">
-                                  {generatePaymentSchedule(tempPlan).map((payment, index) => (
-                                    <tr key={index} className={payment.isFirst ? 'bg-green-50' : 'bg-white hover:bg-blue-50'}>
-                                      <td className="px-3 py-2 text-sm">
-                                        <div className="flex items-center">
-                                          {payment.isFirst && (
-                                            <svg className="w-4 h-4 text-green-600 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                            </svg>
-                                          )}
-                                          <span className={`font-medium ${
-                                            payment.isFirst ? 'text-green-700' : 'text-gray-900'
-                                          }`}>
-                                            {payment.installmentNumber}° rata
-                                          </span>
-                                          {payment.isFirst && (
-                                            <span className="ml-2 text-xs text-green-600 font-medium">
-                                              (Acconto)
-                                            </span>
-                                          )}
-                                        </div>
-                                      </td>
-                                      <td className="px-3 py-2 text-sm text-gray-700">
-                                        {payment.dueDate}
-                                      </td>
-                                      <td className="px-3 py-2 text-sm font-medium text-right">
-                                        <span className={payment.isFirst ? 'text-green-700' : 'text-gray-900'}>
-                                          {formatCurrency(payment.amount)}
-                                        </span>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-                
-                {errors.customInstallments && (
-                  <p className="mt-2 text-sm text-red-600">{errors.customInstallments.message}</p>
-                )}
-              </div>
-            )}
             
             {errors.paymentPlan && (
               <p className="mt-2 text-sm text-red-600">{errors.paymentPlan.message}</p>
@@ -718,12 +743,6 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, partnerId, formDa
               </svg>
               <div>
                 <p className="text-green-800 text-sm font-medium mb-1">Selezione Confermata</p>
-                <ul className="text-green-700 text-sm space-y-1">
-                  <li>• Le rate saranno addebitate automaticamente</li>
-                  <li>• Riceverai una email di conferma con i dettagli</li>
-                  <li>• Puoi modificare il piano di pagamento fino a 48h prima dell'inizio corso</li>
-                  <li>• Tutti i prezzi sono IVA inclusa</li>
-                </ul>
               </div>
             </div>
           </div>

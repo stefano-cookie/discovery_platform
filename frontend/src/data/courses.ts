@@ -74,8 +74,7 @@ export const coursesByType: CourseData = {
     
     // Area Sociale
     "L-39 - Servizio Sociale",
-    "L-40 - Sociologia",
-    "L-24 - Scienze e Tecniche Psicologiche"
+    "L-40 - Sociologia"
   ],
 
   "Magistrale": [

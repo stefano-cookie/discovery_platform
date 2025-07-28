@@ -14,6 +14,15 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 
 const Select = forwardRef<HTMLSelectElement, SelectProps>(
   ({ label, options, error, placeholder, className = '', ...props }, ref) => {
+    // Deduplicate options to prevent React key warnings
+    const uniqueOptions = options.reduce((acc: SelectOption[], current, index) => {
+      const isDuplicate = acc.some(item => item.value === current.value);
+      if (!isDuplicate) {
+        acc.push(current);
+      }
+      return acc;
+    }, []);
+
     return (
       <div className="space-y-1">
         <label className="block text-sm font-medium text-gray-700">
@@ -33,8 +42,8 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
               {placeholder}
             </option>
           )}
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
+          {uniqueOptions.map((option, index) => (
+            <option key={`${option.value}-${index}`} value={option.value}>
               {option.label}
             </option>
           ))}

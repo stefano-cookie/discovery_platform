@@ -97,24 +97,228 @@ router.get('/users', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req
         },
         partner: {
           include: { user: true }
+        },
+        offer: {
+          include: { course: true }
         }
-      }
+      },
+      orderBy: { createdAt: 'desc' }
     });
 
     const users = registrations.map((reg: any) => ({
       id: reg.user.id,
+      registrationId: reg.id,
       email: reg.user.email,
       profile: reg.user.profile,
       status: reg.status,
-      course: 'Corso Default', // To be implemented with course relation
+      course: reg.offer?.course?.name || 'Corso non specificato',
+      courseId: reg.courseId,
+      offerType: reg.offerType,
       isDirectUser: reg.partnerId === partnerId,
       partnerName: reg.partner.user.email,
-      canManagePayments: true // To be implemented based on permissions
+      canManagePayments: true,
+      // Date importanti
+      createdAt: reg.user.createdAt, // Data registrazione utente
+      enrollmentDate: reg.createdAt,  // Data iscrizione al corso
+      // Dati pagamento
+      originalAmount: reg.originalAmount,
+      finalAmount: reg.finalAmount,
+      installments: reg.installments,
+      // Lista offerte aggiuntive disponibili (sarà implementata dopo)
     }));
 
     res.json(users);
   } catch (error) {
     console.error('Get partner users error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Get user offers access - for managing what offers a user can access
+router.get('/users/:userId/offers', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { userId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Get all partner's active offers
+    const partnerOffers = await prisma.partnerOffer.findMany({
+      where: { 
+        partnerId,
+        isActive: true 
+      },
+      include: {
+        course: true
+      }
+    });
+
+    // Get user's current registrations (original offers they signed up for)
+    const userRegistrations = await prisma.registration.findMany({
+      where: { 
+        userId,
+        partnerId 
+      },
+      include: {
+        offer: true
+      }
+    });
+
+    // Get user's additional offer access
+    const userOfferAccess = await prisma.userOfferAccess.findMany({
+      where: {
+        userId,
+        partnerId,
+        enabled: true
+      }
+    });
+
+    const accessibleOfferIds = new Set([
+      ...userRegistrations.map(reg => reg.partnerOfferId).filter(Boolean),
+      ...userOfferAccess.map(access => access.offerId)
+    ]);
+
+    const originalOfferIds = new Set(
+      userRegistrations.map(reg => reg.partnerOfferId).filter(Boolean)
+    );
+
+    const offers = partnerOffers.map(offer => ({
+      id: offer.id,
+      name: offer.name,
+      courseName: offer.course.name,
+      offerType: offer.offerType,
+      totalAmount: Number(offer.totalAmount),
+      installments: offer.installments,
+      isActive: offer.isActive,
+      hasAccess: accessibleOfferIds.has(offer.id),
+      isOriginal: originalOfferIds.has(offer.id)
+    }));
+
+    res.json(offers);
+  } catch (error) {
+    console.error('Get user offers error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Grant user access to an offer
+router.post('/users/:userId/offers/:offerId/grant', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { userId, offerId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify the offer belongs to this partner
+    const offer = await prisma.partnerOffer.findFirst({
+      where: { 
+        id: offerId,
+        partnerId,
+        isActive: true 
+      }
+    });
+
+    if (!offer) {
+      return res.status(404).json({ error: 'Offerta non trovata o non autorizzata' });
+    }
+
+    // Check if user already has access
+    const existingAccess = await prisma.userOfferAccess.findUnique({
+      where: {
+        userId_offerId: {
+          userId,
+          offerId
+        }
+      }
+    });
+
+    if (existingAccess) {
+      // Update existing access to enabled
+      await prisma.userOfferAccess.update({
+        where: { id: existingAccess.id },
+        data: { enabled: true }
+      });
+    } else {
+      // Create new access
+      await prisma.userOfferAccess.create({
+        data: {
+          userId,
+          offerId,
+          partnerId,
+          enabled: true
+        }
+      });
+    }
+
+    res.json({ success: true, message: 'Accesso all\'offerta concesso' });
+  } catch (error) {
+    console.error('Grant user offer access error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Revoke user access to an offer
+router.post('/users/:userId/offers/:offerId/revoke', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { userId, offerId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify the offer belongs to this partner
+    const offer = await prisma.partnerOffer.findFirst({
+      where: { 
+        id: offerId,
+        partnerId,
+        isActive: true 
+      }
+    });
+
+    if (!offer) {
+      return res.status(404).json({ error: 'Offerta non trovata o non autorizzata' });
+    }
+
+    // Check if this is an original offer (user registered through this offer)
+    const originalRegistration = await prisma.registration.findFirst({
+      where: {
+        userId,
+        partnerOfferId: offerId,
+        partnerId
+      }
+    });
+
+    if (originalRegistration) {
+      return res.status(400).json({ 
+        error: 'Non puoi revocare l\'accesso all\'offerta originale di iscrizione' 
+      });
+    }
+
+    // Update or delete access record
+    const existingAccess = await prisma.userOfferAccess.findUnique({
+      where: {
+        userId_offerId: {
+          userId,
+          offerId
+        }
+      }
+    });
+
+    if (existingAccess) {
+      await prisma.userOfferAccess.update({
+        where: { id: existingAccess.id },
+        data: { enabled: false }
+      });
+    }
+
+    res.json({ success: true, message: 'Accesso all\'offerta revocato' });
+  } catch (error) {
+    console.error('Revoke user offer access error:', error);
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -338,7 +542,7 @@ router.get('/offer-visibility/:offerId', authenticate, async (req: AuthRequest, 
 
     // Get all users associated with this partner
     const associatedUsers = await prisma.user.findMany({
-      where: { associatedPartnerId: partner.id },
+      where: { assignedPartnerId: partner.id },
       include: {
         profile: true
       }

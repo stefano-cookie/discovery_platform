@@ -7,15 +7,23 @@ interface UserTableProps {
   isLoading: boolean;
   onFilterChange: (filter: 'all' | 'direct' | 'children') => void;
   currentFilter: 'all' | 'direct' | 'children';
+  onManageOffers?: (user: PartnerUser) => void;
 }
 
 const UserTable: React.FC<UserTableProps> = ({ 
   users, 
   isLoading, 
   onFilterChange, 
-  currentFilter 
+  currentFilter,
+  onManageOffers
 }) => {
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+
+  const handleManageOffers = (user: PartnerUser) => {
+    if (onManageOffers) {
+      onManageOffers(user);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
@@ -168,12 +176,25 @@ const UserTable: React.FC<UserTableProps> = ({
                   )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {formatDate(user.createdAt)}
+                  <div>
+                    <div className="font-medium text-gray-900">
+                      {formatDate(user.enrollmentDate)}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      Registrato: {formatDate(user.createdAt)}
+                    </div>
+                  </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div className="flex flex-wrap gap-2">
                     <button className="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-200 transition-colors">
-                      👁️ Dettagli
+                      Dettagli
+                    </button>
+                    <button 
+                      onClick={() => handleManageOffers(user)}
+                      className="inline-flex items-center px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-xs font-medium hover:bg-purple-200 transition-colors"
+                    >
+                      🎓 Gestisci Offerte
                     </button>
                     {user.canManagePayments && (
                       <>

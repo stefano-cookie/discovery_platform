@@ -6,6 +6,7 @@ import UsersView from '../components/Partner/UsersView';
 import ChatView from '../components/Partner/ChatView';
 import CouponManagement from '../components/Partner/CouponManagement';
 import OfferManagement from '../components/Partner/OfferManagement';
+import UserManagement from '../components/Admin/UserManagement';
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -16,11 +17,8 @@ const Dashboard: React.FC = () => {
       case 'ADMIN':
         return (
           <div>
-            <h2 className="text-2xl font-bold mb-4">Dashboard Admin</h2>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <p>Benvenuto, amministratore!</p>
-              <p>Qui puoi gestire tutti gli aspetti della piattaforma.</p>
-            </div>
+            <h2 className="text-2xl font-bold mb-6">Dashboard Admin</h2>
+            <UserManagement />
           </div>
         );
       case 'PARTNER':
@@ -61,7 +59,7 @@ const Dashboard: React.FC = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between h-16">
               <div className="flex items-center">
-                <h1 className="text-xl font-semibold">Piattaforma Diamante</h1>
+                <h1 className="text-xl font-semibold">Discovery Platform</h1>
               </div>
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-gray-700">

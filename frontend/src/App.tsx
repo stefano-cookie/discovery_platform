@@ -6,8 +6,8 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import UserDashboard from './pages/UserDashboard';
 import Registration from './pages/Registration';
-import AdditionalEnrollment from './pages/AdditionalEnrollment';
 import EmailVerification from './pages/EmailVerification';
+import VerifyEmail from './pages/VerifyEmail';
 import ChangePassword from './pages/ChangePassword';
 
 const AppContent: React.FC = () => {
@@ -23,9 +23,29 @@ const AppContent: React.FC = () => {
 
   // Helper function to determine where authenticated user should go
   const getAuthenticatedRedirect = () => {
-    if (user?.mustChangePassword) {
-      return "/change-password";
+    // Check if there's a pending referral after login
+    const pendingReferral = localStorage.getItem('pendingReferral');
+    const pendingReferralUrl = localStorage.getItem('pendingReferralUrl');
+    
+    console.log('Checking authenticated redirect:', { pendingReferral, pendingReferralUrl });
+    
+    if (pendingReferral) {
+      // Clear both pending items
+      localStorage.removeItem('pendingReferral');
+      localStorage.removeItem('pendingReferralUrl');
+      
+      console.log('Redirecting to pending referral:', `/registration/${pendingReferral}`);
+      return `/registration/${pendingReferral}`;
     }
+    
+    // Fallback: check if URL contains referral pattern but no pending storage
+    if (pendingReferralUrl && pendingReferralUrl.includes('/registration/')) {
+      localStorage.removeItem('pendingReferralUrl');
+      console.log('Redirecting to stored URL:', pendingReferralUrl);
+      return pendingReferralUrl;
+    }
+    
+    console.log('No pending referral, redirecting to dashboard');
     return "/dashboard";
   };
 
@@ -57,26 +77,14 @@ const AppContent: React.FC = () => {
         element={<EmailVerification />} 
       />
       <Route 
+        path="/verify-email" 
+        element={<VerifyEmail />} 
+      />
+      <Route 
         path="/dashboard" 
         element={
           <ProtectedRoute>
-            {user?.mustChangePassword ? (
-              <Navigate to="/change-password" replace />
-            ) : (
-              user?.role === 'USER' ? <UserDashboard /> : <Dashboard />
-            )}
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/enrollment/:partnerOfferId?" 
-        element={
-          <ProtectedRoute>
-            {user?.mustChangePassword ? (
-              <Navigate to="/change-password" replace />
-            ) : (
-              <AdditionalEnrollment />
-            )}
+            {user?.role === 'USER' ? <UserDashboard /> : <Dashboard />}
           </ProtectedRoute>
         } 
       />

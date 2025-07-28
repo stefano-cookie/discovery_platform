@@ -41,10 +41,9 @@ const LoginForm: React.FC = () => {
           const enrollment = JSON.parse(pendingEnrollment);
           sessionStorage.removeItem('pendingEnrollment');
           
-          // Redirect to additional enrollment page
+          // Redirect to registration page with referral code
           if (enrollment.referralCode) {
-            // Use the enrollment route that exists
-            navigate(`/enrollment?courseId=${enrollment.courseId}&referralCode=${enrollment.referralCode}`);
+            navigate(`/registration/${enrollment.referralCode}`);
           } else {
             navigate('/dashboard');
           }

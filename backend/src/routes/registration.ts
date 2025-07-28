@@ -1,51 +1,13 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import multer from 'multer';
-import path from 'path';
 import emailService from '../services/emailService';
 
 const router = Router();
 const prisma = new PrismaClient();
 
-// Multer configuration for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const folders: Record<string, string> = {
-      cartaIdentita: 'carte-identita',
-      certificatoTriennale: 'lauree',
-      certificatoMagistrale: 'lauree',
-      pianoStudioTriennale: 'piani-studio',
-      pianoStudioMagistrale: 'piani-studio',
-      certificatoMedico: 'certificati-medici',
-      certificatoNascita: 'certificati-nascita',
-      diplomoLaurea: 'diplomi-laurea',
-      pergamenaLaurea: 'pergamene-laurea',
-    };
-    
-    const folder = folders[file.fieldname] || 'altri';
-    cb(null, `uploads/${folder}`);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
-  }
-});
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-  fileFilter: (req, file, cb) => {
-    const allowed = ['.pdf', '.jpg', '.jpeg', '.png'];
-    const ext = path.extname(file.originalname).toLowerCase();
-    
-    if (allowed.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Tipo file non permesso'));
-    }
-  }
-});
+// NOTE: File upload configuration moved to the document upload endpoint
+// since enrollment now handles documents separately
 
 // GET /api/registration/check-user/:email - Check if user exists
 router.get('/check-user/:email', async (req: Request, res: Response) => {
@@ -72,7 +34,7 @@ router.get('/check-user/:email', async (req: Request, res: Response) => {
           email: existingUser.email,
           hasProfile: !!existingUser.profile,
           registrationsCount: existingUser.registrations.length,
-          hasTemporaryPassword: existingUser.hasTemporaryPassword
+          emailVerified: existingUser.emailVerified
         }
       });
     }
@@ -135,386 +97,9 @@ router.get('/offer-info/:referralLink', async (req, res) => {
   }
 });
 
-// Submit registration
-router.post('/submit', upload.fields([
-  { name: 'cartaIdentita', maxCount: 1 },
-  { name: 'certificatoTriennale', maxCount: 1 },
-  { name: 'certificatoMagistrale', maxCount: 1 },
-  { name: 'pianoStudioTriennale', maxCount: 1 },
-  { name: 'pianoStudioMagistrale', maxCount: 1 },
-  { name: 'certificatoMedico', maxCount: 1 },
-  { name: 'certificatoNascita', maxCount: 1 },
-  { name: 'diplomoLaurea', maxCount: 1 },
-  { name: 'pergamenaLaurea', maxCount: 1 }
-]), async (req, res) => {
-  try {
-    
-    const {
-      // Dati generali
-      email, cognome, nome, dataNascita, luogoNascita, codiceFiscale, telefono,
-      nomePadre, nomeMadre,
-      // Residenza
-      residenzaVia, residenzaCitta, residenzaProvincia, residenzaCap,
-      hasDifferentDomicilio, domicilioVia, domicilioCitta, domicilioProvincia, domicilioCap,
-      // Istruzione
-      tipoLaurea, laureaConseguita, laureaConseguitaCustom, laureaUniversita, laureaData,
-      // Laurea Triennale 
-      tipoLaureaTriennale, laureaConseguitaTriennale, laureaUniversitaTriennale, laureaDataTriennale,
-      // Professione
-      tipoProfessione, scuolaDenominazione, scuolaCitta, scuolaProvincia,
-      // Iscrizione
-      referralCode, courseId, couponCode, paymentPlan, customInstallments,
-      // Partner offer (opzionale)
-      partnerOfferId
-    } = req.body;
-
-    // Validate required fields
-    if (!email || !cognome || !nome || !dataNascita || !luogoNascita || !codiceFiscale || !telefono) {
-      return res.status(400).json({ error: 'Campi obbligatori mancanti' });
-    }
-
-    // Check if user already exists with this email
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-      include: {
-        profile: true,
-        registrations: true
-      }
-    });
-
-
-    if (existingUser) {
-      // Check if user has a complete profile (meaning they're truly registered)
-      const hasCompleteProfile = !!existingUser.profile;
-      
-      if (hasCompleteProfile) {
-        // User is already registered - they should login and enroll in additional courses
-        return res.status(400).json({ 
-          error: 'Un utente con questa email è già registrato. Se hai già un account, effettua il login per iscriverti a nuovi corsi.',
-          code: 'USER_ALREADY_EXISTS',
-          suggestion: 'LOGIN_REQUIRED',
-          data: {
-            hasExistingRegistrations: existingUser.registrations.length > 0,
-            courses: existingUser.registrations.map(reg => ({
-              courseId: reg.courseId,
-              status: reg.status,
-              createdAt: reg.createdAt
-            }))
-          }
-        });
-      }
-      
-      // If user exists but has no profile, allow overwriting (incomplete registration)
-    }
-
-    // Find partner by referral code
-    let partner = null;
-    if (referralCode) {
-      const baseReferralCode = referralCode.split('-')[0];
-      partner = await prisma.partner.findUnique({
-        where: { referralCode: baseReferralCode }
-      });
-    }
-
-    // Use transaction to ensure all-or-nothing registration
-    const result = await prisma.$transaction(async (tx) => {
-      // Create or update user
-      let user;
-      if (existingUser) {
-        // Update the existing incomplete user
-        user = await tx.user.update({
-          where: { id: existingUser.id },
-          data: {
-            password: 'temp_password', // To be changed on first login
-            isActive: true,
-            passwordChanged: false,
-            // Associate to partner if not already associated
-            associatedPartnerId: existingUser.associatedPartnerId || partner?.id || null
-            // Non tocchiamo emailVerified, emailVerificationToken - la verifica è un processo separato
-          }
-        });
-      } else {
-        // Create new user
-        user = await tx.user.create({
-          data: {
-            email,
-            password: 'temp_password', // To be changed on first login
-            role: 'USER',
-            isActive: true,
-            passwordChanged: false,
-            associatedPartnerId: partner?.id || null  // Associate user to partner permanently
-          }
-        });
-      }
-
-      // Create or update user profile
-      let profile;
-      if (existingUser?.profile) {
-        // Update existing profile
-        profile = await tx.userProfile.update({
-          where: { userId: user.id },
-          data: {
-        cognome,
-        nome,
-        dataNascita: new Date(dataNascita),
-        luogoNascita,
-        codiceFiscale,
-        telefono,
-        nomePadre: nomePadre || null,
-        nomeMadre: nomeMadre || null,
-        residenzaVia,
-        residenzaCitta,
-        residenzaProvincia,
-        residenzaCap,
-        hasDifferentDomicilio: hasDifferentDomicilio === 'true',
-        domicilioVia: domicilioVia || null,
-        domicilioCitta: domicilioCitta || null,
-        domicilioProvincia: domicilioProvincia || null,
-        domicilioCap: domicilioCap || null,
-        tipoLaurea: tipoLaurea || null,
-        laureaConseguita: laureaConseguita || null,
-        laureaConseguitaCustom: laureaConseguitaCustom || null,
-        laureaUniversita: laureaUniversita || null,
-        laureaData: laureaData ? new Date(laureaData) : null,
-        tipoLaureaTriennale: tipoLaureaTriennale || null,
-        laureaConseguitaTriennale: laureaConseguitaTriennale || null,
-        laureaUniversitaTriennale: laureaUniversitaTriennale || null,
-        laureaDataTriennale: laureaDataTriennale ? new Date(laureaDataTriennale) : null,
-        tipoProfessione: tipoProfessione || null,
-        scuolaDenominazione: scuolaDenominazione || null,
-        scuolaCitta: scuolaCitta || null,
-        scuolaProvincia: scuolaProvincia || null
-          }
-        });
-      } else {
-        // Create new profile
-        profile = await tx.userProfile.create({
-          data: {
-            userId: user.id,
-            cognome,
-            nome,
-            dataNascita: new Date(dataNascita),
-            luogoNascita,
-            codiceFiscale,
-            telefono,
-            nomePadre: nomePadre || null,
-            nomeMadre: nomeMadre || null,
-            residenzaVia,
-            residenzaCitta,
-            residenzaProvincia,
-            residenzaCap,
-            hasDifferentDomicilio: hasDifferentDomicilio === 'true',
-            domicilioVia: domicilioVia || null,
-            domicilioCitta: domicilioCitta || null,
-            domicilioProvincia: domicilioProvincia || null,
-            domicilioCap: domicilioCap || null,
-            tipoLaurea: tipoLaurea || null,
-            laureaConseguita: laureaConseguita || null,
-            laureaConseguitaCustom: laureaConseguitaCustom || null,
-            laureaUniversita: laureaUniversita || null,
-            laureaData: laureaData ? new Date(laureaData) : null,
-            tipoLaureaTriennale: tipoLaureaTriennale || null,
-            laureaConseguitaTriennale: laureaConseguitaTriennale || null,
-            laureaUniversitaTriennale: laureaUniversitaTriennale || null,
-            laureaDataTriennale: laureaDataTriennale ? new Date(laureaDataTriennale) : null,
-            tipoProfessione: tipoProfessione || null,
-            scuolaDenominazione: scuolaDenominazione || null,
-            scuolaCitta: scuolaCitta || null,
-            scuolaProvincia: scuolaProvincia || null
-          }
-        });
-      }
-
-      // Get default course
-      const course = await tx.course.findFirst({
-        where: { isActive: true }
-      });
-
-      if (!course) {
-        throw new Error('Nessun corso disponibile');
-      }
-
-      // Get partner offer - use specific partnerOfferId if provided, otherwise find by partner and course
-      let offer = null;
-      if (partnerOfferId) {
-        offer = await tx.partnerOffer.findFirst({
-          where: {
-            id: partnerOfferId,
-            isActive: true
-          }
-        });
-        
-        if (!offer) {
-          console.error(`Partner offer not found with ID: ${partnerOfferId}`);
-          throw new Error(`Offerta partner non trovata con ID: ${partnerOfferId}`);
-        } else {
-          console.log(`Partner offer found: ${offer.name}, type: ${offer.offerType}`);
-        }
-      } else if (partner) {
-        offer = await tx.partnerOffer.findFirst({
-          where: {
-            partnerId: partner.id,
-            courseId: course.id,
-            isActive: true
-          }
-        });
-      }
-
-      let originalAmount = Number(offer?.totalAmount) || 5000;
-      let finalAmount = originalAmount;
-      let couponData = null;
-
-      // Validate and apply coupon if provided
-      if (couponCode) {
-        // Find coupon for this partner
-        const coupon = await tx.coupon.findFirst({
-        where: {
-          code: couponCode,
-          partnerId: partner?.id,
-          isActive: true,
-          validFrom: { lte: new Date() },
-          validUntil: { gte: new Date() }
-        }
-        });
-
-        if (!coupon) {
-          throw new Error('Codice sconto non valido o scaduto');
-        }
-
-        // Check if max uses reached
-        if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) {
-          throw new Error('Codice sconto esaurito');
-        }
-
-        // Check if coupon was already used in a registration (only one use per coupon)
-        const existingUse = await tx.couponUse.findFirst({
-          where: { couponId: coupon.id }
-        });
-
-        if (existingUse) {
-          throw new Error('Codice sconto già utilizzato');
-        }
-
-        // Apply discount
-        let discountAmount = 0;
-        if (coupon.discountType === 'PERCENTAGE') {
-          discountAmount = (originalAmount * Number(coupon.discountPercent)) / 100;
-        } else {
-          discountAmount = Number(coupon.discountAmount);
-        }
-
-        finalAmount = Math.max(0, originalAmount - discountAmount);
-        couponData = { coupon, discountAmount };
-      }
-
-      // Create registration
-      const registration = await tx.registration.create({
-      data: {
-        userId: user.id,
-        partnerId: partner?.id || null,
-        courseId: course.id,
-        partnerOfferId: offer?.id || null,
-        offerType: offer?.offerType || 'TFA_ROMANIA',
-        originalAmount: originalAmount,
-        finalAmount: finalAmount,
-        installments: offer?.installments || 1,
-        status: 'PENDING'
-      }
-      });
-      
-      console.log(`Registration created with offerType: ${registration.offerType}, offerId: ${offer?.id || 'no offer'}, partnerOfferId param: ${partnerOfferId}`);
-
-      // Create coupon use record if coupon was applied
-      if (couponData) {
-        await tx.couponUse.create({
-          data: {
-            couponId: couponData.coupon.id,
-            registrationId: registration.id,
-            discountApplied: couponData.discountAmount
-          }
-        });
-
-        // Update coupon used count
-        await tx.coupon.update({
-          where: { id: couponData.coupon.id },
-          data: { usedCount: { increment: 1 } }
-        });
-      }
-
-      // Handle file uploads (still needs to be outside transaction due to file system operations)
-      const files = req.files as Record<string, Express.Multer.File[]>;
-      const fileDocuments = [];
-      
-      if (files) {
-        for (const [fieldName, fileArray] of Object.entries(files)) {
-          if (fileArray && fileArray.length > 0) {
-            const file = fileArray[0];
-            const doc = await tx.document.create({
-              data: {
-                registrationId: registration.id,
-                type: fieldName,
-                fileName: file.originalname,
-                filePath: file.path
-              }
-            });
-            fileDocuments.push(doc);
-          }
-        }
-      }
-
-      return { user, profile, registration, fileDocuments };
-    });
-
-    // Generate temporary password and send credentials email
-    try {
-      const temporaryPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
-      const loginUrl = `${process.env.FRONTEND_URL}/login`;
-      
-      // Update user with temporary password
-      const bcrypt = require('bcrypt');
-      const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
-      
-      await prisma.user.update({
-        where: { id: result.user.id },
-        data: { 
-          password: hashedPassword,
-          hasTemporaryPassword: true
-        }
-      });
-      
-      await emailService.sendTemporaryCredentials(email, {
-        temporaryPassword: temporaryPassword,
-        loginUrl: loginUrl
-      }, {
-        nome: result.profile.nome,
-        cognome: result.profile.cognome,
-        email: email
-      });
-    } catch (emailError) {
-      console.error('Failed to send temporary credentials email:', emailError);
-    }
-
-    res.json({
-      success: true,
-      registrationId: result.registration.id,
-      message: 'Registrazione completata con successo'
-    });
-
-  } catch (error) {
-    console.error('Registration error:', error);
-    
-    // Provide more specific error information in development
-    if (process.env.NODE_ENV === 'development') {
-      res.status(500).json({ 
-        error: 'Errore interno del server',
-        details: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      });
-    } else {
-      res.status(500).json({ error: 'Errore interno del server' });
-    }
-  }
-});
+// REMOVED: Old submit endpoint - users now follow separate registration/enrollment flow
+// Registration: RegistrationModal → /auth/register → email verification → login
+// Enrollment: MultiStepForm → /registration/additional-enrollment (authenticated only)
 
 // POST /api/registration/additional-enrollment - Additional enrollment for existing users
 router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res: Response) => {
@@ -525,7 +110,9 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
       partnerOfferId, 
       paymentPlan, 
       couponCode,
-      documents = []
+      documents = [],
+      courseData = {},
+      referralCode  // Add referralCode to help identify partner if user doesn't have one assigned
     } = req.body;
     
     if (!userId) {
@@ -537,7 +124,7 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
       where: { id: userId },
       include: { 
         profile: true,
-        associatedPartner: true  // Get the permanently associated partner
+        assignedPartner: true  // Get the permanently assigned partner
       }
     });
     
@@ -545,49 +132,176 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
       return res.status(400).json({ error: 'Profilo utente non trovato' });
     }
     
-    // Use user's associated partner, not the one from request
-    const partnerId = user.associatedPartnerId;
-    
-    // Get offer information - must be from user's associated partner
+    // Determine partner ID
+    let partnerId = user.assignedPartnerId;
     let offer = null;
     
-    if (partnerOfferId) {
-      if (!partnerId) {
-        return res.status(400).json({ error: 'Utente non associato a nessun partner' });
-      }
+    // If user doesn't have an assigned partner, try to find one from the offer or referral code
+    if (!partnerId && partnerOfferId) {
+      // Get offer first to find the partner
+      offer = await prisma.partnerOffer.findUnique({
+        where: { id: partnerOfferId },
+        include: { partner: true, course: true }
+      });
       
+      if (offer) {
+        partnerId = offer.partnerId;
+        
+        // Assign this partner to the user permanently
+        await prisma.user.update({
+          where: { id: userId },
+          data: { assignedPartnerId: partnerId }
+        });
+        
+        console.log(`Assigned partner ${partnerId} to user ${userId} from offer ${partnerOfferId}`);
+      }
+    }
+    
+    // If still no partner and we have a referral code, try to find partner from referral code
+    if (!partnerId && referralCode) {
+      const baseReferralCode = referralCode.split('-')[0];
+      const partner = await prisma.partner.findUnique({
+        where: { referralCode: baseReferralCode }
+      });
+      
+      if (partner) {
+        partnerId = partner.id;
+        
+        // Assign this partner to the user permanently
+        await prisma.user.update({
+          where: { id: userId },
+          data: { assignedPartnerId: partnerId }
+        });
+        
+        console.log(`Assigned partner ${partnerId} to user ${userId} from referral code ${referralCode}`);
+      }
+    }
+    
+    // If we still don't have a partner, we can't proceed
+    if (!partnerId) {
+      return res.status(400).json({ 
+        error: 'Impossibile determinare il partner per questa iscrizione. Contatta il supporto.',
+        details: 'User has no assigned partner and no valid partner could be determined from offer or referral code'
+      });
+    }
+    
+    // Get offer information if we don't have it yet
+    if (partnerOfferId && !offer) {
       offer = await prisma.partnerOffer.findUnique({
         where: { 
           id: partnerOfferId,
-          partnerId: partnerId  // Ensure offer belongs to user's partner
+          partnerId: partnerId  // Ensure offer belongs to the determined partner
         },
         include: { partner: true, course: true }
       });
       
       if (!offer) {
-        return res.status(400).json({ error: 'Offerta non trovata o non autorizzata per il tuo partner' });
+        return res.status(400).json({ error: 'Offerta non trovata o non autorizzata per il partner determinato' });
+      }
+
+      // Validate that the courseId matches the offer's course
+      if (offer.courseId !== courseId) {
+        return res.status(400).json({ 
+          error: 'Il corso specificato non corrisponde all\'offerta del partner',
+          details: `Expected courseId: ${offer.courseId}, received: ${courseId}`
+        });
       }
     }
     
     const result = await prisma.$transaction(async (tx) => {
-      // Create new registration
+      // Create new registration with course-specific data
       const registration = await tx.registration.create({
         data: {
           userId: userId,
-          partnerId: partnerId,
+          partnerId: partnerId || 'default-partner-id',
           courseId: courseId,
           partnerOfferId: partnerOfferId,
           offerType: offer?.offerType || 'TFA_ROMANIA',
           originalAmount: paymentPlan.originalAmount || 0,
           finalAmount: paymentPlan.finalAmount || 0,
           installments: paymentPlan.installments || 1,
-          status: 'PENDING'
+          status: 'PENDING',
+          // Course-specific data from courseData object
+          tipoLaurea: courseData.tipoLaurea || null,
+          laureaConseguita: courseData.laureaConseguita || null,
+          laureaUniversita: courseData.laureaUniversita || null,
+          laureaData: courseData.laureaData ? new Date(courseData.laureaData) : null,
+          // Triennale education data
+          tipoLaureaTriennale: courseData.tipoLaureaTriennale || null,
+          laureaConseguitaTriennale: courseData.laureaConseguitaTriennale || null,
+          laureaUniversitaTriennale: courseData.laureaUniversitaTriennale || null,
+          laureaDataTriennale: courseData.laureaDataTriennale ? new Date(courseData.laureaDataTriennale) : null,
+          // Profession data
+          tipoProfessione: courseData.tipoProfessione || null,
+          scuolaDenominazione: courseData.scuolaDenominazione || null,
+          scuolaCitta: courseData.scuolaCitta || null,
+          scuolaProvincia: courseData.scuolaProvincia || null
         }
       });
       
-      // Handle coupon if provided
-      if (couponCode && partnerId) {
-        // Coupon validation logic here
+      const installments = paymentPlan.installments || 1;
+      const finalAmount = Number(paymentPlan.finalAmount) || 0;
+      const registrationOfferType = offer?.offerType || 'TFA_ROMANIA';
+      
+      console.log(`Creating payment deadlines for authenticated user registration ${registration.id}:`, {
+        installments,
+        finalAmount,
+        offerType: registrationOfferType
+      });
+      
+      let downPayment = 0;
+      let installmentableAmount = finalAmount;
+      
+      if (registrationOfferType === 'TFA_ROMANIA') {
+        downPayment = 1500;
+        installmentableAmount = Math.max(0, finalAmount - downPayment);
+      }
+      
+      if (installments > 1) {
+        const amountPerInstallment = installmentableAmount / installments;
+        
+        if (downPayment > 0) {
+          const downPaymentDate = new Date();
+          downPaymentDate.setDate(downPaymentDate.getDate() + 1);
+          
+          await tx.paymentDeadline.create({
+            data: {
+              registrationId: registration.id,
+              amount: downPayment,
+              dueDate: downPaymentDate,
+              paymentNumber: 0,
+              isPaid: false
+            }
+          });
+        }
+        
+        for (let i = 0; i < installments; i++) {
+          const dueDate = new Date();
+          dueDate.setMonth(dueDate.getMonth() + i + 1);
+          
+          await tx.paymentDeadline.create({
+            data: {
+              registrationId: registration.id,
+              amount: amountPerInstallment,
+              dueDate: dueDate,
+              paymentNumber: i + 1,
+              isPaid: false
+            }
+          });
+        }
+      } else {
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 1);
+        
+        await tx.paymentDeadline.create({
+          data: {
+            registrationId: registration.id,
+            amount: finalAmount,
+            dueDate: dueDate,
+            paymentNumber: 1,
+            isPaid: false
+          }
+        });
       }
       
       // Link existing user documents to new registration if needed
@@ -605,6 +319,33 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
       return registration;
     });
     
+    // Send enrollment confirmation email
+    try {
+      const courseInfo = await prisma.course.findUnique({
+        where: { id: courseId }
+      });
+      
+      const partnerInfo = await prisma.partner.findUnique({
+        where: { id: partnerId },
+        include: {
+          user: { select: { email: true } }
+        }
+      });
+      
+      await emailService.sendEnrollmentConfirmation(user.email, {
+        nome: user.profile.nome,
+        cognome: user.profile.cognome,
+        email: user.email,
+        registrationId: result.id,
+        courseName: courseInfo?.name || 'Corso selezionato',
+        offerType: offer?.offerType || 'TFA_ROMANIA',
+        partnerName: partnerInfo?.user.email || 'Partner di riferimento'
+      });
+    } catch (emailError) {
+      console.error('Failed to send enrollment confirmation email:', emailError);
+      // Don't fail the registration if email fails
+    }
+    
     res.json({
       success: true,
       registrationId: result.id,
@@ -613,6 +354,259 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
     
   } catch (error) {
     console.error('Additional enrollment error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// POST /api/registration/verified-user-enrollment - Enrollment for email-verified users (no auth required)
+router.post('/verified-user-enrollment', async (req: Request, res: Response) => {
+  try {
+    const { 
+      verifiedEmail,
+      courseId, 
+      partnerOfferId, 
+      paymentPlan, 
+      couponCode,
+      documents = [],
+      courseData = {},
+      referralCode,
+      // All the other enrollment data
+      ...enrollmentData
+    } = req.body;
+    
+    if (!verifiedEmail) {
+      return res.status(400).json({ error: 'Email verificata richiesta' });
+    }
+    
+    // Find the verified user
+    const user = await prisma.user.findUnique({
+      where: { 
+        email: verifiedEmail,
+        emailVerified: true
+      },
+      include: { 
+        profile: true,
+        assignedPartner: true
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Utente verificato non trovato' });
+    }
+    
+    if (!user.profile) {
+      return res.status(400).json({ error: 'Profilo utente non trovato' });
+    }
+    
+    // Determine partner ID (same logic as authenticated enrollment)
+    let partnerId = user.assignedPartnerId;
+    let offer = null;
+    
+    if (!partnerId && partnerOfferId) {
+      offer = await prisma.partnerOffer.findUnique({
+        where: { id: partnerOfferId },
+        include: { partner: true, course: true }
+      });
+      
+      if (offer) {
+        partnerId = offer.partnerId;
+        
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { assignedPartnerId: partnerId }
+        });
+        
+        console.log(`Assigned partner ${partnerId} to verified user ${user.id} from offer ${partnerOfferId}`);
+      }
+    }
+    
+    if (!partnerId && referralCode) {
+      const baseReferralCode = referralCode.split('-')[0];
+      const partner = await prisma.partner.findUnique({
+        where: { referralCode: baseReferralCode }
+      });
+      
+      if (partner) {
+        partnerId = partner.id;
+        
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { assignedPartnerId: partnerId }
+        });
+        
+        console.log(`Assigned partner ${partnerId} to verified user ${user.id} from referral code ${referralCode}`);
+      }
+    }
+    
+    if (!partnerId) {
+      return res.status(400).json({ 
+        error: 'Impossibile determinare il partner per questa iscrizione',
+        details: 'No partner could be determined from offer or referral code'
+      });
+    }
+    
+    // Get offer information if we don't have it yet
+    if (partnerOfferId && !offer) {
+      offer = await prisma.partnerOffer.findUnique({
+        where: { 
+          id: partnerOfferId,
+          partnerId: partnerId
+        },
+        include: { partner: true, course: true }
+      });
+      
+      if (!offer) {
+        return res.status(400).json({ error: 'Offerta non trovata o non autorizzata' });
+      }
+
+      if (offer.courseId !== courseId) {
+        return res.status(400).json({ 
+          error: 'Il corso specificato non corrisponde all\'offerta del partner'
+        });
+      }
+    }
+    
+    const result = await prisma.$transaction(async (tx) => {
+      // Create new registration
+      const registration = await tx.registration.create({
+        data: {
+          userId: user.id,
+          partnerId: partnerId || 'default-partner-id',
+          courseId: courseId,
+          partnerOfferId: partnerOfferId,
+          offerType: offer?.offerType || 'TFA_ROMANIA',
+          originalAmount: paymentPlan.originalAmount || 0,
+          finalAmount: paymentPlan.finalAmount || 0,
+          installments: paymentPlan.installments || 1,
+          status: 'PENDING',
+          // Course-specific data
+          tipoLaurea: courseData.tipoLaurea || null,
+          laureaConseguita: courseData.laureaConseguita || null,
+          laureaUniversita: courseData.laureaUniversita || null,
+          laureaData: courseData.laureaData ? new Date(courseData.laureaData) : null,
+          tipoLaureaTriennale: courseData.tipoLaureaTriennale || null,
+          laureaConseguitaTriennale: courseData.laureaConseguitaTriennale || null,
+          laureaUniversitaTriennale: courseData.laureaUniversitaTriennale || null,
+          laureaDataTriennale: courseData.laureaDataTriennale ? new Date(courseData.laureaDataTriennale) : null,
+          tipoProfessione: courseData.tipoProfessione || null,
+          scuolaDenominazione: courseData.scuolaDenominazione || null,
+          scuolaCitta: courseData.scuolaCitta || null,
+          scuolaProvincia: courseData.scuolaProvincia || null
+        }
+      });
+      
+      // Create payment deadlines (same logic as authenticated enrollment)
+      const installments = paymentPlan.installments || 1;
+      const finalAmount = Number(paymentPlan.finalAmount) || 0;
+      const registrationOfferType = offer?.offerType || 'TFA_ROMANIA';
+      
+      console.log(`Creating payment deadlines for registration ${registration.id}:`, {
+        installments,
+        finalAmount,
+        offerType: registrationOfferType
+      });
+      
+      let downPayment = 0;
+      let installmentableAmount = finalAmount;
+      
+      if (registrationOfferType === 'TFA_ROMANIA') {
+        downPayment = 1500;
+        installmentableAmount = Math.max(0, finalAmount - downPayment);
+      }
+      
+      if (installments > 1) {
+        const amountPerInstallment = installmentableAmount / installments;
+        
+        // Create down payment deadline for TFA Romania
+        if (downPayment > 0) {
+          const downPaymentDate = new Date();
+          downPaymentDate.setDate(downPaymentDate.getDate() + 1);
+          
+          const downPaymentDeadline = await tx.paymentDeadline.create({
+            data: {
+              registrationId: registration.id,
+              amount: downPayment,
+              dueDate: downPaymentDate,
+              paymentNumber: 0,
+              isPaid: false
+            }
+          });
+          
+          console.log(`Created down payment deadline:`, downPaymentDeadline);
+        }
+        
+        // Create installment deadlines
+        for (let i = 0; i < installments; i++) {
+          const dueDate = new Date();
+          dueDate.setMonth(dueDate.getMonth() + i + 1);
+          
+          const installmentDeadline = await tx.paymentDeadline.create({
+            data: {
+              registrationId: registration.id,
+              amount: amountPerInstallment,
+              dueDate: dueDate,
+              paymentNumber: i + 1,
+              isPaid: false
+            }
+          });
+          
+          console.log(`Created installment deadline ${i + 1}:`, installmentDeadline);
+        }
+      } else {
+        // Single payment
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 1);
+        
+        const singlePaymentDeadline = await tx.paymentDeadline.create({
+          data: {
+            registrationId: registration.id,
+            amount: finalAmount,
+            dueDate: dueDate,
+            paymentNumber: 1,
+            isPaid: false
+          }
+        });
+        
+        console.log(`Created single payment deadline:`, singlePaymentDeadline);
+      }
+      
+      return registration;
+    });
+    
+    // Send enrollment confirmation email
+    try {
+      const courseInfo = await prisma.course.findUnique({
+        where: { id: courseId }
+      });
+      
+      const partnerInfo = await prisma.partner.findUnique({
+        where: { id: partnerId },
+        include: {
+          user: { select: { email: true } }
+        }
+      });
+      
+      await emailService.sendEnrollmentConfirmation(user.email, {
+        nome: user.profile.nome,
+        cognome: user.profile.cognome,
+        email: user.email,
+        registrationId: result.id,
+        courseName: courseInfo?.name || 'Corso selezionato',
+        offerType: offer?.offerType || 'TFA_ROMANIA',
+        partnerName: partnerInfo?.user.email || 'Partner di riferimento'
+      });
+    } catch (emailError) {
+      console.error('Failed to send enrollment confirmation email:', emailError);
+    }
+    
+    res.json({
+      success: true,
+      registrationId: result.id,
+      message: 'Iscrizione completata con successo'
+    });
+    
+  } catch (error) {
+    console.error('Verified user enrollment error:', error);
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -674,6 +668,210 @@ router.post('/validate-coupon', async (req, res) => {
     console.error('Validate coupon error:', error);
     res.status(500).json({ 
       isValid: false, 
+      message: 'Errore interno del server' 
+    });
+  }
+});
+
+// POST /api/registration/verified-user-enrollment - Enrollment for email-verified users
+router.post('/verified-user-enrollment', async (req: Request, res: Response) => {
+  try {
+    const { verifiedEmail, ...enrollmentData } = req.body;
+    
+    if (!verifiedEmail) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Email verificata richiesta' 
+      });
+    }
+    
+    // Find the verified user
+    const user = await prisma.user.findUnique({
+      where: { 
+        email: verifiedEmail,
+        emailVerified: true 
+      },
+      include: { 
+        profile: true,
+        assignedPartner: true 
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Utente non trovato o email non verificata' 
+      });
+    }
+    
+    // Use the same logic as additional-enrollment but without authentication requirement
+    const {
+      courseId,
+      partnerOfferId,
+      referralCode,
+      paymentPlan,
+      couponCode,
+      originalAmount,
+      finalAmount,
+      installments,
+      downPayment,
+      installmentAmount,
+      // Course-specific data
+      tipoLaurea,
+      laureaConseguita,
+      laureaConseguitaCustom,
+      laureaUniversita,
+      laureaData,
+      tipoProfessione,
+      scuolaDenominazione,
+      scuolaCitta,
+      scuolaProvincia
+    } = enrollmentData;
+    
+    if (!courseId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Corso richiesto' 
+      });
+    }
+    
+    // Find the course
+    const course = await prisma.course.findUnique({
+      where: { id: courseId }
+    });
+    
+    if (!course) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Corso non trovato' 
+      });
+    }
+    
+    // Determine partner (from assignedPartner, partnerOffer, or referralCode)
+    let partnerId = user.assignedPartnerId;
+    
+    if (partnerOfferId) {
+      const partnerOffer = await prisma.partnerOffer.findUnique({
+        where: { id: partnerOfferId }
+      });
+      if (partnerOffer) {
+        partnerId = partnerOffer.partnerId;
+      }
+    }
+    
+    if (!partnerId && referralCode) {
+      const partner = await prisma.partner.findUnique({
+        where: { referralCode }
+      });
+      if (partner) {
+        partnerId = partner.id;
+      }
+    }
+    
+    if (!partnerId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Partner non identificato' 
+      });
+    }
+    
+    // Determine offer type
+    let offerType = 'TFA_ROMANIA';
+    if (partnerOfferId) {
+      const offer = await prisma.partnerOffer.findUnique({
+        where: { id: partnerOfferId }
+      });
+      if (offer) {
+        offerType = offer.offerType;
+      }
+    }
+    
+    // Apply coupon discount if provided
+    let appliedFinalAmount = finalAmount || originalAmount || 5000;
+    if (couponCode && partnerId) {
+      try {
+        // Find active coupon for this partner
+        const coupon = await prisma.coupon.findFirst({
+          where: {
+            code: couponCode,
+            partnerId: partnerId,
+            isActive: true,
+            validFrom: { lte: new Date() },
+            validUntil: { gte: new Date() }
+          }
+        });
+        
+        if (coupon) {
+          const baseAmount = originalAmount || 5000;
+          if (coupon.discountType === 'PERCENTAGE') {
+            const discountPercent = Number(coupon.discountPercent || 0);
+            appliedFinalAmount = baseAmount * (1 - discountPercent / 100);
+          } else if (coupon.discountType === 'FIXED') {
+            const discountAmount = Number(coupon.discountAmount || 0);
+            appliedFinalAmount = Math.max(0, baseAmount - discountAmount);
+          }
+          console.log(`Applied coupon ${couponCode}: ${baseAmount} -> ${appliedFinalAmount}`);
+        }
+      } catch (couponError) {
+        console.error('Error applying coupon:', couponError);
+        // Continue with original amount if coupon application fails
+      }
+    }
+    
+    // Create the registration
+    const registration = await prisma.registration.create({
+      data: {
+        userId: user.id,
+        partnerId: partnerId,
+        courseId: courseId,
+        partnerOfferId: partnerOfferId || null,
+        offerType: offerType as any,
+        
+        // Course-specific data (only for TFA Romania)
+        tipoLaurea: offerType === 'TFA_ROMANIA' ? tipoLaurea : null,
+        laureaConseguita: offerType === 'TFA_ROMANIA' ? laureaConseguita : null,
+        laureaUniversita: offerType === 'TFA_ROMANIA' ? laureaUniversita : null,
+        laureaData: offerType === 'TFA_ROMANIA' && laureaData ? new Date(laureaData) : null,
+        
+        // Profession data (only for TFA Romania)
+        tipoProfessione: offerType === 'TFA_ROMANIA' ? tipoProfessione : null,
+        scuolaDenominazione: offerType === 'TFA_ROMANIA' ? scuolaDenominazione : null,
+        scuolaCitta: offerType === 'TFA_ROMANIA' ? scuolaCitta : null,
+        scuolaProvincia: offerType === 'TFA_ROMANIA' ? scuolaProvincia : null,
+        
+        // Payment info (with coupon discount applied)
+        originalAmount: originalAmount || 5000, // Default fallback
+        finalAmount: appliedFinalAmount,
+        installments: installments || 1,
+        
+        status: 'PENDING'
+      }
+    });
+    
+    // Send confirmation email
+    try {
+      await emailService.sendEnrollmentConfirmation(user.email, {
+        userName: user.profile?.nome || 'Utente',
+        courseName: course.name,
+        registrationId: registration.id,
+        totalAmount: appliedFinalAmount,
+        installments: installments || 1
+      });
+    } catch (emailError) {
+      console.error('Error sending confirmation email:', emailError);
+      // Don't fail the registration if email fails
+    }
+    
+    return res.json({
+      success: true,
+      message: 'Iscrizione completata con successo',
+      registrationId: registration.id
+    });
+    
+  } catch (error) {
+    console.error('Verified user enrollment error:', error);
+    return res.status(500).json({ 
+      success: false, 
       message: 'Errore interno del server' 
     });
   }

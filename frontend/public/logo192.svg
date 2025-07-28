@@ -1,0 +1,42 @@
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="96" cy="96" r="96" fill="#F0FDF4"/>
+  
+  <!-- Gradient definitions -->
+  <defs>
+    <linearGradient id="scopeGradient192" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10B981;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#059669;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#047857;stop-opacity:1" />
+    </linearGradient>
+    <radialGradient id="lensGradient" cx="30%" cy="30%" r="70%">
+      <stop offset="0%" style="stop-color:#A7F3D0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#34D399;stop-opacity:1" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Main telescope body -->
+  <rect x="36" y="84" width="120" height="24" fill="url(#scopeGradient192)" rx="12"/>
+  
+  <!-- Telescope lens -->
+  <circle cx="48" cy="96" r="18" fill="url(#lensGradient)" stroke="#047857" stroke-width="3"/>
+  
+  <!-- Telescope eyepiece -->
+  <rect x="144" y="90" width="18" height="12" fill="#047857" rx="6"/>
+  
+  <!-- Stars scattered around -->
+  <circle cx="72" cy="48" r="6" fill="#FCD34D"/>
+  <circle cx="120" cy="36" r="4.8" fill="#FCD34D"/>
+  <circle cx="144" cy="60" r="3.6" fill="#FCD34D"/>
+  <circle cx="48" cy="144" r="4.8" fill="#FCD34D"/>
+  <circle cx="132" cy="156" r="6" fill="#FCD34D"/>
+  <circle cx="168" cy="120" r="3" fill="#FCD34D"/>
+  <circle cx="24" cy="72" r="3.6" fill="#FCD34D"/>
+  
+  <!-- Discovery elements - compass points -->
+  <path d="M84 60 L84 72 M78 66 L90 66" stroke="#10B981" stroke-width="3" stroke-linecap="round"/>
+  <path d="M108 144 L108 156 M102 150 L114 150" stroke="#10B981" stroke-width="3" stroke-linecap="round"/>
+  
+  <!-- Lens reflection highlight -->
+  <ellipse cx="42" cy="90" rx="8" ry="12" fill="#FFFFFF" opacity="0.4"/>
+</svg>

@@ -28,6 +28,13 @@ const ProfessionStep: React.FC<ProfessionStepProps> = ({ data, onNext, onChange 
     control,
     name: 'tipoProfessione',
   });
+  
+  // Ensure tipoProfessione changes are propagated to parent immediately
+  useEffect(() => {
+    if (selectedProfessionType && onChange) {
+      onChange({ tipoProfessione: selectedProfessionType });
+    }
+  }, [selectedProfessionType, onChange]);
 
   // Check if profession type requires school information
   const requiresSchoolInfo = selectedProfessionType === 'Docente di ruolo' || selectedProfessionType === 'Docente a tempo determinato';
@@ -56,7 +63,14 @@ const ProfessionStep: React.FC<ProfessionStepProps> = ({ data, onNext, onChange 
               Tipo di Professione *
             </label>
             <select
-              {...register('tipoProfessione')}
+              {...register('tipoProfessione', {
+                onChange: (e) => {
+                  const value = e.target.value;
+                  if (onChange) {
+                    onChange({ tipoProfessione: value });
+                  }
+                }
+              })}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Seleziona la tua situazione professionale</option>

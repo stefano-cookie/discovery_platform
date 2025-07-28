@@ -1,35 +1,21 @@
-import React, { useEffect } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import React from 'react';
+import { useParams } from 'react-router-dom';
 import MultiStepForm from '../components/Registration/MultiStepForm';
-import { verifyEmail } from '../services/api';
+import ReferralGatekeeper from '../components/Auth/ReferralGatekeeper';
 
 const Registration: React.FC = () => {
   const { referralCode } = useParams<{ referralCode?: string }>();
-  const location = useLocation();
 
-  useEffect(() => {
-    const handleEmailVerification = async () => {
-      const urlParams = new URLSearchParams(location.search);
-      const token = urlParams.get('token');
-      const email = urlParams.get('email');
+  // Se non c'è referral code, vai direttamente al form (utenti già autenticati)
+  if (!referralCode) {
+    return <MultiStepForm />;
+  }
 
-      if (token && email) {
-        try {
-          await verifyEmail(token, email);
-          // Clear the URL params after successful verification
-          const newUrl = location.pathname + (location.hash || '');
-          window.history.replaceState({}, '', newUrl);
-        } catch (error) {
-          console.error('Email verification failed:', error);
-        }
-      }
-    };
-
-    handleEmailVerification();
-  }, [location]);
-
+  // Se c'è referral code, usa il gatekeeper per gestire l'accesso
   return (
-    <MultiStepForm referralCode={referralCode} />
+    <ReferralGatekeeper referralCode={referralCode}>
+      <MultiStepForm referralCode={referralCode} />
+    </ReferralGatekeeper>
   );
 };
 

@@ -36,13 +36,24 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
   
   const getFieldStatus = (fieldName: keyof GeneralDataForm) => {
     const hasValue = data[fieldName] && data[fieldName] !== '';
-    const isRequired = offerType === 'TFA_ROMANIA' 
-      ? ['email', 'cognome', 'nome', 'dataNascita', 'luogoNascita', 'codiceFiscale', 'telefono', 'nomePadre', 'nomeMadre'].includes(fieldName)
-      : ['email', 'cognome', 'nome', 'dataNascita', 'luogoNascita', 'codiceFiscale', 'telefono'].includes(fieldName);
     
-    // Always show all fields and allow editing
-    // Pre-populate with existing data but never make readonly
-    const shouldShowField = true;
+    // Determine required fields based on context
+    let isRequired = false;
+    let shouldShowField = false;
+    
+    // If requiredFields is passed and only contains nomePadre/nomeMadre, we're in enrollment mode
+    if (_requiredFields && _requiredFields.length > 0 && _requiredFields.every(f => ['nomePadre', 'nomeMadre'].includes(f))) {
+      // Enrollment mode - only show padre/madre fields
+      shouldShowField = ['nomePadre', 'nomeMadre'].includes(fieldName);
+      isRequired = _requiredFields.includes(fieldName);
+    } else {
+      // Registration mode - show all fields based on offer type
+      isRequired = offerType === 'TFA_ROMANIA' 
+        ? ['email', 'cognome', 'nome', 'dataNascita', 'luogoNascita', 'codiceFiscale', 'telefono', 'nomePadre', 'nomeMadre'].includes(fieldName)
+        : ['email', 'cognome', 'nome', 'dataNascita', 'luogoNascita', 'codiceFiscale', 'telefono'].includes(fieldName);
+      shouldShowField = true;
+    }
+    
     const isFieldReadonly = false;
     
     return {
@@ -147,9 +158,12 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
         if (result.exists && result.user) {
           setExistingUser(result.user);
           
-          // Only show the popup if the user is NOT already logged in
-          // If they're already logged in, they're probably enrolling in a new course
-          if (!currentUser) {
+          // Check if user came from email verification
+          const urlParams = new URLSearchParams(window.location.search);
+          const emailVerified = urlParams.get('emailVerified');
+          
+          // Don't show popup if user is logged in OR verified via email
+          if (!currentUser && emailVerified !== 'true') {
             setEmailValidation({
               isChecking: false,
               exists: true,
@@ -157,11 +171,11 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
             });
             setShowExistingUserPrompt(true);
           } else {
-            // User is logged in, so they can use their existing email for new enrollments
+            // User is logged in or verified via email, allow to proceed
             setEmailValidation({
               isChecking: false,
               exists: false,
-              message: 'Email confermata per nuova iscrizione'
+              message: emailVerified === 'true' ? 'Email verificata - puoi procedere' : 'Email confermata per nuova iscrizione'
             });
             setShowExistingUserPrompt(false);
           }

@@ -748,6 +748,223 @@ class EmailService {
     `;
   }
 
+  async sendEnrollmentConfirmation(email: string, enrollmentData: any): Promise<void> {
+    const mailOptions = {
+      from: this.fromEmail,
+      to: email,
+      subject: 'Iscrizione completata con successo - Piattaforma Diamante',
+      html: this.getEnrollmentConfirmationTemplate(enrollmentData),
+      text: `
+        Ciao ${enrollmentData.nome},
+        
+        La tua iscrizione al corso "${enrollmentData.courseName}" è stata completata con successo!
+        
+        Dettagli iscrizione:
+        - Corso: ${enrollmentData.courseName}
+        - Tipo: ${enrollmentData.offerType}
+        - ID Iscrizione: ${enrollmentData.registrationId}
+        - Partner di riferimento: ${enrollmentData.partnerName}
+        
+        Puoi accedere alla tua area riservata per visualizzare tutti i dettagli e seguire i progressi della tua iscrizione.
+        
+        Grazie per aver scelto la Piattaforma Diamante!
+        
+        Il team Piattaforma Diamante
+      `
+    };
+
+    try {
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('Enrollment confirmation email sent:', info.messageId);
+      
+      if (process.env.NODE_ENV === 'development' && info.previewURL) {
+        console.log('Preview email:', nodemailer.getTestMessageUrl(info));
+      }
+    } catch (error) {
+      console.error('Email sending error:', error);
+      throw new Error('Unable to send enrollment confirmation email');
+    }
+  }
+
+  private getEnrollmentConfirmationTemplate(enrollmentData: any): string {
+    return `
+    <!DOCTYPE html>
+    <html lang="it">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Iscrizione Completata - Piattaforma Diamante</title>
+        <style>
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+                background-color: #f8fafc;
+            }
+            .container {
+                background-color: white;
+                border-radius: 12px;
+                padding: 40px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            }
+            .header {
+                text-align: center;
+                margin-bottom: 30px;
+            }
+            .logo {
+                font-size: 28px;
+                font-weight: bold;
+                color: #10b981;
+                margin-bottom: 10px;
+            }
+            .title {
+                font-size: 24px;
+                font-weight: bold;
+                color: #1f2937;
+                margin-bottom: 20px;
+            }
+            .success-icon {
+                font-size: 48px;
+                margin-bottom: 20px;
+            }
+            .content {
+                margin-bottom: 30px;
+                color: #4b5563;
+            }
+            .course-info {
+                background-color: #f0f9ff;
+                border: 1px solid #0ea5e9;
+                border-radius: 8px;
+                padding: 20px;
+                margin: 20px 0;
+            }
+            .course-info h3 {
+                color: #0c4a6e;
+                margin-top: 0;
+                margin-bottom: 15px;
+            }
+            .info-row {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 8px;
+                padding-bottom: 8px;
+                border-bottom: 1px solid #e0f2fe;
+            }
+            .info-row:last-child {
+                border-bottom: none;
+                margin-bottom: 0;
+                padding-bottom: 0;
+            }
+            .info-label {
+                font-weight: bold;
+                color: #0c4a6e;
+            }
+            .info-value {
+                color: #075985;
+            }
+            .dashboard-button {
+                display: inline-block;
+                background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+                color: white;
+                text-decoration: none;
+                padding: 15px 30px;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 16px;
+                text-align: center;
+                margin: 20px 0;
+            }
+            .footer {
+                margin-top: 30px;
+                padding-top: 20px;
+                border-top: 1px solid #e5e7eb;
+                text-align: center;
+                color: #6b7280;
+                font-size: 14px;
+            }
+            .next-steps {
+                background-color: #f0fdf4;
+                border: 1px solid #16a34a;
+                border-radius: 8px;
+                padding: 20px;
+                margin: 20px 0;
+                color: #15803d;
+            }
+            .next-steps h3 {
+                color: #15803d;
+                margin-top: 0;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <div class="logo">💎 Piattaforma Diamante</div>
+                <div class="success-icon">🎓</div>
+                <h1 class="title">Iscrizione Completata!</h1>
+            </div>
+            
+            <div class="content">
+                <p>Ciao <strong>${enrollmentData.nome}</strong>,</p>
+                <p>La tua iscrizione è stata completata con successo! Benvenuto nel corso.</p>
+                
+                <div class="course-info">
+                    <h3>📚 Dettagli del tuo corso:</h3>
+                    <div class="info-row">
+                        <span class="info-label">Corso:</span>
+                        <span class="info-value">${enrollmentData.courseName}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Tipologia:</span>
+                        <span class="info-value">${enrollmentData.offerType === 'TFA_ROMANIA' ? 'TFA Sostegno Romania' : 'Certificazione'}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">ID Iscrizione:</span>
+                        <span class="info-value">${enrollmentData.registrationId}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Partner di riferimento:</span>
+                        <span class="info-value">${enrollmentData.partnerName}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Data iscrizione:</span>
+                        <span class="info-value">${new Date().toLocaleDateString('it-IT')}</span>
+                    </div>
+                </div>
+                
+                <div style="text-align: center;">
+                    <a href="${process.env.FRONTEND_URL}/dashboard" class="dashboard-button">
+                        🏠 Accedi alla tua Area Riservata
+                    </a>
+                </div>
+                
+                <div class="next-steps">
+                    <h3>📋 Prossimi Passi:</h3>
+                    <ul>
+                        <li>Accedi alla tua area riservata per visualizzare i dettagli completi</li>
+                        <li>Il tuo partner di riferimento ti contatterà per i prossimi step</li>
+                        <li>Puoi caricare eventuali documenti aggiuntivi dall'area riservata</li>
+                        <li>Monitora lo stato della tua iscrizione e i pagamenti</li>
+                    </ul>
+                </div>
+                
+                <p>Conserva questa email per i tuoi archivi. La tua avventura formativa inizia ora!</p>
+            </div>
+            
+            <div class="footer">
+                <p><strong>Piattaforma Diamante</strong></p>
+                <p>Questa è una email automatica, non rispondere a questo messaggio.</p>
+                <p>Per assistenza, accedi alla tua area riservata o contatta il tuo partner.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    `;
+  }
+
   async testConnection(): Promise<boolean> {
     try {
       await this.transporter.verify();

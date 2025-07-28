@@ -2,8 +2,13 @@ export interface User {
   id: string;
   email: string;
   role: 'ADMIN' | 'PARTNER' | 'USER';
-  mustChangePassword: boolean;
+  emailVerified: boolean;
+  hasProfile: boolean;
   referralCode?: string | null;
+  assignedPartner?: {
+    id: string;
+    referralCode: string;
+  } | null;
 }
 
 export interface LoginRequest {

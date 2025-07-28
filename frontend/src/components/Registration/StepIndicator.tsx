@@ -117,11 +117,6 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
           </span>
         </div>
         
-        {/* Current step progress */}
-        <div className="flex justify-between items-center text-xs text-gray-400">
-          <span>Step corrente: {getStepProgress(currentStep).completed}/{getStepProgress(currentStep).total} campi</span>
-          <span>Step {currentStep + 1} di {steps.length}</span>
-        </div>
       </div>
     </div>
   );

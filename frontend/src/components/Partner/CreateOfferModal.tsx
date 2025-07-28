@@ -21,38 +21,44 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
   const [customPayments, setCustomPayments] = useState<Array<{ amount: number; dueDate: string }>>([]);
   const [useCustomPlan, setUseCustomPlan] = useState(true);
 
-  // Set first available course when courses are loaded and initialize payments
+  // Set appropriate course when courses are loaded or offer type changes
   React.useEffect(() => {
-    if (courses.length > 0 && !formData.courseId) {
-      setFormData(prev => ({
-        ...prev,
-        courseId: courses[0].id
-      }));
+    if (courses.length > 0) {
+      // Find appropriate course based on offer type
+      const appropriateCourse = courses.find(course => {
+        const isTfaCourse = course.name.includes('Formazione Diamante') || course.id === 'default-course';
+        const isCertificationCourse = course.name.includes('Certificazioni') || course.id === 'certification-course';
+        
+        return (formData.offerType === 'TFA_ROMANIA' && isTfaCourse) || 
+               (formData.offerType === 'CERTIFICATION' && isCertificationCourse);
+      });
       
-      // Initialize default payments for TFA Romania
+      if (appropriateCourse && (!formData.courseId || formData.courseId !== appropriateCourse.id)) {
+        const baseAmount = formData.offerType === 'TFA_ROMANIA' ? 4000 : 1500;
+        setFormData(prev => ({
+          ...prev,
+          courseId: appropriateCourse.id,
+          totalAmount: baseAmount
+        }));
+      }
+      
+      // Initialize default payments
       if (customPayments.length === 0) {
-        const defaultPayments = [];
-        for (let i = 0; i < 3; i++) {
-          const dueDate = new Date();
-          dueDate.setMonth(dueDate.getMonth() + i + 1);
-          dueDate.setDate(30);
-          defaultPayments.push({
-            amount: Number((4000 / 3).toFixed(2)),
-            dueDate: dueDate.toISOString().split('T')[0]
-          });
-        }
-        setCustomPayments(defaultPayments);
+        generateInstallmentPlan(3); // 3 rate di default
         setUseCustomPlan(true);
-        // Aggiorna anche installments nel formData
-        setFormData(prev => ({ ...prev, installments: defaultPayments.length }));
       }
     }
-  }, [courses, formData.courseId, customPayments.length]);
+  }, [courses, formData.offerType, customPayments.length]);
 
   // Update custom payment amounts when total amount changes
   React.useEffect(() => {
     if (useCustomPlan && customPayments.length > 0 && formData.totalAmount > 0) {
-      const amountPerPayment = formData.totalAmount / customPayments.length;
+      // Per TFA Romania: (totale - acconto 1500€) / numero rate
+      // Per altri corsi: totale / numero rate
+      const downPayment = formData.offerType === 'TFA_ROMANIA' ? 1500 : 0;
+      const remainingAmount = formData.totalAmount - downPayment;
+      const amountPerPayment = remainingAmount / customPayments.length;
+      
       setCustomPayments(prevPayments => 
         prevPayments.map(payment => ({
           ...payment,
@@ -60,7 +66,7 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
         }))
       );
     }
-  }, [formData.totalAmount, useCustomPlan, customPayments.length]); // customPayments.length to avoid infinite loop but still track changes
+  }, [formData.totalAmount, formData.offerType, useCustomPlan, customPayments.length]); // customPayments.length to avoid infinite loop but still track changes
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -85,62 +91,42 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
   const handleOfferTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const offerType = e.target.value as 'TFA_ROMANIA' | 'CERTIFICATION';
     
-    // Set default values based on offer type
-    if (offerType === 'CERTIFICATION') {
-      const newFormData = {
-        ...formData,
-        offerType,
-        totalAmount: 1500,
-        installments: 3,
-        name: formData.name || 'Certificazione Personalizzata'
-      };
-      setFormData(newFormData);
-      setUseCustomPlan(true);
-      
-      // Generate default payments
-      const defaultPayments = [];
-      for (let i = 0; i < 3; i++) {
-        const dueDate = new Date();
-        dueDate.setMonth(dueDate.getMonth() + i + 1);
-        dueDate.setDate(30);
-        defaultPayments.push({
-          amount: Number((1500 / 3).toFixed(2)),
-          dueDate: dueDate.toISOString().split('T')[0]
-        });
-      }
-      setCustomPayments(defaultPayments);
-      // Aggiorna anche installments nel formData
-      newFormData.installments = defaultPayments.length;
-      setFormData(newFormData);
-    } else {
-      const newFormData = {
-        ...formData,
-        offerType,
-        totalAmount: 4000,
-        installments: 3,
-        name: formData.name || 'TFA Romania'
-      };
-      setFormData(newFormData);
-      setUseCustomPlan(true);
-      
-      // Generate default payments
-      const defaultPayments = [];
-      for (let i = 0; i < 3; i++) {
-        const dueDate = new Date();
-        dueDate.setMonth(dueDate.getMonth() + i + 1);
-        dueDate.setDate(30);
-        defaultPayments.push({
-          amount: Number((4000 / 3).toFixed(2)),
-          dueDate: dueDate.toISOString().split('T')[0]
-        });
-      }
-      setCustomPayments(defaultPayments);
-      // Aggiorna anche installments nel formData
-      newFormData.installments = defaultPayments.length;
-      setFormData(newFormData);
-    }
+    // Update offer type and reset course selection - amounts will be set by useEffect
+    setFormData(prev => ({
+      ...prev,
+      offerType,
+      courseId: '', // Reset course selection to trigger auto-selection
+      name: prev.name || (offerType === 'CERTIFICATION' ? 'Certificazione Personalizzata' : 'TFA Romania Personalizzato')
+    }));
+    
+    setUseCustomPlan(true);
   };
 
+
+  const generateInstallmentPlan = (targetInstallments: number) => {
+    const newPayments = [];
+    
+    // Per TFA Romania: (totale - acconto 1500€) / numero rate
+    // Per altri corsi: totale / numero rate
+    const downPayment = formData.offerType === 'TFA_ROMANIA' ? 1500 : 0;
+    const remainingAmount = formData.totalAmount - downPayment;
+    const amountPerInstallment = Number((remainingAmount / targetInstallments).toFixed(2));
+    
+    for (let i = 0; i < targetInstallments; i++) {
+      const dueDate = new Date();
+      dueDate.setMonth(dueDate.getMonth() + i + 1);
+      dueDate.setDate(30);
+      
+      newPayments.push({
+        amount: amountPerInstallment,
+        dueDate: dueDate.toISOString().split('T')[0]
+      });
+    }
+    
+    setCustomPayments(newPayments);
+    // Aggiorna anche il campo installments nel formData
+    setFormData(prev => ({ ...prev, installments: newPayments.length }));
+  };
 
   const addCustomPayment = () => {
     const nextMonth = new Date();
@@ -282,23 +268,75 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Corso *
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    Seleziona il corso:
                   </label>
-                  <select
-                    name="courseId"
-                    value={formData.courseId}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  >
-                    <option value="">Seleziona un corso</option>
-                    {courses.map(course => (
-                      <option key={course.id} value={course.id}>
-                        {course.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="space-y-3">
+                    {courses.map(course => {
+                      // Mostra corsi appropriati in base al tipo di offerta
+                      const isTfaCourse = course.name.includes('Formazione Diamante') || course.id === 'default-course';
+                      const isCertificationCourse = course.name.includes('Certificazioni') || course.id === 'certification-course';
+                      
+                      // Per TFA Romania mostra solo corsi TFA, per Certificazioni solo certificazioni
+                      const shouldShow = (formData.offerType === 'TFA_ROMANIA' && isTfaCourse) || 
+                                        (formData.offerType === 'CERTIFICATION' && isCertificationCourse);
+                      
+                      if (!shouldShow) return null;
+                      
+                      const isSelected = formData.courseId === course.id;
+                      const baseAmount = formData.offerType === 'TFA_ROMANIA' ? 4000 : 1000;
+                      
+                      return (
+                        <div
+                          key={course.id}
+                          className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                            isSelected
+                              ? formData.offerType === 'TFA_ROMANIA'
+                                ? 'border-purple-500 bg-purple-50'
+                                : 'border-green-500 bg-green-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          onClick={() => {
+                            setFormData(prev => ({ 
+                              ...prev, 
+                              courseId: course.id,
+                              totalAmount: baseAmount
+                            }));
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center mb-2">
+                                <input
+                                  type="radio"
+                                  name="courseId"
+                                  value={course.id}
+                                  checked={isSelected}
+                                  onChange={() => {}}
+                                  className="mr-3"
+                                />
+                                <h4 className="font-medium text-gray-900">{course.name}</h4>
+                              </div>
+                              <p className="text-sm text-gray-600 mb-2">{course.description}</p>
+                              <div className="text-sm">
+                                <span className="font-medium">Importo base: </span>
+                                <span className={`font-bold ${
+                                  formData.offerType === 'TFA_ROMANIA' ? 'text-purple-600' : 'text-green-600'
+                                }`}>
+                                  €{baseAmount.toLocaleString()}
+                                </span>
+                                {formData.offerType === 'TFA_ROMANIA' && (
+                                  <span className="text-xs text-gray-500 ml-2">
+                                    (include acconto €1.500)
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                   {courses.length === 0 && (
                     <p className="text-xs text-red-500 mt-1">
                       Nessun corso disponibile. Contatta l'amministratore.
@@ -360,17 +398,65 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
                     }
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={addCustomPayment}
-                  className={`px-4 py-2 rounded-lg text-white flex items-center space-x-2 shadow-md ${
-                    formData.offerType === 'TFA_ROMANIA'
-                      ? 'bg-purple-600 hover:bg-purple-700'
-                      : 'bg-green-600 hover:bg-green-700'
-                  }`}
-                >
-                  <span>Aggiungi Rata</span>
-                </button>
+              </div>
+
+              {/* Configurazione rapida numero rate */}
+              <div className="mb-6 p-4 bg-white rounded-lg border border-gray-200">
+                <h4 className="text-md font-semibold text-gray-800 mb-3">⚡ Configurazione Rapida</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Numero Rate Desiderato
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="24"
+                      value={customPayments.length || 1}
+                      onChange={(e) => {
+                        const targetInstallments = parseInt(e.target.value) || 1;
+                        generateInstallmentPlan(targetInstallments);
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="es. 3"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Da 1 a 24 rate</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Importo per Rata
+                    </label>
+                    <div className="text-lg font-semibold text-gray-800">
+                      €{customPayments.length > 0 ? 
+                        (() => {
+                          const downPayment = formData.offerType === 'TFA_ROMANIA' ? 1500 : 0;
+                          const remainingAmount = formData.totalAmount - downPayment;
+                          return (remainingAmount / customPayments.length).toFixed(2);
+                        })() : 
+                        formData.totalAmount.toFixed(2)
+                      }
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {formData.offerType === 'TFA_ROMANIA' ? 
+                        `+ acconto €1.500 al momento dell'iscrizione` : 
+                        'Importo distribuito equamente'
+                      }
+                    </p>
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={addCustomPayment}
+                      className={`w-full px-4 py-2 rounded-lg text-white flex items-center justify-center space-x-2 shadow-md ${
+                        formData.offerType === 'TFA_ROMANIA'
+                          ? 'bg-purple-600 hover:bg-purple-700'
+                          : 'bg-green-600 hover:bg-green-700'
+                      }`}
+                    >
+                      <span>Aggiungi Rata Manuale</span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {customPayments.length === 0 ? (

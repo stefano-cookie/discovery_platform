@@ -16,7 +16,7 @@ async function main() {
       password: adminPassword,
       role: 'ADMIN',
       isActive: true,
-      passwordChanged: true
+      emailVerified: true
     }
   });
 
@@ -30,7 +30,7 @@ async function main() {
       password: partnerPassword,
       role: 'PARTNER',
       isActive: true,
-      passwordChanged: true
+      emailVerified: true
     }
   });
 
@@ -47,13 +47,14 @@ async function main() {
   });
 
   // Create default course
-  const course = await prisma.course.upsert({
-    where: { id: 'default-course' },
+  // Create TFA Romania course
+  const tfaCourse = await prisma.course.upsert({
+    where: { id: 'tfa-romania-2024' },
     update: {},
     create: {
-      id: 'default-course',
-      name: 'Corso di Formazione Diamante',
-      description: 'Corso principale della piattaforma',
+      id: 'tfa-romania-2024',
+      name: 'TFA Romania 2024',
+      description: 'Corso di abilitazione all\'insegnamento in Romania',
       isActive: true
     }
   });
@@ -65,7 +66,7 @@ async function main() {
     create: {
       id: 'tfa-romania-offer',
       partnerId: partner.id,
-      courseId: course.id,
+      courseId: tfaCourse.id,
       name: 'TFA Romania - Corso Completo',
       offerType: 'TFA_ROMANIA',
       totalAmount: 5000,
@@ -76,14 +77,25 @@ async function main() {
     }
   });
 
-  // Create Certification offer
-  const certificationCourse = await prisma.course.upsert({
-    where: { id: 'certification-course' },
+  // Create Certification courses
+  const certSpagnolo = await prisma.course.upsert({
+    where: { id: 'cert-spagnolo-a2' },
     update: {},
     create: {
-      id: 'certification-course',
-      name: 'Certificazioni Professionali',
-      description: 'Corsi di certificazione per professionisti',
+      id: 'cert-spagnolo-a2',
+      name: 'Certificazione Spagnolo A2',
+      description: 'Certificazione linguistica Spagnolo livello A2',
+      isActive: true
+    }
+  });
+
+  const certInglese = await prisma.course.upsert({
+    where: { id: 'cert-inglese-b2' },
+    update: {},
+    create: {
+      id: 'cert-inglese-b2',
+      name: 'Certificazione Inglese B2',
+      description: 'Certificazione linguistica Inglese livello B2',
       isActive: true
     }
   });
@@ -94,8 +106,8 @@ async function main() {
     create: {
       id: 'certification-offer',
       partnerId: partner.id,
-      courseId: certificationCourse.id,
-      name: 'Certificazione Digitale',
+      courseId: certSpagnolo.id,
+      name: 'Certificazione Spagnolo A2 - Sconto Partner',
       offerType: 'CERTIFICATION',
       totalAmount: 1500,
       installments: 3,

@@ -2,8 +2,10 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { registrationSchema, RegistrationForm } from '../../../utils/validation';
-import { submitRegistration, RegistrationData } from '../../../services/api';
+import { submitEnrollment, submitVerifiedUserEnrollment, RegistrationData } from '../../../services/api';
 import { OfferInfo } from '../../../types/offers';
+import { useAuth } from '../../../hooks/useAuth';
+import { useLocation } from 'react-router-dom';
 
 interface RegistrationStepProps {
   data: Partial<RegistrationForm>;
@@ -20,15 +22,23 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
   onChange,
   offerInfo
 }) => {
+  const { user } = useAuth();
+  const location = useLocation();
+  
+  // Gestisce utenti verificati via email
+  const urlParams = new URLSearchParams(location.search);
+  const emailVerified = urlParams.get('emailVerified');
+  const verifiedEmail = urlParams.get('email');
   const {
     register,
     handleSubmit,
-    watch,
+    watch
   } = useForm<RegistrationForm>({
     resolver: zodResolver(registrationSchema),
     defaultValues: data,
     mode: 'onChange',
   });
+  
 
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -44,8 +54,10 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
   const [privacyError, setPrivacyError] = useState('');
 
   const onSubmit = useCallback(async (finalData: RegistrationForm) => {
+    
     // Prevent double submission
     if (isSubmitting) {
+      console.log('Already submitting, preventing double submission');
       return;
     }
     
@@ -62,6 +74,85 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
     
     try {
       // Prepara i dati per l'invio
+      // Calculate payment information based on selected plan
+      const calculatePaymentInfo = () => {
+        if (!offerInfo) {
+          return {
+            originalAmount: 4500, // Default fallback amount
+            finalAmount: 4500,
+            installments: 1,
+            downPayment: 0,
+            installmentAmount: 4500
+          };
+        }
+
+        const baseAmount = Number(offerInfo.totalAmount);
+        let finalAmount = baseAmount;
+        let installments = 1;
+        let downPayment = 0;
+        let installmentAmount = baseAmount;
+
+        // Per TFA Romania: acconto fisso di 1500€ (stesso controllo usato ovunque)
+        const isTfaRomania = offerInfo.offerType === 'TFA_ROMANIA' || 
+                             offerInfo.name?.includes('TFA') ||
+                             offerInfo.name?.includes('Corso di Formazione Diamante');
+        
+        if (isTfaRomania) {
+          downPayment = 1500;
+        }
+
+        // Apply coupon discount if available
+        if (couponValidation?.isValid && couponValidation.discount) {
+          const discount = couponValidation.discount;
+          if (discount.type === 'PERCENTAGE') {
+            finalAmount = baseAmount * (1 - discount.amount / 100);
+          } else if (discount.type === 'FIXED') {
+            finalAmount = Math.max(0, baseAmount - discount.amount);
+          }
+        }
+
+        // Handle different payment plans
+        if (formData.paymentPlan === 'single') {
+          installments = 1;
+        } else if (formData.paymentPlan === 'biannual') {
+          installments = 2;
+        } else if (formData.paymentPlan === 'quarterly') {
+          installments = 4;
+        } else if (formData.paymentPlan === 'monthly') {
+          installments = 12;
+        } else if (formData.paymentPlan === 'certification-plan') {
+          installments = offerInfo.installments;
+        } else {
+          // Default to offer installments if no specific plan is selected
+          installments = offerInfo.installments;
+        }
+
+        // Calcola l'importo delle rate usando finalAmount (con sconto applicato)
+        if (installments > 1 && downPayment > 0) {
+          // Per TFA: (totale scontato - acconto fisso) / numero rate
+          // L'acconto rimane sempre 1500€ fisso, lo sconto si applica solo alle rate
+          const remainingAmount = finalAmount - downPayment;
+          installmentAmount = remainingAmount / installments;
+        } else if (installments > 1) {
+          // Per altri corsi: totale scontato / numero rate
+          installmentAmount = finalAmount / installments;
+        } else {
+          // Pagamento unico
+          installmentAmount = finalAmount;
+        }
+
+        return {
+          originalAmount: baseAmount,
+          finalAmount: finalAmount,
+          installments: installments,
+          downPayment: downPayment,
+          installmentAmount: Math.round(installmentAmount * 100) / 100 // Arrotonda a 2 decimali
+        };
+      };
+
+      const paymentInfo = calculatePaymentInfo();
+      console.log('Payment info calculated:', paymentInfo, 'for plan:', formData.paymentPlan);
+
       const registrationPayload: RegistrationData = {
         // Dati generali
         email: formData.email,
@@ -93,6 +184,12 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
         laureaUniversita: offerInfo?.offerType === 'CERTIFICATION' ? 'Non specificato' : (formData.laureaUniversita || 'Non specificato'),
         laureaData: offerInfo?.offerType === 'CERTIFICATION' ? '2020-01-01' : (formData.laureaData || '2020-01-01'),
         
+        // Dati triennale - only for TFA Romania
+        tipoLaureaTriennale: offerInfo?.offerType === 'CERTIFICATION' ? undefined : formData.tipoLaureaTriennale,
+        laureaConseguitaTriennale: offerInfo?.offerType === 'CERTIFICATION' ? undefined : formData.laureaConseguitaTriennale,
+        laureaUniversitaTriennale: offerInfo?.offerType === 'CERTIFICATION' ? undefined : formData.laureaUniversitaTriennale,
+        laureaDataTriennale: offerInfo?.offerType === 'CERTIFICATION' ? undefined : formData.laureaDataTriennale,
+        
         // Professione - only for TFA Romania
         tipoProfessione: offerInfo?.offerType === 'CERTIFICATION' ? 'Non specificato' : (formData.tipoProfessione || 'Non specificato'),
         scuolaDenominazione: offerInfo?.offerType === 'CERTIFICATION' ? undefined : formData.scuolaDenominazione,
@@ -104,8 +201,17 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
         courseId: formData.courseId,
         couponCode: finalData.couponCode || formData.couponCode,
         paymentPlan: formData.paymentPlan,
-        customInstallments: formData.customInstallments,
         partnerOfferId: offerInfo?.id || formData.partnerOfferId,
+        
+        // Per utenti verificati via email
+        verifiedEmail: emailVerified === 'true' ? verifiedEmail || undefined : undefined,
+        
+        // Payment information (calculated from selected plan)
+        originalAmount: paymentInfo.originalAmount,
+        finalAmount: paymentInfo.finalAmount,
+        installments: paymentInfo.installments,
+        downPayment: paymentInfo.downPayment,
+        installmentAmount: paymentInfo.installmentAmount,
         
         // File
         cartaIdentita: formData.cartaIdentita,
@@ -119,16 +225,32 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
         pergamenaLaurea: formData.pergamenaLaurea,
       };
       
-      // Invia i dati al server
+      // Invia i dati al server - scegli l'endpoint corretto
+      let response;
       
-      const response = await submitRegistration(registrationPayload);
+      if (emailVerified === 'true' && verifiedEmail) {
+        // Utente verificato via email - usa endpoint senza autenticazione
+        response = await submitVerifiedUserEnrollment({
+          ...registrationPayload,
+          verifiedEmail: verifiedEmail
+        });
+      } else if (user) {
+        // Utente autenticato - usa endpoint con autenticazione
+        response = await submitEnrollment(registrationPayload);
+      } else {
+        throw new Error('Utente non autenticato. Effettua il login per procedere.');
+      }
       
       if (response.success) {
         setSubmitStatus('success');
         
+        // Clear all registration-related localStorage items
         localStorage.removeItem('registrationForm');
         localStorage.removeItem('registrationFormFiles');
         localStorage.removeItem('registrationFormStep');
+        localStorage.removeItem('registrationReferralCode');
+        localStorage.removeItem('registrationFormData');
+        localStorage.removeItem('isAdditionalEnrollment');
         
         onNext(finalData);
       } else {
@@ -161,7 +283,7 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, onNext, offerInfo, isSubmitting, acceptedPrivacy]);
+  }, [formData, onNext, offerInfo, isSubmitting, acceptedPrivacy, emailVerified, verifiedEmail, user]);
 
   // Watch all form values and update parent in real-time
   useEffect(() => {
@@ -175,12 +297,12 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
 
   // Expose submit function globally for external form submission
   useEffect(() => {
-    (window as any).submitRegistrationForm = () => {
+    (window as any).submitEnrollmentForm = () => {
       handleSubmit(onSubmit)();
     };
     
     return () => {
-      delete (window as any).submitRegistrationForm;
+      delete (window as any).submitEnrollmentForm;
     };
   }, [handleSubmit, onSubmit]);
 
@@ -221,21 +343,41 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
       const result = await response.json();
       
       if (result.isValid) {
+        const discountData = {
+          type: result.coupon.discountType,
+          amount: result.coupon.discountType === 'PERCENTAGE' 
+            ? result.coupon.discountPercent 
+            : result.coupon.discountAmount
+        };
+        
         setCouponValidation({
           isValid: true,
           message: result.message,
-          discount: {
-            type: result.coupon.discountType,
-            amount: result.coupon.discountType === 'PERCENTAGE' 
-              ? result.coupon.discountPercent 
-              : result.coupon.discountAmount
-          }
+          discount: discountData
         });
+        
+        // Also update form data with coupon validation for use in other components
+        if (onChange) {
+          onChange({
+            couponValidation: {
+              isValid: true,
+              discount: discountData
+            }
+          });
+        }
+        
       } else {
         setCouponValidation({
           isValid: false,
           message: result.message
         });
+        
+        // Clear coupon validation from form data
+        if (onChange) {
+          onChange({
+            couponValidation: null
+          });
+        }
       }
     } catch (error) {
       console.error('Coupon validation error:', error);
@@ -270,21 +412,71 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
           </svg>
         </div>
-        <h3 className="text-2xl font-bold text-gray-900 mb-4">Iscrizione Completata!</h3>
-        <p className="text-gray-600 text-lg mb-8">
+        <h3 className="text-2xl font-bold text-gray-900 mb-4">🎉 Iscrizione Completata!</h3>
+        <p className="text-gray-600 text-lg mb-6">
           La tua iscrizione è stata inviata con successo. Riceverai una conferma via email a breve.
         </p>
-        <div className="bg-green-50 border border-green-200 rounded-lg p-6 mx-auto max-w-md">
+        
+        {/* CTA per area riservata - mostra per utenti loggati E verificati via email */}
+        {(user || (emailVerified === 'true' && verifiedEmail)) && (
+          <div className="mb-8">
+            <a
+              href={user ? "/dashboard" : "/login"}
+              className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg shadow-lg hover:from-blue-700 hover:to-purple-700 transform hover:scale-105 transition-all duration-200"
+            >
+              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+              </svg>
+              {user ? 'Vai alla tua Area Riservata' : 'Accedi alla tua Area Riservata'}
+            </a>
+            {/* Messaggio informativo per utenti verificati via email */}
+            {!user && emailVerified === 'true' && (
+              <p className="text-sm text-gray-600 mt-2 text-center">
+                💡 Effettua il login per accedere alla tua area personale e monitorare lo stato dell'iscrizione
+              </p>
+            )}
+          </div>
+        )}
+        
+        <div className="bg-green-50 border border-green-200 rounded-lg p-6 mx-auto max-w-md mb-6">
           <p className="text-green-800 text-sm">
             Benvenuto nella piattaforma Diamante! Il nostro team ti contatterà presto per i prossimi passi.
           </p>
+        </div>
+        
+        {/* Informazioni aggiuntive */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mx-auto max-w-lg">
+          <h4 className="text-blue-900 font-semibold mb-3">📧 Email di Conferma Inviata</h4>
+          <p className="text-blue-800 text-sm mb-3">
+            Abbiamo inviato una email di conferma con tutti i dettagli della tua iscrizione.
+          </p>
+          <div className="text-blue-700 text-sm">
+            <p className="mb-2"><strong>Prossimi passi:</strong></p>
+            <ul className="text-left space-y-1">
+              <li>• Controlla la tua casella email (anche lo spam)</li>
+              <li>• {user ? 'Accedi alla tua area riservata per monitorare lo stato' : 'Effettua il login per accedere alla tua area riservata'}</li>
+              <li>• Il tuo partner di riferimento ti contatterà a breve</li>
+              <li>• Conserva l'email di conferma per i tuoi archivi</li>
+            </ul>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 relative">
+      {/* Loading overlay durante il submit */}
+      {submitStatus === 'submitting' && (
+        <div className="absolute inset-0 bg-white bg-opacity-90 z-50 flex items-center justify-center rounded-lg">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-lg font-semibold text-gray-700">Invio iscrizione in corso...</p>
+            <p className="text-sm text-gray-500 mt-2">Attendi qualche istante</p>
+          </div>
+        </div>
+      )}
+      
       <div>
         <h3 className="text-lg font-medium text-gray-900 mb-4">Riepilogo Iscrizione</h3>
         
@@ -399,28 +591,59 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
               </svg>
               Istruzione
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div className="space-y-4">
+              {/* Laurea Magistrale */}
               <div>
-                <span className="font-medium text-gray-500">Tipo di Laurea:</span>
-                <p className="text-gray-900">{formData.tipoLaurea}</p>
+                <h5 className="text-sm font-semibold text-gray-800 mb-2">Laurea Magistrale/V.O.</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium text-gray-500">Tipo di Laurea:</span>
+                    <p className="text-gray-900">{formData.tipoLaurea}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-500">Corso di Laurea:</span>
+                    <p className="text-gray-900">
+                      {formData.laureaConseguita === 'ALTRO' 
+                        ? formData.laureaConseguitaCustom 
+                        : formData.laureaConseguita
+                      }
+                    </p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-500">Università:</span>
+                    <p className="text-gray-900">{formData.laureaUniversita}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-500">Data Conseguimento:</span>
+                    <p className="text-gray-900">{formData.laureaData}</p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <span className="font-medium text-gray-500">Corso di Laurea:</span>
-                <p className="text-gray-900">
-                  {formData.laureaConseguita === 'ALTRO' 
-                    ? formData.laureaConseguitaCustom 
-                    : formData.laureaConseguita
-                  }
-                </p>
-              </div>
-              <div>
-                <span className="font-medium text-gray-500">Università:</span>
-                <p className="text-gray-900">{formData.laureaUniversita}</p>
-              </div>
-              <div>
-                <span className="font-medium text-gray-500">Data Conseguimento:</span>
-                <p className="text-gray-900">{formData.laureaData}</p>
-              </div>
+
+              {/* Laurea Triennale - mostrata solo se presente */}
+              {formData.tipoLaurea === 'Magistrale' && formData.tipoLaureaTriennale && (
+                <div className="border-t pt-4">
+                  <h5 className="text-sm font-semibold text-gray-800 mb-2">Laurea Triennale Precedente</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-500">Tipo:</span>
+                      <p className="text-gray-900">{formData.tipoLaureaTriennale}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-500">Corso di Laurea:</span>
+                      <p className="text-gray-900">{formData.laureaConseguitaTriennale}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-500">Università:</span>
+                      <p className="text-gray-900">{formData.laureaUniversitaTriennale}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-500">Data Conseguimento:</span>
+                      <p className="text-gray-900">{formData.laureaDataTriennale}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -635,10 +858,7 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
             <div>
               <span className="font-medium text-gray-500">Piano di Pagamento:</span>
               <p className="text-gray-900">
-                {formData.paymentPlan === 'custom' 
-                  ? `Piano Personalizzato (${formData.customInstallments} rate)`
-                  : formData.paymentPlan || 'Piano predefinito partner'
-                }
+                {formData.paymentPlan || 'Piano predefinito partner'}
               </p>
             </div>
             

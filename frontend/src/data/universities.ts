@@ -49,7 +49,6 @@ export const ITALIAN_UNIVERSITIES = [
   "Università degli Studi di Macerata",
   "Università degli Studi di Camerino",
   "Università degli Studi del Sannio",
-  "Università degli Studi di Salerno",
   "Università degli Studi Suor Orsola Benincasa",
   "Università degli Studi Parthenope",
   "Università degli Studi di Enna Kore",

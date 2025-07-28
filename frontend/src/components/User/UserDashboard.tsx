@@ -8,9 +8,25 @@ interface Registration {
   courseName: string;
   status: string;
   createdAt: string;
+  originalAmount: number;
   finalAmount: number;
   installments: number;
   offerType: 'TFA_ROMANIA' | 'CERTIFICATION';
+  totalPaid: number;
+  payments: Array<{
+    id: string;
+    amount: number;
+    paymentDate: string;
+    isConfirmed: boolean;
+    paymentNumber: number;
+  }>;
+  deadlines: Array<{
+    id: string;
+    amount: number;
+    dueDate: string;
+    paymentNumber: number;
+    isPaid: boolean;
+  }>;
 }
 
 interface UserDocument {
@@ -28,6 +44,11 @@ interface AvailableCourse {
   partnerOfferId?: string;
   referralLink?: string;
   offerType: 'TFA_ROMANIA' | 'CERTIFICATION';
+  totalAmount: number;
+  installments: number;
+  isOriginal: boolean;
+  isEnrolled: boolean;
+  enrollmentStatus: string | null;
 }
 
 interface DocumentType {
@@ -117,11 +138,13 @@ const UserDashboard: React.FC = () => {
   };
 
   const handleNewEnrollment = (courseId: string, referralLink?: string) => {
-    const enrollmentUrl = referralLink 
-      ? `/registration/${referralLink}`
-      : `/enrollment?courseId=${courseId}`;
-    
-    window.location.href = enrollmentUrl;
+    // All enrollments must use referral links now
+    if (referralLink) {
+      window.location.href = `/registration/${referralLink}`;
+    } else {
+      // No generic enrollment page exists - user should use partner links
+      console.warn('Enrollment requires a referral link');
+    }
   };
 
   if (loading) {
@@ -253,8 +276,18 @@ const UserDashboard: React.FC = () => {
                             {getStatusBadge(registration.status)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">€{registration.finalAmount}</div>
-                            <div className="text-sm text-gray-500">{registration.installments} rate</div>
+                            <div className="text-sm text-gray-900">
+                              €{registration.finalAmount.toLocaleString('it-IT')}
+                              {registration.originalAmount !== registration.finalAmount && (
+                                <span className="text-xs text-gray-500 line-through ml-1">
+                                  €{registration.originalAmount.toLocaleString('it-IT')}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              Pagato €{registration.totalPaid.toLocaleString('it-IT')} su €{registration.finalAmount.toLocaleString('it-IT')}
+                            </div>
+                            <div className="text-xs text-gray-400">{registration.installments} rate</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {new Date(registration.createdAt).toLocaleDateString('it-IT')}
@@ -263,6 +296,101 @@ const UserDashboard: React.FC = () => {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+              
+              {/* Payment Details and Deadlines */}
+              {registrations.length > 0 && (
+                <div className="mt-8">
+                  <h4 className="text-lg font-medium text-gray-900 mb-4">Scadenze e Pagamenti</h4>
+                  {registrations.map((registration) => (
+                    <div key={`details-${registration.id}`} className="mb-6 border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h5 className="font-medium text-gray-900">{registration.courseName}</h5>
+                        <span className="text-sm text-gray-500">ID: {registration.id.slice(0, 8)}...</span>
+                      </div>
+                      
+                      {/* Deadlines */}
+                      {registration.deadlines.length > 0 && (
+                        <div className="mb-4">
+                          <h6 className="text-sm font-medium text-gray-700 mb-2">Scadenze Pagamenti:</h6>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {registration.deadlines.map((deadline) => (
+                              <div key={deadline.id} className={`p-3 rounded-lg border ${
+                                deadline.isPaid 
+                                  ? 'bg-green-50 border-green-200' 
+                                  : new Date(deadline.dueDate) < new Date() 
+                                    ? 'bg-red-50 border-red-200'
+                                    : 'bg-yellow-50 border-yellow-200'
+                              }`}>
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-sm font-medium">
+                                    Rata {deadline.paymentNumber}
+                                  </span>
+                                  <span className={`text-xs px-2 py-1 rounded-full ${
+                                    deadline.isPaid 
+                                      ? 'bg-green-100 text-green-800'
+                                      : new Date(deadline.dueDate) < new Date()
+                                        ? 'bg-red-100 text-red-800'
+                                        : 'bg-yellow-100 text-yellow-800'
+                                  }`}>
+                                    {deadline.isPaid ? 'Pagata' : new Date(deadline.dueDate) < new Date() ? 'Scaduta' : 'In attesa'}
+                                  </span>
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                  €{deadline.amount.toLocaleString('it-IT')}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  Scadenza: {new Date(deadline.dueDate).toLocaleDateString('it-IT')}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Payments */}
+                      {registration.payments.length > 0 && (
+                        <div>
+                          <h6 className="text-sm font-medium text-gray-700 mb-2">Storico Pagamenti:</h6>
+                          <div className="space-y-2">
+                            {registration.payments.map((payment) => (
+                              <div key={payment.id} className={`flex items-center justify-between p-2 rounded-lg ${
+                                payment.isConfirmed ? 'bg-green-50' : 'bg-gray-50'
+                              }`}>
+                                <div>
+                                  <span className="text-sm font-medium">
+                                    Pagamento {payment.paymentNumber}
+                                  </span>
+                                  <span className="text-xs text-gray-500 ml-2">
+                                    {new Date(payment.paymentDate).toLocaleDateString('it-IT')}
+                                  </span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-sm font-medium">
+                                    €{payment.amount.toLocaleString('it-IT')}
+                                  </span>
+                                  <span className={`text-xs px-2 py-1 rounded-full ${
+                                    payment.isConfirmed 
+                                      ? 'bg-green-100 text-green-800'
+                                      : 'bg-yellow-100 text-yellow-800'
+                                  }`}>
+                                    {payment.isConfirmed ? 'Confermato' : 'In attesa'}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {registration.deadlines.length === 0 && registration.payments.length === 0 && (
+                        <div className="text-center py-4 text-gray-500 text-sm">
+                          Nessuna scadenza o pagamento registrato
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -337,22 +465,59 @@ const UserDashboard: React.FC = () => {
                     <div key={course.id} className="border border-gray-200 rounded-lg p-6 hover:border-gray-300 hover:shadow-md transition-all">
                       <div className="flex items-center justify-between mb-4">
                         <h4 className="text-lg font-medium text-gray-900">{course.name}</h4>
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          course.offerType === 'TFA_ROMANIA' 
-                            ? 'bg-purple-100 text-purple-800' 
-                            : 'bg-green-100 text-green-800'
-                        }`}>
-                          {course.offerType === 'TFA_ROMANIA' ? 'TFA' : 'CERT'}
-                        </span>
+                        <div className="flex items-center space-x-2">
+                          {/* Primary course type badge */}
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            course.offerType === 'TFA_ROMANIA' 
+                              ? 'bg-purple-100 text-purple-800' 
+                              : 'bg-green-100 text-green-800'
+                          }`}>
+                            {course.offerType === 'TFA_ROMANIA' ? 'TFA Romania' : 'Certificazione'}
+                          </span>
+                          
+                          {/* Status badge */}
+                          {course.isEnrolled && course.enrollmentStatus && (
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                              ✓ Iscritto
+                            </span>
+                          )}
+                          
+                          {/* Course origin badge */}
+                          {course.isOriginal && (
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                              Corso Originale
+                            </span>
+                          )}
+                        </div>
                       </div>
+                      
                       {course.description && (
                         <p className="text-sm text-gray-600 mb-4">{course.description}</p>
                       )}
+                      
+                      {/* Price information */}
+                      <div className="mb-4">
+                        <div className="text-lg font-semibold text-green-600">
+                          €{course.totalAmount.toLocaleString('it-IT')}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {course.installments} rate
+                        </div>
+                      </div>
+                      
                       <button
                         onClick={() => handleNewEnrollment(course.id, course.referralLink)}
-                        className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        disabled={course.isEnrolled && !course.referralLink}
+                        className={`w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                          course.isEnrolled && !course.referralLink
+                            ? 'text-gray-400 bg-gray-200 cursor-not-allowed'
+                            : 'text-white bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
+                        }`}
                       >
-                        Iscriviti al Corso
+                        {course.isEnrolled 
+                          ? (course.referralLink ? 'Nuova Iscrizione' : 'Già Iscritto')
+                          : 'Iscriviti al Corso'
+                        }
                       </button>
                     </div>
                   ))}

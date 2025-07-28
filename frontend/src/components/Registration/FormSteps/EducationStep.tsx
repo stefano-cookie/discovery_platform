@@ -32,6 +32,13 @@ const EducationStep: React.FC<EducationStepProps> = ({ data, onNext, onChange })
     control,
     name: 'tipoLaurea',
   });
+  
+  // Ensure tipoLaurea changes are propagated to parent immediately
+  useEffect(() => {
+    if (selectedDegreeType && onChange) {
+      onChange({ tipoLaurea: selectedDegreeType });
+    }
+  }, [selectedDegreeType, onChange]);
 
   // Local state to handle course selection (needed for custom onChange)
   const [selectedCourse, setSelectedCourse] = useState(data.laureaConseguita || '');
@@ -79,7 +86,7 @@ const EducationStep: React.FC<EducationStepProps> = ({ data, onNext, onChange })
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form id="education-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div>
         <h3 className="text-lg font-medium text-gray-900 mb-4">Titolo di Studio</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -88,7 +95,15 @@ const EducationStep: React.FC<EducationStepProps> = ({ data, onNext, onChange })
               Tipo di Laurea *
             </label>
             <select
-              {...register('tipoLaurea')}
+              {...register('tipoLaurea', {
+                onChange: (e) => {
+                  const value = e.target.value;
+                  setValue('tipoLaurea', value);
+                  if (onChange) {
+                    onChange({ tipoLaurea: value });
+                  }
+                }
+              })}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Seleziona il tipo di laurea</option>
@@ -171,7 +186,15 @@ const EducationStep: React.FC<EducationStepProps> = ({ data, onNext, onChange })
                 Tipo di Laurea Triennale *
               </label>
               <select
-                {...register('tipoLaureaTriennale')}
+                {...register('tipoLaureaTriennale', {
+                  onChange: (e) => {
+                    const value = e.target.value;
+                    setValue('tipoLaureaTriennale', value);
+                    if (onChange) {
+                      onChange({ tipoLaureaTriennale: value });
+                    }
+                  }
+                })}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">Seleziona il tipo di laurea triennale</option>

@@ -16,6 +16,15 @@ interface UseMultiStepFormOptions {
 export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
   const { referralCode, initialData, stepConfig } = options;
   const [currentStep, setCurrentStep] = useState(() => {
+    // Check if this is a new registration with a different referral code
+    const savedReferralCode = localStorage.getItem('registrationReferralCode');
+    const isNewRegistration = referralCode && savedReferralCode && referralCode !== savedReferralCode;
+    
+    // Don't load saved step if it's a new registration
+    if (isNewRegistration) {
+      return 0;
+    }
+    
     // Carica step salvato dal localStorage
     const savedStep = localStorage.getItem('registrationFormStep');
     return savedStep ? parseInt(savedStep, 10) : 0;
@@ -26,30 +35,49 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
     const preCompiledData = localStorage.getItem('registrationFormData');
     const isAdditionalEnrollment = localStorage.getItem('isAdditionalEnrollment') === 'true';
     
-    // Carica dati salvati dal localStorage se disponibili
-    const saved = localStorage.getItem('registrationForm');
-    const baseData = { ...initialData, referralCode };
+    // Check if this is a new registration with a different referral code
+    const savedReferralCode = localStorage.getItem('registrationReferralCode');
+    const isNewRegistration = referralCode && savedReferralCode && referralCode !== savedReferralCode;
     
-    // Priority: preCompiledData > saved > baseData
-    let finalData = baseData || {};
-    
-    if (saved) {
-      try {
-        finalData = { ...finalData, ...JSON.parse(saved) };
-      } catch {
-        // Keep finalData as is
-      }
+    // Clear localStorage if it's a new registration with different referral code
+    if (isNewRegistration) {
+      localStorage.removeItem('registrationForm');
+      localStorage.removeItem('registrationFormFiles');
+      localStorage.removeItem('registrationFormStep');
+      localStorage.removeItem('registrationReferralCode');
+      localStorage.removeItem('registrationFormData');
+      localStorage.removeItem('isAdditionalEnrollment');
     }
     
-    // If this is an additional enrollment, override with pre-compiled data
-    if (isAdditionalEnrollment && preCompiledData) {
-      try {
-        const preCompiled = JSON.parse(preCompiledData);
-        finalData = { ...finalData, ...preCompiled };
-        // Clear the pre-compiled flag after use
-        localStorage.removeItem('isAdditionalEnrollment');
-      } catch {
-        // Keep finalData as is
+    // Save current referral code
+    if (referralCode) {
+      localStorage.setItem('registrationReferralCode', referralCode);
+    }
+    
+    const baseData = { ...initialData, referralCode };
+    let finalData = baseData || {};
+    
+    // Only load saved data if it's not a new registration
+    if (!isNewRegistration) {
+      const saved = localStorage.getItem('registrationForm');
+      if (saved) {
+        try {
+          finalData = { ...finalData, ...JSON.parse(saved) };
+        } catch {
+          // Keep finalData as is
+        }
+      }
+      
+      // If this is an additional enrollment, override with pre-compiled data
+      if (isAdditionalEnrollment && preCompiledData) {
+        try {
+          const preCompiled = JSON.parse(preCompiledData);
+          finalData = { ...finalData, ...preCompiled };
+          // Clear the pre-compiled flag after use
+          localStorage.removeItem('isAdditionalEnrollment');
+        } catch {
+          // Keep finalData as is
+        }
       }
     }
     
@@ -114,6 +142,25 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
     }
   }, [referralCode]);
 
+  // Update formData when initialData changes (for logged in users with profile)
+  useEffect(() => {
+    if (initialData && Object.keys(initialData).length > 0) {
+      setFormData(prev => {
+        // Only update if the new data is different from current
+        const hasChanges = Object.keys(initialData).some(key => {
+          const newValue = initialData[key as keyof RegistrationData];
+          const currentValue = prev[key as keyof RegistrationData];
+          return newValue !== currentValue;
+        });
+        
+        if (hasChanges) {
+          return { ...prev, ...initialData };
+        }
+        return prev;
+      });
+    }
+  }, [initialData]);
+
   // Calcola progress per step specifico
   const getStepProgress = useCallback((stepIndex: number) => {
     const stepFields = {
@@ -122,7 +169,7 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
       2: ['tipoLaurea', 'laureaConseguita', 'laureaUniversita', 'laureaData'],
       3: ['tipoProfessione', 'scuolaDenominazione', 'scuolaCitta', 'scuolaProvincia'],
       4: [], // Documenti sono tutti opzionali, non contribuiscono al progress
-      5: ['courseId', 'paymentPlan', 'customInstallments'],
+      5: ['courseId', 'paymentPlan'],
       6: ['partnerOfferId', 'couponCode']
     }[stepIndex] || [];
 
@@ -133,14 +180,14 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
         return formData.hasDifferentDomicilio === true;
       }
       
+      // Campi triennale sono rilevanti solo se tipoLaurea === 'Magistrale'
+      if (['tipoLaureaTriennale', 'laureaConseguitaTriennale', 'laureaUniversitaTriennale', 'laureaDataTriennale'].includes(field)) {
+        return formData.tipoLaurea === 'Magistrale';
+      }
+      
       // Campi scuola sono rilevanti solo se tipoProfessione === 'Insegnante'
       if (['scuolaDenominazione', 'scuolaCitta', 'scuolaProvincia'].includes(field)) {
         return formData.tipoProfessione === 'Insegnante';
-      }
-      
-      // customInstallments è rilevante solo se paymentPlan === 'custom'
-      if (field === 'customInstallments') {
-        return formData.paymentPlan === 'custom';
       }
       
       // nomePadre e nomeMadre sono opzionali per certificazioni
@@ -192,6 +239,18 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
           return false;
         }
         
+        // Campi triennale sono rilevanti solo se tipoLaurea === 'Magistrale'
+        if (['tipoLaureaTriennale', 'laureaConseguitaTriennale', 'laureaUniversitaTriennale', 'laureaDataTriennale'].includes(field)) {
+          return formData.tipoLaurea === 'Magistrale';
+        }
+        
+        // Campi scuola sono rilevanti solo se tipoProfessione include 'Docente' o 'Insegnante'
+        if (['scuolaDenominazione', 'scuolaCitta', 'scuolaProvincia'].includes(field)) {
+          return formData.tipoProfessione === 'Docente di ruolo' || 
+                 formData.tipoProfessione === 'Docente a tempo determinato' ||
+                 formData.tipoProfessione === 'Insegnante';
+        }
+        
         return true;
       });
 
@@ -231,10 +290,6 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
         return formData.tipoProfessione === 'Insegnante';
       }
       
-      // customInstallments è rilevante solo se paymentPlan === 'custom'
-      if (field === 'customInstallments') {
-        return formData.paymentPlan === 'custom';
-      }
       
       return true;
     });
@@ -268,7 +323,10 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
   }, [isStepValid]);
 
   const nextStep = useCallback(() => {
-    if (currentStep < steps.length - 1) {
+    // Use dynamic step configuration if available, otherwise fallback to hardcoded steps
+    const totalSteps = stepConfig ? stepConfig.steps.length : steps.length;
+    
+    if (currentStep < totalSteps - 1) {
       // Controlla se lo step corrente è valido prima di procedere
       if (isStepValid(currentStep)) {
         const newStep = currentStep + 1;
@@ -280,7 +338,7 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
       }
     }
     return false;
-  }, [currentStep, steps.length, isStepValid]);
+  }, [currentStep, steps.length, stepConfig, isStepValid]);
 
   const prevStep = useCallback(() => {
     if (currentStep > 0) {
@@ -291,7 +349,10 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
   }, [currentStep]);
 
   const goToStep = useCallback((step: number) => {
-    if (step >= 0 && step < steps.length) {
+    // Use dynamic step configuration if available, otherwise fallback to hardcoded steps
+    const totalSteps = stepConfig ? stepConfig.steps.length : steps.length;
+    
+    if (step >= 0 && step < totalSteps) {
       // Controlla se è possibile navigare a questo step
       if (canNavigateToStep(step)) {
         setCurrentStep(step);
@@ -302,7 +363,7 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
       }
     }
     return false;
-  }, [steps.length, canNavigateToStep]);
+  }, [steps.length, stepConfig, canNavigateToStep]);
 
   const saveCurrentData = useCallback(() => {
     // Separa i file dagli altri dati
@@ -345,6 +406,9 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
     localStorage.removeItem('registrationForm');
     localStorage.removeItem('registrationFormFiles');
     localStorage.removeItem('registrationFormStep');
+    localStorage.removeItem('registrationReferralCode');
+    localStorage.removeItem('registrationFormData');
+    localStorage.removeItem('isAdditionalEnrollment');
     setCurrentStep(0);
   }, []);
 
@@ -367,8 +431,8 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
     // Step 5 - Documenti (tutti opzionali, non contano nel progress)
     // 'cartaIdentita', 'certificatoTriennale', 'certificatoMagistrale', 'pianoStudioTriennale', 'pianoStudioMagistrale', 'certificatoMedico', 'certificatoNascita', 'diplomoLaurea', 'pergamenaLaurea',
     
-    // Step 6 - Opzioni Iscrizione (3 campi)
-    'courseId', 'paymentPlan', 'customInstallments',
+    // Step 6 - Opzioni Iscrizione (2 campi)
+    'courseId', 'paymentPlan',
     
     // Step 7 - Riepilogo (2 campi)
     'partnerOfferId', 'couponCode'
@@ -379,6 +443,7 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
     // Use dynamic step configuration if available
     if (stepConfig) {
       const allRelevantFields: string[] = [];
+      
       
       // Collect all required fields from all steps in the current configuration
       stepConfig.steps.forEach(stepName => {
@@ -397,10 +462,6 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
             isRelevant = formData.tipoProfessione === 'Insegnante';
           }
           
-          // customInstallments è rilevante solo se paymentPlan === 'custom'
-          if (field === 'customInstallments') {
-            isRelevant = formData.paymentPlan === 'custom';
-          }
           
           // For certifications, parent names are not required
           if (stepConfig.offerType === 'CERTIFICATION' && ['nomePadre', 'nomeMadre'].includes(field)) {
@@ -436,6 +497,8 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
 
       if (allRelevantFields.length === 0) return 100; // Avoid division by zero
       const percentage = (completedFields.length / allRelevantFields.length) * 100;
+      
+      
       return Math.round(percentage);
     }
     
@@ -456,10 +519,6 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
         return formData.tipoProfessione === 'Insegnante';
       }
       
-      // customInstallments è rilevante solo se paymentPlan === 'custom'
-      if (field === 'customInstallments') {
-        return formData.paymentPlan === 'custom';
-      }
       
       // nomePadre e nomeMadre sono sempre opzionali nel fallback
       if (['nomePadre', 'nomeMadre'].includes(field)) {
@@ -497,7 +556,9 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
 
 
   const isFirstStep = currentStep === 0;
-  const isLastStep = currentStep === steps.length - 1;
+  // Use dynamic step configuration if available for isLastStep calculation
+  const totalSteps = stepConfig ? stepConfig.steps.length : steps.length;
+  const isLastStep = currentStep === totalSteps - 1;
 
   return {
     currentStep,

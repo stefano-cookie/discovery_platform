@@ -31,6 +31,9 @@ import paymentRoutes from './routes/payment';
 import offerRoutes from './routes/offers';
 import userRoutes from './routes/user';
 import courseRoutes from './routes/courses';
+import enrollmentRoutes from './routes/enrollment';
+import offerTypesRoutes from './routes/offerTypes';
+import adminRoutes from './routes/admin';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/partners', partnerRoutes);
@@ -39,6 +42,9 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/offers', offerRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/courses', courseRoutes);
+app.use('/api/enrollment', enrollmentRoutes);
+app.use('/api/offer-types', offerTypesRoutes);
+app.use('/api/admin', adminRoutes);
 
 const PORT = parseInt(process.env.PORT || '8000', 10);
 

@@ -15,12 +15,7 @@ const ChangePassword: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
 
-  // If user doesn't need to change password, redirect to dashboard
-  React.useEffect(() => {
-    if (!user?.mustChangePassword) {
-      navigate('/dashboard');
-    }
-  }, [user, navigate]);
+  // Component for changing password (always accessible when authenticated)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -64,8 +59,8 @@ const ChangePassword: React.FC = () => {
       return;
     }
 
-    // For temporary passwords, current password is not required
-    if (!user?.mustChangePassword && !formData.currentPassword) {
+    // Current password is always required
+    if (!formData.currentPassword) {
       setError('Password attuale richiesta');
       return;
     }
@@ -73,14 +68,10 @@ const ChangePassword: React.FC = () => {
     setLoading(true);
 
     try {
-      const payload: any = {
-        newPassword: formData.newPassword
+      const payload = {
+        newPassword: formData.newPassword,
+        currentPassword: formData.currentPassword
       };
-
-      // Only include current password if it's not a temporary password
-      if (!user?.mustChangePassword) {
-        payload.currentPassword = formData.currentPassword;
-      }
 
       await api.put('/user/change-password', payload);
       
@@ -103,34 +94,28 @@ const ChangePassword: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
 
-  if (!user?.mustChangePassword) {
-    return null; // Will redirect via useEffect
-  }
+  // Component always accessible to authenticated users
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-          <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
+          <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m0 0a2 2 0 012 2 2 2 0 01-2 2 2 2 0 01-2-2m0-4a3 3 0 00-3 3v1M9 7a2 2 0 012 2m0 0a2 2 0 012 2 2 2 0 01-2 2 2 2 0 01-2-2m0-4a3 3 0 00-3 3v1m-6 0h16" />
           </svg>
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Cambio Password Obbligatorio
+          Cambio Password
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
-          Per la sicurezza del tuo account, devi cambiare la password temporanea
+          Modifica la password del tuo account
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          {/* Welcome message */}
+          {/* User info */}
           <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-start">
               <svg className="h-5 w-5 text-blue-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -138,10 +123,10 @@ const ChangePassword: React.FC = () => {
               </svg>
               <div className="ml-3">
                 <h3 className="text-sm font-medium text-blue-800">
-                  Benvenuto, {user.email}!
+                  Account: {user?.email}
                 </h3>
                 <p className="mt-1 text-sm text-blue-700">
-                  Prima di accedere alla piattaforma, imposta una password sicura di tua scelta.
+                  Utilizza questo modulo per modificare la password del tuo account.
                 </p>
               </div>
             </div>
@@ -170,25 +155,23 @@ const ChangePassword: React.FC = () => {
           )}
 
           <form className="space-y-6" onSubmit={handleSubmit}>
-            {/* Current password - only if not temporary */}
-            {!user.mustChangePassword && (
-              <div>
-                <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700">
-                  Password Attuale
-                </label>
-                <div className="mt-1">
-                  <input
-                    id="currentPassword"
-                    name="currentPassword"
-                    type="password"
-                    required
-                    value={formData.currentPassword}
+            {/* Current password - always required */}
+            <div>
+              <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700">
+                Password Attuale
+              </label>
+              <div className="mt-1">
+                <input
+                  id="currentPassword"
+                  name="currentPassword"
+                  type="password"
+                  required
+                  value={formData.currentPassword}
                     onChange={handleInputChange}
                     className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-              </div>
-            )}
+            </div>
 
             <div>
               <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700">
@@ -279,10 +262,10 @@ const ChangePassword: React.FC = () => {
             <div className="flex items-center justify-center">
               <button
                 type="button"
-                onClick={handleLogout}
+                onClick={() => window.history.back()}
                 className="text-sm text-gray-600 hover:text-gray-900 underline"
               >
-                Esci senza cambiare password
+                Torna indietro
               </button>
             </div>
           </form>

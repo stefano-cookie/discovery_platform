@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { partnerService } from '../../services/partner';
 import { PartnerUser } from '../../types/partner';
 import UserTable from './UserTable';
+import UserOffersModal from './UserOffersModal';
 
 const UsersView: React.FC = () => {
   const [users, setUsers] = useState<PartnerUser[]>([]);
@@ -9,6 +10,10 @@ const UsersView: React.FC = () => {
   const [usersError, setUsersError] = useState<string | null>(null);
   const [currentFilter, setCurrentFilter] = useState<'all' | 'direct' | 'children'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Modal state
+  const [selectedUser, setSelectedUser] = useState<PartnerUser | null>(null);
+  const [isOffersModalOpen, setIsOffersModalOpen] = useState(false);
 
   const fetchUsers = async (filter: 'all' | 'direct' | 'children' = 'all') => {
     try {
@@ -29,6 +34,21 @@ const UsersView: React.FC = () => {
 
   const handleFilterChange = (filter: 'all' | 'direct' | 'children') => {
     setCurrentFilter(filter);
+  };
+
+  const handleManageOffers = (user: PartnerUser) => {
+    setSelectedUser(user);
+    setIsOffersModalOpen(true);
+  };
+
+  const handleCloseOffersModal = () => {
+    setIsOffersModalOpen(false);
+    setSelectedUser(null);
+  };
+
+  const handleOffersUpdated = () => {
+    // Refresh users list when offers are updated
+    fetchUsers(currentFilter);
   };
 
   const filteredUsers = users.filter(user => {
@@ -213,6 +233,15 @@ const UsersView: React.FC = () => {
         isLoading={usersLoading}
         onFilterChange={handleFilterChange}
         currentFilter={currentFilter}
+        onManageOffers={handleManageOffers}
+      />
+
+      {/* User Offers Modal */}
+      <UserOffersModal
+        isOpen={isOffersModalOpen}
+        onClose={handleCloseOffersModal}
+        user={selectedUser}
+        onOffersUpdated={handleOffersUpdated}
       />
     </div>
   );

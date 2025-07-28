@@ -30,4 +30,26 @@ export const partnerService = {
       data: { userId, amount },
     });
   },
+
+  // User offer access management
+  async getUserOffers(userId: string): Promise<any[]> {
+    return apiRequest<any[]>({
+      method: 'GET',
+      url: `/partners/users/${userId}/offers`,
+    });
+  },
+
+  async grantUserOfferAccess(userId: string, offerId: string): Promise<{ success: boolean; message: string }> {
+    return apiRequest<{ success: boolean; message: string }>({
+      method: 'POST',
+      url: `/partners/users/${userId}/offers/${offerId}/grant`,
+    });
+  },
+
+  async revokeUserOfferAccess(userId: string, offerId: string): Promise<{ success: boolean; message: string }> {
+    return apiRequest<{ success: boolean; message: string }>({
+      method: 'POST',
+      url: `/partners/users/${userId}/offers/${offerId}/revoke`,
+    });
+  },
 };

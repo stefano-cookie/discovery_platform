@@ -13,23 +13,24 @@ model User {
   password        String
   role            UserRole @default(USER)
   isActive        Boolean  @default(true)
-  passwordChanged Boolean  @default(false)
   emailVerified   Boolean  @default(false)
   emailVerificationToken String?
   emailVerificationTokenExpiry DateTime?
-  hasTemporaryPassword Boolean @default(true)
+  emailVerifiedAt DateTime?
   lastLoginAt     DateTime?
   createdAt       DateTime @default(now())
   
-  // Partner association for users who registered via referral
-  associatedPartnerId String?
+  // Partner assignment (permanent association)
+  assignedPartnerId String?
   
-  partner         Partner?
-  associatedPartner Partner? @relation("UserPartnerAssociation", fields: [associatedPartnerId], references: [id])
-  profile         UserProfile?
-  registrations   Registration[]
-  documents       UserDocument[]
+  // Relazioni
+  partner         Partner?      // Solo per utenti che sono partner
+  assignedPartner Partner?      @relation("UserPartnerAssignment", fields: [assignedPartnerId], references: [id])
+  profile         UserProfile?  // Profilo con dati anagrafici
+  registrations   Registration[] // Iscrizioni ai corsi
+  documents       UserDocument[] // Repository documenti dell'utente
   offerVisibilities OfferVisibility[]
+  offerAccess     UserOfferAccess[] // Accesso alle offerte aggiuntive
 }
 
 enum UserRole {
@@ -52,10 +53,13 @@ model Partner {
   user                    User     @relation(fields: [userId], references: [id])
   parent                  Partner? @relation("PartnerHierarchy", fields: [parentId], references: [id])
   children                Partner[] @relation("PartnerHierarchy")
-  associatedUsers         User[]   @relation("UserPartnerAssociation")
+  assignedUsers           User[]   @relation("UserPartnerAssignment") // Utenti assegnati permanentemente
   registrations           Registration[]
   offers                  PartnerOffer[]
   coupons                 Coupon[]
+  transfersFrom           UserTransfer[] @relation("TransferFrom")
+  transfersTo             UserTransfer[] @relation("TransferTo")
+  userOfferAccess         UserOfferAccess[] // Accessi alle offerte abilitati dal partner
 }
 
 model Course {
@@ -86,6 +90,7 @@ model PartnerOffer {
   course                  Course   @relation(fields: [courseId], references: [id])
   registrations           Registration[]
   visibilities            OfferVisibility[]
+  userAccess              UserOfferAccess[] // Utenti che hanno accesso a questa offerta
 }
 
 enum OfferType {
@@ -121,30 +126,48 @@ model UserProfile {
   id                      String   @id @default(uuid())
   userId                  String   @unique
   
-  // Anagrafica
+  // Anagrafica (compilata alla registrazione)
   cognome                 String
   nome                    String
   dataNascita             DateTime
   luogoNascita            String
+  provinciaNascita        String?
+  sesso                   String?
   codiceFiscale           String   @unique
   telefono                String
-  nomePadre               String?
-  nomeMadre               String?
+  nomePadre               String? // Opzionale per Certificazioni
+  nomeMadre               String? // Opzionale per Certificazioni
   
-  // Residenza
+  // Residenza (compilata alla registrazione)
   residenzaVia            String
   residenzaCitta          String
   residenzaProvincia      String
   residenzaCap            String
   
-  // Domicilio
+  // Domicilio (opzionale)
   hasDifferentDomicilio   Boolean  @default(false)
   domicilioVia            String?
   domicilioCitta          String?
   domicilioProvincia      String?
   domicilioCap            String?
   
-  // Istruzione (opzionale per certificazioni)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  
+  user                    User     @relation(fields: [userId], references: [id])
+}
+
+model Registration {
+  id              String   @id @default(uuid())
+  userId          String
+  partnerId       String   // Partner che ha portato l'iscrizione
+  courseId        String
+  partnerOfferId  String?
+  couponId        String?
+  offerType       OfferType @default(TFA_ROMANIA)
+  
+  // Dati specifici iscrizione (non nel profilo)
+  // Per TFA Romania:
   tipoLaurea              String?
   laureaConseguita        String?
   laureaConseguitaCustom  String?
@@ -161,32 +184,20 @@ model UserProfile {
   numeroPergamena         String?
   dataRilascioPergamena   DateTime?
   
-  // Professione (opzionale per certificazioni)
+  // Professione (solo TFA Romania)
   tipoProfessione         String?
   scuolaDenominazione     String?
   scuolaCitta             String?
   scuolaProvincia         String?
   
-  createdAt               DateTime @default(now())
-  
-  user                    User     @relation(fields: [userId], references: [id])
-}
-
-model Registration {
-  id              String   @id @default(uuid())
-  userId          String
-  partnerId       String?
-  courseId        String
-  partnerOfferId  String?
-  couponId        String?
-  offerType       OfferType @default(TFA_ROMANIA)
-  
+  // Pagamenti
   originalAmount  Decimal
   finalAmount     Decimal
   installments    Int
   
   status          RegistrationStatus @default(PENDING)
   
+  // Date workflow
   dataVerifiedAt      DateTime?
   contractGeneratedAt DateTime?
   contractSignedAt    DateTime?
@@ -195,12 +206,29 @@ model Registration {
   createdAt       DateTime @default(now())
   
   user            User         @relation(fields: [userId], references: [id])
-  partner         Partner?     @relation(fields: [partnerId], references: [id])
+  partner         Partner      @relation(fields: [partnerId], references: [id])
   offer           PartnerOffer? @relation(fields: [partnerOfferId], references: [id])
   documents       Document[]
   userDocuments   DocumentUsage[]
   payments        Payment[]
   deadlines       PaymentDeadline[]
+}
+
+// Gestione accesso utenti alle offerte aggiuntive del partner
+model UserOfferAccess {
+  id        String   @id @default(uuid())
+  userId    String
+  offerId   String
+  partnerId String   // Partner che ha abilitato l'accesso
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  user    User         @relation(fields: [userId], references: [id])
+  offer   PartnerOffer @relation(fields: [offerId], references: [id])
+  partner Partner      @relation(fields: [partnerId], references: [id])
+  
+  @@unique([userId, offerId]) // Un utente può avere accesso a un'offerta solo una volta
 }
 
 enum RegistrationStatus {
@@ -314,4 +342,18 @@ model OfferVisibility {
   user            User         @relation(fields: [userId], references: [id])
   
   @@unique([partnerOfferId, userId])
+}
+
+model UserTransfer {
+  id                String   @id @default(uuid())
+  userId            String
+  fromPartnerId     String?
+  toPartnerId       String
+  transferredBy     String   // Admin user ID
+  reason            String?
+  transferredAt     DateTime @default(now())
+  
+  // Relazioni
+  toPartner         Partner  @relation("TransferTo", fields: [toPartnerId], references: [id])
+  fromPartner       Partner? @relation("TransferFrom", fields: [fromPartnerId], references: [id])
 }

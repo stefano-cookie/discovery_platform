@@ -143,6 +143,13 @@ export const registrationSchema = z.object({
   partnerOfferId: z.string().optional(),
   couponCode: z.string().optional(),
   referralCode: z.string().optional(),
+  couponValidation: z.object({
+    isValid: z.boolean(),
+    discount: z.object({
+      type: z.string(),
+      amount: z.union([z.number(), z.string().transform((val) => parseFloat(val) || 0)])
+    }).optional()
+  }).nullable().optional(),
 });
 
 // Complete schema - using base schemas for merging

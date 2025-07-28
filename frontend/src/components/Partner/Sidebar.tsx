@@ -69,7 +69,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
             <div className="flex items-center w-full">
               {!isCollapsed && (
                 <div className="flex-1">
-                  <h1 className="text-white text-lg font-bold">Piattaforma Diamante</h1>
+                  <h1 className="text-white text-lg font-bold">Discovery Platform</h1>
                   <p className="text-gray-300 text-xs">Partner Dashboard</p>
                 </div>
               )}

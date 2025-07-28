@@ -30,6 +30,12 @@ export interface RegistrationData {
   laureaUniversita: string;
   laureaData: string;
   
+  // Istruzione triennale (condizionale per Magistrale)
+  tipoLaureaTriennale?: string;
+  laureaConseguitaTriennale?: string;
+  laureaUniversitaTriennale?: string;
+  laureaDataTriennale?: string;
+  
   // Professione
   tipoProfessione: string;
   scuolaDenominazione?: string;
@@ -50,7 +56,6 @@ export interface RegistrationData {
   // Opzioni Iscrizione
   courseId?: string;
   paymentPlan?: string;
-  customInstallments?: number;
   
   // Riepilogo
   partnerOfferId?: string;
