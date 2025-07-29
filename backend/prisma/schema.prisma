@@ -63,13 +63,19 @@ model Partner {
 }
 
 model Course {
-  id          String   @id @default(uuid())
-  name        String
-  description String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  id           String       @id @default(uuid())
+  name         String
+  description  String?
+  templateType CourseTemplate @default(TFA)
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
   
-  offers      PartnerOffer[]
+  offers       PartnerOffer[]
+}
+
+enum CourseTemplate {
+  TFA
+  CERTIFICATION
 }
 
 model PartnerOffer {

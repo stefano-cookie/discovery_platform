@@ -2,6 +2,7 @@ export interface Course {
   id: string;
   name: string;
   description?: string;
+  templateType: 'TFA' | 'CERTIFICATION';
   isActive: boolean;
   createdAt: string;
 }
@@ -41,7 +42,7 @@ export interface PartnerOffer {
 }
 
 export interface FormConfig {
-  type: 'TFA_ROMANIA' | 'CERTIFICATION';
+  templateType: 'TFA' | 'CERTIFICATION';
   steps: string[];
   requiredFields: {
     [stepName: string]: string[];

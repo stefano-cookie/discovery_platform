@@ -291,7 +291,7 @@ const AdditionalEnrollmentForm: React.FC = () => {
                 <h3 className="text-lg font-medium text-blue-900 mb-4">Corso Selezionato</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <h4 className="font-semibold text-blue-800">{offerInfo.course.name}</h4>
+                    <h4 className="font-semibold text-blue-800">{offerInfo.name}</h4>
                     <p className="text-sm text-blue-600">{offerInfo.course.description}</p>
                   </div>
                   <div>

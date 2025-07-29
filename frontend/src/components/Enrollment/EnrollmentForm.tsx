@@ -35,10 +35,10 @@ const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ partnerOfferId }) => {
       riepilogo: [] as string[]
     };
 
-    if (offerInfo?.offerType === 'CERTIFICATION') {
+    if (offerInfo?.course?.templateType === 'CERTIFICATION') {
       return {
         steps: ['documenti', 'opzioni', 'riepilogo'],
-        offerType: 'CERTIFICATION' as const,
+        templateType: 'CERTIFICATION' as const,
         requiredFields: {
           ...baseRequiredFields,
           documenti: [],
@@ -51,7 +51,7 @@ const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ partnerOfferId }) => {
     // Default to TFA Romania with education and profession steps
     return {
       steps: ['istruzione', 'professione', 'documenti', 'opzioni', 'riepilogo'],
-      offerType: 'TFA_ROMANIA' as const,
+      templateType: 'TFA' as const,
       requiredFields: {
         ...baseRequiredFields,
         istruzione: ['tipoLaurea', 'laureaConseguita', 'laureaUniversita', 'laureaData'],
@@ -189,7 +189,7 @@ const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ partnerOfferId }) => {
         data: {
           ...formData,
           partnerOfferId,
-          offerType: stepConfig.offerType
+          offerType: stepConfig.templateType === 'CERTIFICATION' ? 'CERTIFICATION' : 'TFA_ROMANIA'
         }
       });
 
@@ -287,7 +287,7 @@ const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ partnerOfferId }) => {
           </p>
           {offerInfo && (
             <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="font-medium text-blue-800">{offerInfo.course?.name || offerInfo.name}</h3>
+              <h3 className="font-medium text-blue-800">{offerInfo.name}</h3>
               <p className="text-sm text-blue-600">
                 Tipo: {offerInfo.offerType === 'TFA_ROMANIA' ? 'TFA Romania' : 'Certificazioni'}
               </p>
@@ -385,7 +385,7 @@ const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ partnerOfferId }) => {
                 nextStep();
               }}
               onChange={updateFormData}
-              offerType={stepConfig.offerType}
+              templateType={stepConfig.templateType}
               requiredFields={stepConfig.requiredFields.documenti || []}
             />
           )}

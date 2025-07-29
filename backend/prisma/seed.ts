@@ -16,7 +16,8 @@ async function main() {
       password: adminPassword,
       role: 'ADMIN',
       isActive: true,
-      emailVerified: true
+      emailVerified: true,
+      emailVerifiedAt: new Date()
     }
   });
 
@@ -30,7 +31,8 @@ async function main() {
       password: partnerPassword,
       role: 'PARTNER',
       isActive: true,
-      emailVerified: true
+      emailVerified: true,
+      emailVerifiedAt: new Date()
     }
   });
 
@@ -55,6 +57,7 @@ async function main() {
       id: 'tfa-romania-2024',
       name: 'TFA Romania 2024',
       description: 'Corso di abilitazione all\'insegnamento in Romania',
+      templateType: 'TFA',
       isActive: true
     }
   });
@@ -77,25 +80,15 @@ async function main() {
     }
   });
 
-  // Create Certification courses
-  const certSpagnolo = await prisma.course.upsert({
-    where: { id: 'cert-spagnolo-a2' },
+  // Create Certification course (solo certificazioni generiche)
+  const certGeneric = await prisma.course.upsert({
+    where: { id: 'cert-generic' },
     update: {},
     create: {
-      id: 'cert-spagnolo-a2',
-      name: 'Certificazione Spagnolo A2',
-      description: 'Certificazione linguistica Spagnolo livello A2',
-      isActive: true
-    }
-  });
-
-  const certInglese = await prisma.course.upsert({
-    where: { id: 'cert-inglese-b2' },
-    update: {},
-    create: {
-      id: 'cert-inglese-b2',
-      name: 'Certificazione Inglese B2',
-      description: 'Certificazione linguistica Inglese livello B2',
+      id: 'cert-generic',
+      name: 'Certificazioni Professionali',
+      description: 'Certificazioni e corsi professionali vari',
+      templateType: 'CERTIFICATION',
       isActive: true
     }
   });
@@ -106,8 +99,8 @@ async function main() {
     create: {
       id: 'certification-offer',
       partnerId: partner.id,
-      courseId: certSpagnolo.id,
-      name: 'Certificazione Spagnolo A2 - Sconto Partner',
+      courseId: certGeneric.id,
+      name: 'Certificazione Professionale - Personalizzata',
       offerType: 'CERTIFICATION',
       totalAmount: 1500,
       installments: 3,
@@ -123,6 +116,7 @@ async function main() {
       isActive: true
     }
   });
+
 
   console.log('✅ Database seeded successfully!');
   console.log('Admin user: admin@diamante.com / admin123');

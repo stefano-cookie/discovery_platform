@@ -21,16 +21,16 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
   const [customPayments, setCustomPayments] = useState<Array<{ amount: number; dueDate: string }>>([]);
   const [useCustomPlan, setUseCustomPlan] = useState(true);
 
-  // Set appropriate course when courses are loaded or offer type changes
+  // Auto-select appropriate course based on template type
   React.useEffect(() => {
     if (courses.length > 0) {
-      // Find appropriate course based on offer type
+      // Find appropriate course based on templateType
       const appropriateCourse = courses.find(course => {
-        const isTfaCourse = course.name.includes('Formazione Diamante') || course.id === 'default-course';
-        const isCertificationCourse = course.name.includes('Certificazioni') || course.id === 'certification-course';
-        
-        return (formData.offerType === 'TFA_ROMANIA' && isTfaCourse) || 
-               (formData.offerType === 'CERTIFICATION' && isCertificationCourse);
+        if (formData.offerType === 'TFA_ROMANIA') {
+          return course.templateType === 'TFA';
+        } else {
+          return course.templateType === 'CERTIFICATION';
+        }
       });
       
       if (appropriateCourse && (!formData.courseId || formData.courseId !== appropriateCourse.id)) {
@@ -44,7 +44,7 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
       
       // Initialize default payments
       if (customPayments.length === 0) {
-        generateInstallmentPlan(3); // 3 rate di default
+        generateInstallmentPlan(formData.offerType === 'TFA_ROMANIA' ? 4 : 3);
         setUseCustomPlan(true);
       }
     }
@@ -196,7 +196,7 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 rounded-t-xl">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-white">✨ Crea Nuova Offerta</h2>
+              <h2 className="text-2xl font-bold text-white">Crea Nuova Offerta</h2>
               <p className="text-blue-100 mt-1">Configura la tua offerta personalizzata per i clienti</p>
             </div>
             <button
@@ -209,143 +209,96 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
         </div>
         <div className="p-6">
           <form onSubmit={handleSubmit} className="space-y-8">
-            {/* Tipo Offerta - Prima sezione prominente */}
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                Tipo di Offerta
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Selezione Template - Sezione principale */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-8 rounded-xl border border-blue-200">
+              <div className="text-center mb-6">
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Scegli il Template</h3>
+                <p className="text-gray-600">Seleziona il tipo di corso per la tua offerta</p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div
-                  className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                  className={`p-6 border-3 rounded-xl cursor-pointer transition-all shadow-lg hover:shadow-xl ${
                     formData.offerType === 'TFA_ROMANIA'
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-blue-300'
+                      ? 'border-purple-500 bg-gradient-to-br from-purple-50 to-purple-100 ring-4 ring-purple-200'
+                      : 'border-gray-300 bg-white hover:border-purple-300'
                   }`}
                   onClick={() => handleOfferTypeChange({ target: { value: 'TFA_ROMANIA' } } as any)}
                 >
-                  <div className="flex items-center mb-2">
-                    <input
-                      type="radio"
-                      name="offerType"
-                      value="TFA_ROMANIA"
-                      checked={formData.offerType === 'TFA_ROMANIA'}
-                      onChange={(e) => handleOfferTypeChange(e as any)}
-                      className="mr-3"
-                    />
-                    <span className="font-medium text-purple-700">TFA Romania</span>
+                  <div className="text-center">
+                    <div className="flex items-center justify-center mb-3">
+                      <input
+                        type="radio"
+                        name="offerType"
+                        value="TFA_ROMANIA"
+                        checked={formData.offerType === 'TFA_ROMANIA'}
+                        onChange={(e) => handleOfferTypeChange(e as any)}
+                        className="mr-3 scale-125"
+                      />
+                      <span className="text-xl font-bold text-purple-700">TFA Romania</span>
+                    </div>
+                    <p className="text-sm text-gray-700 mb-4">Form completo di abilitazione all'insegnamento</p>
+                    <div className="bg-purple-100 rounded-lg p-3 text-xs text-purple-800">
+                      <strong>Include:</strong> Dati anagrafici completi, istruzione, professione, documenti completi
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-600">Form completo con tutti i passaggi di registrazione</p>
                 </div>
                 
                 <div
-                  className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                  className={`p-6 border-3 rounded-xl cursor-pointer transition-all shadow-lg hover:shadow-xl ${
                     formData.offerType === 'CERTIFICATION'
-                      ? 'border-green-500 bg-green-50'
-                      : 'border-gray-200 hover:border-green-300'
+                      ? 'border-green-500 bg-gradient-to-br from-green-50 to-green-100 ring-4 ring-green-200'
+                      : 'border-gray-300 bg-white hover:border-green-300'
                   }`}
                   onClick={() => handleOfferTypeChange({ target: { value: 'CERTIFICATION' } } as any)}
                 >
-                  <div className="flex items-center mb-2">
-                    <input
-                      type="radio"
-                      name="offerType"
-                      value="CERTIFICATION"
-                      checked={formData.offerType === 'CERTIFICATION'}
-                      onChange={(e) => handleOfferTypeChange(e as any)}
-                      className="mr-3"
-                    />
-                    <span className="font-medium text-green-700">Certificazione</span>
+                  <div className="text-center">
+                    <div className="flex items-center justify-center mb-3">
+                      <input
+                        type="radio"
+                        name="offerType"
+                        value="CERTIFICATION"
+                        checked={formData.offerType === 'CERTIFICATION'}
+                        onChange={(e) => handleOfferTypeChange(e as any)}
+                        className="mr-3 scale-125"
+                      />
+                      <span className="text-xl font-bold text-green-700">Certificazioni</span>
+                    </div>
+                    <p className="text-sm text-gray-700 mb-4">Form semplificato per certificazioni professionali</p>
+                    <div className="bg-green-100 rounded-lg p-3 text-xs text-green-800">
+                      <strong>Include:</strong> Solo documenti essenziali (documento identità + codice fiscale)
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-600">Form semplificato con meno documenti richiesti</p>
                 </div>
               </div>
             </div>
 
-            {/* Dettagli Offerta */}
-            <div className="bg-gray-50 p-6 rounded-lg">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            {/* Configurazione Offerta Semplificata */}
+            <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm">
+              <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
                 Configurazione Offerta
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-3">
-                    Seleziona il corso:
-                  </label>
-                  <div className="space-y-3">
-                    {courses.map(course => {
-                      // Mostra corsi appropriati in base al tipo di offerta
-                      const isTfaCourse = course.name.includes('Formazione Diamante') || course.id === 'default-course';
-                      const isCertificationCourse = course.name.includes('Certificazioni') || course.id === 'certification-course';
-                      
-                      // Per TFA Romania mostra solo corsi TFA, per Certificazioni solo certificazioni
-                      const shouldShow = (formData.offerType === 'TFA_ROMANIA' && isTfaCourse) || 
-                                        (formData.offerType === 'CERTIFICATION' && isCertificationCourse);
-                      
-                      if (!shouldShow) return null;
-                      
-                      const isSelected = formData.courseId === course.id;
-                      const baseAmount = formData.offerType === 'TFA_ROMANIA' ? 4000 : 1000;
-                      
-                      return (
-                        <div
-                          key={course.id}
-                          className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                            isSelected
-                              ? formData.offerType === 'TFA_ROMANIA'
-                                ? 'border-purple-500 bg-purple-50'
-                                : 'border-green-500 bg-green-50'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                          onClick={() => {
-                            setFormData(prev => ({ 
-                              ...prev, 
-                              courseId: course.id,
-                              totalAmount: baseAmount
-                            }));
-                          }}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center mb-2">
-                                <input
-                                  type="radio"
-                                  name="courseId"
-                                  value={course.id}
-                                  checked={isSelected}
-                                  onChange={() => {}}
-                                  className="mr-3"
-                                />
-                                <h4 className="font-medium text-gray-900">{course.name}</h4>
-                              </div>
-                              <p className="text-sm text-gray-600 mb-2">{course.description}</p>
-                              <div className="text-sm">
-                                <span className="font-medium">Importo base: </span>
-                                <span className={`font-bold ${
-                                  formData.offerType === 'TFA_ROMANIA' ? 'text-purple-600' : 'text-green-600'
-                                }`}>
-                                  €{baseAmount.toLocaleString()}
-                                </span>
-                                {formData.offerType === 'TFA_ROMANIA' && (
-                                  <span className="text-xs text-gray-500 ml-2">
-                                    (include acconto €1.500)
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+              
+              {/* Corso selezionato automaticamente */}
+              {formData.courseId && (
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex items-center">
+                    <div className={`w-3 h-3 rounded-full mr-3 ${
+                      formData.offerType === 'TFA_ROMANIA' ? 'bg-purple-500' : 'bg-green-500'
+                    }`}></div>
+                    <div>
+                      <p className="text-sm text-gray-600">Corso selezionato automaticamente:</p>
+                      <p className="font-semibold text-gray-900">
+                        {courses.find(c => c.id === formData.courseId)?.name || 'Corso non trovato'}
+                      </p>
+                    </div>
                   </div>
-                  {courses.length === 0 && (
-                    <p className="text-xs text-red-500 mt-1">
-                      Nessun corso disponibile. Contatta l'amministratore.
-                    </p>
-                  )}
                 </div>
-
+              )}
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-bold text-gray-700 mb-3">
                     Nome Offerta *
                   </label>
                   <input
@@ -353,14 +306,17 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="es. TFA Romania Promozionale"
+                    className="w-full px-4 py-4 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                    placeholder={formData.offerType === 'TFA_ROMANIA' ? "es. TFA Romania Promozionale" : "es. Certificazione Premium"}
                     required
                   />
+                  <p className="text-xs text-gray-500 mt-2">
+                    Questo nome sarà visibile agli utenti che accedono tramite il tuo link
+                  </p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-bold text-gray-700 mb-3">
                     Importo Totale (€) *
                   </label>
                   <input
@@ -370,12 +326,16 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
                     onChange={handleInputChange}
                     min="0"
                     step="0.01"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-4 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg font-semibold"
                     required
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    {formData.offerType === 'TFA_ROMANIA' ? 'Prezzo suggerito: €4.000' : 'Prezzo suggerito: €1.500'}
-                  </p>
+                  {formData.offerType === 'TFA_ROMANIA' && (
+                    <div className="mt-2">
+                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                        acconto €1.500
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -402,11 +362,67 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
 
               {/* Configurazione rapida numero rate */}
               <div className="mb-6 p-4 bg-white rounded-lg border border-gray-200">
-                <h4 className="text-md font-semibold text-gray-800 mb-3">⚡ Configurazione Rapida</h4>
+                <h4 className="text-md font-semibold text-gray-800 mb-4">Configurazione Rapida</h4>
+                
+                {/* Opzioni rapide */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => generateInstallmentPlan(1)}
+                    className={`p-3 rounded-lg border-2 transition-all ${
+                      customPayments.length === 1 
+                        ? 'border-blue-500 bg-blue-50 text-blue-700' 
+                        : 'border-gray-300 hover:border-blue-300'
+                    }`}
+                  >
+                    <div className="text-sm font-semibold">Pagamento Unico</div>
+                    <div className="text-xs text-gray-600">Tutto subito</div>
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => generateInstallmentPlan(2)}
+                    className={`p-3 rounded-lg border-2 transition-all ${
+                      customPayments.length === 2 
+                        ? 'border-blue-500 bg-blue-50 text-blue-700' 
+                        : 'border-gray-300 hover:border-blue-300'
+                    }`}
+                  >
+                    <div className="text-sm font-semibold">2 Rate</div>
+                    <div className="text-xs text-gray-600">Bimestrale</div>
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => generateInstallmentPlan(formData.offerType === 'TFA_ROMANIA' ? 4 : 3)}
+                    className={`p-3 rounded-lg border-2 transition-all ${
+                      customPayments.length === (formData.offerType === 'TFA_ROMANIA' ? 4 : 3)
+                        ? 'border-green-500 bg-green-50 text-green-700' 
+                        : 'border-gray-300 hover:border-green-300'
+                    }`}
+                  >
+                    <div className="text-sm font-semibold">Consigliato</div>
+                    <div className="text-xs text-gray-600">{formData.offerType === 'TFA_ROMANIA' ? '4' : '3'} rate</div>
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => generateInstallmentPlan(6)}
+                    className={`p-3 rounded-lg border-2 transition-all ${
+                      customPayments.length === 6 
+                        ? 'border-purple-500 bg-purple-50 text-purple-700' 
+                        : 'border-gray-300 hover:border-purple-300'
+                    }`}
+                  >
+                    <div className="text-sm font-semibold">6 Rate</div>
+                    <div className="text-xs text-gray-600">Semestrale</div>
+                  </button>
+                </div>
+                
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Numero Rate Desiderato
+                      Numero Rate Personalizzato
                     </label>
                     <input
                       type="number"
@@ -438,7 +454,7 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
                       {formData.offerType === 'TFA_ROMANIA' ? 
-                        `+ acconto €1.500 al momento dell'iscrizione` : 
+                        `acconto €1.500 al momento dell'iscrizione` : 
                         'Importo distribuito equamente'
                       }
                     </p>
@@ -461,7 +477,6 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
 
               {customPayments.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
-                  <div className="text-6xl mb-2 text-gray-300">💳</div>
                   <p>Nessuna rata configurata</p>
                   <p className="text-sm">Clicca "Aggiungi Rata" per iniziare</p>
                 </div>

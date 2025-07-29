@@ -5,19 +5,14 @@ import { Link } from 'react-router-dom';
 
 interface UserRegistration {
   id: string;
+  courseId: string;
+  courseName: string;
   status: string;
   originalAmount: number;
   finalAmount: number;
   installments: number;
+  offerType: 'TFA_ROMANIA' | 'CERTIFICATION';
   createdAt: string;
-  offer: {
-    name: string;
-    offerType: 'TFA_ROMANIA' | 'CERTIFICATION';
-    course: {
-      name: string;
-      description: string;
-    };
-  } | null;
   partner: {
     referralCode: string;
     user: {
@@ -143,11 +138,6 @@ const UserDashboard: React.FC = () => {
     );
   };
 
-  const getTotalPaid = (registration: UserRegistration) => {
-    return registration.payments
-      .filter(p => p.isConfirmed)
-      .reduce((sum, p) => sum + Number(p.amount), 0);
-  };
 
   const getNextPaymentDue = (registration: UserRegistration) => {
     const unpaidDeadlines = registration.deadlines
@@ -261,16 +251,15 @@ const UserDashboard: React.FC = () => {
                         <div className="flex justify-between items-start mb-2">
                           <div>
                             <h4 className="font-medium text-gray-900">
-                              {registration.offer?.name || 'Iscrizione Generale'}
+                              {registration.courseName}
                             </h4>
                             <p className="text-sm text-gray-600">
-                              {registration.offer?.course.name}
+                              {registration.offerType === 'TFA_ROMANIA' ? 'TFA Romania' : 'Certificazione'}
                             </p>
                           </div>
                           {getStatusBadge(registration.status)}
                         </div>
                         <div className="flex justify-between text-sm text-gray-600">
-                          <span>Pagato: {formatCurrency(getTotalPaid(registration))} di {formatCurrency(Number(registration.finalAmount))}</span>
                           <span>Iscritto il: {formatDate(registration.createdAt)}</span>
                         </div>
                       </div>
@@ -302,7 +291,7 @@ const UserDashboard: React.FC = () => {
                       </div>
                       <div className="flex-1">
                         <h3 className="text-lg font-semibold text-blue-900 mb-3">
-                          💳 Piano di Pagamento - {registration.offer?.name}
+                          💳 Piano di Pagamento - {registration.courseName}
                         </h3>
                         {Number(registration.originalAmount) !== Number(registration.finalAmount) && (
                           <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
@@ -372,7 +361,7 @@ const UserDashboard: React.FC = () => {
                       return (
                         <div key={registration.id} className="flex justify-between items-center p-3 bg-yellow-50 rounded-lg">
                           <div>
-                            <p className="font-medium text-gray-900">{registration.offer?.name}</p>
+                            <p className="font-medium text-gray-900">{registration.courseName}</p>
                             <p className="text-sm text-gray-600">
                               {nextPayment.paymentNumber === 0 ? 'Acconto' : `Rata ${nextPayment.paymentNumber}`} - Scadenza: {formatDate(nextPayment.dueDate)}
                             </p>
@@ -411,23 +400,7 @@ const UserDashboard: React.FC = () => {
                               <h4 className="text-lg font-semibold text-gray-900">
                                 {course.name}
                               </h4>
-                              {course.isOriginal ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                  ✓ Corso Originale
-                                </span>
-                              ) : (
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                  course.offerType === 'TFA_ROMANIA' 
-                                    ? 'bg-blue-100 text-blue-800' 
-                                    : 'bg-green-100 text-green-800'
-                                }`}>
-                                  {course.offerType === 'TFA_ROMANIA' ? 'TFA Romania' : 'Certificazione'}
-                                </span>
-                              )}
                             </div>
-                            
-                            <p className="text-sm text-gray-600 mb-3">{course.description}</p>
-                            
                             <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
                               <div>
                                 <span className="font-medium">Prezzo:</span> {formatCurrency(course.finalAmount ?? course.totalAmount)}
@@ -496,9 +469,8 @@ const UserDashboard: React.FC = () => {
                         <div className="text-sm text-blue-800">
                           <p className="font-semibold mb-1">Come funziona:</p>
                           <ul className="list-disc list-inside space-y-1 text-blue-700">
-                            <li><strong>Corso Originale:</strong> Il corso con cui ti sei registrato inizialmente</li>
+                            <li><strong>In attesa:</strong> Hai effettuato la richiesta di iscrizione</li>
                             <li><strong>Corsi Aggiuntivi:</strong> Altri corsi che il tuo partner ti ha abilitato</li>
-                            <li><strong>Già Iscritto:</strong> Corsi ai quali sei già iscritto e il loro stato</li>
                           </ul>
                         </div>
                       </div>
@@ -546,10 +518,10 @@ const UserDashboard: React.FC = () => {
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="text-lg font-medium text-gray-900">
-                        {registration.offer?.name || 'Iscrizione Generale'}
+                        {registration.courseName}
                       </h3>
                       <p className="text-sm text-gray-600">
-                        {registration.offer?.course.name} • {registration.offer?.offerType === 'TFA_ROMANIA' ? 'TFA Romania' : 'Certificazione'}
+                        {registration.offerType === 'TFA_ROMANIA' ? 'TFA Romania' : 'Certificazione'}
                       </p>
                     </div>
                     {getStatusBadge(registration.status)}
@@ -562,13 +534,21 @@ const UserDashboard: React.FC = () => {
                     <div>
                       <h4 className="font-medium text-gray-900 mb-3">Informazioni Pagamento</h4>
                       <div className="space-y-2 text-sm">
+                        {Number(registration.originalAmount) !== Number(registration.finalAmount) && (
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-green-700 font-medium">
+                                🎉 Sconto applicato: {formatCurrency(Number(registration.originalAmount) - Number(registration.finalAmount))}
+                              </span>
+                            </div>
+                            <div className="text-xs text-green-600 mt-1">
+                              Da {formatCurrency(Number(registration.originalAmount))} a {formatCurrency(Number(registration.finalAmount))}
+                            </div>
+                          </div>
+                        )}
                         <div className="flex justify-between">
                           <span className="text-gray-600">Importo totale:</span>
                           <span className="font-medium">{formatCurrency(Number(registration.finalAmount))}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Pagato finora:</span>
-                          <span className="font-medium text-green-600">{formatCurrency(getTotalPaid(registration))}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-600">Numero rate:</span>

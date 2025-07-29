@@ -85,7 +85,7 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
         <div className="bg-gradient-to-r from-indigo-600 to-purple-700 p-6 rounded-t-xl">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-white">✏️ Modifica Offerta</h2>
+              <h2 className="text-2xl font-bold text-white">Modifica Offerta</h2>
               <p className="text-indigo-100 mt-1">{offer.name}</p>
             </div>
             <button
@@ -101,12 +101,12 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
             {/* Configurazione Base */}
             <div className="bg-gray-50 p-6 rounded-lg">
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                ⚙️ Configurazione Base
+                Configurazione Base
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    📝 Nome Offerta
+                    Nome Offerta
                   </label>
                   <input
                     type="text"
@@ -119,7 +119,7 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    💰 Importo Totale (€)
+                    Importo Totale (€)
                   </label>
                   <input
                     type="number"
@@ -134,7 +134,7 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
                 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    🟢 Stato Offerta
+                    Stato Offerta
                   </label>
                   <div className="flex items-center h-12">
                     <label className={`flex items-center px-4 py-2 rounded-lg cursor-pointer transition-all ${
@@ -149,7 +149,7 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
                         onChange={handleInputChange}
                         className="mr-2"
                       />
-                      {formData.isActive ? '✓ Attiva' : '✖ Disattiva'}
+                      {formData.isActive ? 'Attiva' : 'Disattiva'}
                     </label>
                   </div>
                 </div>
@@ -159,12 +159,12 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
             {!useCustomPlan && (
               <div className="bg-blue-50 p-6 rounded-lg">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                  💳 Piano Pagamenti Standard
+                  Piano Pagamenti Standard
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      📊 Numero Rate
+                      Numero Rate
                     </label>
                     <select
                       name="installments"
@@ -181,7 +181,7 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
 
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      🗓️ Frequenza Rate (mesi)
+                      Frequenza Rate (mesi)
                     </label>
                     <input
                       type="number"
@@ -202,7 +202,7 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                  📊 Informazioni Offerta
+                  Informazioni Offerta
                 </h3>
                 <div className="space-y-3">
                   <div className="flex items-center space-x-3">
@@ -211,7 +211,7 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
                         ? 'bg-purple-100 text-purple-800' 
                         : 'bg-green-100 text-green-800'
                     }`}>
-                      {offer.offerType === 'TFA_ROMANIA' ? '🎓 TFA Romania' : '📜 Certificazione'}
+                      {offer.offerType === 'TFA_ROMANIA' ? 'TFA Romania' : 'Certificazione'}
                     </span>
                   </div>
                   <div className="text-sm space-y-2">
@@ -235,7 +235,7 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
 
               <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-lg border border-green-200">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                  💳 Piano Pagamenti Attuale
+                  Piano Pagamenti Attuale
                 </h3>
                 <div className="bg-white p-4 rounded-lg border max-h-40 overflow-y-auto">
                   {currentPayments.length > 0 ? (
@@ -272,7 +272,7 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
                 <div className="flex items-center justify-between mb-6">
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                      🛠️ Modifica Piano Pagamenti
+                      Modifica Piano Pagamenti
                     </h3>
                     <p className="text-sm text-gray-600 mt-1">Personalizza il piano di pagamento per questa certificazione</p>
                   </div>
@@ -307,7 +307,6 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
                   <div className="space-y-4">
                     {customPayments.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
-                        <div className="text-4xl mb-2">💳</div>
                         <p>Nessuna rata personalizzata configurata</p>
                         <p className="text-sm">Clicca "Aggiungi Rata" per iniziare</p>
                       </div>
@@ -318,7 +317,7 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
                             {index + 1}
                           </div>
                           <div className="flex-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">💰 Importo (€)</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Importo (€)</label>
                             <input
                               type="number"
                               value={payment.amount}
@@ -330,7 +329,7 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
                             />
                           </div>
                           <div className="flex-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">📅 Scadenza</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Scadenza</label>
                             <input
                               type="date"
                               value={payment.dueDate}
@@ -344,7 +343,7 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
                             className="flex-shrink-0 w-10 h-10 bg-red-100 text-red-600 rounded-full hover:bg-red-200 flex items-center justify-center"
                             title="Rimuovi rata"
                           >
-                            🗑️
+                            ✕
                           </button>
                         </div>
                       ))
@@ -368,7 +367,7 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
                           </div>
                           {customPayments.reduce((sum, p) => sum + p.amount, 0) !== formData.totalAmount && (
                             <div className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium">
-                              ⚠️ Non corrisponde all'importo totale!
+                              Non corrisponde all'importo totale!
                             </div>
                           )}
                         </div>
@@ -381,7 +380,7 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
 
             <div className="bg-gray-50 p-6 rounded-lg flex justify-between items-center">
               <div className="text-sm text-gray-600">
-                <p>✏️ Le modifiche saranno applicate immediatamente</p>
+                <p>Le modifiche saranno applicate immediatamente</p>
                 <p className="text-xs mt-1">Il link referral rimarrà invariato</p>
               </div>
               <div className="flex space-x-4">
@@ -396,7 +395,7 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
                   type="submit"
                   className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-700 text-white rounded-lg hover:from-indigo-700 hover:to-purple-800 font-medium shadow-md"
                 >
-                  💾 Salva Modifiche
+                  Salva Modifiche
                 </button>
               </div>
             </div>

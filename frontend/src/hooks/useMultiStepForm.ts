@@ -3,7 +3,7 @@ import { RegistrationData, FormStep } from '../types/registration';
 
 interface StepConfig {
   steps: string[];
-  offerType: 'TFA_ROMANIA' | 'CERTIFICATION';
+  templateType: 'TFA' | 'CERTIFICATION';
   requiredFields: Record<string, string[]>;
 }
 
@@ -15,73 +15,13 @@ interface UseMultiStepFormOptions {
 
 export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
   const { referralCode, initialData, stepConfig } = options;
-  const [currentStep, setCurrentStep] = useState(() => {
-    // Check if this is a new registration with a different referral code
-    const savedReferralCode = localStorage.getItem('registrationReferralCode');
-    const isNewRegistration = referralCode && savedReferralCode && referralCode !== savedReferralCode;
-    
-    // Don't load saved step if it's a new registration
-    if (isNewRegistration) {
-      return 0;
-    }
-    
-    // Carica step salvato dal localStorage
-    const savedStep = localStorage.getItem('registrationFormStep');
-    return savedStep ? parseInt(savedStep, 10) : 0;
-  });
+  const [currentStep, setCurrentStep] = useState(0);
   
   const [formData, setFormData] = useState<Partial<RegistrationData>>(() => {
-    // Check for pre-compiled data from additional enrollment
-    const preCompiledData = localStorage.getItem('registrationFormData');
-    const isAdditionalEnrollment = localStorage.getItem('isAdditionalEnrollment') === 'true';
-    
-    // Check if this is a new registration with a different referral code
-    const savedReferralCode = localStorage.getItem('registrationReferralCode');
-    const isNewRegistration = referralCode && savedReferralCode && referralCode !== savedReferralCode;
-    
-    // Clear localStorage if it's a new registration with different referral code
-    if (isNewRegistration) {
-      localStorage.removeItem('registrationForm');
-      localStorage.removeItem('registrationFormFiles');
-      localStorage.removeItem('registrationFormStep');
-      localStorage.removeItem('registrationReferralCode');
-      localStorage.removeItem('registrationFormData');
-      localStorage.removeItem('isAdditionalEnrollment');
-    }
-    
-    // Save current referral code
-    if (referralCode) {
-      localStorage.setItem('registrationReferralCode', referralCode);
-    }
-    
+    // Always start fresh - no more saved form data loading
+    // Only use initialData passed from props (for authenticated users with profile)
     const baseData = { ...initialData, referralCode };
-    let finalData = baseData || {};
-    
-    // Only load saved data if it's not a new registration
-    if (!isNewRegistration) {
-      const saved = localStorage.getItem('registrationForm');
-      if (saved) {
-        try {
-          finalData = { ...finalData, ...JSON.parse(saved) };
-        } catch {
-          // Keep finalData as is
-        }
-      }
-      
-      // If this is an additional enrollment, override with pre-compiled data
-      if (isAdditionalEnrollment && preCompiledData) {
-        try {
-          const preCompiled = JSON.parse(preCompiledData);
-          finalData = { ...finalData, ...preCompiled };
-          // Clear the pre-compiled flag after use
-          localStorage.removeItem('isAdditionalEnrollment');
-        } catch {
-          // Keep finalData as is
-        }
-      }
-    }
-    
-    return finalData;
+    return baseData || {};
   });
 
   // Dynamic steps based on offer type (for now we use default configuration)
@@ -235,7 +175,7 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
         }
         
         // For certification, parent names are not required
-        if (stepConfig.offerType === 'CERTIFICATION' && ['nomePadre', 'nomeMadre'].includes(field)) {
+        if (stepConfig.templateType === 'CERTIFICATION' && ['nomePadre', 'nomeMadre'].includes(field)) {
           return false;
         }
         
@@ -331,7 +271,6 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
       if (isStepValid(currentStep)) {
         const newStep = currentStep + 1;
         setCurrentStep(newStep);
-        localStorage.setItem('registrationFormStep', newStep.toString());
         return true; // Avanzamento riuscito
       } else {
         return false;
@@ -344,7 +283,6 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
     if (currentStep > 0) {
       const newStep = currentStep - 1;
       setCurrentStep(newStep);
-      localStorage.setItem('registrationFormStep', newStep.toString());
     }
   }, [currentStep]);
 
@@ -356,7 +294,6 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
       // Controlla se è possibile navigare a questo step
       if (canNavigateToStep(step)) {
         setCurrentStep(step);
-        localStorage.setItem('registrationFormStep', step.toString());
         return true; // Navigazione riuscita
       } else {
         return false;
@@ -380,9 +317,8 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
       ...otherData 
     } = formData;
     
-    // Salva i dati non-file
+    // Salva i dati non-file (mantenuto per backup locale)
     localStorage.setItem('registrationForm', JSON.stringify(otherData));
-    localStorage.setItem('registrationFormStep', currentStep.toString());
     
     // Salva informazioni sui file (senza il contenuto binario)
     const fileInfo = {
@@ -399,16 +335,12 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
     localStorage.setItem('registrationFormFiles', JSON.stringify(fileInfo));
     
     return true;
-  }, [formData, currentStep]);
+  }, [formData]);
 
   const clearFormData = useCallback(() => {
     setFormData({});
     localStorage.removeItem('registrationForm');
     localStorage.removeItem('registrationFormFiles');
-    localStorage.removeItem('registrationFormStep');
-    localStorage.removeItem('registrationReferralCode');
-    localStorage.removeItem('registrationFormData');
-    localStorage.removeItem('isAdditionalEnrollment');
     setCurrentStep(0);
   }, []);
 
@@ -464,7 +396,7 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
           
           
           // For certifications, parent names are not required
-          if (stepConfig.offerType === 'CERTIFICATION' && ['nomePadre', 'nomeMadre'].includes(field)) {
+          if (stepConfig.templateType === 'CERTIFICATION' && ['nomePadre', 'nomeMadre'].includes(field)) {
             isRelevant = false;
           }
           

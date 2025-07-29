@@ -253,7 +253,7 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
       return {
         id: reg.id,
         courseId: reg.offer?.course?.id || 'unknown',
-        courseName: reg.offer?.course?.name || 'Corso Non Specificato',
+        courseName: reg.offer?.name || reg.offer?.course?.name || 'Corso non specificato',
         status: reg.status,
         originalAmount: Number(reg.originalAmount),
         finalAmount: Number(reg.finalAmount),
@@ -409,7 +409,7 @@ router.get('/available-courses', authenticate, async (req: AuthRequest, res: Res
         
         return {
           id: offer.course.id,
-          name: offer.course.name,
+          name: offer.name,
           description: offer.course.description || '',
           partnerOfferId: offer.id,
           offerType: offer.offerType.toString(),

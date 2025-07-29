@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import Button from '../UI/Button';
 import Input from '../UI/Input';
@@ -16,7 +15,6 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 const LoginForm: React.FC = () => {
   const { login } = useAuth();
-  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,25 +32,8 @@ const LoginForm: React.FC = () => {
       setError(null);
       await login(data);
       
-      // Check for pending enrollment after successful login
-      const pendingEnrollment = sessionStorage.getItem('pendingEnrollment');
-      if (pendingEnrollment) {
-        try {
-          const enrollment = JSON.parse(pendingEnrollment);
-          sessionStorage.removeItem('pendingEnrollment');
-          
-          // Redirect to registration page with referral code
-          if (enrollment.referralCode) {
-            navigate(`/registration/${enrollment.referralCode}`);
-          } else {
-            navigate('/dashboard');
-          }
-        } catch (e) {
-          // If parsing fails, just go to dashboard
-          navigate('/dashboard');
-        }
-      }
-      // If no pending enrollment, the ProtectedRoute will handle the redirect to dashboard
+      // After successful login, App.tsx will handle the redirect based on localStorage pendingReferral
+      // No need to manually navigate here - let the auth state change trigger the redirect
       
     } catch (err: any) {
       setError(err.response?.data?.error || 'Errore durante il login');

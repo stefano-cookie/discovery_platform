@@ -111,7 +111,7 @@ router.get('/users', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req
       email: reg.user.email,
       profile: reg.user.profile,
       status: reg.status,
-      course: reg.offer?.course?.name || 'Corso non specificato',
+      course: reg.offer?.name || 'Offerta non specificata',
       courseId: reg.courseId,
       offerType: reg.offerType,
       isDirectUser: reg.partnerId === partnerId,

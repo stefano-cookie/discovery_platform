@@ -284,9 +284,6 @@ const UserDashboard: React.FC = () => {
                                 </span>
                               )}
                             </div>
-                            <div className="text-sm text-gray-500">
-                              Pagato €{registration.totalPaid.toLocaleString('it-IT')} su €{registration.finalAmount.toLocaleString('it-IT')}
-                            </div>
                             <div className="text-xs text-gray-400">{registration.installments} rate</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

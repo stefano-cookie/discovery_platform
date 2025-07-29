@@ -27,7 +27,11 @@ const AppContent: React.FC = () => {
     const pendingReferral = localStorage.getItem('pendingReferral');
     const pendingReferralUrl = localStorage.getItem('pendingReferralUrl');
     
-    console.log('Checking authenticated redirect:', { pendingReferral, pendingReferralUrl });
+    console.log('Checking authenticated redirect:', { 
+      pendingReferral, 
+      pendingReferralUrl, 
+      user: user?.email 
+    });
     
     if (pendingReferral) {
       // Clear both pending items
@@ -46,7 +50,7 @@ const AppContent: React.FC = () => {
     }
     
     console.log('No pending referral, redirecting to dashboard');
-    return "/dashboard";
+    return user?.role === 'USER' ? '/dashboard' : '/dashboard';
   };
 
   return (

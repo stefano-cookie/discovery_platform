@@ -94,10 +94,18 @@ const ReferralGatekeeper: React.FC<ReferralGatekeeperProps> = ({
   const handleLoginRedirect = () => {
     // Salva il referral code per il redirect post-login con timestamp per debugging
     console.log('Saving referral code for post-login redirect:', referralCode);
+    console.log('Current URL:', window.location.pathname + window.location.search);
+    
     localStorage.setItem('pendingReferral', referralCode);
     
     // Aggiungi anche il full URL corrente per essere sicuri
     localStorage.setItem('pendingReferralUrl', window.location.pathname + window.location.search);
+    
+    // Verifica che siano stati salvati
+    console.log('Saved to localStorage:', {
+      pendingReferral: localStorage.getItem('pendingReferral'),
+      pendingReferralUrl: localStorage.getItem('pendingReferralUrl')
+    });
     
     window.location.href = '/login';
   };

@@ -37,6 +37,7 @@ interface PaymentPlan {
   totalAmount: number;
   monthlyAmount: number;
   isRecommended?: boolean;
+  useCustomSchedule?: boolean;
 }
 
 const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext, onChange, offerInfo }) => {
@@ -110,7 +111,7 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
       // Use the specific course from the offer
       const courseFromOffer: Course = {
         id: offerInfo.course.id,
-        name: offerInfo.course.name,
+        name: offerInfo.name,
         description: offerInfo.course.description || '',
         totalAmount: Number(offerInfo.totalAmount),
         isActive: offerInfo.course.isActive,
@@ -123,8 +124,8 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
       const mockCourses: Course[] = [
         {
           id: 'tfa-2024',
-          name: 'TFA Sostegno 2024',
-          description: 'Tirocinio Formativo Attivo per il Sostegno Didattico',
+          name: 'TFA',
+          description: 'TFA',
           totalAmount: 4500,
           isActive: true,
         },
@@ -140,20 +141,29 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
     if (selectedCourse) {
       const selectedCourseData = courses.find(c => c.id === selectedCourse);
       if (selectedCourseData) {
-        // Check if offer has custom payment plan
-        if (offerInfo?.customPaymentPlan && offerInfo.customPaymentPlan.payments.length > 0) {
-          // Use the partner's custom payment plan
+        // IMPORTANTE: Ogni offerta DEVE avere un piano di pagamento definito dal partner
+        // Non mostrare opzioni multiple - solo quella configurata nell'offerta
+        if (offerInfo) {
           const totalAmount = Number(offerInfo.totalAmount);
           
-          // Determina se è TFA Romania
-          const isTfaRomaniaOffer = offerInfo?.offerType === 'TFA_ROMANIA' ||
-                                   offerInfo?.name?.includes('TFA') ||
-                                   offerInfo?.name?.includes('Corso di Formazione Diamante');
+          // Determina se è TFA Romania basandosi sul template del corso
+          const isTfaRomaniaOffer = offerInfo?.course?.templateType === 'TFA';
           
           const customPlanWithCoupon = calculateCouponDiscount(totalAmount, isTfaRomaniaOffer);
           
-          const customPayments = offerInfo.customPaymentPlan.payments;
-          const numberOfPayments = customPayments.length;
+          // Usa il customPaymentPlan se esiste, altrimenti usa installments dall'offerta
+          let numberOfPayments: number;
+          let useCustomSchedule = false;
+          
+          if (offerInfo.customPaymentPlan && offerInfo.customPaymentPlan.payments.length > 0) {
+            // Usa il piano personalizzato
+            numberOfPayments = offerInfo.customPaymentPlan.payments.length;
+            useCustomSchedule = true;
+          } else {
+            // Usa il numero di rate dall'offerta (fallback per pagamento unico)
+            numberOfPayments = offerInfo.installments;
+            useCustomSchedule = false;
+          }
           
           // Calculate correct payment amount considering discounts
           let averagePaymentAmount;
@@ -165,80 +175,36 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
             averagePaymentAmount = customPlanWithCoupon.finalAmount / numberOfPayments;
           }
           
-          let description;
-          if (isTfaRomaniaOffer) {
-            description = `Piano Personalizzato Partner (${numberOfPayments} rate) - Include acconto €1.500`;
+          let planName, description;
+          if (numberOfPayments === 1) {
+            planName = 'Pagamento Unico';
+            description = 'Pagamento unico come definito dal partner per questa offerta';
           } else {
-            description = `Piano Personalizzato Partner (${numberOfPayments} rate)`;
+            planName = `Pagamento in ${numberOfPayments} Rate`;
+            if (isTfaRomaniaOffer) {
+              description = `Piano a ${numberOfPayments} rate - Include acconto €1.500`;
+            } else {
+              description = `Piano a ${numberOfPayments} rate come definito dal partner`;
+            }
           }
           
-          const customPlan: PaymentPlan = {
-            id: 'partner-custom-plan',
-            name: `Piano Personalizzato Partner (${numberOfPayments} rate)`,
+          const partnerPlan: PaymentPlan = {
+            id: 'partner-plan',
+            name: planName,
             description: description,
             installments: numberOfPayments,
             frequency: numberOfPayments === 1 ? 'Immediato' : 'Personalizzato',
             totalAmount: customPlanWithCoupon.finalAmount,
             monthlyAmount: averagePaymentAmount,
             isRecommended: true,
+            useCustomSchedule // Flag per il calendario pagamenti
           };
 
-          setPaymentPlans([customPlan]);
+          // SOLO il piano del partner - nessuna alternativa
+          setPaymentPlans([partnerPlan]);
         } else {
-          // Fallback to static payment plans if no custom plan is available
-          const baseAmount = selectedCourseData.totalAmount;
-          
-          // Determina se è TFA Romania (stesso controllo usato ovunque)
-          const isTfaRomania = offerInfo?.offerType === 'TFA_ROMANIA' || 
-                               offerInfo?.name?.includes('TFA') ||
-                               offerInfo?.name?.includes('Corso di Formazione Diamante');
-
-          const baseWithCoupon = calculateCouponDiscount(baseAmount, isTfaRomania);
-
-          const tfaPaymentPlans: PaymentPlan[] = [
-            {
-              id: 'single',
-              name: 'Pagamento Unico',
-              description: 'Paga tutto subito',
-              installments: 1,
-              frequency: 'Immediato',
-              totalAmount: baseWithCoupon.finalAmount,
-              monthlyAmount: baseWithCoupon.finalAmount,
-              isRecommended: false,
-            },
-            {
-              id: 'biannual',
-              name: '2 Rate',
-              description: isTfaRomania ? 'Acconto €1.500 + 2 rate' : 'Pagamento semestrale',
-              installments: 2,
-              frequency: 'Ogni 6 mesi',
-              totalAmount: baseWithCoupon.finalAmount,
-              monthlyAmount: isTfaRomania ? baseWithCoupon.imponibileAmount / 2 : baseWithCoupon.finalAmount / 2,
-              isRecommended: false,
-            },
-            {
-              id: 'quarterly',
-              name: '4 Rate',
-              description: isTfaRomania ? 'Acconto €1.500 + 4 rate' : 'Pagamento trimestrale',
-              installments: 4,
-              frequency: 'Ogni 3 mesi',
-              totalAmount: baseWithCoupon.finalAmount,
-              monthlyAmount: isTfaRomania ? baseWithCoupon.imponibileAmount / 4 : baseWithCoupon.finalAmount / 4,
-              isRecommended: true,
-            },
-            {
-              id: 'monthly',
-              name: '12 Rate',
-              description: isTfaRomania ? 'Acconto €1.500 + 12 rate' : 'Pagamento mensile',
-              installments: 12,
-              frequency: 'Mensile',
-              totalAmount: baseWithCoupon.finalAmount,
-              monthlyAmount: isTfaRomania ? baseWithCoupon.imponibileAmount / 12 : baseWithCoupon.finalAmount / 12,
-              isRecommended: false,
-            },
-          ];
-
-          setPaymentPlans(tfaPaymentPlans);
+          // ERRORE: Nessuna informazione offerta disponibile
+          setPaymentPlans([]);
         }
       }
     } else {
@@ -259,24 +225,17 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
     }
   }, [offerInfo, courses, selectedCourse, register]);
 
-  // Auto-select payment plan for custom plans and certifications
+  // Auto-select the ONLY payment plan available (partner-defined)
   useEffect(() => {
     if (paymentPlans.length > 0 && !selectedPaymentPlan) {
-      // Auto-select the partner custom plan if available
-      const customPlan = paymentPlans.find(plan => plan.id === 'partner-custom-plan');
-      if (customPlan) {
-        const event = { target: { value: customPlan.id } };
+      // Auto-select the partner plan (only option available)
+      const partnerPlan = paymentPlans.find(plan => plan.id === 'partner-plan');
+      if (partnerPlan) {
+        const event = { target: { value: partnerPlan.id } };
         register('paymentPlan').onChange(event);
-      } else if (offerInfo?.offerType === 'CERTIFICATION') {
-        // Fallback to certification plan for certifications
-        const certificationPlan = paymentPlans.find(plan => plan.id === 'certification-plan');
-        if (certificationPlan) {
-          const event = { target: { value: certificationPlan.id } };
-          register('paymentPlan').onChange(event);
-        }
       }
     }
-  }, [offerInfo, paymentPlans, selectedPaymentPlan, register]);
+  }, [paymentPlans, selectedPaymentPlan, register]);
 
   // Watch all form values and update parent in real-time
   useEffect(() => {
@@ -312,15 +271,13 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
       isFirst: boolean;
     }> = [];
     
-    // Check if this is a partner custom plan
-    if (plan.id === 'partner-custom-plan' && offerInfo?.customPaymentPlan) {
+    // Check if this is a partner plan
+    if (plan.id === 'partner-plan' && plan.useCustomSchedule && offerInfo?.customPaymentPlan) {
       // Use the actual custom payment plan from the partner but recalculate amounts with discounts
       const customPayments = offerInfo.customPaymentPlan.payments;
       
       // Determine if TFA Romania for correct calculation
-      const isTfaRomania = offerInfo?.offerType === 'TFA_ROMANIA' || 
-                           offerInfo?.name?.includes('TFA') ||
-                           offerInfo?.name?.includes('Corso di Formazione Diamante');
+      const isTfaRomania = offerInfo?.course?.templateType === 'TFA';
       
       // Calculate discount info - need to access formData for coupon information
       const totalAmount = Number(offerInfo.totalAmount);
@@ -481,15 +438,14 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
               <div>
-                <h4 className="text-blue-900 font-semibold mb-1">Piano Pagamento Personalizzato</h4>
+                <h4 className="text-blue-900 font-semibold mb-1">Piano di Pagamento Definito</h4>
                 <p className="text-blue-800 text-sm">
-                  Stai utilizzando il piano di pagamento personalizzato creato dal partner per l'offerta "{offerInfo.name}". 
-                  Il piano include {offerInfo.customPaymentPlan.payments.length} rate con scadenze e importi specifici.
+                  Il partner ha configurato per questa offerta "{offerInfo.name}" un piano di pagamento specifico con {offerInfo.customPaymentPlan.payments.length === 1 ? 'pagamento unico' : `${offerInfo.customPaymentPlan.payments.length} rate`}. Questo è l'unico piano disponibile per questa offerta.
                 </p>
               </div>
             </div>
           </div>
-        ) : offerInfo?.offerType === 'CERTIFICATION' ? (
+        ) : offerInfo?.course?.templateType === 'CERTIFICATION' ? (
           <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-start">
               <svg className="w-5 h-5 text-blue-600 mt-0.5 mr-3" fill="currentColor" viewBox="0 0 20 20">
@@ -505,9 +461,19 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
             </div>
           </div>
         ) : (
-          <p className="text-gray-600 mb-6">
-            Seleziona il corso a cui vuoi iscriverti e scegli il piano di pagamento più adatto alle tue esigenze.
-          </p>
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <svg className="w-5 h-5 text-red-600 mt-0.5 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              <div>
+                <h4 className="text-red-900 font-semibold mb-1">Piano di Pagamento Non Configurato</h4>
+                <p className="text-red-800 text-sm">
+                  Questa offerta non ha un piano di pagamento configurato dal partner. Ogni offerta deve avere un piano di pagamento specifico definito.
+                </p>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Coupon applicato - Indicazione */}
@@ -515,9 +481,7 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
           const courseData = courses.find(c => c.id === selectedCourse);
           if (courseData) {
             // Determina se è TFA Romania per il calcolo corretto
-            const isTfaRomania = offerInfo?.offerType === 'TFA_ROMANIA' || 
-                                 offerInfo?.name?.includes('TFA') ||
-                                 offerInfo?.name?.includes('Corso di Formazione Diamante');
+            const isTfaRomania = offerInfo?.course?.templateType === 'TFA';
             
             const discount = calculateCouponDiscount(courseData.totalAmount, isTfaRomania);
             if (discount.discountAmount > 0) {
@@ -599,13 +563,37 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
           )}
         </div>
 
+        {/* Error message when no payment plans are available */}
+        {selectedCourse && paymentPlans.length === 0 && (
+          <div className="mb-8 bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <svg className="w-6 h-6 text-red-600 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              <div className="flex-1">
+                <h4 className="text-red-900 font-semibold mb-2">Piano di Pagamento Non Disponibile</h4>
+                <p className="text-red-800 text-sm mb-3">
+                  Non è stato possibile caricare il piano di pagamento per questa offerta. 
+                  Questo potrebbe indicare un problema di configurazione.
+                </p>
+                <p className="text-red-700 text-sm">
+                  <strong>Cosa fare:</strong><br/>
+                  • Ricarica la pagina e riprova<br/>
+                  • Contatta il tuo partner di riferimento se il problema persiste<br/>
+                  • Oppure scegli un'offerta diversa
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Piani di Pagamento */}
         {selectedCourse && paymentPlans.length > 0 && (
           <div className="mb-8">
             <label className="block text-sm font-medium text-gray-700 mb-3">
               {offerInfo?.customPaymentPlan && offerInfo.customPaymentPlan.payments.length > 0
                 ? 'Piano di Pagamento Personalizzato Partner'
-                : offerInfo?.offerType === 'CERTIFICATION'
+                : offerInfo?.course?.templateType === 'CERTIFICATION'
                   ? 'Piano di Pagamento Predefinito'
                   : 'Piano di Pagamento *'
               }

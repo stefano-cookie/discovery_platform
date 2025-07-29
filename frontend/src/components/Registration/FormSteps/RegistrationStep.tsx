@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { registrationSchema, RegistrationForm } from '../../../utils/validation';
-import { submitEnrollment, submitVerifiedUserEnrollment, RegistrationData } from '../../../services/api';
+import { submitEnrollment, submitVerifiedUserEnrollment, RegistrationData, apiRequest } from '../../../services/api';
 import { OfferInfo } from '../../../types/offers';
 import { useAuth } from '../../../hooks/useAuth';
 import { useLocation } from 'react-router-dom';
@@ -24,6 +24,7 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
 }) => {
   const { user } = useAuth();
   const location = useLocation();
+  const [userProfile, setUserProfile] = useState<any>(null);
   
   // Gestisce utenti verificati via email
   const urlParams = new URLSearchParams(location.search);
@@ -52,6 +53,79 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
   const [privacyError, setPrivacyError] = useState('');
+
+  // Load user profile data for complete display in summary
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      // Se l'utente è autenticato, usa l'API normale
+      if (user) {
+        try {
+          const response = await apiRequest<{user: any; profile: any; assignedPartner: any}>({
+            url: '/user/profile',
+            method: 'GET'
+          });
+          setUserProfile(response.profile);
+        } catch (error) {
+          console.error('Error loading user profile:', error);
+          setUserProfile(null);
+        }
+        return;
+      }
+
+      // Se l'utente arriva da verifica email, carica il profilo con l'email
+      if (emailVerified === 'true' && verifiedEmail) {
+        try {
+          const response = await apiRequest<{user: any; profile: any; assignedPartner: any}>({
+            method: 'POST',
+            url: '/user/profile-by-email',
+            data: { email: verifiedEmail }
+          });
+          setUserProfile(response.profile);
+        } catch (error) {
+          console.error('Errore recupero profilo utente verificato:', error);
+          setUserProfile(null);
+        }
+        return;
+      }
+
+      // Nessun utente autenticato o verificato
+      setUserProfile(null);
+    };
+
+    loadUserProfile();
+  }, [user, emailVerified, verifiedEmail]);
+
+  // Helper function to get complete data (from formData or userProfile)
+  const getCompleteData = useCallback((field: string) => {
+    // First try formData (user input), then fallback to userProfile (saved data)
+    const formValue = formData[field];
+    const profileValue = userProfile?.[field];
+    
+    // Handle date formatting for display
+    if (field === 'dataNascita' && (formValue || profileValue)) {
+      const dateValue = formValue || profileValue;
+      if (dateValue) {
+        try {
+          // If it's already formatted for display, return as is
+          if (typeof dateValue === 'string' && dateValue.includes('/')) {
+            return dateValue;
+          }
+          // Otherwise format it
+          const date = new Date(dateValue);
+          return date.toLocaleDateString('it-IT');
+        } catch {
+          return dateValue;
+        }
+      }
+    }
+    
+    // For email, if user is verified via email, use verifiedEmail
+    if (field === 'email' && !formValue && !profileValue && emailVerified === 'true' && verifiedEmail) {
+      return verifiedEmail;
+    }
+    
+    return formValue || profileValue || '';
+  }, [formData, userProfile, emailVerified, verifiedEmail]);
 
   const onSubmit = useCallback(async (finalData: RegistrationForm) => {
     
@@ -92,10 +166,8 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
         let downPayment = 0;
         let installmentAmount = baseAmount;
 
-        // Per TFA Romania: acconto fisso di 1500€ (stesso controllo usato ovunque)
-        const isTfaRomania = offerInfo.offerType === 'TFA_ROMANIA' || 
-                             offerInfo.name?.includes('TFA') ||
-                             offerInfo.name?.includes('Corso di Formazione Diamante');
+        // Per TFA Romania: acconto fisso di 1500€ - usa il templateType del corso
+        const isTfaRomania = offerInfo.course?.templateType === 'TFA';
         
         if (isTfaRomania) {
           downPayment = 1500;
@@ -480,26 +552,37 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
       <div>
         <h3 className="text-lg font-medium text-gray-900 mb-4">Riepilogo Iscrizione</h3>
         
-        {/* Dynamic intro based on offer type */}
-        {offerInfo?.offerType === 'CERTIFICATION' ? (
+        {/* Dynamic intro based on course template */}
+        {offerInfo?.course?.templateType === 'CERTIFICATION' ? (
           <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-start">
               <svg className="w-5 h-5 text-blue-600 mt-0.5 mr-3" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
               <div>
-                <h4 className="text-blue-900 font-semibold mb-1">Riepilogo Certificazione</h4>
+                <h4 className="text-blue-900 font-semibold mb-1">Riepilogo Iscrizione</h4>
                 <p className="text-blue-800 text-sm">
-                  Stai completando l'iscrizione alla certificazione "{offerInfo.name}". 
+                  Stai completando l'iscrizione a "{offerInfo.name}". 
                   Verifica i dati inseriti prima di procedere.
                 </p>
               </div>
             </div>
           </div>
         ) : (
-          <p className="text-gray-600 mb-6">
-            Verifica i tuoi dati prima di completare l'iscrizione al TFA Sostegno. Potrai tornare indietro per modificare qualsiasi informazione.
-          </p>
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <svg className="w-5 h-5 text-blue-600 mt-0.5 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              <div>
+                <h4 className="text-blue-900 font-semibold mb-1">Riepilogo Iscrizione</h4>
+                <p className="text-blue-800 text-sm">
+                  Stai completando l'iscrizione a "{offerInfo?.name || 'TFA Romania'}". 
+                  Verifica i tuoi dati prima di procedere.
+                </p>
+              </div>
+            </div>  
+          </div>
         )}
 
         {/* Riepilogo Dati Generali */}
@@ -513,42 +596,42 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div>
               <span className="font-medium text-gray-500">Nome Completo:</span>
-              <p className="text-gray-900">{formData.nome} {formData.cognome}</p>
+              <p className="text-gray-900">{getCompleteData('nome')} {getCompleteData('cognome')}</p>
             </div>
             <div>
               <span className="font-medium text-gray-500">Email:</span>
-              <p className="text-gray-900">{formData.email}</p>
+              <p className="text-gray-900">{getCompleteData('email')}</p>
             </div>
             <div>
               <span className="font-medium text-gray-500">Data di Nascita:</span>
-              <p className="text-gray-900">{formData.dataNascita}</p>
+              <p className="text-gray-900">{getCompleteData('dataNascita')}</p>
             </div>
             <div>
               <span className="font-medium text-gray-500">Codice Fiscale:</span>
-              <p className="text-gray-900">{formData.codiceFiscale}</p>
+              <p className="text-gray-900">{getCompleteData('codiceFiscale')}</p>
             </div>
             <div>
               <span className="font-medium text-gray-500">Telefono:</span>
-              <p className="text-gray-900">{formData.telefono}</p>
+              <p className="text-gray-900">{getCompleteData('telefono')}</p>
             </div>
             <div>
               <span className="font-medium text-gray-500">Luogo di Nascita:</span>
-              <p className="text-gray-900">{formData.luogoNascita}</p>
+              <p className="text-gray-900">{getCompleteData('luogoNascita')}</p>
             </div>
             
-            {/* Show parent names only for TFA Romania */}
-            {offerInfo?.offerType !== 'CERTIFICATION' && (formData.nomePadre || formData.nomeMadre) && (
+            {/* Show parent names only for TFA template */}
+            {offerInfo?.course?.templateType !== 'CERTIFICATION' && (getCompleteData('nomePadre') || getCompleteData('nomeMadre')) && (
               <>
-                {formData.nomePadre && (
+                {getCompleteData('nomePadre') && (
                   <div>
                     <span className="font-medium text-gray-500">Nome Padre:</span>
-                    <p className="text-gray-900">{formData.nomePadre}</p>
+                    <p className="text-gray-900">{getCompleteData('nomePadre')}</p>
                   </div>
                 )}
-                {formData.nomeMadre && (
+                {getCompleteData('nomeMadre') && (
                   <div>
                     <span className="font-medium text-gray-500">Nome Madre:</span>
-                    <p className="text-gray-900">{formData.nomeMadre}</p>
+                    <p className="text-gray-900">{getCompleteData('nomeMadre')}</p>
                   </div>
                 )}
               </>
@@ -568,22 +651,22 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
             <div className="mb-2">
               <span className="font-medium text-gray-500">Indirizzo:</span>
               <p className="text-gray-900">
-                {formData.residenzaVia}, {formData.residenzaCitta} ({formData.residenzaProvincia}) {formData.residenzaCap}
+                {getCompleteData('residenzaVia')}, {getCompleteData('residenzaCitta')} ({getCompleteData('residenzaProvincia')}) {getCompleteData('residenzaCap')}
               </p>
             </div>
-            {formData.hasDifferentDomicilio && (
+            {(getCompleteData('hasDifferentDomicilio') || formData.hasDifferentDomicilio) && (
               <div>
                 <span className="font-medium text-gray-500">Domicilio:</span>
                 <p className="text-gray-900">
-                  {formData.domicilioVia}, {formData.domicilioCitta} ({formData.domicilioProvincia}) {formData.domicilioCap}
+                  {getCompleteData('domicilioVia')}, {getCompleteData('domicilioCitta')} ({getCompleteData('domicilioProvincia')}) {getCompleteData('domicilioCap')}
                 </p>
               </div>
             )}
           </div>
         </div>
 
-        {/* Riepilogo Istruzione - only for TFA Romania */}
-        {offerInfo?.offerType !== 'CERTIFICATION' && (
+        {/* Riepilogo Istruzione - only for TFA template */}
+        {offerInfo?.course?.templateType !== 'CERTIFICATION' && (
           <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
             <h4 className="text-md font-semibold text-gray-900 mb-4 flex items-center">
               <svg className="w-5 h-5 text-purple-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -598,48 +681,48 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="font-medium text-gray-500">Tipo di Laurea:</span>
-                    <p className="text-gray-900">{formData.tipoLaurea}</p>
+                    <p className="text-gray-900">{getCompleteData('tipoLaurea')}</p>
                   </div>
                   <div>
                     <span className="font-medium text-gray-500">Corso di Laurea:</span>
                     <p className="text-gray-900">
-                      {formData.laureaConseguita === 'ALTRO' 
-                        ? formData.laureaConseguitaCustom 
-                        : formData.laureaConseguita
+                      {getCompleteData('laureaConseguita') === 'ALTRO' 
+                        ? getCompleteData('laureaConseguitaCustom') 
+                        : getCompleteData('laureaConseguita')
                       }
                     </p>
                   </div>
                   <div>
                     <span className="font-medium text-gray-500">Università:</span>
-                    <p className="text-gray-900">{formData.laureaUniversita}</p>
+                    <p className="text-gray-900">{getCompleteData('laureaUniversita')}</p>
                   </div>
                   <div>
                     <span className="font-medium text-gray-500">Data Conseguimento:</span>
-                    <p className="text-gray-900">{formData.laureaData}</p>
+                    <p className="text-gray-900">{getCompleteData('laureaData')}</p>
                   </div>
                 </div>
               </div>
 
               {/* Laurea Triennale - mostrata solo se presente */}
-              {formData.tipoLaurea === 'Magistrale' && formData.tipoLaureaTriennale && (
+              {getCompleteData('tipoLaurea') === 'Magistrale' && getCompleteData('tipoLaureaTriennale') && (
                 <div className="border-t pt-4">
                   <h5 className="text-sm font-semibold text-gray-800 mb-2">Laurea Triennale Precedente</h5>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div>
                       <span className="font-medium text-gray-500">Tipo:</span>
-                      <p className="text-gray-900">{formData.tipoLaureaTriennale}</p>
+                      <p className="text-gray-900">{getCompleteData('tipoLaureaTriennale')}</p>
                     </div>
                     <div>
                       <span className="font-medium text-gray-500">Corso di Laurea:</span>
-                      <p className="text-gray-900">{formData.laureaConseguitaTriennale}</p>
+                      <p className="text-gray-900">{getCompleteData('laureaConseguitaTriennale')}</p>
                     </div>
                     <div>
                       <span className="font-medium text-gray-500">Università:</span>
-                      <p className="text-gray-900">{formData.laureaUniversitaTriennale}</p>
+                      <p className="text-gray-900">{getCompleteData('laureaUniversitaTriennale')}</p>
                     </div>
                     <div>
                       <span className="font-medium text-gray-500">Data Conseguimento:</span>
-                      <p className="text-gray-900">{formData.laureaDataTriennale}</p>
+                      <p className="text-gray-900">{getCompleteData('laureaDataTriennale')}</p>
                     </div>
                   </div>
                 </div>
@@ -660,13 +743,13 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
             <div className="text-sm">
               <div className="mb-2">
                 <span className="font-medium text-gray-500">Situazione Professionale:</span>
-                <p className="text-gray-900">{formData.tipoProfessione}</p>
+                <p className="text-gray-900">{getCompleteData('tipoProfessione')}</p>
               </div>
-              {formData.tipoProfessione === 'Insegnante' && formData.scuolaDenominazione && (
+              {getCompleteData('tipoProfessione') === 'Insegnante' && getCompleteData('scuolaDenominazione') && (
                 <div>
                   <span className="font-medium text-gray-500">Scuola:</span>
                   <p className="text-gray-900">
-                    {formData.scuolaDenominazione}, {formData.scuolaCitta} ({formData.scuolaProvincia})
+                    {getCompleteData('scuolaDenominazione')}, {getCompleteData('scuolaCitta')} ({getCompleteData('scuolaProvincia')})
                   </p>
                 </div>
               )}
@@ -852,7 +935,7 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
                 {offerInfo?.offerType === 'CERTIFICATION' ? 'Certificazione:' : 'Corso Selezionato:'}
               </span>
               <p className="text-gray-900">
-                {offerInfo ? offerInfo.course.name : (formData.courseId || 'Non selezionato')}
+                {offerInfo ? offerInfo.name : (formData.courseId || 'Non selezionato')}
               </p>
             </div>
             <div>

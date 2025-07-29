@@ -919,7 +919,7 @@ class EmailService {
                     </div>
                     <div class="info-row">
                         <span class="info-label">Tipologia:</span>
-                        <span class="info-value">${enrollmentData.offerType === 'TFA_ROMANIA' ? 'TFA Sostegno Romania' : 'Certificazione'}</span>
+                        <span class="info-value">${enrollmentData.offerType === 'TFA_ROMANIA' ? 'TFA' : 'Certificazione'}</span>
                     </div>
                     <div class="info-row">
                         <span class="info-label">ID Iscrizione:</span>

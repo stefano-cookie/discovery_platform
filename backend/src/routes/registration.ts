@@ -76,18 +76,18 @@ router.get('/offer-info/:referralLink', async (req, res) => {
     res.json({
       offer,
       formConfig: {
-        type: offer.offerType,
-        steps: offer.offerType === 'TFA_ROMANIA' 
+        templateType: offer.course.templateType,
+        steps: offer.course.templateType === 'TFA' 
           ? ['generale', 'residenza', 'istruzione', 'professione', 'documenti', 'opzioni', 'riepilogo']
           : ['generale', 'residenza', 'documenti', 'opzioni', 'riepilogo'],
-        requiredFields: offer.offerType === 'TFA_ROMANIA'
+        requiredFields: offer.course.templateType === 'TFA'
           ? {
               generale: ['email', 'cognome', 'nome', 'dataNascita', 'luogoNascita', 'codiceFiscale', 'telefono', 'nomePadre', 'nomeMadre'],
               documenti: ['cartaIdentita', 'diplomoLaurea', 'pergamenaLaurea', 'certificatoMedico', 'certificatoNascita']
             }
           : {
               generale: ['email', 'cognome', 'nome', 'dataNascita', 'luogoNascita', 'codiceFiscale', 'telefono'],
-              documenti: ['cartaIdentita', 'tesseriaSanitaria']
+              documenti: ['cartaIdentita', 'codiceFiscale']
             }
       }
     });
@@ -216,7 +216,7 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
           partnerId: partnerId || 'default-partner-id',
           courseId: courseId,
           partnerOfferId: partnerOfferId,
-          offerType: offer?.offerType || 'TFA_ROMANIA',
+          offerType: offer?.course?.templateType === 'CERTIFICATION' ? 'CERTIFICATION' : 'TFA_ROMANIA',
           originalAmount: paymentPlan.originalAmount || 0,
           finalAmount: paymentPlan.finalAmount || 0,
           installments: paymentPlan.installments || 1,
@@ -241,67 +241,93 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
       
       const installments = paymentPlan.installments || 1;
       const finalAmount = Number(paymentPlan.finalAmount) || 0;
-      const registrationOfferType = offer?.offerType || 'TFA_ROMANIA';
+      const registrationOfferType = offer?.course?.templateType === 'CERTIFICATION' ? 'CERTIFICATION' : 'TFA_ROMANIA';
       
       console.log(`Creating payment deadlines for authenticated user registration ${registration.id}:`, {
         installments,
         finalAmount,
-        offerType: registrationOfferType
+        offerType: registrationOfferType,
+        hasCustomPlan: !!offer?.customPaymentPlan
       });
       
-      let downPayment = 0;
-      let installmentableAmount = finalAmount;
-      
-      if (registrationOfferType === 'TFA_ROMANIA') {
-        downPayment = 1500;
-        installmentableAmount = Math.max(0, finalAmount - downPayment);
-      }
-      
-      if (installments > 1) {
-        const amountPerInstallment = installmentableAmount / installments;
+      // Check if offer has custom payment plan
+      if (offer?.customPaymentPlan && typeof offer.customPaymentPlan === 'object' && 'payments' in offer.customPaymentPlan) {
+        // Use custom payment plan from offer
+        const customPayments = (offer.customPaymentPlan as any).payments;
+        console.log(`Using custom payment plan with ${customPayments.length} payments:`, customPayments);
         
-        if (downPayment > 0) {
-          const downPaymentDate = new Date();
-          downPaymentDate.setDate(downPaymentDate.getDate() + 1);
+        for (let i = 0; i < customPayments.length; i++) {
+          const payment = customPayments[i];
+          const dueDate = new Date(payment.dueDate);
           
           await tx.paymentDeadline.create({
             data: {
               registrationId: registration.id,
-              amount: downPayment,
-              dueDate: downPaymentDate,
-              paymentNumber: 0,
-              isPaid: false
-            }
-          });
-        }
-        
-        for (let i = 0; i < installments; i++) {
-          const dueDate = new Date();
-          dueDate.setMonth(dueDate.getMonth() + i + 1);
-          
-          await tx.paymentDeadline.create({
-            data: {
-              registrationId: registration.id,
-              amount: amountPerInstallment,
+              amount: Number(payment.amount),
               dueDate: dueDate,
               paymentNumber: i + 1,
               isPaid: false
             }
           });
+          
+          console.log(`Created custom payment deadline ${i + 1}:`, payment);
         }
       } else {
-        const dueDate = new Date();
-        dueDate.setDate(dueDate.getDate() + 1);
+        // Use standard payment logic
+        let downPayment = 0;
+        let installmentableAmount = finalAmount;
         
-        await tx.paymentDeadline.create({
-          data: {
-            registrationId: registration.id,
-            amount: finalAmount,
-            dueDate: dueDate,
-            paymentNumber: 1,
-            isPaid: false
+        if (registrationOfferType === 'TFA_ROMANIA') {
+          downPayment = 1500;
+          installmentableAmount = Math.max(0, finalAmount - downPayment);
+        }
+        
+        if (installments > 1) {
+          const amountPerInstallment = installmentableAmount / installments;
+          
+          if (downPayment > 0) {
+            const downPaymentDate = new Date();
+            downPaymentDate.setDate(downPaymentDate.getDate() + 1);
+            
+            await tx.paymentDeadline.create({
+              data: {
+                registrationId: registration.id,
+                amount: downPayment,
+                dueDate: downPaymentDate,
+                paymentNumber: 0,
+                isPaid: false
+              }
+            });
           }
-        });
+          
+          for (let i = 0; i < installments; i++) {
+            const dueDate = new Date();
+            dueDate.setMonth(dueDate.getMonth() + i + 1);
+            
+            await tx.paymentDeadline.create({
+              data: {
+                registrationId: registration.id,
+                amount: amountPerInstallment,
+                dueDate: dueDate,
+                paymentNumber: i + 1,
+                isPaid: false
+              }
+            });
+          }
+        } else {
+          const dueDate = new Date();
+          dueDate.setDate(dueDate.getDate() + 1);
+          
+          await tx.paymentDeadline.create({
+            data: {
+              registrationId: registration.id,
+              amount: finalAmount,
+              dueDate: dueDate,
+              paymentNumber: 1,
+              isPaid: false
+            }
+          });
+        }
       }
       
       // Link existing user documents to new registration if needed
@@ -474,7 +500,7 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
           partnerId: partnerId || 'default-partner-id',
           courseId: courseId,
           partnerOfferId: partnerOfferId,
-          offerType: offer?.offerType || 'TFA_ROMANIA',
+          offerType: offer?.course?.templateType === 'CERTIFICATION' ? 'CERTIFICATION' : 'TFA_ROMANIA',
           originalAmount: paymentPlan.originalAmount || 0,
           finalAmount: paymentPlan.finalAmount || 0,
           installments: paymentPlan.installments || 1,
@@ -495,79 +521,105 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
         }
       });
       
-      // Create payment deadlines (same logic as authenticated enrollment)
+      // Create payment deadlines based on offer's custom payment plan or standard logic
       const installments = paymentPlan.installments || 1;
       const finalAmount = Number(paymentPlan.finalAmount) || 0;
-      const registrationOfferType = offer?.offerType || 'TFA_ROMANIA';
+      const registrationOfferType = offer?.course?.templateType === 'CERTIFICATION' ? 'CERTIFICATION' : 'TFA_ROMANIA';
       
       console.log(`Creating payment deadlines for registration ${registration.id}:`, {
         installments,
         finalAmount,
-        offerType: registrationOfferType
+        offerType: registrationOfferType,
+        hasCustomPlan: !!offer?.customPaymentPlan
       });
       
-      let downPayment = 0;
-      let installmentableAmount = finalAmount;
-      
-      if (registrationOfferType === 'TFA_ROMANIA') {
-        downPayment = 1500;
-        installmentableAmount = Math.max(0, finalAmount - downPayment);
-      }
-      
-      if (installments > 1) {
-        const amountPerInstallment = installmentableAmount / installments;
+      // Check if offer has custom payment plan
+      if (offer?.customPaymentPlan && typeof offer.customPaymentPlan === 'object' && 'payments' in offer.customPaymentPlan) {
+        // Use custom payment plan from offer
+        const customPayments = (offer.customPaymentPlan as any).payments;
+        console.log(`Using custom payment plan with ${customPayments.length} payments:`, customPayments);
         
-        // Create down payment deadline for TFA Romania
-        if (downPayment > 0) {
-          const downPaymentDate = new Date();
-          downPaymentDate.setDate(downPaymentDate.getDate() + 1);
+        for (let i = 0; i < customPayments.length; i++) {
+          const payment = customPayments[i];
+          const dueDate = new Date(payment.dueDate);
           
-          const downPaymentDeadline = await tx.paymentDeadline.create({
+          const customDeadline = await tx.paymentDeadline.create({
             data: {
               registrationId: registration.id,
-              amount: downPayment,
-              dueDate: downPaymentDate,
-              paymentNumber: 0,
-              isPaid: false
-            }
-          });
-          
-          console.log(`Created down payment deadline:`, downPaymentDeadline);
-        }
-        
-        // Create installment deadlines
-        for (let i = 0; i < installments; i++) {
-          const dueDate = new Date();
-          dueDate.setMonth(dueDate.getMonth() + i + 1);
-          
-          const installmentDeadline = await tx.paymentDeadline.create({
-            data: {
-              registrationId: registration.id,
-              amount: amountPerInstallment,
+              amount: Number(payment.amount),
               dueDate: dueDate,
               paymentNumber: i + 1,
               isPaid: false
             }
           });
           
-          console.log(`Created installment deadline ${i + 1}:`, installmentDeadline);
+          console.log(`Created custom payment deadline ${i + 1}:`, customDeadline);
         }
       } else {
-        // Single payment
-        const dueDate = new Date();
-        dueDate.setDate(dueDate.getDate() + 1);
+        // Use standard payment logic
+        let downPayment = 0;
+        let installmentableAmount = finalAmount;
         
-        const singlePaymentDeadline = await tx.paymentDeadline.create({
-          data: {
-            registrationId: registration.id,
-            amount: finalAmount,
-            dueDate: dueDate,
-            paymentNumber: 1,
-            isPaid: false
+        if (registrationOfferType === 'TFA_ROMANIA') {
+          downPayment = 1500;
+          installmentableAmount = Math.max(0, finalAmount - downPayment);
+        }
+        
+        if (installments > 1) {
+          const amountPerInstallment = installmentableAmount / installments;
+          
+          // Create down payment deadline for TFA Romania
+          if (downPayment > 0) {
+            const downPaymentDate = new Date();
+            downPaymentDate.setDate(downPaymentDate.getDate() + 1);
+            
+            const downPaymentDeadline = await tx.paymentDeadline.create({
+              data: {
+                registrationId: registration.id,
+                amount: downPayment,
+                dueDate: downPaymentDate,
+                paymentNumber: 0,
+                isPaid: false
+              }
+            });
+            
+            console.log(`Created down payment deadline:`, downPaymentDeadline);
           }
-        });
-        
-        console.log(`Created single payment deadline:`, singlePaymentDeadline);
+          
+          // Create installment deadlines
+          for (let i = 0; i < installments; i++) {
+            const dueDate = new Date();
+            dueDate.setMonth(dueDate.getMonth() + i + 1);
+            
+            const installmentDeadline = await tx.paymentDeadline.create({
+              data: {
+                registrationId: registration.id,
+                amount: amountPerInstallment,
+                dueDate: dueDate,
+                paymentNumber: i + 1,
+                isPaid: false
+              }
+            });
+            
+            console.log(`Created installment deadline ${i + 1}:`, installmentDeadline);
+          }
+        } else {
+          // Single payment
+          const dueDate = new Date();
+          dueDate.setDate(dueDate.getDate() + 1);
+          
+          const singlePaymentDeadline = await tx.paymentDeadline.create({
+            data: {
+              registrationId: registration.id,
+              amount: finalAmount,
+              dueDate: dueDate,
+              paymentNumber: 1,
+              isPaid: false
+            }
+          });
+          
+          console.log(`Created single payment deadline:`, singlePaymentDeadline);
+        }
       }
       
       return registration;

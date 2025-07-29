@@ -216,7 +216,33 @@ router.post('/submit', handleAuthOrVerifiedEmail, upload.fields([
 
       // Create payment deadlines based on installments
       const paymentDeadlines = [];
-      const amountPerInstallment = finalAmount / installments;
+      
+      // For TFA Romania, account for down payment
+      let downPayment = 0;
+      let installmentableAmount = finalAmount;
+      
+      if (courseInfo?.templateType === 'TFA') {
+        downPayment = 1500;
+        installmentableAmount = Math.max(0, finalAmount - downPayment);
+      }
+      
+      const amountPerInstallment = installments > 1 ? installmentableAmount / installments : finalAmount;
+      
+      // Create down payment deadline for TFA Romania
+      if (downPayment > 0 && installments > 1) {
+        const downPaymentDate = new Date();
+        downPaymentDate.setDate(downPaymentDate.getDate() + 1);
+        
+        const downPaymentDeadline = await tx.paymentDeadline.create({
+          data: {
+            registrationId: registration.id,
+            amount: downPayment,
+            dueDate: downPaymentDate,
+            paymentNumber: 0
+          }
+        });
+        paymentDeadlines.push(downPaymentDeadline);
+      }
       
       for (let i = 0; i < installments; i++) {
         const dueDate = new Date();

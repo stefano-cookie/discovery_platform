@@ -40,19 +40,17 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
     // Controlla se l'utente ha già un profilo (autenticato o verificato via email)
     const hasExistingProfile = !!(currentUser || emailVerified === 'true');
     
-    // Il DATABASE offerType ha PRECEDENZA sul riconoscimento del nome
-    // Determina il tipo corretto basandosi prima su offerType, poi sul nome
-    const actualOfferType = offerInfo?.offerType || 'TFA_ROMANIA';
-    const isTfaRomania = actualOfferType === 'TFA_ROMANIA' || 
-                         (actualOfferType === 'CERTIFICATION' && 
-                          (offerInfo?.name?.includes('TFA') || offerInfo?.name?.includes('Corso di Formazione Diamante')));
+    // Usa il templateType del corso per determinare il tipo di form
+    // Il course.templateType definisce quale form mostrare (TFA o CERTIFICATION)
+    const courseTemplate = offerInfo?.course?.templateType || 'TFA';
+    const isTfaRomania = courseTemplate === 'TFA';
     
     
-    if (actualOfferType === 'CERTIFICATION' && !isTfaRomania) {
+    if (!isTfaRomania) {
       // Form certificazioni: per utenti già registrati salta direttamente a documenti
       return {
         steps: ['documenti', 'opzioni', 'riepilogo'],
-        offerType: 'CERTIFICATION' as const,
+        templateType: 'CERTIFICATION' as const,
         requiredFields: {
           // Non include più i dati base perché l'utente è già registrato
           documenti: [],
@@ -67,7 +65,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
       // Utente già registrato - aggiungi mini-step per dati TFA specifici (padre/madre)
       return {
         steps: ['datiFamiliari', 'istruzione', 'professione', 'documenti', 'opzioni', 'riepilogo'],
-        offerType: actualOfferType as 'TFA_ROMANIA' | 'CERTIFICATION',
+        templateType: 'TFA' as const,
         requiredFields: {
           datiFamiliari: ['nomePadre', 'nomeMadre'], // Solo i dati mancanti per TFA
           istruzione: ['tipoLaurea', 'laureaConseguita', 'laureaUniversita', 'laureaData', 'tipoLaureaTriennale', 'laureaConseguitaTriennale', 'laureaUniversitaTriennale', 'laureaDataTriennale'],
@@ -81,7 +79,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
       // Utente non registrato - mostra tutti gli step (caso legacy)
       return {
         steps: ['generale', 'istruzione', 'professione', 'documenti', 'opzioni', 'riepilogo'],
-        offerType: actualOfferType as 'TFA_ROMANIA' | 'CERTIFICATION',
+        templateType: 'TFA' as const,
         requiredFields: {
           generale: ['email', 'cognome', 'nome', 'dataNascita', 'luogoNascita', 'codiceFiscale', 'telefono', 'nomePadre', 'nomeMadre', 'residenzaVia', 'residenzaCitta', 'residenzaProvincia', 'residenzaCap'],
           istruzione: ['tipoLaurea', 'laureaConseguita', 'laureaUniversita', 'laureaData', 'tipoLaureaTriennale', 'laureaConseguitaTriennale', 'laureaUniversitaTriennale', 'laureaDataTriennale'],
@@ -370,19 +368,15 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
     return () => clearInterval(autoSaveInterval);
   }, [formData, saveCurrentData]);
 
-  // Clear any stale additional enrollment data on mount if not coming from dashboard
+  // Cleanup - remove legacy localStorage items on mount
   useEffect(() => {
-    const isAdditionalEnrollment = localStorage.getItem('isAdditionalEnrollment') === 'true';
-    const referralFromStorage = localStorage.getItem('registrationReferralCode');
-    
-    // If we have a referral code that doesn't match storage and there's additional enrollment data,
-    // it means user navigated to a different registration - clear the additional enrollment data
-    if (referralCode && referralFromStorage !== referralCode && isAdditionalEnrollment) {
-      localStorage.removeItem('registrationFormData');
-      localStorage.removeItem('isAdditionalEnrollment');
-      localStorage.removeItem('userDocuments');
-    }
-  }, [referralCode]);
+    // Clean up any legacy localStorage items that were used for step skipping
+    localStorage.removeItem('registrationFormData');
+    localStorage.removeItem('isAdditionalEnrollment');
+    localStorage.removeItem('userDocuments');
+    localStorage.removeItem('registrationReferralCode');
+    localStorage.removeItem('registrationFormStep');
+  }, []);
 
   const shouldShowStep = (stepName: string) => stepConfig.steps.includes(stepName);
   
@@ -422,7 +416,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
             onNext={handleStepComplete}
             onChange={updateFormData}
             referralCode={referralCode}
-            offerType={stepConfig.offerType}
+            templateType={stepConfig.templateType}
             requiredFields={stepConfig.requiredFields.generale || []}
             offerInfo={offerInfo}
           />
@@ -434,7 +428,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
             onNext={handleStepComplete}
             onChange={updateFormData}
             referralCode={referralCode}
-            offerType={stepConfig.offerType}
+            templateType={stepConfig.templateType}
             requiredFields={stepConfig.requiredFields.datiFamiliari || []}
             offerInfo={offerInfo}
           />
@@ -469,7 +463,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
             data={formData}
             onNext={handleStepComplete}
             onChange={updateFormData}
-            offerType={stepConfig.offerType}
+            templateType={stepConfig.templateType}
             requiredFields={stepConfig.requiredFields.documenti || []}
           />
         );

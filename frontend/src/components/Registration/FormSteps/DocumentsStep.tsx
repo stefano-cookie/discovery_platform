@@ -7,7 +7,7 @@ interface DocumentsStepProps {
   data: Partial<DocumentsForm>;
   onNext: (data: DocumentsForm) => void;
   onChange?: (data: Partial<DocumentsForm>) => void;
-  offerType?: 'TFA_ROMANIA' | 'CERTIFICATION';
+  templateType?: 'TFA' | 'CERTIFICATION';
   requiredFields?: string[];
 }
 
@@ -175,7 +175,7 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
   data, 
   onNext, 
   onChange,
-  offerType = 'TFA_ROMANIA',
+  templateType = 'TFA',
   requiredFields = []
 }) => {
   // Check if this is additional enrollment and load existing documents
@@ -369,7 +369,7 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
         )}
 
         <div className="space-y-8">
-          {/* Carta d'identità */}
+          {/* Carta d'identità - Per tutti i tipi */}
           <FileUpload
             label="Carta d'Identità"
             description="Fronte e retro della carta d'identità o passaporto in corso di validità"
@@ -379,8 +379,30 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
             error={errors.cartaIdentita?.message as string}
           />
 
-          {/* Sezione Certificati di Laurea - only for TFA Romania */}
-          {offerType === 'TFA_ROMANIA' && (
+          {/* Sezione specifica per Certificazioni */}
+          {templateType === 'CERTIFICATION' && (
+            <div className="border-l-4 border-green-500 pl-6">
+              <h4 className="text-md font-semibold text-gray-900 mb-4 flex items-center">
+                <svg className="w-5 h-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" clipRule="evenodd" />
+                </svg>
+                Documenti Certificazione
+              </h4>
+              <div className="space-y-4">
+                <FileUpload
+                  label="Codice Fiscale / Tessera Sanitaria"
+                  description="Tessera sanitaria o documento che attesti il codice fiscale"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  value={files.certificatoMedico}
+                  onChange={(file) => handleFileChange('certificatoMedico', file)}
+                  error={errors.certificatoMedico?.message as string}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Sezione Certificati di Laurea - only for TFA template */}
+          {templateType === 'TFA' && (
             <>
               <div className="border-l-4 border-blue-500 pl-6">
                 <h4 className="text-md font-semibold text-gray-900 mb-4 flex items-center">
@@ -441,57 +463,54 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
             </>
           )}
 
-          {/* Altri Documenti */}
-          <div className="border-l-4 border-gray-500 pl-6">
-            <h4 className="text-md font-semibold text-gray-900 mb-4 flex items-center">
-              <svg className="w-5 h-5 text-gray-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-              Altri Documenti
-            </h4>
-            <div className="space-y-4">
-              {/* Certificato medico - only for TFA Romania */}
-              {offerType === 'TFA_ROMANIA' && (
-                <>
-                  <FileUpload
-                    label="Certificato Medico di Sana e Robusta Costituzione"
-                    description="Certificato medico attestante la sana e robusta costituzione fisica e psichica"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    value={files.certificatoMedico}
-                    onChange={(file) => handleFileChange('certificatoMedico', file)}
-                    error={errors.certificatoMedico?.message as string}
-                  />
-                  
-                  <FileUpload
-                    label="Certificato di Nascita"
-                    description="Certificato di nascita o estratto di nascita dal Comune"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    value={files.certificatoNascita}
-                    onChange={(file) => handleFileChange('certificatoNascita', file)}
-                    error={errors.certificatoNascita?.message as string}
-                  />
-                </>
-              )}
-              
-              <FileUpload
-                label="Diploma di Laurea"
-                description="Diploma di laurea (cartaceo o digitale)"
-                accept=".pdf,.jpg,.jpeg,.png"
-                value={files.diplomoLaurea}
-                onChange={(file) => handleFileChange('diplomoLaurea', file)}
-                error={errors.diplomoLaurea?.message as string}
-              />
-              
-              <FileUpload
-                label="Pergamena di Laurea"
-                description="Pergamena di laurea (documento originale)"
-                accept=".pdf,.jpg,.jpeg,.png"
-                value={files.pergamenaLaurea}
-                onChange={(file) => handleFileChange('pergamenaLaurea', file)}
-                error={errors.pergamenaLaurea?.message as string}
-              />
+          {/* Altri Documenti - only for TFA template */}
+          {templateType === 'TFA' && (
+            <div className="border-l-4 border-gray-500 pl-6">
+              <h4 className="text-md font-semibold text-gray-900 mb-4 flex items-center">
+                <svg className="w-5 h-5 text-gray-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                Altri Documenti
+              </h4>
+              <div className="space-y-4">
+                <FileUpload
+                  label="Certificato Medico di Sana e Robusta Costituzione"
+                  description="Certificato medico attestante la sana e robusta costituzione fisica e psichica"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  value={files.certificatoMedico}
+                  onChange={(file) => handleFileChange('certificatoMedico', file)}
+                  error={errors.certificatoMedico?.message as string}
+                />
+                
+                <FileUpload
+                  label="Certificato di Nascita"
+                  description="Certificato di nascita o estratto di nascita dal Comune"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  value={files.certificatoNascita}
+                  onChange={(file) => handleFileChange('certificatoNascita', file)}
+                  error={errors.certificatoNascita?.message as string}
+                />
+                          
+                <FileUpload
+                  label="Diploma di Laurea"
+                  description="Diploma di laurea (cartaceo o digitale)"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  value={files.diplomoLaurea}
+                  onChange={(file) => handleFileChange('diplomoLaurea', file)}
+                  error={errors.diplomoLaurea?.message as string}
+                />
+                
+                <FileUpload
+                  label="Pergamena di Laurea"
+                  description="Pergamena di laurea (documento originale)"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  value={files.pergamenaLaurea}
+                  onChange={(file) => handleFileChange('pergamenaLaurea', file)}
+                  error={errors.pergamenaLaurea?.message as string}
+                />
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -505,8 +524,8 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
               <p className="text-blue-800 text-sm font-medium mb-1">Informazione</p>
               <ul className="text-blue-700 text-sm space-y-1">
                 <li>• Tutti i documenti sono opzionali e possono essere caricati in un secondo momento</li>
-                {offerType === 'CERTIFICATION' && (
-                  <li>• <strong>Iscrizione Certificazione:</strong> Richiesti solo i documenti essenziali</li>
+                {templateType === 'CERTIFICATION' && (
+                  <li>• <strong>Iscrizione Certificazione:</strong> Richiesti solo i documenti essenziali (documento d'identità e codice fiscale)</li>
                 )}
                 <li>• I documenti devono essere leggibili e in buona qualità</li>
                 <li>• Formati accettati: PDF, JPG, PNG</li>

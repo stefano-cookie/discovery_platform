@@ -16,7 +16,7 @@ interface GeneralDataStepProps {
   onNext: (data: GeneralDataForm) => void;
   onChange?: (data: Partial<GeneralDataForm>) => void;
   referralCode?: string;
-  offerType?: 'TFA_ROMANIA' | 'CERTIFICATION';
+  templateType?: 'TFA' | 'CERTIFICATION';
   requiredFields?: string[];
   offerInfo?: OfferInfo | null;
 }
@@ -26,7 +26,7 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
   onNext, 
   onChange, 
   referralCode,
-  offerType = 'TFA_ROMANIA',
+  templateType = 'TFA',
   requiredFields: _requiredFields = [],
   offerInfo: _offerInfo
 }) => {
@@ -47,8 +47,8 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
       shouldShowField = ['nomePadre', 'nomeMadre'].includes(fieldName);
       isRequired = _requiredFields.includes(fieldName);
     } else {
-      // Registration mode - show all fields based on offer type
-      isRequired = offerType === 'TFA_ROMANIA' 
+      // Registration mode - show all fields based on template type
+      isRequired = templateType === 'TFA' 
         ? ['email', 'cognome', 'nome', 'dataNascita', 'luogoNascita', 'codiceFiscale', 'telefono', 'nomePadre', 'nomeMadre'].includes(fieldName)
         : ['email', 'cognome', 'nome', 'dataNascita', 'luogoNascita', 'codiceFiscale', 'telefono'].includes(fieldName);
       shouldShowField = true;
@@ -81,6 +81,7 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
     handleSubmit,
     watch,
     setValue,
+    trigger,
     formState: { errors },
   } = useForm<GeneralDataForm>({
     resolver: zodResolver(generalDataSchema),
@@ -134,13 +135,35 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
       const currentCity = watchedLuogoNascita;
       if (currentCity && !citiesForProvince.some(city => city.value === currentCity)) {
         setValue('luogoNascita', '');
+        trigger('luogoNascita'); // Trigger validation after clearing
       }
     } else {
       setCityOptions([]);
       setValue('luogoNascita', '');
+      trigger('luogoNascita'); // Trigger validation after clearing
     }
     
-  }, [watchedProvinciaNascita, setValue, watchedLuogoNascita]);
+  }, [watchedProvinciaNascita, setValue, watchedLuogoNascita, trigger]);
+
+  // Notify parent component of form data changes
+  useEffect(() => {
+    if (onChange) {
+      const currentData = {
+        email: watchedEmail,
+        cognome: watchedCognome,
+        nome: watchedNome,
+        dataNascita: watchedDataNascita,
+        provinciaNascita: watchedProvinciaNascita,
+        luogoNascita: watchedLuogoNascita,
+        sesso: watch('sesso'),
+        codiceFiscale: watchedCodiceFiscale,
+        telefono: watch('telefono'),
+        nomePadre: watch('nomePadre'),
+        nomeMadre: watch('nomeMadre'),
+      };
+      onChange(currentData);
+    }
+  }, [watchedEmail, watchedCognome, watchedNome, watchedDataNascita, watchedProvinciaNascita, watchedLuogoNascita, watchedCodiceFiscale, onChange, watch]);
 
   // Check if email already exists in real-time
   useEffect(() => {
@@ -349,6 +372,13 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
       return;
     }
     
+    // Additional validation for place of birth
+    if (!formData.luogoNascita || formData.luogoNascita.trim() === '') {
+      setFormError('Il campo "Luogo di Nascita" è obbligatorio. Seleziona prima la provincia di nascita, poi scegli la città.');
+      return;
+    }
+    
+    console.log('Form submission data:', formData); // Debug log
     onNext(formData);
   };
 
@@ -586,7 +616,7 @@ Rigenera automaticamente
 
         <div></div>
 
-        {offerType === 'TFA_ROMANIA' && (() => {
+        {templateType === 'TFA' && (() => {
           const padreStatus = getFieldStatus('nomePadre');
           const madreStatus = getFieldStatus('nomeMadre');
           
