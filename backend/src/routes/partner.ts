@@ -517,6 +517,90 @@ router.post('/coupons/validate', authenticate, requireRole(['PARTNER', 'ADMIN'])
   }
 });
 
+// Get coupon usage logs with user details
+router.get('/coupons/:couponId/usage-logs', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { couponId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify coupon belongs to this partner
+    const coupon = await prisma.coupon.findFirst({
+      where: {
+        id: couponId,
+        partnerId: partnerId
+      }
+    });
+
+    if (!coupon) {
+      return res.status(404).json({ error: 'Coupon non trovato' });
+    }
+
+    // Get usage logs with user and registration details
+    const usageLogs = await prisma.couponUse.findMany({
+      where: { couponId: couponId },
+      include: {
+        registration: {
+          include: {
+            user: {
+              include: {
+                profile: {
+                  select: {
+                    nome: true,
+                    cognome: true
+                  }
+                }
+              }
+            },
+            offer: {
+              select: {
+                name: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: { usedAt: 'desc' }
+    });
+
+    // Transform data for frontend
+    const formattedLogs = usageLogs.map(log => ({
+      id: log.id,
+      usedAt: log.usedAt,
+      discountApplied: log.discountApplied,
+      user: {
+        email: log.registration.user.email,
+        nome: log.registration.user.profile?.nome || 'N/A',
+        cognome: log.registration.user.profile?.cognome || 'N/A'
+      },
+      registration: {
+        id: log.registrationId,
+        offerName: log.registration.offer?.name || 'Offerta diretta'
+      }
+    }));
+
+    res.json({
+      coupon: {
+        id: coupon.id,
+        code: coupon.code,
+        discountType: coupon.discountType,
+        discountAmount: coupon.discountAmount,
+        discountPercent: coupon.discountPercent,
+        maxUses: coupon.maxUses,
+        usedCount: coupon.usedCount
+      },
+      usageLogs: formattedLogs,
+      totalUses: formattedLogs.length
+    });
+  } catch (error) {
+    console.error('Get coupon usage logs error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
 // GET /api/partners/offer-visibility/:offerId - Get offer visibility settings for users
 router.get('/offer-visibility/:offerId', authenticate, async (req: AuthRequest, res: ExpressResponse) => {
   try {

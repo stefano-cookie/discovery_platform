@@ -142,7 +142,14 @@ const UserDashboard: React.FC = () => {
   const getNextPaymentDue = (registration: UserRegistration) => {
     const unpaidDeadlines = registration.deadlines
       .filter(d => !d.isPaid)
-      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+      .sort((a, b) => {
+        // Priorità: acconto (paymentNumber 0) sempre per primo
+        if (a.paymentNumber === 0 && b.paymentNumber !== 0) return -1;
+        if (a.paymentNumber !== 0 && b.paymentNumber === 0) return 1;
+        
+        // Se entrambi sono acconto o entrambi sono rate, ordina per data
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      });
     
     return unpaidDeadlines[0] || null;
   };

@@ -218,6 +218,7 @@ model Registration {
   userDocuments   DocumentUsage[]
   payments        Payment[]
   deadlines       PaymentDeadline[]
+  couponUses      CouponUse[]
 }
 
 // Gestione accesso utenti alle offerte aggiuntive del partner
@@ -291,7 +292,8 @@ model CouponUse {
   discountApplied Decimal
   usedAt          DateTime @default(now())
   
-  coupon          Coupon   @relation(fields: [couponId], references: [id])
+  coupon          Coupon       @relation(fields: [couponId], references: [id])
+  registration    Registration @relation(fields: [registrationId], references: [id])
 }
 
 model UserDocument {

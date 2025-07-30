@@ -236,9 +236,10 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
           }
         },
         deadlines: {
-          orderBy: {
-            dueDate: 'asc'
-          }
+          orderBy: [
+            { paymentNumber: 'asc' },
+            { dueDate: 'asc' }
+          ]
         }
       },
       orderBy: { createdAt: 'desc' }

@@ -284,7 +284,24 @@ const UserDashboard: React.FC = () => {
                                 </span>
                               )}
                             </div>
-                            <div className="text-xs text-gray-400">{registration.installments} rate</div>
+                            <div className="text-xs text-gray-400">
+                              {registration.offerType === 'TFA_ROMANIA' ? (
+                                registration.finalAmount > 1500 && registration.installments > 1 ? (
+                                  <div>Acconto: €1.500 + {registration.installments} rate da €{Math.round((registration.finalAmount - 1500) / registration.installments).toLocaleString('it-IT')}</div>
+                                ) : registration.installments <= 1 ? (
+                                  <div>Pagamento €{registration.finalAmount.toLocaleString('it-IT')}</div>
+                                ) : (
+                                  <div>{registration.installments} rate da €{Math.round(registration.finalAmount / registration.installments).toLocaleString('it-IT')}</div>
+                                )
+                              ) : (
+                                <div>
+                                  {registration.installments <= 1 
+                                    ? `Pagamento €${registration.finalAmount.toLocaleString('it-IT')}`
+                                    : `${registration.installments} rate da €${Math.round(registration.finalAmount / registration.installments).toLocaleString('it-IT')}`
+                                  }
+                                </div>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {new Date(registration.createdAt).toLocaleDateString('it-IT')}
@@ -322,7 +339,7 @@ const UserDashboard: React.FC = () => {
                               }`}>
                                 <div className="flex items-center justify-between mb-1">
                                   <span className="text-sm font-medium">
-                                    Rata {deadline.paymentNumber}
+                                    {deadline.paymentNumber === 0 ? 'Acconto' : `Rata ${deadline.paymentNumber}`}
                                   </span>
                                   <span className={`text-xs px-2 py-1 rounded-full ${
                                     deadline.isPaid 

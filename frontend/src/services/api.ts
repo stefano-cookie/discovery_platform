@@ -151,9 +151,9 @@ export const submitEnrollment = async (data: RegistrationData): Promise<Registra
       partnerOfferId: data.partnerOfferId,
       referralCode: data.referralCode,
       paymentPlan: {
-        originalAmount: data.originalAmount || 5000,
-        finalAmount: data.finalAmount || data.originalAmount || 5000,
-        installments: data.installments || 1
+        originalAmount: data.originalAmount ?? 0,
+        finalAmount: data.finalAmount ?? data.originalAmount ?? 0,
+        installments: data.installments ?? 1
       },
       couponCode: data.couponCode,
       // Include course-specific data that goes into Registration table

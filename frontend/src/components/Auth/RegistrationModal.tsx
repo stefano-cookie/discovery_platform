@@ -147,6 +147,7 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<Partial<RegisterRequest>>({
     referralCode: referralCode || '',
+    privacyPolicy: false,
   });
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -256,6 +257,9 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
       formData.residenzaCap
     );
 
+    // Valida accettazione privacy policy
+    const privacyValid = formData.privacyPolicy === true;
+
     // Se ha domicilio diverso, valida anche quelli
     if (formData.hasDifferentDomicilio) {
       const domicilioValid = !!(
@@ -264,10 +268,10 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
         formData.domicilioProvincia &&
         formData.domicilioCap
       );
-      return residenzaValid && domicilioValid;
+      return residenzaValid && domicilioValid && privacyValid;
     }
 
-    return residenzaValid;
+    return residenzaValid && privacyValid;
   };
 
   const handleNext = () => {
@@ -955,6 +959,34 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* Privacy Policy Checkbox */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mt-6">
+                <div className="flex items-start space-x-3">
+                  <input
+                    type="checkbox"
+                    id="privacyPolicy"
+                    checked={formData.privacyPolicy || false}
+                    onChange={(e) => updateFormData('privacyPolicy', e.target.checked)}
+                    className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                    required
+                  />
+                  <label htmlFor="privacyPolicy" className="text-sm text-gray-700 cursor-pointer">
+                    <span className="font-medium">Accetto i termini e condizioni</span> e confermo di aver letto la{' '}
+                    <a 
+                      href="/privacy-policy" 
+                      target="_blank" 
+                      className="text-blue-600 hover:text-blue-700 underline font-medium"
+                    >
+                      Privacy Policy
+                    </a>
+                    {' '}dell'azienda. *
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500 mt-2 ml-7">
+                  Il consenso è obbligatorio per procedere con la registrazione.
+                </p>
+              </div>
 
               <div className="flex justify-between items-center pt-6">
                 <button

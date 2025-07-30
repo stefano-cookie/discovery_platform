@@ -6,6 +6,85 @@ import emailService from '../services/emailService';
 const router = Router();
 const prisma = new PrismaClient();
 
+// Helper function to apply coupon and record usage
+async function applyCouponAndRecordUsage(
+  couponCode: string, 
+  partnerId: string, 
+  registrationId: string, 
+  baseAmount: number,
+  tx: any // Prisma transaction client
+): Promise<{ finalAmount: number; couponApplied: boolean; discountApplied: number }> {
+  try {
+    // Find active coupon for this partner
+    const coupon = await tx.coupon.findFirst({
+      where: {
+        code: couponCode,
+        partnerId: partnerId,
+        isActive: true,
+        validFrom: { lte: new Date() },
+        validUntil: { gte: new Date() }
+      }
+    });
+
+    if (!coupon) {
+      return { finalAmount: baseAmount, couponApplied: false, discountApplied: 0 };
+    }
+
+    // Check usage limits
+    if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) {
+      console.warn(`Coupon ${couponCode} has reached usage limit: ${coupon.usedCount}/${coupon.maxUses}`);
+      return { finalAmount: baseAmount, couponApplied: false, discountApplied: 0 };
+    }
+
+    // Calculate discount
+    let finalAmount = baseAmount;
+    let discountApplied = 0;
+
+    if (coupon.discountType === 'PERCENTAGE') {
+      const discountPercent = Number(coupon.discountPercent || 0);
+      discountApplied = baseAmount * (discountPercent / 100);
+      finalAmount = baseAmount - discountApplied;
+    } else if (coupon.discountType === 'FIXED') {
+      discountApplied = Math.min(Number(coupon.discountAmount || 0), baseAmount);
+      finalAmount = Math.max(0, baseAmount - discountApplied);
+    }
+
+    // Record coupon usage
+    await tx.couponUse.create({
+      data: {
+        couponId: coupon.id,
+        registrationId: registrationId,
+        discountApplied: discountApplied,
+        usedAt: new Date()
+      }
+    });
+
+    // Increment usage counter
+    const updatedCoupon = await tx.coupon.update({
+      where: { id: coupon.id },
+      data: { 
+        usedCount: { increment: 1 }
+      }
+    });
+
+    // Check if coupon should be deactivated (reached max uses)
+    if (updatedCoupon.maxUses && updatedCoupon.usedCount >= updatedCoupon.maxUses) {
+      await tx.coupon.update({
+        where: { id: coupon.id },
+        data: { isActive: false }
+      });
+      console.log(`Coupon ${couponCode} deactivated after reaching usage limit: ${updatedCoupon.usedCount}/${updatedCoupon.maxUses}`);
+    }
+
+    console.log(`Applied coupon ${couponCode}: ${baseAmount} -> ${finalAmount} (discount: ${discountApplied})`);
+    return { finalAmount, couponApplied: true, discountApplied };
+
+  } catch (error) {
+    console.error('Error applying coupon:', error);
+    return { finalAmount: baseAmount, couponApplied: false, discountApplied: 0 };
+  }
+}
+
 // NOTE: File upload configuration moved to the document upload endpoint
 // since enrollment now handles documents separately
 
@@ -209,6 +288,11 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
     }
     
     const result = await prisma.$transaction(async (tx) => {
+      // Determine default amounts based on offer type
+      const isCertification = offer?.course?.templateType === 'CERTIFICATION';
+      const defaultAmount = isCertification ? 1500 : 4500;
+      const offerAmount = Number(offer?.totalAmount) || defaultAmount;
+      
       // Create new registration with course-specific data
       const registration = await tx.registration.create({
         data: {
@@ -216,10 +300,10 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
           partnerId: partnerId || 'default-partner-id',
           courseId: courseId,
           partnerOfferId: partnerOfferId,
-          offerType: offer?.course?.templateType === 'CERTIFICATION' ? 'CERTIFICATION' : 'TFA_ROMANIA',
-          originalAmount: paymentPlan.originalAmount || 0,
-          finalAmount: paymentPlan.finalAmount || 0,
-          installments: paymentPlan.installments || 1,
+          offerType: isCertification ? 'CERTIFICATION' : 'TFA_ROMANIA',
+          originalAmount: paymentPlan.originalAmount || offerAmount,
+          finalAmount: paymentPlan.finalAmount || offerAmount,
+          installments: paymentPlan.installments || offer?.installments || 1,
           status: 'PENDING',
           // Course-specific data from courseData object
           tipoLaurea: courseData.tipoLaurea || null,
@@ -240,8 +324,42 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
       });
       
       const installments = paymentPlan.installments || 1;
-      const finalAmount = Number(paymentPlan.finalAmount) || 0;
+      let finalAmount = Number(paymentPlan.finalAmount) || 0;
       const registrationOfferType = offer?.course?.templateType === 'CERTIFICATION' ? 'CERTIFICATION' : 'TFA_ROMANIA';
+      
+      // FALLBACK: If finalAmount is 0, use offer's totalAmount
+      if (finalAmount === 0 && offer && offer.totalAmount) {
+        finalAmount = Number(offer.totalAmount);
+        console.log(`⚠️ FinalAmount was 0, using offer totalAmount: ${finalAmount}`);
+      }
+      
+      
+      // Apply coupon if provided
+      if (couponCode && partnerId) {
+        const originalAmount = Number(paymentPlan.originalAmount) || offerAmount;
+        const couponResult = await applyCouponAndRecordUsage(
+          couponCode, 
+          partnerId, 
+          registration.id, 
+          originalAmount,
+          tx
+        );
+        
+        if (couponResult.couponApplied) {
+          finalAmount = couponResult.finalAmount;
+          
+          // Update registration with corrected amounts
+          await tx.registration.update({
+            where: { id: registration.id },
+            data: {
+              originalAmount: originalAmount,
+              finalAmount: finalAmount
+            }
+          });
+          
+          console.log(`Coupon applied to registration ${registration.id}: ${originalAmount} -> ${finalAmount}`);
+        }
+      }
       
       console.log(`Creating payment deadlines for authenticated user registration ${registration.id}:`, {
         installments,
@@ -256,21 +374,61 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
         const customPayments = (offer.customPaymentPlan as any).payments;
         console.log(`Using custom payment plan with ${customPayments.length} payments:`, customPayments);
         
-        for (let i = 0; i < customPayments.length; i++) {
-          const payment = customPayments[i];
-          const dueDate = new Date(payment.dueDate);
+        // FOR TFA ROMANIA: Add €1500 down payment before custom installments
+        if (registrationOfferType === 'TFA_ROMANIA' && customPayments.length > 1) {
+          const downPaymentDate = new Date();
+          downPaymentDate.setDate(downPaymentDate.getDate() + 1);
           
           await tx.paymentDeadline.create({
             data: {
               registrationId: registration.id,
-              amount: Number(payment.amount),
-              dueDate: dueDate,
-              paymentNumber: i + 1,
+              amount: 1500,
+              dueDate: downPaymentDate,
+              paymentNumber: 0,
               isPaid: false
             }
           });
           
-          console.log(`Created custom payment deadline ${i + 1}:`, payment);
+          console.log(`Created TFA Romania down payment deadline: €1500`);
+          
+          // Recalculate custom payment amounts for TFA Romania (subtract €1500 from total)
+          const remainingAmount = finalAmount - 1500;
+          const amountPerInstallment = remainingAmount / customPayments.length;
+          
+          for (let i = 0; i < customPayments.length; i++) {
+            const payment = customPayments[i];
+            const dueDate = new Date(payment.dueDate);
+            
+            await tx.paymentDeadline.create({
+              data: {
+                registrationId: registration.id,
+                amount: Math.round(amountPerInstallment * 100) / 100, // Use calculated amount for TFA Romania
+                dueDate: dueDate,
+                paymentNumber: i + 1,
+                isPaid: false
+              }
+            });
+            
+            console.log(`Created TFA custom payment deadline ${i + 1}: €${amountPerInstallment} (recalculated)`);
+          }
+        } else {
+          // For CERTIFICATIONS or TFA single payment: use original custom amounts
+          for (let i = 0; i < customPayments.length; i++) {
+            const payment = customPayments[i];
+            const dueDate = new Date(payment.dueDate);
+            
+            await tx.paymentDeadline.create({
+              data: {
+                registrationId: registration.id,
+                amount: Number(payment.amount),
+                dueDate: dueDate,
+                paymentNumber: i + 1,
+                isPaid: false
+              }
+            });
+            
+            console.log(`Created custom payment deadline ${i + 1}:`, payment);
+          }
         }
       } else {
         // Use standard payment logic
@@ -493,6 +651,11 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
     }
     
     const result = await prisma.$transaction(async (tx) => {
+      // Determine default amounts based on offer type
+      const isCertification = offer?.course?.templateType === 'CERTIFICATION';
+      const defaultAmount = isCertification ? 1500 : 4500;
+      const offerAmount = Number(offer?.totalAmount) || defaultAmount;
+      
       // Create new registration
       const registration = await tx.registration.create({
         data: {
@@ -500,10 +663,10 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
           partnerId: partnerId || 'default-partner-id',
           courseId: courseId,
           partnerOfferId: partnerOfferId,
-          offerType: offer?.course?.templateType === 'CERTIFICATION' ? 'CERTIFICATION' : 'TFA_ROMANIA',
-          originalAmount: paymentPlan.originalAmount || 0,
-          finalAmount: paymentPlan.finalAmount || 0,
-          installments: paymentPlan.installments || 1,
+          offerType: isCertification ? 'CERTIFICATION' : 'TFA_ROMANIA',
+          originalAmount: paymentPlan.originalAmount || offerAmount,
+          finalAmount: paymentPlan.finalAmount || offerAmount,
+          installments: paymentPlan.installments || offer?.installments || 1,
           status: 'PENDING',
           // Course-specific data
           tipoLaurea: courseData.tipoLaurea || null,
@@ -523,8 +686,15 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
       
       // Create payment deadlines based on offer's custom payment plan or standard logic
       const installments = paymentPlan.installments || 1;
-      const finalAmount = Number(paymentPlan.finalAmount) || 0;
+      let finalAmount = Number(paymentPlan.finalAmount) || 0;
       const registrationOfferType = offer?.course?.templateType === 'CERTIFICATION' ? 'CERTIFICATION' : 'TFA_ROMANIA';
+      
+      // FALLBACK: If finalAmount is 0, use offer's totalAmount
+      if (finalAmount === 0 && offer && offer.totalAmount) {
+        finalAmount = Number(offer.totalAmount);
+        console.log(`⚠️ FinalAmount was 0, using offer totalAmount: ${finalAmount}`);
+      }
+      
       
       console.log(`Creating payment deadlines for registration ${registration.id}:`, {
         installments,
@@ -539,21 +709,61 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
         const customPayments = (offer.customPaymentPlan as any).payments;
         console.log(`Using custom payment plan with ${customPayments.length} payments:`, customPayments);
         
-        for (let i = 0; i < customPayments.length; i++) {
-          const payment = customPayments[i];
-          const dueDate = new Date(payment.dueDate);
+        // FOR TFA ROMANIA: Add €1500 down payment before custom installments
+        if (registrationOfferType === 'TFA_ROMANIA' && customPayments.length > 1) {
+          const downPaymentDate = new Date();
+          downPaymentDate.setDate(downPaymentDate.getDate() + 1);
           
-          const customDeadline = await tx.paymentDeadline.create({
+          const downPaymentDeadline = await tx.paymentDeadline.create({
             data: {
               registrationId: registration.id,
-              amount: Number(payment.amount),
-              dueDate: dueDate,
-              paymentNumber: i + 1,
+              amount: 1500,
+              dueDate: downPaymentDate,
+              paymentNumber: 0,
               isPaid: false
             }
           });
           
-          console.log(`Created custom payment deadline ${i + 1}:`, customDeadline);
+          console.log(`Created TFA Romania down payment deadline: €1500`, downPaymentDeadline);
+          
+          // Recalculate custom payment amounts for TFA Romania (subtract €1500 from total)
+          const remainingAmount = finalAmount - 1500;
+          const amountPerInstallment = remainingAmount / customPayments.length;
+          
+          for (let i = 0; i < customPayments.length; i++) {
+            const payment = customPayments[i];
+            const dueDate = new Date(payment.dueDate);
+            
+            const customDeadline = await tx.paymentDeadline.create({
+              data: {
+                registrationId: registration.id,
+                amount: Math.round(amountPerInstallment * 100) / 100, // Use calculated amount for TFA Romania
+                dueDate: dueDate,
+                paymentNumber: i + 1,
+                isPaid: false
+              }
+            });
+            
+            console.log(`Created TFA custom payment deadline ${i + 1}: €${amountPerInstallment} (recalculated)`, customDeadline);
+          }
+        } else {
+          // For CERTIFICATIONS or TFA single payment: use original custom amounts
+          for (let i = 0; i < customPayments.length; i++) {
+            const payment = customPayments[i];
+            const dueDate = new Date(payment.dueDate);
+            
+            const customDeadline = await tx.paymentDeadline.create({
+              data: {
+                registrationId: registration.id,
+                amount: Number(payment.amount),
+                dueDate: dueDate,
+                paymentNumber: i + 1,
+                isPaid: false
+              }
+            });
+            
+            console.log(`Created custom payment deadline ${i + 1}:`, customDeadline);
+          }
         }
       } else {
         // Use standard payment logic
@@ -725,208 +935,5 @@ router.post('/validate-coupon', async (req, res) => {
   }
 });
 
-// POST /api/registration/verified-user-enrollment - Enrollment for email-verified users
-router.post('/verified-user-enrollment', async (req: Request, res: Response) => {
-  try {
-    const { verifiedEmail, ...enrollmentData } = req.body;
-    
-    if (!verifiedEmail) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Email verificata richiesta' 
-      });
-    }
-    
-    // Find the verified user
-    const user = await prisma.user.findUnique({
-      where: { 
-        email: verifiedEmail,
-        emailVerified: true 
-      },
-      include: { 
-        profile: true,
-        assignedPartner: true 
-      }
-    });
-    
-    if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Utente non trovato o email non verificata' 
-      });
-    }
-    
-    // Use the same logic as additional-enrollment but without authentication requirement
-    const {
-      courseId,
-      partnerOfferId,
-      referralCode,
-      paymentPlan,
-      couponCode,
-      originalAmount,
-      finalAmount,
-      installments,
-      downPayment,
-      installmentAmount,
-      // Course-specific data
-      tipoLaurea,
-      laureaConseguita,
-      laureaConseguitaCustom,
-      laureaUniversita,
-      laureaData,
-      tipoProfessione,
-      scuolaDenominazione,
-      scuolaCitta,
-      scuolaProvincia
-    } = enrollmentData;
-    
-    if (!courseId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Corso richiesto' 
-      });
-    }
-    
-    // Find the course
-    const course = await prisma.course.findUnique({
-      where: { id: courseId }
-    });
-    
-    if (!course) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Corso non trovato' 
-      });
-    }
-    
-    // Determine partner (from assignedPartner, partnerOffer, or referralCode)
-    let partnerId = user.assignedPartnerId;
-    
-    if (partnerOfferId) {
-      const partnerOffer = await prisma.partnerOffer.findUnique({
-        where: { id: partnerOfferId }
-      });
-      if (partnerOffer) {
-        partnerId = partnerOffer.partnerId;
-      }
-    }
-    
-    if (!partnerId && referralCode) {
-      const partner = await prisma.partner.findUnique({
-        where: { referralCode }
-      });
-      if (partner) {
-        partnerId = partner.id;
-      }
-    }
-    
-    if (!partnerId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Partner non identificato' 
-      });
-    }
-    
-    // Determine offer type
-    let offerType = 'TFA_ROMANIA';
-    if (partnerOfferId) {
-      const offer = await prisma.partnerOffer.findUnique({
-        where: { id: partnerOfferId }
-      });
-      if (offer) {
-        offerType = offer.offerType;
-      }
-    }
-    
-    // Apply coupon discount if provided
-    let appliedFinalAmount = finalAmount || originalAmount || 5000;
-    if (couponCode && partnerId) {
-      try {
-        // Find active coupon for this partner
-        const coupon = await prisma.coupon.findFirst({
-          where: {
-            code: couponCode,
-            partnerId: partnerId,
-            isActive: true,
-            validFrom: { lte: new Date() },
-            validUntil: { gte: new Date() }
-          }
-        });
-        
-        if (coupon) {
-          const baseAmount = originalAmount || 5000;
-          if (coupon.discountType === 'PERCENTAGE') {
-            const discountPercent = Number(coupon.discountPercent || 0);
-            appliedFinalAmount = baseAmount * (1 - discountPercent / 100);
-          } else if (coupon.discountType === 'FIXED') {
-            const discountAmount = Number(coupon.discountAmount || 0);
-            appliedFinalAmount = Math.max(0, baseAmount - discountAmount);
-          }
-          console.log(`Applied coupon ${couponCode}: ${baseAmount} -> ${appliedFinalAmount}`);
-        }
-      } catch (couponError) {
-        console.error('Error applying coupon:', couponError);
-        // Continue with original amount if coupon application fails
-      }
-    }
-    
-    // Create the registration
-    const registration = await prisma.registration.create({
-      data: {
-        userId: user.id,
-        partnerId: partnerId,
-        courseId: courseId,
-        partnerOfferId: partnerOfferId || null,
-        offerType: offerType as any,
-        
-        // Course-specific data (only for TFA Romania)
-        tipoLaurea: offerType === 'TFA_ROMANIA' ? tipoLaurea : null,
-        laureaConseguita: offerType === 'TFA_ROMANIA' ? laureaConseguita : null,
-        laureaUniversita: offerType === 'TFA_ROMANIA' ? laureaUniversita : null,
-        laureaData: offerType === 'TFA_ROMANIA' && laureaData ? new Date(laureaData) : null,
-        
-        // Profession data (only for TFA Romania)
-        tipoProfessione: offerType === 'TFA_ROMANIA' ? tipoProfessione : null,
-        scuolaDenominazione: offerType === 'TFA_ROMANIA' ? scuolaDenominazione : null,
-        scuolaCitta: offerType === 'TFA_ROMANIA' ? scuolaCitta : null,
-        scuolaProvincia: offerType === 'TFA_ROMANIA' ? scuolaProvincia : null,
-        
-        // Payment info (with coupon discount applied)
-        originalAmount: originalAmount || 5000, // Default fallback
-        finalAmount: appliedFinalAmount,
-        installments: installments || 1,
-        
-        status: 'PENDING'
-      }
-    });
-    
-    // Send confirmation email
-    try {
-      await emailService.sendEnrollmentConfirmation(user.email, {
-        userName: user.profile?.nome || 'Utente',
-        courseName: course.name,
-        registrationId: registration.id,
-        totalAmount: appliedFinalAmount,
-        installments: installments || 1
-      });
-    } catch (emailError) {
-      console.error('Error sending confirmation email:', emailError);
-      // Don't fail the registration if email fails
-    }
-    
-    return res.json({
-      success: true,
-      message: 'Iscrizione completata con successo',
-      registrationId: registration.id
-    });
-    
-  } catch (error) {
-    console.error('Verified user enrollment error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Errore interno del server' 
-    });
-  }
-});
 
 export default router;

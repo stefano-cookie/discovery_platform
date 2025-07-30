@@ -5,6 +5,8 @@ import { z } from 'zod';
 import { useAuth } from '../../hooks/useAuth';
 import Button from '../UI/Button';
 import Input from '../UI/Input';
+import ErrorMessage from '../UI/ErrorMessage';
+import ErrorService, { ErrorDetails } from '../../services/errorService';
 
 const loginSchema = z.object({
   email: z.string().email('Email non valida'),
@@ -16,7 +18,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 const LoginForm: React.FC = () => {
   const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorDetails | null>(null);
 
   const {
     register,
@@ -30,13 +32,15 @@ const LoginForm: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
+      
       await login(data);
       
       // After successful login, App.tsx will handle the redirect based on localStorage pendingReferral
       // No need to manually navigate here - let the auth state change trigger the redirect
       
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Errore durante il login');
+      const processedError = ErrorService.processApiError(err);
+      setError(processedError);
     } finally {
       setIsLoading(false);
     }
@@ -63,7 +67,11 @@ const LoginForm: React.FC = () => {
       </div>
 
       {error && (
-        <div className="text-red-600 text-sm">{error}</div>
+        <ErrorMessage 
+          message={error.message} 
+          type={error.type}
+          onClose={() => setError(null)}
+        />
       )}
 
       <Button
