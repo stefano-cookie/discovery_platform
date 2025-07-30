@@ -27,6 +27,8 @@ export interface RegisterRequest {
   domicilioCitta?: string;
   domicilioProvincia?: string;
   domicilioCap?: string;
+  // Privacy
+  privacyPolicy: boolean;
 }
 
 export interface RegisterResponse {

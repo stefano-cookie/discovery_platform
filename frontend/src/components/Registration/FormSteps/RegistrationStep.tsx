@@ -151,12 +151,15 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
       // Calculate payment information based on selected plan
       const calculatePaymentInfo = () => {
         if (!offerInfo) {
+          // Use course template type to determine default amount
+          // Since we don't have offerInfo, use a generic amount (will be overridden by actual values)
+          const defaultAmount = 1500; // Safe default for certifications
           return {
-            originalAmount: 4500, // Default fallback amount
-            finalAmount: 4500,
+            originalAmount: defaultAmount,
+            finalAmount: defaultAmount,
             installments: 1,
             downPayment: 0,
-            installmentAmount: 4500
+            installmentAmount: defaultAmount
           };
         }
 

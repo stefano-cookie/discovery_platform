@@ -389,9 +389,16 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
             isRelevant = formData.hasDifferentDomicilio === true;
           }
           
-          // Campi scuola sono rilevanti solo se tipoProfessione === 'Insegnante'
+          // Campi scuola sono rilevanti solo se tipoProfessione include 'Docente' o 'Insegnante'
           if (['scuolaDenominazione', 'scuolaCitta', 'scuolaProvincia'].includes(field)) {
-            isRelevant = formData.tipoProfessione === 'Insegnante';
+            isRelevant = formData.tipoProfessione === 'Docente di ruolo' || 
+                        formData.tipoProfessione === 'Docente a tempo determinato' ||
+                        formData.tipoProfessione === 'Insegnante';
+          }
+          
+          // Campi triennale sono rilevanti solo se tipoLaurea === 'Magistrale' 
+          if (['tipoLaureaTriennale', 'laureaConseguitaTriennale', 'laureaUniversitaTriennale', 'laureaDataTriennale'].includes(field)) {
+            isRelevant = formData.tipoLaurea === 'Magistrale';
           }
           
           
