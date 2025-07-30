@@ -62,7 +62,7 @@ npm ci --production
 
 # 6. Esegui migrazioni database
 echo -e "${YELLOW}🗄️ Running database migrations...${NC}"
-npx prisma migrate deploy
+npx prisma db push --accept-data-loss
 
 # 7. Riavvia backend con PM2
 echo -e "${YELLOW}🔄 Restarting backend service...${NC}"
