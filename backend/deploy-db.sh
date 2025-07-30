@@ -7,7 +7,7 @@ if npx prisma migrate deploy 2>/dev/null; then
     echo "✅ Database migrated successfully"
 else
     echo "⚠️ Migration failed, using database push..."
-    npx prisma db push --accept-data-loss --force-reset=false
+    npx prisma db push --accept-data-loss
     echo "✅ Database schema synchronized"
 fi
 
