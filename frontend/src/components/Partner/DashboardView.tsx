@@ -127,14 +127,15 @@ const DashboardView: React.FC = () => {
 
       {/* Quick Actions Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Recent Activity */}
+        {/* Recent Enrollments */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-gray-900 flex items-center">
               <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
               </svg>
-              Attività Recenti
+              Iscrizioni Recenti
             </h2>
             <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
               Vedi tutto →
@@ -156,7 +157,14 @@ const DashboardView: React.FC = () => {
           ) : recentUsers.length > 0 ? (
             <div className="space-y-4">
               {recentUsers.map((user) => (
-                <div key={user.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                <div 
+                  key={user.id} 
+                  className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer border border-transparent hover:border-blue-200"
+                  onClick={() => {
+                    // Navigazione al dettaglio iscrizione - verrà implementata nella Feature 2
+                    console.log('Navigate to enrollment detail:', user.registrationId);
+                  }}
+                >
                   <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                     <span className="text-blue-600 font-medium text-sm">
                       {user.profile ? user.profile.nome.charAt(0) : user.email.charAt(0)}
@@ -166,14 +174,28 @@ const DashboardView: React.FC = () => {
                     <p className="text-sm font-medium text-gray-900 truncate">
                       {user.profile ? `${user.profile.nome} ${user.profile.cognome}` : user.email}
                     </p>
+                    <p className="text-xs text-blue-600 font-medium truncate">
+                      {user.course || 'Corso non specificato'}
+                    </p>
                     <p className="text-xs text-gray-500">
-                      Registrato il {formatDate(user.createdAt)}
+                      Iscritto il {formatDate(user.enrollmentDate || user.createdAt)}
                     </p>
                   </div>
-                  <div className="text-xs text-gray-400">
-                    {user.status === 'PENDING' && 'Pending'}
-                    {user.status === 'ENROLLED' && 'Active'}
-                    {user.status === 'COMPLETED' && 'Done'}
+                  <div className="flex flex-col items-end">
+                    <div className={`text-xs px-2 py-1 rounded-full font-medium ${
+                      user.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                      user.status === 'ENROLLED' ? 'bg-green-100 text-green-800' :
+                      user.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {user.status === 'PENDING' && 'In Attesa'}
+                      {user.status === 'ENROLLED' && 'Attivo'}
+                      {user.status === 'COMPLETED' && 'Completato'}
+                      {!['PENDING', 'ENROLLED', 'COMPLETED'].includes(user.status) && user.status}
+                    </div>
+                    <svg className="w-4 h-4 text-gray-400 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
                   </div>
                 </div>
               ))}
@@ -182,11 +204,12 @@ const DashboardView: React.FC = () => {
             <div className="text-center py-8">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 14l9-5-9-5-9 5 9 5z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
                 </svg>
               </div>
-              <p className="text-gray-500 font-medium">Nessuna attività recente</p>
-              <p className="text-gray-400 text-sm mt-1">Le attività dei tuoi utenti appariranno qui</p>
+              <p className="text-gray-500 font-medium">Nessuna iscrizione recente</p>
+              <p className="text-gray-400 text-sm mt-1">Le iscrizioni ai tuoi corsi appariranno qui</p>
             </div>
           )}
         </div>
