@@ -775,6 +775,51 @@ router.delete('/documents/:id', authenticate, async (req: AuthRequest, res: Resp
   }
 });
 
+// GET /api/user/documents/:id/download - Download user document
+router.get('/documents/:id/download', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Utente non autenticato' });
+    }
+    
+    const document = await prisma.userDocument.findFirst({
+      where: {
+        id,
+        userId
+      }
+    });
+    
+    if (!document) {
+      return res.status(404).json({ error: 'Documento non trovato' });
+    }
+    
+    // Check if file exists
+    const fs = require('fs');
+    if (!fs.existsSync(document.filePath)) {
+      return res.status(404).json({ error: 'File non trovato sul server' });
+    }
+    
+    // Send file
+    res.download(document.filePath, document.fileName, (err) => {
+      if (err) {
+        console.error('Error downloading file:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Errore nel download del file' });
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error downloading document:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Errore interno del server' });
+    }
+  }
+});
+
 // GET /api/user/documents/types - Get available document types
 router.get('/documents/types', authenticate, async (_req: AuthRequest, res: Response) => {
   try {

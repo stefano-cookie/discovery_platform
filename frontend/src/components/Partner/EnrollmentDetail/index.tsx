@@ -3,7 +3,7 @@ import { partnerService } from '../../../services/partner';
 import { PartnerUser } from '../../../types/partner';
 import UserInfo from './UserInfo';
 import EnrollmentFlow from './EnrollmentFlow';
-import DocumentsSection from './DocumentsSection';
+import EnhancedDocumentsSection from './EnhancedDocumentsSection';
 import OffersSection from './OffersSection';
 import { getPartnerStatusDisplay } from '../../../utils/statusTranslations';
 
@@ -145,7 +145,7 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
 
             {/* Right Column - Documents & Actions */}
             <div className="space-y-6">
-              <DocumentsSection user={user} />
+              <EnhancedDocumentsSection user={user} />
               <OffersSection user={user} />
             </div>
           </div>

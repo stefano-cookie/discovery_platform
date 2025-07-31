@@ -1114,4 +1114,97 @@ router.get('/recent-enrollments', authenticate, requireRole(['PARTNER', 'ADMIN']
   }
 });
 
+// GET /api/partners/users/:userId/documents - Get all documents for a user (partner access)
+router.get('/users/:userId/documents', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { userId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify that the user has registrations with this partner
+    const userRegistrations = await prisma.registration.findMany({
+      where: {
+        userId,
+        partnerId
+      }
+    });
+
+    if (userRegistrations.length === 0) {
+      return res.status(403).json({ error: 'Non autorizzato a visualizzare i documenti di questo utente' });
+    }
+
+    // Get all user documents
+    const documents = await prisma.userDocument.findMany({
+      where: { userId },
+      orderBy: { uploadedAt: 'desc' }
+    });
+
+    res.json({ documents });
+  } catch (error) {
+    console.error('Get user documents error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// GET /api/partners/users/:userId/documents/:documentId/download - Download user document (partner access)
+router.get('/users/:userId/documents/:documentId/download', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { userId, documentId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify that the user has registrations with this partner
+    const userRegistrations = await prisma.registration.findMany({
+      where: {
+        userId,
+        partnerId
+      }
+    });
+
+    if (userRegistrations.length === 0) {
+      return res.status(403).json({ error: 'Non autorizzato a scaricare i documenti di questo utente' });
+    }
+
+    // Get the document
+    const document = await prisma.userDocument.findFirst({
+      where: {
+        id: documentId,
+        userId
+      }
+    });
+
+    if (!document) {
+      return res.status(404).json({ error: 'Documento non trovato' });
+    }
+
+    // Check if file exists
+    const fs = require('fs');
+    if (!fs.existsSync(document.filePath)) {
+      return res.status(404).json({ error: 'File non trovato sul server' });
+    }
+
+    // Send file
+    res.download(document.filePath, document.fileName, (err) => {
+      if (err) {
+        console.error('Error downloading file:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Errore nel download del file' });
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Download user document error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Errore interno del server' });
+    }
+  }
+});
+
 export default router;

@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { apiRequest } from '../services/api';
 import { Link } from 'react-router-dom';
 import UserEnrollmentDetail from '../components/User/EnrollmentDetail';
+import DocumentsSection from '../components/User/Documents/DocumentsSection';
 import { getUserStatusDisplay, getStatusColors } from '../utils/statusTranslations';
 
 interface UserRegistration {
@@ -91,7 +92,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
   }[]>([]);
   const [coursesMessage, setCoursesMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'registrations' | 'profile'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'registrations' | 'documents' | 'profile'>('overview');
 
   useEffect(() => {
     loadUserData();
@@ -209,6 +210,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
             {[
               { id: 'overview', label: 'Panoramica' },
               { id: 'registrations', label: 'Le Mie Iscrizioni' },
+              { id: 'documents', label: 'I Miei Documenti' },
               { id: 'profile', label: 'Profilo' }
             ].map((tab) => (
               <button
@@ -613,6 +615,11 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
               </div>
             )}
           </div>
+        )}
+
+        {/* Documents Tab */}
+        {activeTab === 'documents' && (
+          <DocumentsSection onDocumentChange={loadUserData} />
         )}
 
         {/* Profile Tab */}
