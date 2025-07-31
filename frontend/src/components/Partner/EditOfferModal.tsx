@@ -256,7 +256,11 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
                   ) : (
                     <div className="text-center py-4 text-gray-500">
                       <div className="text-sm">
-                        {offer.installments} rate da €{(offer.totalAmount / offer.installments).toFixed(2)}
+                        {offer.offerType === 'TFA_ROMANIA' && offer.totalAmount > 1500 && offer.installments > 1 ? (
+                          <>Acconto: €1.500 + {offer.installments} rate da €{((offer.totalAmount - 1500) / offer.installments).toFixed(2)}</>
+                        ) : (
+                          <>{offer.installments} rate da €{(offer.totalAmount / offer.installments).toFixed(2)}</>
+                        )}
                       </div>
                       <div className="text-xs mt-1">
                         ogni {offer.installmentFrequency} mese/i

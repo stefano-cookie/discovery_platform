@@ -924,7 +924,11 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
                       <strong>Totale: €{offerInfo.totalAmount}</strong>
                     </span>
                     <span className="text-blue-600">
-                      {offerInfo.installments} rate da €{(Number(offerInfo.totalAmount) / offerInfo.installments).toFixed(2)}
+                      {offerInfo.offerType === 'TFA_ROMANIA' && Number(offerInfo.totalAmount) > 1500 && offerInfo.installments > 1 ? (
+                        <>Acconto: €1.500 + {offerInfo.installments} rate da €{((Number(offerInfo.totalAmount) - 1500) / offerInfo.installments).toFixed(2)}</>
+                      ) : (
+                        <>{offerInfo.installments} rate da €{(Number(offerInfo.totalAmount) / offerInfo.installments).toFixed(2)}</>
+                      )}
                     </span>
                   </div>
                 </div>
