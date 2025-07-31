@@ -134,6 +134,94 @@ router.get('/users', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req
   }
 });
 
+// Get documents for a specific registration
+router.get('/registrations/:registrationId/documents', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { registrationId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify that the registration belongs to this partner
+    const registration = await prisma.registration.findFirst({
+      where: { 
+        id: registrationId,
+        partnerId 
+      },
+      include: {
+        documents: true,
+        offer: true
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    // Determine required documents based on offer type
+    const requiredDocuments = [
+      {
+        type: 'identity',
+        name: 'Documento d\'Identità',
+        required: true
+      },
+      {
+        type: 'tax_code', 
+        name: 'Codice Fiscale',
+        required: true
+      }
+    ];
+
+    // Add additional documents for TFA
+    if (registration.offerType === 'TFA_ROMANIA') {
+      requiredDocuments.push(
+        {
+          type: 'degree',
+          name: 'Diploma di Laurea',
+          required: true
+        },
+        {
+          type: 'service_certificate',
+          name: 'Certificato di Servizio',
+          required: false
+        }
+      );
+    }
+
+    // Map uploaded documents to required ones
+    const documentsWithStatus = requiredDocuments.map(reqDoc => {
+      const uploadedDoc = registration.documents.find(doc => doc.type === reqDoc.type);
+      
+      return {
+        id: reqDoc.type,
+        name: reqDoc.name,
+        type: reqDoc.type,
+        required: reqDoc.required,
+        uploaded: !!uploadedDoc,
+        fileName: uploadedDoc?.fileName || null,
+        filePath: uploadedDoc?.filePath || null,
+        uploadedAt: uploadedDoc?.uploadedAt || null
+      };
+    });
+
+    res.json({
+      registrationId,
+      offerType: registration.offerType,
+      documents: documentsWithStatus,
+      uploadedCount: documentsWithStatus.filter(doc => doc.uploaded).length,
+      totalCount: documentsWithStatus.length,
+      requiredCount: documentsWithStatus.filter(doc => doc.required).length,
+      completedRequired: documentsWithStatus.filter(doc => doc.required && doc.uploaded).length
+    });
+
+  } catch (error) {
+    console.error('Get registration documents error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
 // Get user offers access - for managing what offers a user can access
 router.get('/users/:userId/offers', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
   try {

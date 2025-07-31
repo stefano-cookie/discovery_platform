@@ -42,3 +42,24 @@ export interface Partner {
   promotedFromChild: boolean;
   createdAt: string;
 }
+
+export interface DocumentInfo {
+  id: string;
+  name: string;
+  type: string;
+  required: boolean;
+  uploaded: boolean;
+  fileName: string | null;
+  filePath: string | null;
+  uploadedAt: string | null;
+}
+
+export interface RegistrationDocuments {
+  registrationId: string;
+  offerType: string;
+  documents: DocumentInfo[];
+  uploadedCount: number;
+  totalCount: number;
+  requiredCount: number;
+  completedRequired: number;
+}

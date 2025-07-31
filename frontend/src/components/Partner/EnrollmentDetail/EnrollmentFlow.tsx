@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import ContractUpload from './ContractUpload';
 
 interface EnrollmentFlowProps {
   status: string;
@@ -14,54 +15,99 @@ interface FlowStep {
 }
 
 const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId }) => {
+  const [currentStatus, setCurrentStatus] = useState(status);
+
+  const handleContractUploadSuccess = () => {
+    setCurrentStatus('CONTRACT_SIGNED');
+    // Optionally trigger a page refresh or data refetch
+    window.location.reload();
+  };
+
+  const handleContractDownload = async () => {
+    try {
+      const response = await fetch(`/api/partners/download-contract/${registrationId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Errore durante il download del contratto');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `contratto_${registrationId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error: any) {
+      alert('Errore durante il download: ' + error.message);
+    }
+  };
   // Definisco gli step del workflow
   const getFlowSteps = (): FlowStep[] => {
     const steps: FlowStep[] = [
       {
         id: 'pending',
-        title: 'Iscrizione Ricevuta',
+        title: 'Iscrizione Completata',
         description: 'L\'utente ha completato il form di iscrizione',
-        icon: (
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-        ),
-        status: 'completed' // Sempre completato se arriviamo qui
-      },
-      {
-        id: 'contract',
-        title: 'Contratto da Generare',
-        description: 'Genera e invia il contratto precompilato all\'utente',
-        icon: (
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-        ),
-        status: status === 'PENDING' ? 'current' : 'completed'
-      },
-      {
-        id: 'signed',
-        title: 'Contratto Firmato',
-        description: 'Upload del contratto firmato dall\'utente',
-        icon: (
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-          </svg>
-        ),
-        status: status === 'PENDING' ? 'pending' : 
-               status === 'ENROLLED' ? 'current' : 'completed'
-      },
-      {
-        id: 'enrolled',
-        title: 'Utente Iscritto',
-        description: 'L\'utente è ufficialmente iscritto al corso',
         icon: (
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         ),
-        status: status === 'COMPLETED' ? 'completed' : 
-               status === 'ENROLLED' ? 'completed' : 'pending'
+        status: 'completed' // Sempre completato se arriviamo qui
+      },
+      {
+        id: 'contract_generated',
+        title: 'Contratto Precompilato',
+        description: 'Contratto generato automaticamente e pronto per il download',
+        icon: (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        ),
+        status: currentStatus === 'PENDING' ? 'current' : 'completed'
+      },
+      {
+        id: 'contract_signed',
+        title: 'Contratto Firmato',
+        description: 'Upload del contratto firmato dal partner',
+        icon: (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+          </svg>
+        ),
+        status: currentStatus === 'PENDING' ? 'pending' : 
+               currentStatus === 'CONTRACT_GENERATED' ? 'current' :
+               currentStatus === 'CONTRACT_SIGNED' ? 'completed' : 'completed'
+      },
+      {
+        id: 'payment',
+        title: 'Pagamento Completato',
+        description: 'Pagamento ricevuto (automatico via fatture)',
+        icon: (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+          </svg>
+        ),
+        status: currentStatus === 'ENROLLED' ? 'current' : 
+               currentStatus === 'COMPLETED' ? 'completed' : 'pending'
+      },
+      {
+        id: 'completed',
+        title: 'Iscrizione Completata',
+        description: 'L\'utente è ufficialmente iscritto al corso',
+        icon: (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+          </svg>
+        ),
+        status: currentStatus === 'COMPLETED' ? 'completed' : 'pending'
       }
     ];
 
@@ -152,40 +198,93 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId 
         })}
       </div>
 
-      {/* Action Section */}
-      <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-        <div className="flex items-center justify-between">
-          <div>
-            <h4 className="font-medium text-gray-900">Prossima Azione</h4>
-            <p className="text-sm text-gray-600 mt-1">
-              {status === 'PENDING' && 'Genera il contratto per procedere con l\'iscrizione'}
-              {status === 'ENROLLED' && 'Attendi il pagamento dell\'utente'}
-              {status === 'COMPLETED' && 'Iscrizione completata con successo'}
+      {/* Contract Management Section - Show when status is PENDING or CONTRACT_GENERATED */}
+      {(currentStatus === 'PENDING' || currentStatus === 'CONTRACT_GENERATED') && (
+        <div className="mt-6 bg-white rounded-xl shadow-sm border p-6">
+          <div className="mb-4">
+            <h4 className="text-lg font-semibold text-gray-900 mb-2">Gestione Contratto</h4>
+            <p className="text-sm text-gray-600">
+              {currentStatus === 'PENDING' && 'Il contratto è stato generato automaticamente e può essere scaricato.'}
+              {currentStatus === 'CONTRACT_GENERATED' && 'Scarica il contratto precompilato e carica quello firmato.'}
             </p>
           </div>
-          
-          {status === 'PENDING' && (
-            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-              Genera Contratto
-            </button>
-          )}
-          
-          {status === 'ENROLLED' && (
-            <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
-              Registra Pagamento
-            </button>
-          )}
-          
-          {status === 'COMPLETED' && (
-            <div className="flex items-center text-green-600">
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Completato
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Download Contract Box */}
+            <div className="bg-blue-50 border-2 border-blue-200 border-dashed rounded-lg p-6">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <h5 className="font-medium text-gray-900 mb-2">Contratto Precompilato</h5>
+                <p className="text-sm text-gray-600 mb-4">
+                  Scarica il contratto con i dati dell'utente già inseriti
+                </p>
+                <button 
+                  onClick={handleContractDownload}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Scarica PDF
+                </button>
+              </div>
             </div>
-          )}
+
+            {/* Upload Signed Contract Box */}
+            <ContractUpload 
+              registrationId={registrationId} 
+              onUploadSuccess={handleContractUploadSuccess}
+            />
+          </div>
+
+          {/* Status Info */}
+          <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+            <div className="flex items-start">
+              <svg className="w-5 h-5 text-blue-600 mt-0.5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="text-sm font-medium text-gray-900">
+                  Stato Attuale: {currentStatus === 'PENDING' ? 'Contratto Disponibile' : 'In Attesa Firma'}
+                </p>
+                <p className="text-xs text-gray-600 mt-1">
+                  {currentStatus === 'PENDING' && 'Una volta caricato il contratto firmato, l\'iscrizione passerà automaticamente al passo successivo.'}
+                  {currentStatus === 'CONTRACT_GENERATED' && 'Carica il contratto firmato per completare questo passaggio.'}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Other Status Actions */}
+      {currentStatus !== 'PENDING' && currentStatus !== 'CONTRACT_GENERATED' && (
+        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium text-gray-900">Stato Corrente</h4>
+              <p className="text-sm text-gray-600 mt-1">
+                {currentStatus === 'CONTRACT_SIGNED' && 'Contratto firmato caricato. In attesa del pagamento.'}
+                {currentStatus === 'ENROLLED' && 'Attendi il pagamento dell\'utente'}
+                {currentStatus === 'COMPLETED' && 'Iscrizione completata con successo'}
+              </p>
+            </div>
+            
+            {currentStatus === 'COMPLETED' && (
+              <div className="flex items-center text-green-600">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Completato
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

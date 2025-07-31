@@ -1,5 +1,5 @@
 import { apiRequest } from './api';
-import { PartnerStats, PartnerUser } from '../types/partner';
+import { PartnerStats, PartnerUser, RegistrationDocuments } from '../types/partner';
 
 export const partnerService = {
   async getStats(): Promise<PartnerStats> {
@@ -50,6 +50,13 @@ export const partnerService = {
     return apiRequest<{ success: boolean; message: string }>({
       method: 'POST',
       url: `/partners/users/${userId}/offers/${offerId}/revoke`,
+    });
+  },
+
+  async getRegistrationDocuments(registrationId: string): Promise<RegistrationDocuments> {
+    return apiRequest<RegistrationDocuments>({
+      method: 'GET',
+      url: `/partners/registrations/${registrationId}/documents`,
     });
   },
 };

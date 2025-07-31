@@ -1,50 +1,88 @@
-import React from 'react';
-import { PartnerUser } from '../../../types/partner';
+import React, { useState, useEffect } from 'react';
+import { PartnerUser, RegistrationDocuments } from '../../../types/partner';
+import { partnerService } from '../../../services/partner';
 
 interface DocumentsSectionProps {
   user: PartnerUser;
 }
 
 const DocumentsSection: React.FC<DocumentsSectionProps> = ({ user }) => {
-  // Mock data per i documenti - in futuro verrà dall'API
-  const documents = [
-    {
-      id: '1',
-      name: 'Documento d\'Identità',
-      type: 'identity',
-      uploaded: true,
-      url: '#',
-      uploadDate: '2024-01-15'
-    },
-    {
-      id: '2',
-      name: 'Codice Fiscale',
-      type: 'tax_code',
-      uploaded: true,
-      url: '#',
-      uploadDate: '2024-01-15'
-    },
-    {
-      id: '3',
-      name: 'Diploma di Laurea',
-      type: 'degree',
-      uploaded: user.offerType === 'TFA',
-      url: user.offerType === 'TFA' ? '#' : null,
-      uploadDate: user.offerType === 'TFA' ? '2024-01-15' : null
-    },
-    {
-      id: '4',
-      name: 'Certificato di Servizio',
-      type: 'service',
-      uploaded: user.offerType === 'TFA',
-      url: user.offerType === 'TFA' ? '#' : null,
-      uploadDate: user.offerType === 'TFA' ? '2024-01-15' : null
+  const [documentsData, setDocumentsData] = useState<RegistrationDocuments | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchDocuments();
+  }, [user.registrationId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fetchDocuments = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await partnerService.getRegistrationDocuments(user.registrationId);
+      setDocumentsData(data);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Errore nel caricamento documenti');
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('it-IT');
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center">
+            <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center mr-3 animate-pulse">
+              <div className="w-5 h-5 bg-orange-300 rounded"></div>
+            </div>
+            <div>
+              <div className="h-5 bg-gray-200 rounded w-24 mb-1 animate-pulse"></div>
+              <div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div>
+            </div>
+          </div>
+          <div className="w-12 h-12 bg-gray-200 rounded-full animate-pulse"></div>
+        </div>
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-16 bg-gray-100 rounded-lg animate-pulse"></div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error || !documentsData) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border p-6">
+        <div className="text-center py-6">
+          <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
+            <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Errore</h3>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={fetchDocuments}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Riprova
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const documents = documentsData.documents;
+  const uploadedCount = documentsData.uploadedCount;
+  const totalCount = documentsData.totalCount;
 
   const getDocumentIcon = (type: string, uploaded: boolean) => {
     const iconClass = uploaded ? 'text-green-600' : 'text-gray-400';
@@ -84,16 +122,6 @@ const DocumentsSection: React.FC<DocumentsSectionProps> = ({ user }) => {
     }
   };
 
-  // Filtra documenti in base al tipo di offerta
-  const relevantDocuments = documents.filter(doc => {
-    if (user.offerType === 'CERTIFICAZIONI') {
-      return ['identity', 'tax_code'].includes(doc.type);
-    }
-    return true; // Per TFA mostra tutti i documenti
-  });
-
-  const uploadedCount = relevantDocuments.filter(doc => doc.uploaded).length;
-  const totalCount = relevantDocuments.length;
 
   return (
     <div className="space-y-6">
@@ -146,7 +174,7 @@ const DocumentsSection: React.FC<DocumentsSectionProps> = ({ user }) => {
 
         {/* Lista Documenti */}
         <div className="space-y-3">
-          {relevantDocuments.map((document) => (
+          {documents.map((document) => (
             <div
               key={document.id}
               className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
@@ -165,9 +193,9 @@ const DocumentsSection: React.FC<DocumentsSectionProps> = ({ user }) => {
                   }`}>
                     {document.name}
                   </p>
-                  {document.uploaded && document.uploadDate && (
+                  {document.uploaded && document.uploadedAt && (
                     <p className="text-xs text-gray-500">
-                      Caricato il {formatDate(document.uploadDate)}
+                      Caricato il {formatDate(document.uploadedAt)}
                     </p>
                   )}
                 </div>
