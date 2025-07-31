@@ -4,7 +4,11 @@ import { partnerService } from '../../services/partner';
 import { PartnerUser } from '../../types/partner';
 import StatsCard from './StatsCard';
 
-const DashboardView: React.FC = () => {
+interface DashboardViewProps {
+  onNavigateToUsers?: () => void;
+}
+
+const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateToUsers }) => {
   const { stats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = usePartnerStats();
   const [recentUsers, setRecentUsers] = useState<PartnerUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
@@ -137,7 +141,10 @@ const DashboardView: React.FC = () => {
               </svg>
               Iscrizioni Recenti
             </h2>
-            <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+            <button 
+              onClick={onNavigateToUsers}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
+            >
               Vedi tutto →
             </button>
           </div>

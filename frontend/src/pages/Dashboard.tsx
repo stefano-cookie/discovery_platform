@@ -27,7 +27,7 @@ const Dashboard: React.FC = () => {
             <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
             <div className="flex-1 lg:ml-64">
               <div className="p-6 lg:p-8">
-                {activeTab === 'dashboard' && <DashboardView />}
+                {activeTab === 'dashboard' && <DashboardView onNavigateToUsers={() => setActiveTab('users')} />}
                 {activeTab === 'users' && <UsersView />}
                 {activeTab === 'coupons' && <CouponManagement />}
                 {activeTab === 'offers' && <OfferManagement />}
