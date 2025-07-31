@@ -168,26 +168,35 @@ const OfferManagement: React.FC = () => {
     if (!selectedOffer) return;
 
     try {
-      // Generate custom payment plan if installments > 1
+      // SEMPRE genera il customPaymentPlan per offerte modificate
+      // In questo modo si aggiorna correttamente il numero di rate
       let customPaymentPlan = null;
+      
       if (editFormData.installments > 1) {
+        // Per TFA Romania: calcola sulla parte rateizzabile (totale - acconto)
+        // Per altri corsi: calcola sul totale
+        const amountToInstall = isTfaRomaniaEdit ? 
+          Math.max(0, editFormData.totalAmount - 1500) : 
+          editFormData.totalAmount;
+          
         const payments = OfferService.generatePaymentPlan(
-          editFormData.totalAmount,
+          amountToInstall,
           editFormData.installments
         );
         customPaymentPlan = { payments };
+      } else {
+        // Per pagamento unico, rimuovi il customPaymentPlan
+        customPaymentPlan = null;
       }
 
       const updateData: any = {
         name: editFormData.name,
         totalAmount: editFormData.totalAmount,
         installments: editFormData.installments,
-        installmentFrequency: editFormData.installmentFrequency
+        installmentFrequency: editFormData.installmentFrequency,
+        // IMPORTANTE: Includi sempre customPaymentPlan per aggiornare correttamente
+        customPaymentPlan: customPaymentPlan
       };
-
-      if (customPaymentPlan) {
-        updateData.customPaymentPlan = customPaymentPlan;
-      }
 
       await OfferService.updateOffer(selectedOffer.id, updateData);
 

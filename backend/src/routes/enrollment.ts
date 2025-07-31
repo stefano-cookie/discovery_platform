@@ -231,7 +231,7 @@ router.post('/submit', handleAuthOrVerifiedEmail, upload.fields([
       // Create down payment deadline for TFA Romania
       if (downPayment > 0 && installments > 1) {
         const downPaymentDate = new Date();
-        downPaymentDate.setDate(downPaymentDate.getDate() + 1);
+        downPaymentDate.setDate(downPaymentDate.getDate() + 7); // 7 days after registration
         
         const downPaymentDeadline = await tx.paymentDeadline.create({
           data: {
@@ -244,9 +244,17 @@ router.post('/submit', handleAuthOrVerifiedEmail, upload.fields([
         paymentDeadlines.push(downPaymentDeadline);
       }
       
+      // Calculate installment dates: first installment 30 days after down payment deadline
+      const baseDate = new Date();
+      if (downPayment > 0 && installments > 1) {
+        baseDate.setDate(baseDate.getDate() + 7 + 30); // 7 days + 30 days = 37 days after registration
+      } else {
+        baseDate.setDate(baseDate.getDate() + 7); // 7 days after registration if no down payment
+      }
+      
       for (let i = 0; i < installments; i++) {
-        const dueDate = new Date();
-        dueDate.setMonth(dueDate.getMonth() + i + 1);
+        const dueDate = new Date(baseDate);
+        dueDate.setMonth(dueDate.getMonth() + i); // Each installment is 1 month apart
         dueDate.setDate(30); // Always 30th of the month
         
         const deadline = await tx.paymentDeadline.create({

@@ -59,4 +59,20 @@ export const partnerService = {
       url: `/partners/registrations/${registrationId}/documents`,
     });
   },
+
+  // Registration details for enrollment detail page
+  async getRegistrationDetails(registrationId: string): Promise<any> {
+    return apiRequest<any>({
+      method: 'GET',
+      url: `/partners/registrations/${registrationId}`,
+    });
+  },
+
+  // Get recent enrollments for dashboard
+  async getRecentEnrollments(): Promise<any[]> {
+    return apiRequest<any[]>({
+      method: 'GET',
+      url: '/partners/recent-enrollments',
+    });
+  },
 };

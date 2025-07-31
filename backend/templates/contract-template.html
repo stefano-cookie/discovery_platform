@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contratto DISCOVERY FORMAZIONE S.R.L.</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            line-height: 1.3;
+            color: #000;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .company-name {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .document-title {
+            background-color: #4a6fa5;
+            color: white;
+            padding: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .section {
+            margin-bottom: 15px;
+        }
+        
+        .section-title {
+            background-color: #b8c8e0;
+            padding: 5px 8px;
+            font-weight: bold;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+        
+        .personal-data {
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+        
+        .services-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10px;
+            margin: 10px 0;
+        }
+        
+        .services-table th,
+        .services-table td {
+            border: 1px solid #000;
+            padding: 4px;
+            text-align: left;
+        }
+        
+        .services-table th {
+            background-color: #e6f2ff;
+            font-weight: bold;
+        }
+        
+        .payment-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10px;
+            margin: 10px 0;
+        }
+        
+        .payment-table th,
+        .payment-table td {
+            border: 1px solid #000;
+            padding: 4px;
+            text-align: center;
+        }
+        
+        .payment-table th {
+            background-color: #e6f2ff;
+            font-weight: bold;
+        }
+        
+        .bank-details {
+            background-color: #f5f5f5;
+            padding: 8px;
+            margin: 10px 0;
+            font-size: 10px;
+        }
+        
+        .signature-section {
+            margin-top: 30px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .signature-box {
+            width: 45%;
+            text-align: center;
+        }
+        
+        .signature-line {
+            border-bottom: 1px solid #000;
+            height: 30px;
+            margin: 10px 0;
+        }
+        
+        .checkbox {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 1px solid #000;
+            margin-right: 5px;
+            vertical-align: top;
+        }
+        
+        .total-amount {
+            font-size: 14px;
+            font-weight: bold;
+            text-align: right;
+            margin: 10px 0;
+        }
+        
+        .page-break {
+            page-break-before: always;
+        }
+        
+        .logo-section {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .logo-placeholder {
+            width: 80px;
+            height: 80px;
+            background-color: #4a6fa5;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 20px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <!-- Pagina 1 -->
+    <div class="header">
+        <div class="company-name">DISCOVERY FORMAZIONE S.R.L.</div>
+    </div>
+    
+    <div class="personal-data">
+        Il/La sottoscritto/a <strong>{{fullName}}</strong>, nato/a il <strong>{{birthDate}}</strong> a <strong>{{birthPlace}}</strong> e residente in <strong>{{address}}</strong> - Prov. <strong>{{province}}</strong> - Cap <strong>{{zipCode}}</strong>, Codice Fiscale <strong>{{fiscalCode}}</strong> - Indirizzo Mail: <strong>{{email}}</strong> - Telefono <strong>{{phone}}</strong> di seguito denominato/a ASSISTITO, conferisce alla DISCOVERY FORMAZIONE S.R.L. con sede in CASSINO - VIA PASCOLI 118 - 03043 - Prov.FR - Partita Iva e Codice Fiscale 03088960608, di seguito denominata Discovery, l'incarico di fornire i propri servizi di assistenza e consulenza.
+    </div>
+
+    <div class="section">
+        <div class="section-title">1. Oggetto dell'incarico</div>
+        <p>La Discovery accetta tale incarico e fornirà i servizi di assistenza per il raggiungimento di quanto richiesto dall'Assistito. L'accettazione della Discovery si intende tacita e solo nel caso di non accettazione, la Discovery invierà una mail all'indirizzo di posta elettronica dell'Assistito comunicando il rifiuto dell'incarico entro 5 giorni dal ricevimento.</p>
+        <p>Nel 'Prospetto 2 - Compensi e modalità di pagamento Art. 3' sono descritte le modalità di pagamento del compenso di euro <strong>{{totalAmount}}</strong></p>
+        <p>La Discovery si impegna allo svolgimento dell'incarico con la massima diligenza direttamente presso gli organismi istituzionali. L'obbligazione assunta dalla Discovery ha natura di obbligazione di mezzi e non di risultato. La prestazione sarà svolta nella più ampia autonomia e indipendenza, tenuto conto delle soggettive necessità dell'Assistito.</p>
+    </div>
+
+    <div class="section">
+        <div class="section-title">2. Servizi di assistenza oggetto dell'incarico</div>
+        <p>La Diamante in ragione della richiesta di cui all' art. 1. Oggetto dell'incarico, si obbliga a fornire all'Assistito i propri servizi come specificati nel 'Prospetto 1 - Servizi di assistenza oggetto dell'incarico Art. 2'.</p>
+    </div>
+
+    <div class="section">
+        <div class="section-title">3. Compensi e modalità di pagamento</div>
+        <p>Per i servizi di assistenza, l'Assistito si obbliga a corrispondere alla Discovery un compenso di euro <strong>{{totalAmount}}</strong> iva inclusa.</p>
+        <p>I pagamenti dovranno essere eseguiti mediante bonifico bancario a favore di:</p>
+        <div class="bank-details">
+            <strong>Beneficiario:</strong> DISCOVERY FORMAZIONE S.R.L.<br>
+            <strong>Indirizzo:</strong> Via Pascoli 118 - 03043 - CASSINO (FR)<br>
+            <strong>Iban:</strong> IT 52 J 030 69163 26100 0000 18394<br>
+            <strong>Bic/Swift:</strong> BCITITMM<br>
+            <strong>Causale:</strong> {{fullName}} - Servizio riconoscimento titoli
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">4. Responsabilità non attribuibili alla Discovery</div>
+        <p>La Discovery non è responsabile nei confronti dell'assistito:</p>
+        <ul>
+            <li>4.1 degli esiti accademici e/o dei risultati che l'Assistito conseguirà o riuscirà ad ottenere;</li>
+            <li>4.2 di alcuna modifica legislativa che avvenga dal momento della richiesta e nei momenti successivi e/o con effetti retroattivi;</li>
+            <li>4.3 Per ogni evento esterno e non imputabile alle normali attività nello svolgimento dell'incarico;</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <div class="section-title">5. Diritto di Ripensamento</div>
+        <p>All'Assistito è riconosciuta la facoltà di recedere entro il termine di 14 giorni solari dalla sottoscrizione dell'incarico, inviando una semplice richiesta o il modulo di recesso, allegato (All. B) al presente atto, alla seguente mail: <strong>discoveryformazione@legalmail.it</strong></p>
+        <p>Nel caso esercizio del diritto di Ripensamento, la Discovery rimborserà l'intera somma versata dall'Assistito mediante bonifico bancario. Nella comunicazione di recesso l'Assistito dovrà indicare l'intestazione del conto corrente e l'IBAN bancario su cui effettuare il rimborso. La Discovery, durante il periodo di facoltà del diritto di ripensamento, non darà inizio ad alcuna attività, subordinando l'inizio delle proprie attività alla scadenza del termine di ripensamento riconoscito all'Assistito.</p>
+        <p>L'Assistito ha la facoltà di dare esecuzione immediata all'incarico sottoscrivendo la rinuncia al Diritto di ripensamento.</p>
+    </div>
+
+    <div class="section">
+        <div class="section-title">6. Risoluzione del contratto</div>
+        <p>Alla Discovery è riconosciuta la facoltà di recedere dalla scrittura in caso di violazione, anche parziale, da parte dell'assistito di uno qualunque degli obblighi da esso assunti. La Discovery ha il diritto di recedere dalla scrittura nei seguenti casi:</p>
+        <ul>
+            <li>a) Gravi inadempienze contrattuali da parte dello assistito;</li>
+            <li>b) Mancato pagamento di una o più rate;</li>
+        </ul>
+        <p>La Discovery invierà la comunicazione di risoluzione all'indirizzo mail o tramite lettera raccomandata all'indirizzo dell'Assistito. Le somme già pagate saranno trattenute a titolo di rimborso spese e l'assistito sarà obbligato al pagamento dell'intero importo pattuito.</p>
+    </div>
+
+    <!-- Pagina 2 - Prospetti -->
+    <div class="page-break">
+        <div class="logo-section">
+            <div class="logo-placeholder">
+                Diamante<br>FORMAZIONE
+            </div>
+            <div class="company-name">DISCOVERY FORMAZIONE S.R.L.</div>
+        </div>
+        
+        <div class="document-title">CONFERIMENTO DI INCARICO PER SERVIZI DI FORMAZIONE DIDATTICA</div>
+        
+        <div class="personal-data">
+            Il/La sottoscritto/a <strong>{{fullName}}</strong>, nato/a il <strong>{{birthDate}}</strong> a <strong>{{birthPlace}}</strong> e residente in <strong>{{address}}</strong> - Prov. <strong>{{province}}</strong> - Cap <strong>{{zipCode}}</strong>, Codice Fiscale <strong>{{fiscalCode}}</strong> - Indirizzo Mail: <strong>{{email}}</strong> - Telefono <strong>{{phone}}</strong> di seguito denominato/a ASSISTITO, conferisce alla DISCOVERY FORMAZIONE S.R.L. con sede in CASSINO - VIA PASCOLI 118 - 03043 - Prov.FR - Partita Iva e Codice Fiscale 03088960608, di seguito denominata Discovery, l'incarico di fornire i propri servizi di assistenza e consulenza.
+        </div>
+
+        <div class="section">
+            <div class="section-title">Prospetto 1 - Servizi di assistenza oggetto dell'incarico Art. 2</div>
+            <p><em>Sono esclusi dal presente incarico i servizi senza indicazione di prezzo</em></p>
+            
+            <table class="services-table">
+                <thead>
+                    <tr>
+                        <th>SERVIZIO</th>
+                        <th>PREZZO</th>
+                        <th>SERVIZIO</th>
+                        <th>PREZZO</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each selectedServices}}
+                    <tr>
+                        <td>{{this.name}}</td>
+                        <td>{{this.price}}</td>
+                        <td>{{this.secondService}}</td>
+                        <td>{{this.secondPrice}}</td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+            
+            <div class="total-amount">
+                TOTALE COSTO SERVIZI: {{totalAmount}}
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Prospetto 2 - Compensi e modalità di pagamento Art. 3</div>
+            
+            <table class="payment-table">
+                <thead>
+                    <tr>
+                        <th>Num. Rate</th>
+                        <th>Importo</th>
+                        <th>Scadenza</th>
+                        <th>Num. Rate</th>
+                        <th>Importo</th>
+                        <th>Scadenza</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each paymentPlan}}
+                    <tr>
+                        <td>{{this.number}}°</td>
+                        <td>{{this.amount}}</td>
+                        <td>{{this.dueDate}}</td>
+                        {{#if this.secondNumber}}
+                        <td>{{this.secondNumber}}°</td>
+                        <td>{{this.secondAmount}}</td>
+                        <td>{{this.secondDueDate}}</td>
+                        {{else}}
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        {{/if}}
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="signature-section">
+            <div class="signature-box">
+                <p>Il sottoscritto <strong>{{fullName}}</strong> dichiara che vuole dare esecuzione immediata alle attività svolte dalla Discovery e indicati nel presente incarico, rinunciando al diritto di ripensamento di cui all'Art. 52 ss. D. Lgs. 206/2005.</p>
+                <p>Dichiara inoltre, di essere consapevole che in caso di un eventuale recesso dal conferimento dell'incarico successivo alla sopracitata dichiarazione di rinuncia si applicherà quanto previsto all' 6. Risoluzione dell'incarico.</p>
+                <div class="signature-line"></div>
+                <p>Firma ______________________________________________________</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">7. Privacy e clausole di riservatezza</div>
+            <p>Le parti si danno reciproco atto che i dati personali sono stati comunicati nel loro esclusivo interesse, pertanto dichiarano di essere adeguatamente informate circa le finalità (amministrative, finanziarie, gestionali, legali e statistiche) del trattamento dei suddetti dati, nonché dei diritti sanciti dall'art. 7 del citato decreto, a tutela della riservatezza dei dati personali. Tutte le informazioni relative al corso universitario in Romania sono coperte da clausola di riservatezza e l'Assistito s'impegna a non divulgare a persone non facenti parte del conferimento dell'incarico medesimo e dichiara espressamente di prendere atto di tale clausole e di rispettarla.</p>
+        </div>
+
+        <div class="section">
+            <div class="section-title">8. Foro competente</div>
+            <p>Per ogni controversia è competente il Tribunale di Reggio di Calabria.</p>
+        </div>
+
+        <div class="signature-section" style="margin-top: 50px;">
+            <div class="signature-box">
+                <p>Data {{contractDate}}</p>
+                <div class="signature-line"></div>
+                <p>L'assistito <strong>{{fullName}}</strong></p>
+                <p>Firma ______________________________________________________</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pagina 3 - Privacy -->
+    <div class="page-break">
+        <div class="section">
+            <div class="section-title">Informativa ai sensi dell'art. 13 del D. Lgs. 196/2003 e dell'articolo 13 del Regolamento UE n. 2016/679</div>
+            
+            <p>Ai sensi dell'art. 13 del D. Lgs. 196/2003 (di seguito "Codice Privacy") e dell'art. 13 del Regolamento UE n. 2016/679 (di seguito GDPR 2016/679), recante disposizioni a tutela delle persone e di altri soggetti rispetto al trattamento dei dati personali, desideriamo informarLa che i dati personali da Lei forniti formeranno oggetto di trattamento nel rispetto della normativa sopra richiamata e degli obblighi di riservatezza cui è tenuta dalla Discovery Formazione S.r.l.</p>
+            
+            <p><strong>Il Titolare del trattamento</strong> è la Discovery Formazione S.r.l. nella persona dell'Amministratore pro tempore Orsola Altomonte domiciliato per la carica in VIA PASCOLI 118 - 03043 - CASSINO (FR)</p>
+            
+            <p><strong>Il responsabile della protezione dei dati (DPO)</strong> è Orsola Altomonte. <strong>Il Responsabile del trattamento</strong> è Orsola Altomonte.</p>
+            
+            <p>I dati personali da Lei forniti sono necessari per gli adempimenti previsti per legge, D. Lgs. 196/2003.</p>
+            
+            <p>Il trattamento sarà svolto in forma automatizzata e/o manuale, nel rispetto di quanto previsto dall'art. 32 del GDPR 2016/679 e dall'Allegato B del D.Lgs. 196/2003 (artt. 33-36 del Codice) in materia di misure di sicurezza, ad opera di soggetti appositamente incaricati e in ottemperanza a quanto previsto dagli art. 29 GDPR 2016/ 679.</p>
+            
+            <p>Le segnaliamo che, nel rispetto dei principi di liceità, limitazione delle finalità e minimizzazione dei dati, ai sensi dell'art. 5 GDPR 2016/679, previo il Suo consenso libero ed esplicito espresso in calce alla presente informativa, i Suoi dati personali saranno conservati per il periodo di tempo necessario per il conseguimento delle finalità per le quali sono raccolti e trattati.</p>
+        </div>
+
+        <div class="section">
+            <h4>In ogni momento, Lei potrà esercitare, ai sensi dell'art. 7 del D.Lgs. 196/2003 e degli articoli dal 15 al 22 del Regolamento UE n. 2016/679, il diritto di:</h4>
+            <ul style="font-size: 10px;">
+                <li>a. Chiedere la conferma dell'esistenza o meno di propri dati personali;</li>
+                <li>b. Ottenere le indicazioni circa le finalità del trattamento, le categorie dei dati personali, i destinatari o le categorie di destinatari a cui i dati personali sono stati o saranno comunicati e, quando possibile, il periodo di conservazione;</li>
+                <li>c. Ottenere la rettifica e la cancellazione dei dati;</li>
+                <li>d. Ottenere la limitazione del trattamento;</li>
+                <li>e. Ottenere la portabilità dei dati;</li>
+                <li>f. Opporsi al trattamento in qualsiasi momento;</li>
+                <li>g. Opporsi ad un processo decisionale automatizzato;</li>
+                <li>h. Chiedere al titolare del trattamento l'accesso ai dati personali;</li>
+                <li>i. Revocare il consenso in qualsiasi momento;</li>
+                <li>j. Proporre reclamo a un'autorità di controllo.</li>
+            </ul>
+        </div>
+
+        <p style="font-size: 10px;">Può esercitare i Suoi diritti con richiesta scritta inviata a Orsola Altomonte, all'indirizzo postale della sede legale o all'indirizzo mail Pec discoveryformazione@legalmail.it</p>
+
+        <div class="section" style="margin-top: 30px;">
+            <p>Io sottoscritto/a dichiaro di aver ricevuto l'informativa che precede.</p>
+            <p>Io sottoscritto/a alla luce dell'informativa ricevuta</p>
+            
+            <p><span class="checkbox"></span> Esprimo il consenso <span class="checkbox"></span> NON esprimo il consenso al trattamento dei miei dati personali inclusi quelli considerati come categorie particolari di dati.</p>
+            
+            <p><span class="checkbox"></span> Esprimo il consenso <span class="checkbox"></span> NON esprimo il consenso alla comunicazione dei miei dati personali a enti pubblici e società di natura privata per le finalità indicate nell'informativa.</p>
+            
+            <p><span class="checkbox"></span> Esprimo il consenso <span class="checkbox"></span> NON esprimo il consenso al trattamento delle categorie particolari dei miei dati personali così come indicati nell'informativa che precede.</p>
+        </div>
+
+        <div class="signature-section" style="margin-top: 30px;">
+            <div class="signature-box">
+                <p>L'assistito <strong>{{fullName}}</strong></p>
+                <div class="signature-line"></div>
+                <p>Firma _________________________________</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pagina 4 - Modulo di recesso -->
+    <div class="page-break">
+        <div class="section">
+            <div class="section-title">Allegato A</div>
+            <h3>Modulo di rinuncia all'incarico</h3>
+            
+            <div style="text-align: right; margin: 30px 0;">
+                <p>Spett.le<br>
+                DISCOVERY FORMAZIONE S.R.L.<br>
+                VIA PASCOLI 118<br>
+                03043 - CASSINO (FR)</p>
+            </div>
+            
+            <p><strong>Oggetto: esercizio del diritto di rinuncia</strong></p>
+            
+            <p>Il sottoscritto/a <strong>{{fullName}}</strong><br>
+            residente in <strong>{{address}}</strong> - Prov. <strong>{{province}}</strong> - Cap <strong>{{zipCode}}</strong><br>
+            Codice fiscale <strong>{{fiscalCode}}</strong><br>
+            Mail <strong>{{email}}</strong><br>
+            Telefono <strong>{{phone}}</strong></p>
+            
+            <p>con l'invio della presente lettera, comunico il recesso dal conferimento del contratto di consulenza ed assistenza concluso in data {{contractDate}} chiedo, altresì, che mi venga rimborsato mediante bonifico bancario ed entro il termine di 14 gg dalla data di recesso, l'importo da me versato in data ______________________ di euro ___________________</p>
+            
+            <p>L'importo sopracitato dovrà essermi accreditato sul seguente IBAN bancario ___________________________</p>
+            
+            <p>Distinti saluti.</p>
+            
+            <div class="signature-section" style="margin-top: 50px;">
+                <div class="signature-box">
+                    <p>Data __/__/____</p>
+                    <div class="signature-line"></div>
+                    <p>Firma _______________________________</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

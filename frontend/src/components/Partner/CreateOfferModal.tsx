@@ -42,9 +42,10 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
         }));
       }
       
-      // Initialize default payments
+      // Initialize default payments only if not already set
       if (customPayments.length === 0) {
-        generateInstallmentPlan(formData.offerType === 'TFA_ROMANIA' ? 4 : 3);
+        // Non forzare un numero specifico di rate, lascia che l'utente scelga
+        generateInstallmentPlan(1); // Inizia con pagamento unico
         setUseCustomPlan(true);
       }
     }
@@ -394,15 +395,15 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
                   
                   <button
                     type="button"
-                    onClick={() => generateInstallmentPlan(formData.offerType === 'TFA_ROMANIA' ? 4 : 3)}
+                    onClick={() => generateInstallmentPlan(formData.offerType === 'TFA_ROMANIA' ? 4 : 2)}
                     className={`p-3 rounded-lg border-2 transition-all ${
-                      customPayments.length === (formData.offerType === 'TFA_ROMANIA' ? 4 : 3)
+                      customPayments.length === (formData.offerType === 'TFA_ROMANIA' ? 4 : 2)
                         ? 'border-green-500 bg-green-50 text-green-700' 
                         : 'border-gray-300 hover:border-green-300'
                     }`}
                   >
                     <div className="text-sm font-semibold">Consigliato</div>
-                    <div className="text-xs text-gray-600">{formData.offerType === 'TFA_ROMANIA' ? '4' : '3'} rate</div>
+                    <div className="text-xs text-gray-600">{formData.offerType === 'TFA_ROMANIA' ? '4' : '2'} rate</div>
                   </button>
                   
                   <button

@@ -520,84 +520,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
 
         {/* Registrations Tab */}
         {activeTab === 'registrations' && (
-          <div className="space-y-6">
-            {registrations.map((registration) => (
-              <div 
-                key={registration.id} 
-                className="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => onRegistrationClick?.(registration.id)}
-              >
-                <div className="px-6 py-4 bg-gray-50 border-b">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="text-lg font-medium text-gray-900">
-                        {registration.courseName}
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        {registration.offerType === 'TFA_ROMANIA' ? 'TFA Romania' : 'Certificazione'}
-                      </p>
-                    </div>
-                    {getStatusBadge(registration.status)}
-                  </div>
-                </div>
-                
-                <div className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Payment Info */}
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-3">Informazioni Pagamento</h4>
-                      <div className="space-y-2 text-sm">
-                        {Number(registration.originalAmount) !== Number(registration.finalAmount) && (
-                          <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-green-700 font-medium">
-                                🎉 Sconto applicato: {formatCurrency(Number(registration.originalAmount) - Number(registration.finalAmount))}
-                              </span>
-                            </div>
-                            <div className="text-xs text-green-600 mt-1">
-                              Da {formatCurrency(Number(registration.originalAmount))} a {formatCurrency(Number(registration.finalAmount))}
-                            </div>
-                          </div>
-                        )}
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Importo totale:</span>
-                          <span className="font-medium">{formatCurrency(Number(registration.finalAmount))}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Numero rate:</span>
-                          <span className="font-medium">{registration.installments}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Iscritto il:</span>
-                          <span className="font-medium">{formatDate(registration.createdAt)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Payment Schedule */}
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-3">Scadenze Pagamenti</h4>
-                      <div className="space-y-2">
-                        {registration.deadlines.map((deadline) => (
-                          <div key={deadline.id} className={`flex justify-between items-center p-2 rounded text-sm ${
-                            deadline.isPaid ? 'bg-green-50 text-green-800' : 'bg-gray-50 text-gray-700'
-                          }`}>
-                            <span>{deadline.paymentNumber === 0 ? 'Acconto' : `Rata ${deadline.paymentNumber}`}</span>
-                            <span>{formatDate(deadline.dueDate)}</span>
-                            <span className="font-medium">{formatCurrency(Number(deadline.amount))}</span>
-                            <span className={deadline.isPaid ? 'text-green-600' : 'text-orange-600'}>
-                              {deadline.isPaid ? '✓ Pagata' : 'In sospeso'}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-            
-            {registrations.length === 0 && (
+          <div className="space-y-4">
+            {registrations.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-gray-400 text-6xl mb-4">📚</div>
                 <h3 className="text-xl font-medium text-gray-900 mb-2">Nessuna iscrizione</h3>
@@ -605,6 +529,87 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                 <p className="text-gray-500 text-sm">
                   Controlla la sezione "Corsi Disponibili" per vedere i corsi a cui puoi iscriverti tramite i link del tuo partner
                 </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {registrations.map((registration) => (
+                  <div 
+                    key={registration.id} 
+                    className="bg-white rounded-lg shadow-sm border border-gray-200 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all duration-200 transform hover:-translate-y-1"
+                    onClick={() => onRegistrationClick?.(registration.id)}
+                  >
+                    <div className="p-4">
+                      {/* Header */}
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-base font-semibold text-gray-900 truncate">
+                            {registration.courseName}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            {registration.offerType === 'TFA_ROMANIA' ? 'TFA Romania' : 'Certificazione'}
+                          </p>
+                        </div>
+                        <div className="ml-2 flex-shrink-0">
+                          {getStatusBadge(registration.status)}
+                        </div>
+                      </div>
+
+                      {/* Amount & Discount */}
+                      <div className="mb-3">
+                        {Number(registration.originalAmount) !== Number(registration.finalAmount) && (
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-2 mb-2">
+                            <div className="text-xs text-green-700 font-medium">
+                              🎉 Sconto: {formatCurrency(Number(registration.originalAmount) - Number(registration.finalAmount))}
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Importo totale:</span>
+                          <span className="text-lg font-bold text-gray-900">{formatCurrency(Number(registration.finalAmount))}</span>
+                        </div>
+                      </div>
+
+                      {/* Payment Info */}
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Rate:</span>
+                          <span className="font-medium">{registration.installments}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Data iscrizione:</span>
+                          <span className="font-medium">{formatDate(registration.createdAt)}</span>
+                        </div>
+                      </div>
+
+                      {/* Next Payment */}
+                      {(() => {
+                        const nextPayment = getNextPaymentDue(registration);
+                        return nextPayment ? (
+                          <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs font-medium text-yellow-800">
+                                {nextPayment.paymentNumber === 0 ? 'Acconto' : `Rata ${nextPayment.paymentNumber}`}
+                              </span>
+                              <span className="text-xs font-bold text-yellow-900">
+                                {formatCurrency(Number(nextPayment.amount))}
+                              </span>
+                            </div>
+                            <div className="text-xs text-yellow-700 mt-1">
+                              Scadenza: {formatDate(nextPayment.dueDate)}
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
+
+                      {/* Click indicator */}
+                      <div className="mt-3 text-center">
+                        <div className="text-xs text-blue-600 font-medium">
+                          Clicca per vedere i dettagli →
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

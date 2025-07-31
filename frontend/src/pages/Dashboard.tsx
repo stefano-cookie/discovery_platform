@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Sidebar from '../components/Partner/Sidebar';
 import DashboardView from '../components/Partner/DashboardView';
 import UsersView from '../components/Partner/UsersView';
@@ -11,8 +12,42 @@ import EnrollmentDetail from '../components/Partner/EnrollmentDetail';
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'chat' | 'coupons' | 'offers'>('dashboard');
-  const [enrollmentDetailId, setEnrollmentDetailId] = useState<string | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { registrationId } = useParams();
+  
+  // Determine active tab from URL
+  const getActiveTabFromPath = (pathname: string): 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' => {
+    if (pathname.includes('/users')) return 'users';
+    if (pathname.includes('/chat')) return 'chat';
+    if (pathname.includes('/coupons')) return 'coupons';
+    if (pathname.includes('/offers')) return 'offers';
+    return 'dashboard';
+  };
+
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'chat' | 'coupons' | 'offers'>(
+    getActiveTabFromPath(location.pathname)
+  );
+
+  // Update active tab when URL changes
+  useEffect(() => {
+    setActiveTab(getActiveTabFromPath(location.pathname));
+  }, [location.pathname]);
+
+  // Navigation functions
+  const handleTabChange = (tab: 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers') => {
+    const basePath = '/dashboard';
+    const newPath = tab === 'dashboard' ? basePath : `${basePath}/${tab}`;
+    navigate(newPath);
+  };
+
+  const handleNavigateToEnrollmentDetail = (regId: string) => {
+    navigate(`/dashboard/users/${regId}`);
+  };
+
+  const handleBackToUsers = () => {
+    navigate('/dashboard/users');
+  };
 
   const getDashboardContent = () => {
     switch (user?.role) {
@@ -25,32 +60,29 @@ const Dashboard: React.FC = () => {
         );
       case 'PARTNER':
         // Se stiamo visualizzando il dettaglio iscrizione, mostra solo quello
-        if (enrollmentDetailId) {
+        if (registrationId) {
           return (
             <EnrollmentDetail 
-              registrationId={enrollmentDetailId}
-              onBackToUsers={() => {
-                setEnrollmentDetailId(null);
-                setActiveTab('users');
-              }}
+              registrationId={registrationId}
+              onBackToUsers={handleBackToUsers}
             />
           );
         }
 
         return (
           <div className="flex h-screen bg-gray-50">
-            <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+            <Sidebar activeTab={activeTab} onTabChange={handleTabChange} />
             <div className="flex-1 lg:ml-64">
               <div className="p-6 lg:p-8">
                 {activeTab === 'dashboard' && (
                   <DashboardView 
-                    onNavigateToUsers={() => setActiveTab('users')}
-                    onNavigateToEnrollmentDetail={(registrationId) => setEnrollmentDetailId(registrationId)}
+                    onNavigateToUsers={() => navigate('/dashboard/users')}
+                    onNavigateToEnrollmentDetail={handleNavigateToEnrollmentDetail}
                   />
                 )}
                 {activeTab === 'users' && (
                   <UsersView 
-                    onNavigateToEnrollmentDetail={(registrationId) => setEnrollmentDetailId(registrationId)}
+                    onNavigateToEnrollmentDetail={handleNavigateToEnrollmentDetail}
                   />
                 )}
                 {activeTab === 'coupons' && <CouponManagement />}

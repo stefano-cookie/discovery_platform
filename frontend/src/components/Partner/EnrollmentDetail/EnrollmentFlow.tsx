@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import ContractUpload from './ContractUpload';
+import ContractPreview from './ContractPreview';
 
 interface EnrollmentFlowProps {
   status: string;
@@ -210,29 +211,11 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId 
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
-            {/* Download Contract Box */}
-            <div className="bg-blue-50 border-2 border-blue-200 border-dashed rounded-lg p-6">
-              <div className="text-center">
-                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <h5 className="font-medium text-gray-900 mb-2">Contratto Precompilato</h5>
-                <p className="text-sm text-gray-600 mb-4">
-                  Scarica il contratto con i dati dell'utente già inseriti
-                </p>
-                <button 
-                  onClick={handleContractDownload}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center"
-                >
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Scarica PDF
-                </button>
-              </div>
-            </div>
+            {/* Download Contract Box with Preview */}
+            <ContractPreview 
+              registrationId={registrationId}
+              onDownload={handleContractDownload}
+            />
 
             {/* Upload Signed Contract Box */}
             <ContractUpload 

@@ -203,9 +203,14 @@ model Registration {
   
   status          RegistrationStatus @default(PENDING)
   
+  // Contratti
+  contractTemplateUrl     String?   // URL contratto precompilato
+  contractSignedUrl       String?   // URL contratto firmato
+  contractGeneratedAt     DateTime? // Data generazione template
+  contractUploadedAt      DateTime? // Data upload firmato
+  
   // Date workflow
   dataVerifiedAt      DateTime?
-  contractGeneratedAt DateTime?
   contractSignedAt    DateTime?
   enrolledAt          DateTime?
   

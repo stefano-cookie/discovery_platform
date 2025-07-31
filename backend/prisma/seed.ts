@@ -93,6 +93,7 @@ async function main() {
     }
   });
 
+  // Offerta con pagamento unico
   await prisma.partnerOffer.upsert({
     where: { id: 'certification-offer' },
     update: {},
@@ -100,12 +101,35 @@ async function main() {
       id: 'certification-offer',
       partnerId: partner.id,
       courseId: certGeneric.id,
-      name: 'Certificazione Professionale - Personalizzata',
+      name: 'Certificazione Professionale - Pagamento Unico',
+      offerType: 'CERTIFICATION',
+      totalAmount: 1500,
+      installments: 1,
+      installmentFrequency: 1,
+      referralLink: 'MAIN001-CERT',
+      customPaymentPlan: {
+        payments: [
+          { amount: 1500, dueDate: '2025-02-01' }
+        ]
+      },
+      isActive: true
+    }
+  });
+
+  // Offerta con 3 rate
+  await prisma.partnerOffer.upsert({
+    where: { id: 'certification-installments-offer' },
+    update: {},
+    create: {
+      id: 'certification-installments-offer',
+      partnerId: partner.id,
+      courseId: certGeneric.id,
+      name: 'Certificazione Professionale - 3 Rate',
       offerType: 'CERTIFICATION',
       totalAmount: 1500,
       installments: 3,
       installmentFrequency: 1,
-      referralLink: 'MAIN001-CERT',
+      referralLink: 'MAIN001-CERT3',
       customPaymentPlan: {
         payments: [
           { amount: 500, dueDate: '2025-01-30' },

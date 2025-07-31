@@ -1,9 +1,38 @@
 import { Router, Response as ExpressResponse } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, requireRole, AuthRequest } from '../middleware/auth';
+import { ContractService } from '../services/contractService';
+import multer from 'multer';
+import * as path from 'path';
 
 const router = Router();
 const prisma = new PrismaClient();
+const contractService = new ContractService();
+
+// Configure multer for contract uploads
+const contractStorage = multer.diskStorage({
+  destination: (req: any, file: any, cb: any) => {
+    cb(null, path.join(__dirname, '../../uploads/signed-contracts'));
+  },
+  filename: (req: any, file: any, cb: any) => {
+    const registrationId = req.body.registrationId;
+    cb(null, `signed_contract_${registrationId}_${Date.now()}.pdf`);
+  }
+});
+
+const uploadContract = multer({
+  storage: contractStorage,
+  fileFilter: (req: any, file: any, cb: any) => {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo file PDF sono consentiti'));
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB
+  }
+});
 
 // Get partner stats
 router.get('/stats', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
@@ -811,6 +840,276 @@ router.put('/offer-visibility/:offerId', authenticate, async (req: AuthRequest, 
     });
   } catch (error) {
     console.error('Error updating offer visibility:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Get registration details for partner
+router.get('/registrations/:registrationId', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { registrationId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    const registration = await prisma.registration.findFirst({
+      where: { 
+        id: registrationId,
+        partnerId 
+      },
+      include: {
+        user: {
+          include: { profile: true }
+        },
+        offer: {
+          include: { course: true }
+        },
+        payments: true,
+        documents: true
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    res.json({
+      id: registration.id,
+      status: registration.status,
+      createdAt: registration.createdAt,
+      contractTemplateUrl: registration.contractTemplateUrl,
+      contractSignedUrl: registration.contractSignedUrl,
+      contractGeneratedAt: registration.contractGeneratedAt,
+      contractUploadedAt: registration.contractUploadedAt,
+      user: {
+        id: registration.user.id,
+        email: registration.user.email,
+        profile: registration.user.profile
+      },
+      offer: {
+        id: registration.offer?.id,
+        name: registration.offer?.name || 'Offerta diretta',
+        course: registration.offer?.course
+      },
+      payments: registration.payments,
+      documents: registration.documents
+    });
+  } catch (error) {
+    console.error('Get registration details error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Download contract template
+router.get('/download-contract/:registrationId', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { registrationId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify registration belongs to this partner
+    const registration = await prisma.registration.findFirst({
+      where: { 
+        id: registrationId,
+        partnerId 
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    // Generate contract if not exists
+    if (!registration.contractTemplateUrl) {
+      const pdfBuffer = await contractService.generateContract(registrationId);
+      const contractUrl = await contractService.saveContract(registrationId, pdfBuffer);
+      
+      // Update registration with contract URL
+      await prisma.registration.update({
+        where: { id: registrationId },
+        data: {
+          contractTemplateUrl: contractUrl,
+          contractGeneratedAt: new Date()
+        }
+      });
+
+      // Set response headers and send PDF
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="contratto_${registrationId}.pdf"`);
+      return res.send(pdfBuffer);
+    }
+
+    // If contract already exists, serve the file
+    const contractPath = path.join(__dirname, '../../', registration.contractTemplateUrl);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="contratto_${registrationId}.pdf"`);
+    res.sendFile(contractPath);
+
+  } catch (error) {
+    console.error('Download contract error:', error);
+    res.status(500).json({ error: 'Errore durante il download del contratto' });
+  }
+});
+
+// Upload signed contract
+router.post('/upload-signed-contract', authenticate, requireRole(['PARTNER', 'ADMIN']), uploadContract.single('contract'), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { registrationId } = req.body;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'File non fornito' });
+    }
+
+    // Verify registration belongs to this partner
+    const registration = await prisma.registration.findFirst({
+      where: { 
+        id: registrationId,
+        partnerId 
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    // Update registration with signed contract info
+    const contractSignedUrl = `/uploads/signed-contracts/${req.file.filename}`;
+    
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        contractSignedUrl,
+        contractUploadedAt: new Date(),
+        status: 'CONTRACT_SIGNED' // Update status to next step
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Contratto firmato caricato con successo',
+      contractSignedUrl
+    });
+
+  } catch (error) {
+    console.error('Upload signed contract error:', error);
+    res.status(500).json({ error: 'Errore durante il caricamento del contratto' });
+  }
+});
+
+// Reset contract cache endpoint
+router.delete('/reset-contract/:registrationId', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const { registrationId } = req.params;
+    
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        contractTemplateUrl: null,
+        contractGeneratedAt: null
+      }
+    });
+
+    res.json({ success: true, message: 'Contract cache reset' });
+  } catch (error) {
+    console.error('Reset contract cache error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Test contract data endpoint
+router.get('/test-contract-data/:registrationId', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const { registrationId } = req.params;
+    
+    const registration = await prisma.registration.findUnique({
+      where: { id: registrationId },
+      include: {
+        user: {
+          include: {
+            profile: true
+          }
+        },
+        offer: {
+          include: {
+            course: true
+          }
+        },
+        payments: true
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Registrazione non trovata' });
+    }
+
+    res.json({
+      registration: {
+        id: registration.id,
+        offerType: registration.offerType,
+        originalAmount: registration.originalAmount,
+        finalAmount: registration.finalAmount,
+        installments: registration.installments,
+        createdAt: registration.createdAt
+      },
+      user: registration.user,
+      profile: registration.user?.profile,
+      offer: registration.offer,
+      payments: registration.payments
+    });
+  } catch (error) {
+    console.error('Test contract data error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Get recent enrollments for dashboard
+router.get('/recent-enrollments', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    const recentEnrollments = await prisma.registration.findMany({
+      where: { partnerId },
+      take: 5,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          include: { profile: true }
+        },
+        offer: {
+          include: { course: true }
+        }
+      }
+    });
+
+    const enrollments = recentEnrollments.map((reg: any) => ({
+      id: reg.id,
+      user: {
+        nome: reg.user.profile?.nome || 'N/A',
+        cognome: reg.user.profile?.cognome || 'N/A',
+        email: reg.user.email
+      },
+      course: reg.offer?.course?.name || reg.offer?.name || 'Corso non specificato',
+      status: reg.status,
+      createdAt: reg.createdAt
+    }));
+
+    res.json(enrollments);
+  } catch (error) {
+    console.error('Get recent enrollments error:', error);
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });

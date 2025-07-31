@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import Login from './pages/Login';
@@ -12,6 +12,7 @@ import ChangePassword from './pages/ChangePassword';
 
 const AppContent: React.FC = () => {
   const { user, isLoading } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -60,10 +61,16 @@ const AppContent: React.FC = () => {
           path="/" 
           element={user ? <Navigate to={getAuthenticatedRedirect()} replace /> : <Navigate to="/login" replace />} 
         />
-      <Route 
-        path="/login" 
-        element={user ? <Navigate to={getAuthenticatedRedirect()} replace /> : <Login />} 
-      />
+        <Route 
+          path="/login" 
+          element={user ? (
+            // Se l'utente è già autenticato e sta tentando di accedere al login,
+            // mantieni la pagina corrente se è valida, altrimenti vai alla dashboard
+            location.pathname !== '/login' && location.pathname !== '/' ? 
+              <Navigate to={location.pathname} replace /> : 
+              <Navigate to={getAuthenticatedRedirect()} replace />
+          ) : <Login />} 
+        />
       <Route 
         path="/change-password" 
         element={
@@ -86,6 +93,46 @@ const AppContent: React.FC = () => {
       />
       <Route 
         path="/dashboard" 
+        element={
+          <ProtectedRoute>
+            {user?.role === 'USER' ? <UserDashboard /> : <Dashboard />}
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/dashboard/users" 
+        element={
+          <ProtectedRoute>
+            {user?.role === 'USER' ? <UserDashboard /> : <Dashboard />}
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/dashboard/users/:registrationId" 
+        element={
+          <ProtectedRoute>
+            {user?.role === 'USER' ? <UserDashboard /> : <Dashboard />}
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/dashboard/coupons" 
+        element={
+          <ProtectedRoute>
+            {user?.role === 'USER' ? <UserDashboard /> : <Dashboard />}
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/dashboard/offers" 
+        element={
+          <ProtectedRoute>
+            {user?.role === 'USER' ? <UserDashboard /> : <Dashboard />}
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/dashboard/chat" 
         element={
           <ProtectedRoute>
             {user?.role === 'USER' ? <UserDashboard /> : <Dashboard />}

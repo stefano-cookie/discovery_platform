@@ -592,7 +592,9 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
           <div className="mb-8">
             <label className="block text-sm font-medium text-gray-700 mb-3">
               {offerInfo?.customPaymentPlan && offerInfo.customPaymentPlan.payments.length > 0
-                ? 'Piano di Pagamento Personalizzato Partner'
+                ? (offerInfo.customPaymentPlan.payments.length === 1 
+                    ? 'Pagamento Unico' 
+                    : `Piano Personalizzato - ${offerInfo.customPaymentPlan.payments.length} Rate`)
                 : offerInfo?.course?.templateType === 'CERTIFICATION'
                   ? 'Piano di Pagamento Predefinito'
                   : 'Piano di Pagamento *'

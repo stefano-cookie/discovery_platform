@@ -377,7 +377,7 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
         // FOR TFA ROMANIA: Add €1500 down payment before custom installments
         if (registrationOfferType === 'TFA_ROMANIA' && customPayments.length > 1) {
           const downPaymentDate = new Date();
-          downPaymentDate.setDate(downPaymentDate.getDate() + 1);
+          downPaymentDate.setDate(downPaymentDate.getDate() + 7); // 7 days after registration
           
           await tx.paymentDeadline.create({
             data: {
@@ -445,9 +445,9 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
           
           if (downPayment > 0) {
             const downPaymentDate = new Date();
-            downPaymentDate.setDate(downPaymentDate.getDate() + 1);
+            downPaymentDate.setDate(downPaymentDate.getDate() + 7); // 7 days after registration
             
-            await tx.paymentDeadline.create({
+            const downPaymentDeadline = await tx.paymentDeadline.create({
               data: {
                 registrationId: registration.id,
                 amount: downPayment,
@@ -456,11 +456,21 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
                 isPaid: false
               }
             });
+            
+            console.log(`Created down payment deadline:`, downPaymentDeadline);
+          }
+          
+          // Calculate installment dates: first installment 30 days after down payment deadline
+          const baseDate = new Date();
+          if (downPayment > 0) {
+            baseDate.setDate(baseDate.getDate() + 7 + 30); // 7 days + 30 days = 37 days after registration
+          } else {
+            baseDate.setDate(baseDate.getDate() + 7); // 7 days after registration if no down payment
           }
           
           for (let i = 0; i < installments; i++) {
-            const dueDate = new Date();
-            dueDate.setMonth(dueDate.getMonth() + i + 1);
+            const dueDate = new Date(baseDate);
+            dueDate.setMonth(dueDate.getMonth() + i); // Each installment is 1 month apart
             
             await tx.paymentDeadline.create({
               data: {
@@ -474,9 +484,9 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
           }
         } else {
           const dueDate = new Date();
-          dueDate.setDate(dueDate.getDate() + 1);
+          dueDate.setDate(dueDate.getDate() + 7); // 7 days after registration
           
-          await tx.paymentDeadline.create({
+          const singlePaymentDeadline = await tx.paymentDeadline.create({
             data: {
               registrationId: registration.id,
               amount: finalAmount,
@@ -485,6 +495,8 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
               isPaid: false
             }
           });
+          
+          console.log(`Created single payment deadline:`, singlePaymentDeadline);
         }
       }
       
@@ -712,7 +724,7 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
         // FOR TFA ROMANIA: Add €1500 down payment before custom installments
         if (registrationOfferType === 'TFA_ROMANIA' && customPayments.length > 1) {
           const downPaymentDate = new Date();
-          downPaymentDate.setDate(downPaymentDate.getDate() + 1);
+          downPaymentDate.setDate(downPaymentDate.getDate() + 7); // 7 days after registration
           
           const downPaymentDeadline = await tx.paymentDeadline.create({
             data: {
@@ -781,7 +793,7 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
           // Create down payment deadline for TFA Romania
           if (downPayment > 0) {
             const downPaymentDate = new Date();
-            downPaymentDate.setDate(downPaymentDate.getDate() + 1);
+            downPaymentDate.setDate(downPaymentDate.getDate() + 7); // 7 days after registration
             
             const downPaymentDeadline = await tx.paymentDeadline.create({
               data: {
@@ -796,10 +808,18 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
             console.log(`Created down payment deadline:`, downPaymentDeadline);
           }
           
+          // Calculate installment dates: first installment 30 days after down payment deadline
+          const baseDate = new Date();
+          if (downPayment > 0) {
+            baseDate.setDate(baseDate.getDate() + 7 + 30); // 7 days + 30 days = 37 days after registration
+          } else {
+            baseDate.setDate(baseDate.getDate() + 7); // 7 days after registration if no down payment
+          }
+          
           // Create installment deadlines
           for (let i = 0; i < installments; i++) {
-            const dueDate = new Date();
-            dueDate.setMonth(dueDate.getMonth() + i + 1);
+            const dueDate = new Date(baseDate);
+            dueDate.setMonth(dueDate.getMonth() + i); // Each installment is 1 month apart
             
             const installmentDeadline = await tx.paymentDeadline.create({
               data: {
@@ -816,7 +836,7 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
         } else {
           // Single payment
           const dueDate = new Date();
-          dueDate.setDate(dueDate.getDate() + 1);
+          dueDate.setDate(dueDate.getDate() + 7); // 7 days after registration
           
           const singlePaymentDeadline = await tx.paymentDeadline.create({
             data: {
