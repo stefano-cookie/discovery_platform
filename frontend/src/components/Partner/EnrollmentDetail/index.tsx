@@ -5,6 +5,7 @@ import UserInfo from './UserInfo';
 import EnrollmentFlow from './EnrollmentFlow';
 import DocumentsSection from './DocumentsSection';
 import OffersSection from './OffersSection';
+import { getPartnerStatusDisplay } from '../../../utils/statusTranslations';
 
 interface EnrollmentDetailProps {
   registrationId: string;
@@ -108,14 +109,18 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
             <div className="flex items-center space-x-3">
               <div className={`px-3 py-1 rounded-full text-sm font-medium ${
                 user.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                user.status === 'CONTRACT_GENERATED' ? 'bg-purple-100 text-purple-800' :
+                user.status === 'CONTRACT_SIGNED' ? 'bg-indigo-100 text-indigo-800' :
                 user.status === 'ENROLLED' ? 'bg-green-100 text-green-800' :
                 user.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
                 'bg-gray-100 text-gray-800'
               }`}>
                 {user.status === 'PENDING' && 'In Attesa'}
+                {user.status === 'CONTRACT_GENERATED' && 'Contratto Generato'}
+                {user.status === 'CONTRACT_SIGNED' && 'Contratto Firmato'}
                 {user.status === 'ENROLLED' && 'Attivo'}
                 {user.status === 'COMPLETED' && 'Completato'}
-                {!['PENDING', 'ENROLLED', 'COMPLETED'].includes(user.status) && user.status}
+                {!['PENDING', 'CONTRACT_GENERATED', 'CONTRACT_SIGNED', 'ENROLLED', 'COMPLETED'].includes(user.status) && getPartnerStatusDisplay(user.status)}
               </div>
             </div>
           </div>

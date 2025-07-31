@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { apiRequest } from '../services/api';
 import { Link } from 'react-router-dom';
+import UserEnrollmentDetail from '../components/User/EnrollmentDetail';
+import { getUserStatusDisplay, getStatusColors } from '../utils/statusTranslations';
 
 interface UserRegistration {
   id: string;
@@ -64,7 +66,11 @@ interface UserProfile {
   scuolaProvincia?: string;
 }
 
-const UserDashboard: React.FC = () => {
+interface UserDashboardProps {
+  onRegistrationClick?: (registrationId: string) => void;
+}
+
+const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) => {
   const { user, logout } = useAuth();
   const [registrations, setRegistrations] = useState<UserRegistration[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -254,7 +260,11 @@ const UserDashboard: React.FC = () => {
                 ) : (
                   <div className="space-y-4">
                     {registrations.slice(0, 3).map((registration) => (
-                      <div key={registration.id} className="border rounded-lg p-4">
+                      <div 
+                        key={registration.id} 
+                        className="border rounded-lg p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                        onClick={() => onRegistrationClick?.(registration.id)}
+                      >
                         <div className="flex justify-between items-start mb-2">
                           <div>
                             <h4 className="font-medium text-gray-900">
@@ -428,16 +438,8 @@ const UserDashboard: React.FC = () => {
                                   Già Iscritto
                                 </div>
                                 {course.enrollmentStatus && (
-                                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                    course.enrollmentStatus === 'ENROLLED' 
-                                      ? 'bg-green-100 text-green-800'
-                                      : course.enrollmentStatus === 'PENDING'
-                                      ? 'bg-yellow-100 text-yellow-800'
-                                      : 'bg-blue-100 text-blue-800'
-                                  }`}>
-                                    {course.enrollmentStatus === 'ENROLLED' ? 'Attivo' :
-                                     course.enrollmentStatus === 'PENDING' ? 'In Attesa' :
-                                     course.enrollmentStatus}
+                                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColors(course.enrollmentStatus).combined}`}>
+                                    {getUserStatusDisplay(course.enrollmentStatus)}
                                   </span>
                                 )}
                               </div>
@@ -520,7 +522,11 @@ const UserDashboard: React.FC = () => {
         {activeTab === 'registrations' && (
           <div className="space-y-6">
             {registrations.map((registration) => (
-              <div key={registration.id} className="bg-white rounded-lg shadow overflow-hidden">
+              <div 
+                key={registration.id} 
+                className="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => onRegistrationClick?.(registration.id)}
+              >
                 <div className="px-6 py-4 bg-gray-50 border-b">
                   <div className="flex justify-between items-start">
                     <div>
@@ -737,4 +743,30 @@ const UserDashboard: React.FC = () => {
   );
 };
 
-export default UserDashboard;
+// Enhanced UserDashboard with enrollment detail view
+const EnhancedUserDashboard: React.FC = () => {
+  const [selectedRegistrationId, setSelectedRegistrationId] = useState<string | null>(null);
+
+  const handleRegistrationClick = (registrationId: string) => {
+    setSelectedRegistrationId(registrationId);
+  };
+
+  const handleBackToRegistrations = () => {
+    setSelectedRegistrationId(null);
+  };
+
+  // If a registration is selected, show the detail view
+  if (selectedRegistrationId) {
+    return (
+      <UserEnrollmentDetail 
+        registrationId={selectedRegistrationId}
+        onBack={handleBackToRegistrations}
+      />
+    );
+  }
+
+  // Otherwise, show the regular dashboard with click handlers
+  return <UserDashboard onRegistrationClick={handleRegistrationClick} />;
+};
+
+export default EnhancedUserDashboard;

@@ -204,6 +204,90 @@ router.get('/profile', authenticate, async (req: AuthRequest, res: Response) => 
   }
 });
 
+// GET /api/user/registrations/:id - Get specific registration details
+router.get('/registrations/:registrationId', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { registrationId } = req.params;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Utente non autenticato' });
+    }
+    
+    const registration = await prisma.registration.findFirst({
+      where: { 
+        id: registrationId,
+        userId 
+      },
+      include: {
+        partner: {
+          include: {
+            user: {
+              select: {
+                email: true
+              }
+            }
+          }
+        },
+        offer: {
+          include: {
+            course: true
+          }
+        },
+        payments: {
+          orderBy: {
+            createdAt: 'desc'
+          }
+        },
+        deadlines: {
+          orderBy: [
+            { paymentNumber: 'asc' },
+            { dueDate: 'asc' }
+          ]
+        }
+      }
+    });
+    
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+    
+    const formattedRegistration = {
+      id: registration.id,
+      courseId: registration.offer?.course?.id || 'unknown',
+      courseName: registration.offer?.name || registration.offer?.course?.name || 'Corso non specificato',
+      status: registration.status,
+      originalAmount: Number(registration.originalAmount),
+      finalAmount: Number(registration.finalAmount),
+      installments: registration.installments,
+      offerType: registration.offerType,
+      createdAt: registration.createdAt.toISOString(),
+      contractTemplateUrl: registration.contractTemplateUrl,
+      contractSignedUrl: registration.contractSignedUrl,
+      contractGeneratedAt: registration.contractGeneratedAt?.toISOString(),
+      contractUploadedAt: registration.contractUploadedAt?.toISOString(),
+      partner: {
+        referralCode: registration.partner?.referralCode || '',
+        user: {
+          email: registration.partner?.user?.email || 'Partner non specificato'
+        }
+      },
+      deadlines: registration.deadlines.map(deadline => ({
+        id: deadline.id,
+        amount: Number(deadline.amount),
+        dueDate: deadline.dueDate.toISOString(),
+        paymentNumber: deadline.paymentNumber,
+        isPaid: deadline.isPaid
+      }))
+    };
+    
+    res.json({ registration: formattedRegistration });
+  } catch (error) {
+    console.error('Error getting registration details:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
 // GET /api/user/registrations - Get user registrations
 router.get('/registrations', authenticate, async (req: AuthRequest, res: Response) => {
   try {
@@ -706,6 +790,106 @@ router.get('/documents/types', authenticate, async (_req: AuthRequest, res: Resp
     res.json({ documentTypes });
   } catch (error) {
     console.error('Error getting document types:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// GET /api/user/download-contract-template/:registrationId - Download precompiled contract (only when partner has uploaded signed contract)
+router.get('/download-contract-template/:registrationId', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { registrationId } = req.params;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Utente non autenticato' });
+    }
+    
+    const registration = await prisma.registration.findFirst({
+      where: { 
+        id: registrationId,
+        userId 
+      }
+    });
+    
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+    
+    // Only allow download if contract is signed (partner has uploaded signed contract)
+    if (!['CONTRACT_SIGNED', 'ENROLLED', 'COMPLETED'].includes(registration.status)) {
+      return res.status(403).json({ error: 'Contratto non ancora disponibile per il download' });
+    }
+    
+    if (!registration.contractTemplateUrl) {
+      return res.status(404).json({ error: 'Contratto precompilato non disponibile' });
+    }
+    
+    const fs = require('fs');
+    const path = require('path');
+    
+    const filePath = path.join(process.cwd(), registration.contractTemplateUrl);
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'File contratto non trovato' });
+    }
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="contratto_precompilato_${registrationId}.pdf"`);
+    
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+  } catch (error) {
+    console.error('Error downloading contract template:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// GET /api/user/download-contract-signed/:registrationId - Download signed contract (only when partner has uploaded it)
+router.get('/download-contract-signed/:registrationId', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { registrationId } = req.params;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Utente non autenticato' });
+    }
+    
+    const registration = await prisma.registration.findFirst({
+      where: { 
+        id: registrationId,
+        userId 
+      }
+    });
+    
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+    
+    // Only allow download if contract is signed
+    if (!['CONTRACT_SIGNED', 'ENROLLED', 'COMPLETED'].includes(registration.status)) {
+      return res.status(403).json({ error: 'Contratto firmato non ancora disponibile' });
+    }
+    
+    if (!registration.contractSignedUrl) {
+      return res.status(404).json({ error: 'Contratto firmato non disponibile' });
+    }
+    
+    const fs = require('fs');
+    const path = require('path');
+    
+    const filePath = path.join(process.cwd(), registration.contractSignedUrl);
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'File contratto firmato non trovato' });
+    }
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="contratto_firmato_${registrationId}.pdf"`);
+    
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+  } catch (error) {
+    console.error('Error downloading signed contract:', error);
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
