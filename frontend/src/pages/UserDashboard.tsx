@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { apiRequest } from '../services/api';
-import { Link } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import UserEnrollmentDetail from '../components/User/EnrollmentDetail';
 import DocumentsSection from '../components/User/Documents/DocumentsSection';
 import { getUserStatusDisplay, getStatusColors } from '../utils/statusTranslations';
@@ -72,7 +72,9 @@ interface UserDashboardProps {
 }
 
 const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) => {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const [urlParams] = useState(() => new URLSearchParams(window.location.search));
   const [registrations, setRegistrations] = useState<UserRegistration[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [assignedPartner, setAssignedPartner] = useState<any>(null);
@@ -92,7 +94,15 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
   }[]>([]);
   const [coursesMessage, setCoursesMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'registrations' | 'documents' | 'profile'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'registrations' | 'documents' | 'profile'>(
+    () => {
+      const tabParam = urlParams.get('tab');
+      if (tabParam && ['overview', 'registrations', 'documents', 'profile'].includes(tabParam)) {
+        return tabParam as 'overview' | 'registrations' | 'documents' | 'profile';
+      }
+      return 'overview';
+    }
+  );
 
   useEffect(() => {
     loadUserData();
@@ -171,6 +181,18 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
   const formatCurrency = (amount: number) => `€${amount.toFixed(2)}`;
   const formatDate = (date: string) => new Date(date).toLocaleDateString('it-IT');
 
+  const handleTabChange = (newTab: 'overview' | 'registrations' | 'documents' | 'profile') => {
+    setActiveTab(newTab);
+    // Aggiorna l'URL senza ricaricare la pagina
+    const url = new URL(window.location.href);
+    if (newTab === 'overview') {
+      url.searchParams.delete('tab');
+    } else {
+      url.searchParams.set('tab', newTab);
+    }
+    window.history.replaceState({}, '', url.toString());
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -215,7 +237,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => handleTabChange(tab.id as any)}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
@@ -265,7 +287,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                       <div 
                         key={registration.id} 
                         className="border rounded-lg p-4 cursor-pointer hover:bg-gray-50 transition-colors"
-                        onClick={() => onRegistrationClick?.(registration.id)}
+                        onClick={() => navigate(`/dashboard/enrollment/${registration.id}`)}
                       >
                         <div className="flex justify-between items-start mb-2">
                           <div>
@@ -538,7 +560,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                   <div 
                     key={registration.id} 
                     className="bg-white rounded-lg shadow-sm border border-gray-200 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all duration-200 transform hover:-translate-y-1"
-                    onClick={() => onRegistrationClick?.(registration.id)}
+                    onClick={() => navigate(`/dashboard/enrollment/${registration.id}`)}
                   >
                     <div className="p-4">
                       {/* Header */}
@@ -755,30 +777,27 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
   );
 };
 
-// Enhanced UserDashboard with enrollment detail view
+// Enhanced UserDashboard with URL-based routing
 const EnhancedUserDashboard: React.FC = () => {
-  const [selectedRegistrationId, setSelectedRegistrationId] = useState<string | null>(null);
-
-  const handleRegistrationClick = (registrationId: string) => {
-    setSelectedRegistrationId(registrationId);
-  };
+  const { registrationId } = useParams<{ registrationId?: string }>();
+  const navigate = useNavigate();
 
   const handleBackToRegistrations = () => {
-    setSelectedRegistrationId(null);
+    navigate('/dashboard');
   };
 
-  // If a registration is selected, show the detail view
-  if (selectedRegistrationId) {
+  // If a registration is selected via URL, show the detail view
+  if (registrationId) {
     return (
       <UserEnrollmentDetail 
-        registrationId={selectedRegistrationId}
+        registrationId={registrationId}
         onBack={handleBackToRegistrations}
       />
     );
   }
 
-  // Otherwise, show the regular dashboard with click handlers
-  return <UserDashboard onRegistrationClick={handleRegistrationClick} />;
+  // Otherwise, show the regular dashboard
+  return <UserDashboard />;
 };
 
 export default EnhancedUserDashboard;

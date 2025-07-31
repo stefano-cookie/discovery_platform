@@ -202,6 +202,8 @@ router.post('/submit', handleAuthOrVerifiedEmail, upload.fields([
       for (const [fieldname, fileArray] of Object.entries(files)) {
         if (fileArray && fileArray.length > 0) {
           const file = fileArray[0];
+          
+          // Create registration-specific document
           const document = await tx.document.create({
             data: {
               registrationId: registration.id,
@@ -211,6 +213,49 @@ router.post('/submit', handleAuthOrVerifiedEmail, upload.fields([
             }
           });
           documents.push(document);
+          
+          // Also create/update user document for reusability
+          const documentTypeMap = {
+            'cartaIdentita': 'CARTA_IDENTITA',
+            'tesseraperSanitaria': 'TESSERA_SANITARIA',
+            'laurea': 'DIPLOMA_LAUREA',
+            'pergamenaLaurea': 'PERGAMENA_LAUREA',
+            'diplomaMaturita': 'DIPLOMA_MATURITA',
+            'certificatoMedico': 'CERTIFICATO_MEDICO'
+          };
+          
+          const userDocumentType = documentTypeMap[fieldname as keyof typeof documentTypeMap] || 'ALTRO';
+          
+          // Check if user already has this document type
+          const existingUserDoc = await tx.userDocument.findFirst({
+            where: {
+              userId,
+              type: userDocumentType as any
+            }
+          });
+          
+          if (existingUserDoc) {
+            // Update existing document
+            await tx.userDocument.update({
+              where: { id: existingUserDoc.id },
+              data: {
+                fileName: file.originalname,
+                filePath: file.path,
+                uploadedAt: new Date()
+              }
+            });
+          } else {
+            // Create new user document
+            await tx.userDocument.create({
+              data: {
+                userId,
+                type: userDocumentType as any,
+                fileName: file.originalname,
+                filePath: file.path,
+                isVerified: false
+              }
+            });
+          }
         }
       }
 

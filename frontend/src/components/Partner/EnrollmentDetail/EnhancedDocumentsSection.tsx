@@ -36,7 +36,7 @@ const EnhancedDocumentsSection: React.FC<EnhancedDocumentsSectionProps> = ({ use
         apiRequest<{ documents: UserDocument[] }>({
           method: 'GET',
           url: `/partners/users/${user.id}/documents`
-        }).catch(() => ({ documents: [] })) // Fallback if endpoint doesn't exist yet
+        }).catch(() => ({ documents: [] })) // Fallback for compatibility
       ]);
       
       setDocumentsData(registrationDocs);
@@ -70,6 +70,32 @@ const EnhancedDocumentsSection: React.FC<EnhancedDocumentsSectionProps> = ({ use
     } catch (err: any) {
       console.error('Error downloading document:', err);
       alert('Errore nel download del documento');
+    }
+  };
+
+  const handlePreviewUserDocument = async (documentId: string, fileName: string) => {
+    try {
+      const response = await fetch(`/api/partners/users/${user.id}/documents/${documentId}/download`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Errore nel caricamento');
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      
+      // Apri in una nuova finestra per la preview
+      window.open(url, '_blank');
+      
+      // Cleanup dopo un po' di tempo
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 10000);
+    } catch (err: any) {
+      console.error('Error previewing document:', err);
+      alert('Errore nella preview del documento');
     }
   };
 
@@ -210,7 +236,7 @@ const EnhancedDocumentsSection: React.FC<EnhancedDocumentsSectionProps> = ({ use
               <div className="flex items-center">
                 {getDocumentIcon(doc.type, doc.uploaded)}
                 <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-900">{doc.label}</p>
+                  <p className="text-sm font-medium text-gray-900">{doc.name}</p>
                   {doc.uploaded && doc.uploadedAt && (
                     <p className="text-xs text-gray-500">
                       Caricato il {formatDate(doc.uploadedAt)}
@@ -225,9 +251,12 @@ const EnhancedDocumentsSection: React.FC<EnhancedDocumentsSectionProps> = ({ use
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                       ✓ Caricato
                     </span>
-                    {doc.downloadUrl && (
+                    {doc.uploaded && doc.fileName && (
                       <button
-                        onClick={() => window.open(doc.downloadUrl, '_blank')}
+                        onClick={() => {
+                          // TODO: Implementare download tramite API endpoint
+                          console.log('Download documento:', doc.id);
+                        }}
                         className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                       >
                         Scarica
@@ -275,6 +304,12 @@ const EnhancedDocumentsSection: React.FC<EnhancedDocumentsSectionProps> = ({ use
                       ⏳ In attesa
                     </span>
                   )}
+                  <button
+                    onClick={() => handlePreviewUserDocument(doc.id, doc.fileName)}
+                    className="text-purple-600 hover:text-purple-800 text-sm font-medium mr-2"
+                  >
+                    Anteprima
+                  </button>
                   <button
                     onClick={() => handleDownloadUserDocument(doc.id, doc.fileName)}
                     className="text-blue-600 hover:text-blue-800 text-sm font-medium"

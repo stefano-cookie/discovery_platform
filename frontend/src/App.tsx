@@ -100,6 +100,14 @@ const AppContent: React.FC = () => {
         } 
       />
       <Route 
+        path="/dashboard/enrollment/:registrationId" 
+        element={
+          <ProtectedRoute>
+            <UserDashboard />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
         path="/dashboard/users" 
         element={
           <ProtectedRoute>

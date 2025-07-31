@@ -939,4 +939,94 @@ router.get('/download-contract-signed/:registrationId', authenticate, async (req
   }
 });
 
+// GET /api/user/enrollment-documents - Get documents uploaded during enrollment processes
+router.get('/enrollment-documents', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Utente non autenticato' });
+    }
+    
+    // Get all user's registrations with their documents
+    const registrations = await prisma.registration.findMany({
+      where: { userId },
+      include: {
+        documents: true,
+        offer: {
+          include: {
+            course: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    // Flatten all documents from all registrations
+    const enrollmentDocuments = registrations.flatMap(registration => 
+      registration.documents.map(doc => ({
+        id: doc.id,
+        type: doc.type,
+        fileName: doc.fileName,
+        uploadedAt: doc.uploadedAt,
+        registrationId: registration.id,
+        courseName: registration.offer?.course?.name || 'Corso sconosciuto'
+      }))
+    );
+    
+    res.json({ documents: enrollmentDocuments });
+  } catch (error) {
+    console.error('Error getting enrollment documents:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// GET /api/user/enrollment-documents/:id/download - Download enrollment document
+router.get('/enrollment-documents/:id/download', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Utente non autenticato' });
+    }
+    
+    // Find document and verify user ownership through registration
+    const document = await prisma.document.findFirst({
+      where: {
+        id,
+        registration: {
+          userId
+        }
+      }
+    });
+    
+    if (!document) {
+      return res.status(404).json({ error: 'Documento non trovato' });
+    }
+    
+    // Check if file exists
+    const fs = require('fs');
+    if (!fs.existsSync(document.filePath)) {
+      return res.status(404).json({ error: 'File non trovato sul server' });
+    }
+    
+    // Send file
+    res.download(document.filePath, document.fileName, (err) => {
+      if (err) {
+        console.error('Error downloading file:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Errore nel download del file' });
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error downloading enrollment document:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Errore interno del server' });
+    }
+  }
+});
+
 export default router;
