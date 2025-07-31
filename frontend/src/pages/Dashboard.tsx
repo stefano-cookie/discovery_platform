@@ -7,10 +7,12 @@ import ChatView from '../components/Partner/ChatView';
 import CouponManagement from '../components/Partner/CouponManagement';
 import OfferManagement from '../components/Partner/OfferManagement';
 import UserManagement from '../components/Admin/UserManagement';
+import EnrollmentDetail from '../components/Partner/EnrollmentDetail';
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'chat' | 'coupons' | 'offers'>('dashboard');
+  const [enrollmentDetailId, setEnrollmentDetailId] = useState<string | null>(null);
 
   const getDashboardContent = () => {
     switch (user?.role) {
@@ -22,13 +24,35 @@ const Dashboard: React.FC = () => {
           </div>
         );
       case 'PARTNER':
+        // Se stiamo visualizzando il dettaglio iscrizione, mostra solo quello
+        if (enrollmentDetailId) {
+          return (
+            <EnrollmentDetail 
+              registrationId={enrollmentDetailId}
+              onBackToUsers={() => {
+                setEnrollmentDetailId(null);
+                setActiveTab('users');
+              }}
+            />
+          );
+        }
+
         return (
           <div className="flex h-screen bg-gray-50">
             <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
             <div className="flex-1 lg:ml-64">
               <div className="p-6 lg:p-8">
-                {activeTab === 'dashboard' && <DashboardView onNavigateToUsers={() => setActiveTab('users')} />}
-                {activeTab === 'users' && <UsersView />}
+                {activeTab === 'dashboard' && (
+                  <DashboardView 
+                    onNavigateToUsers={() => setActiveTab('users')}
+                    onNavigateToEnrollmentDetail={(registrationId) => setEnrollmentDetailId(registrationId)}
+                  />
+                )}
+                {activeTab === 'users' && (
+                  <UsersView 
+                    onNavigateToEnrollmentDetail={(registrationId) => setEnrollmentDetailId(registrationId)}
+                  />
+                )}
                 {activeTab === 'coupons' && <CouponManagement />}
                 {activeTab === 'offers' && <OfferManagement />}
                 {activeTab === 'chat' && <ChatView />}

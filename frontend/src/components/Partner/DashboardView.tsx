@@ -6,9 +6,13 @@ import StatsCard from './StatsCard';
 
 interface DashboardViewProps {
   onNavigateToUsers?: () => void;
+  onNavigateToEnrollmentDetail?: (registrationId: string) => void;
 }
 
-const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateToUsers }) => {
+const DashboardView: React.FC<DashboardViewProps> = ({ 
+  onNavigateToUsers, 
+  onNavigateToEnrollmentDetail 
+}) => {
   const { stats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = usePartnerStats();
   const [recentUsers, setRecentUsers] = useState<PartnerUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
@@ -168,8 +172,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateToUsers }) => {
                   key={user.id} 
                   className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer border border-transparent hover:border-blue-200"
                   onClick={() => {
-                    // Navigazione al dettaglio iscrizione - verrà implementata nella Feature 2
-                    console.log('Navigate to enrollment detail:', user.registrationId);
+                    if (onNavigateToEnrollmentDetail) {
+                      onNavigateToEnrollmentDetail(user.registrationId);
+                    }
                   }}
                 >
                   <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">

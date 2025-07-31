@@ -7,7 +7,7 @@ interface UserTableProps {
   isLoading: boolean;
   onFilterChange: (filter: 'all' | 'direct' | 'children') => void;
   currentFilter: 'all' | 'direct' | 'children';
-  onManageOffers?: (user: PartnerUser) => void;
+  onNavigateToEnrollmentDetail?: (registrationId: string) => void;
 }
 
 const UserTable: React.FC<UserTableProps> = ({ 
@@ -15,15 +15,9 @@ const UserTable: React.FC<UserTableProps> = ({
   isLoading, 
   onFilterChange, 
   currentFilter,
-  onManageOffers
+  onNavigateToEnrollmentDetail
 }) => {
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-
-  const handleManageOffers = (user: PartnerUser) => {
-    if (onManageOffers) {
-      onManageOffers(user);
-    }
-  };
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
@@ -135,15 +129,22 @@ const UserTable: React.FC<UserTableProps> = ({
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 📅 Data Iscrizione
               </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                Azioni
-              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-50">
             {users.map((user, index) => (
-              <tr key={user.id} className={`hover:bg-blue-50/50 transition-colors duration-200 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
-                <td className="px-6 py-4 whitespace-nowrap">
+              <tr 
+                key={user.id} 
+                className={`hover:bg-blue-50/50 transition-colors duration-200 cursor-pointer ${
+                  index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
+                }`}
+                onClick={() => {
+                  if (onNavigateToEnrollmentDetail) {
+                    onNavigateToEnrollmentDetail(user.registrationId);
+                  }
+                }}
+              >
+                <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
                     checked={selectedUsers.includes(user.id)}
@@ -183,29 +184,6 @@ const UserTable: React.FC<UserTableProps> = ({
                     <div className="text-xs text-gray-400">
                       Registrato: {formatDate(user.createdAt)}
                     </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <div className="flex flex-wrap gap-2">
-                    <button className="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-200 transition-colors">
-                      Dettagli
-                    </button>
-                    <button 
-                      onClick={() => handleManageOffers(user)}
-                      className="inline-flex items-center px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-xs font-medium hover:bg-purple-200 transition-colors"
-                    >
-                      🎓 Gestisci Offerte
-                    </button>
-                    {user.canManagePayments && (
-                      <>
-                        <button className="inline-flex items-center px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-medium hover:bg-green-200 transition-colors">
-                          💰 Pagamento
-                        </button>
-                        <button className="inline-flex items-center px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-xs font-medium hover:bg-orange-200 transition-colors">
-                          ⚙️ Gestisci
-                        </button>
-                      </>
-                    )}
                   </div>
                 </td>
               </tr>
