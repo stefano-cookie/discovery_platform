@@ -26,14 +26,24 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId 
 
   const handleContractDownload = async () => {
     try {
-      const response = await fetch(`/api/partners/download-contract/${registrationId}`, {
+      // Use correct backend URL
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+      const response = await fetch(`${API_BASE_URL}/partners/download-contract/${registrationId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
       });
 
       if (!response.ok) {
-        throw new Error('Errore durante il download del contratto');
+        // Parse error message from backend
+        let errorMessage = 'Errore durante il download del contratto';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // Response is not JSON, use default message
+        }
+        throw new Error(errorMessage);
       }
 
       const blob = await response.blob();
@@ -46,6 +56,7 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId 
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error: any) {
+      console.error('Contract download error:', error);
       alert('Errore durante il download: ' + error.message);
     }
   };
