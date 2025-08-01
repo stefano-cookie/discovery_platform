@@ -4,23 +4,43 @@ import DocumentUpload from './DocumentUpload';
 
 interface Registration {
   id: string;
-  courseId: string;
-  courseName: string;
+  courseId?: string;
+  courseName?: string;
   status: string;
   createdAt: string;
   originalAmount: number;
   finalAmount: number;
   installments: number;
   offerType: 'TFA_ROMANIA' | 'CERTIFICATION';
-  totalPaid: number;
-  payments: Array<{
+  totalPaid?: number;
+  remainingAmount?: number;
+  nextDeadline?: {
+    amount: number;
+    dueDate: string;
+    paymentNumber: number;
+  };
+  partner?: {
+    email: string;
+    referralCode: string;
+  };
+  course?: {
+    id: string;
+    name: string;
+    description?: string;
+  };
+  offer?: {
+    id: string;
+    name: string;
+    offerType: string;
+  };
+  payments?: Array<{
     id: string;
     amount: number;
     paymentDate: string;
     isConfirmed: boolean;
     paymentNumber: number;
   }>;
-  deadlines: Array<{
+  deadlines?: Array<{
     id: string;
     amount: number;
     dueDate: string;
@@ -260,7 +280,7 @@ const UserDashboard: React.FC = () => {
                       {registrations.map((registration) => (
                         <tr key={registration.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">{registration.courseName}</div>
+                            <div className="text-sm font-medium text-gray-900">{registration.course?.name || registration.courseName || 'Corso non specificato'}</div>
                             <div className="text-sm text-gray-500">ID: {registration.id.slice(0, 8)}...</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -320,12 +340,12 @@ const UserDashboard: React.FC = () => {
                   {registrations.map((registration) => (
                     <div key={`details-${registration.id}`} className="mb-6 border border-gray-200 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
-                        <h5 className="font-medium text-gray-900">{registration.courseName}</h5>
+                        <h5 className="font-medium text-gray-900">{registration.course?.name || registration.courseName || 'Corso non specificato'}</h5>
                         <span className="text-sm text-gray-500">ID: {registration.id.slice(0, 8)}...</span>
                       </div>
                       
                       {/* Deadlines */}
-                      {registration.deadlines.length > 0 && (
+                      {registration.deadlines && registration.deadlines.length > 0 && (
                         <div className="mb-4">
                           <h6 className="text-sm font-medium text-gray-700 mb-2">Scadenze Pagamenti:</h6>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -364,7 +384,7 @@ const UserDashboard: React.FC = () => {
                       )}
                       
                       {/* Payments */}
-                      {registration.payments.length > 0 && (
+                      {registration.payments && registration.payments.length > 0 && (
                         <div>
                           <h6 className="text-sm font-medium text-gray-700 mb-2">Storico Pagamenti:</h6>
                           <div className="space-y-2">
@@ -398,7 +418,7 @@ const UserDashboard: React.FC = () => {
                         </div>
                       )}
                       
-                      {registration.deadlines.length === 0 && registration.payments.length === 0 && (
+                      {(!registration.deadlines || registration.deadlines.length === 0) && (!registration.payments || registration.payments.length === 0) && (
                         <div className="text-center py-4 text-gray-500 text-sm">
                           Nessuna scadenza o pagamento registrato
                         </div>
