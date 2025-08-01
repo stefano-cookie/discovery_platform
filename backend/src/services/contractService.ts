@@ -120,16 +120,6 @@ export class ContractService {
 
       await browser.close();
 
-      // Salva l'URL del contratto nel database
-      const contractUrl = `/contracts/${registrationId}.pdf`;
-      await prisma.registration.update({
-        where: { id: registrationId },
-        data: {
-          contractTemplateUrl: contractUrl,
-          contractGeneratedAt: new Date()
-        }
-      });
-
       return pdfBuffer;
 
     } catch (error) {

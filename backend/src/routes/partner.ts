@@ -15,8 +15,7 @@ const contractStorage = multer.diskStorage({
     cb(null, path.join(__dirname, '../../uploads/signed-contracts'));
   },
   filename: (req: any, file: any, cb: any) => {
-    const registrationId = req.body.registrationId;
-    cb(null, `signed_contract_${registrationId}_${Date.now()}.pdf`);
+    cb(null, `signed_contract_temp_${Date.now()}.pdf`);
   }
 });
 
@@ -1019,7 +1018,11 @@ router.get('/download-contract/:registrationId', authenticate, requireRole(['PAR
     }
 
     // If contract already exists, serve the file
-    const contractPath = path.join(__dirname, '../../', registration.contractTemplateUrl);
+    const contractPath = path.resolve(__dirname, '../..', registration.contractTemplateUrl.substring(1)); // Remove leading slash
+    if (!require('fs').existsSync(contractPath)) {
+      return res.status(404).json({ error: 'File contratto non trovato' });
+    }
+    
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="contratto_${registrationId}.pdf"`);
     res.sendFile(contractPath);
@@ -1056,8 +1059,14 @@ router.post('/upload-signed-contract', authenticate, requireRole(['PARTNER', 'AD
       return res.status(404).json({ error: 'Iscrizione non trovata' });
     }
 
+    // Rename file with proper registrationId
+    const oldPath = req.file.path;
+    const newFilename = `signed_contract_${registrationId}_${Date.now()}.pdf`;
+    const newPath = path.join(path.dirname(oldPath), newFilename);
+    require('fs').renameSync(oldPath, newPath);
+    
     // Update registration with signed contract info
-    const contractSignedUrl = `/uploads/signed-contracts/${req.file.filename}`;
+    const contractSignedUrl = `/uploads/signed-contracts/${newFilename}`;
     
     await prisma.registration.update({
       where: { id: registrationId },
