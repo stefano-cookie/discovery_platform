@@ -196,7 +196,7 @@ export class ContractService {
   }> {
     // Servizi standard basati sul tipo di offerta della registrazione
     const services = [];
-    const offerType = registration.offerType || offer?.offerType || 'TFA_ROMANIA';
+    const offerType = offer?.offerType || 'TFA_ROMANIA';
 
     if (offerType === 'TFA_ROMANIA') {
       services.push({
