@@ -13,6 +13,8 @@ import ProfessionStep from './FormSteps/ProfessionStep';
 import DocumentsStep from './FormSteps/DocumentsStep';
 import EnrollmentStep from './FormSteps/EnrollmentStep';
 import RegistrationStep from './FormSteps/RegistrationStep';
+import CodeVerification from './CodeVerification';
+import { verifyCode } from '../../services/api';
 
 interface MultiStepFormProps {
   referralCode?: string;
@@ -28,17 +30,18 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   
-  // Gestisce utenti verificati via email
+  // Gestisce utenti verificati via codice sicuro
   const urlParams = new URLSearchParams(location.search);
-  const emailVerified = urlParams.get('emailVerified');
-  const verifiedEmail = urlParams.get('email');
+  const verificationCode = urlParams.get('code');
+  const [verifiedUser, setVerifiedUser] = useState<any>(null);
+  const [showCodeVerification, setShowCodeVerification] = useState(false);
   
   const stepConfig = useMemo(() => {
     // Gli utenti NON autenticati vengono reindirizzati alla registrazione
     // Qui gestiamo solo gli utenti GIA' REGISTRATI che fanno l'iscrizione
     
-    // Controlla se l'utente ha già un profilo (autenticato o verificato via email)
-    const hasExistingProfile = !!(currentUser || emailVerified === 'true');
+    // Controlla se l'utente ha già un profilo (autenticato o verificato via codice)
+    const hasExistingProfile = !!(currentUser || verifiedUser);
     
     // Usa il templateType del corso per determinare il tipo di form
     // Il course.templateType definisce quale form mostrare (TFA o CERTIFICATION)
@@ -90,7 +93,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
         }
       };
     }
-  }, [offerInfo, currentUser, emailVerified]);
+  }, [offerInfo, currentUser, verifiedUser]);
 
   // Convert user profile to form data
   const initialFormData = useMemo(() => {
@@ -165,7 +168,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
       // Add referral code if present
       referralCode: referralCode || ''
     };
-  }, [userProfile, currentUser, referralCode, verifiedEmail]);
+  }, [userProfile, currentUser, referralCode, verifiedUser]);
 
   const {
     currentStep,
@@ -262,7 +265,26 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
     loadOfferInfo();
   }, [referralCode, updateFormData]);
 
-  // Load user profile when user is authenticated OR verified via email
+  // Verify code if present in URL
+  useEffect(() => {
+    const handleCodeVerification = async () => {
+      if (verificationCode && !verifiedUser && !currentUser) {
+        try {
+          const response = await verifyCode(verificationCode);
+          setVerifiedUser(response.user);
+        } catch (error) {
+          console.error('Error verifying code:', error);
+          setShowCodeVerification(true);
+        }
+      } else if (!currentUser && !verificationCode && !verifiedUser) {
+        setShowCodeVerification(true);
+      }
+    };
+
+    handleCodeVerification();
+  }, [verificationCode, verifiedUser, currentUser]);
+
+  // Load user profile when user is authenticated OR verified via code
   useEffect(() => {
     const loadUserProfile = async () => {
       // Se l'utente è autenticato, usa l'API normale
@@ -283,15 +305,15 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
         return;
       }
 
-      // Se l'utente arriva da verifica email, carica il profilo con l'email
-      if (emailVerified === 'true' && verifiedEmail) {
+      // Se l'utente arriva da verifica codice, carica il profilo
+      if (verifiedUser && verifiedUser.hasProfile) {
         try {
           setLoadingProfile(true);
           
           const response = await apiRequest<{user: any; profile: any; assignedPartner: any}>({
             method: 'POST',
             url: '/user/profile-by-email',
-            data: { email: verifiedEmail }
+            data: { email: verifiedUser.email }
           });
 
           setUserProfile(response);
@@ -300,7 +322,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
           if (response.profile) {
             updateFormData({
               // Email dall'utente verificato
-              email: verifiedEmail || '',
+              email: verifiedUser.email || '',
               // Dati anagrafici dal profilo
               cognome: response.profile.cognome || '',
               nome: response.profile.nome || '',
@@ -354,7 +376,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
 
     loadUserProfile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, emailVerified, verifiedEmail]);
+  }, [currentUser, verifiedUser, updateFormData]);
 
 
 
@@ -511,6 +533,19 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
           </button>
         </div>
       </div>
+    );
+  }
+
+  // Show code verification if needed
+  if (showCodeVerification && !currentUser && !verifiedUser) {
+    return (
+      <CodeVerification
+        onVerificationSuccess={(user) => {
+          setVerifiedUser(user);
+          setShowCodeVerification(false);
+        }}
+        onCancel={() => window.location.href = '/'}
+      />
     );
   }
 

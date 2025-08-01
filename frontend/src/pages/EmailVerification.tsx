@@ -6,6 +6,7 @@ const EmailVerification: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
+  const [verificationCode, setVerificationCode] = useState<string | null>(null);
 
   useEffect(() => {
     const verifyEmailToken = async () => {
@@ -21,6 +22,12 @@ const EmailVerification: React.FC = () => {
       try {
         const response = await verifyEmail(token, decodeURIComponent(email));
         setStatus('success');
+        
+        // Store verification code if provided
+        if (response.verificationCode) {
+          setVerificationCode(response.verificationCode);
+        }
+        
         if (response.alreadyVerified) {
           setMessage('Email già verificata in precedenza. Puoi procedere con la registrazione.');
         } else {
@@ -70,7 +77,17 @@ const EmailVerification: React.FC = () => {
                     </svg>
                     <div className="text-sm text-green-700">
                       <p className="font-medium">Successo!</p>
-                      <p className="mt-1">Puoi ora chiudere questa pagina e tornare alla registrazione per continuare.</p>
+                      {verificationCode ? (
+                        <div className="mt-2">
+                          <p className="font-medium">Il tuo codice di accesso:</p>
+                          <div className="bg-white border border-green-300 rounded px-3 py-2 mt-1 font-mono text-lg text-green-800">
+                            {verificationCode}
+                          </div>
+                          <p className="mt-2">Usa questo codice per accedere al form di iscrizione. Valido per 30 minuti.</p>
+                        </div>
+                      ) : (
+                        <p className="mt-1">Puoi ora chiudere questa pagina e tornare alla registrazione per continuare.</p>
+                      )}
                     </div>
                   </div>
                 </div>

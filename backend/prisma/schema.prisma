@@ -20,6 +20,10 @@ model User {
   lastLoginAt     DateTime?
   createdAt       DateTime @default(now())
   
+  // Codice univoco per accesso sicuro al form iscrizione
+  verificationCode String? @unique
+  codeExpiresAt   DateTime?
+  
   // Partner assignment (permanent association)
   assignedPartnerId String?
   

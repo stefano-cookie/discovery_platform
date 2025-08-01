@@ -1,20 +1,49 @@
 # CLAUDE.md - Piattaforma Diamante
 
+## 🚨 PROBLEMI CRITICI DA RISOLVERE - PRIORITÀ ALTA
+
+### 🔴 **1. SICUREZZA - Accesso Dati Utenti** (CRITICO)
+**Problema**: Nel form iscrizione post-verifica email, inserendo email di altri utenti si accede ai loro dati
+**Soluzione**: 
+- ⬜ Implementare sistema con codice univoco post-verifica email
+- ⬜ Rimuovere campo email dal form post-verifica
+- ⬜ Associare token/codice alla sessione utente verificata
+
+### 🔴 **2. CONTRATTI - Sistema Non Funzionante**
+**Problemi**:
+- ⬜ Anteprima contratto precompilato non funziona
+- ⬜ Download contratto precompilato non funziona  
+- ⬜ Upload contratto firmato non funziona
+**Azioni**: Debug completo sistema contratti con verifica API endpoints
+
+### 🟡 **3. DOCUMENTI - Sincronizzazione Area Utente**
+**Problemi**:
+- ⬜ Documenti caricati in iscrizione non visibili in "I miei documenti"
+- ⬜ Errore caricamento documenti da area riservata
+- ⬜ Validazione formato file mostra messaggio generico
+**Soluzione**: Sincronizzare documenti iscrizione con area utente
+
+---
+
 ## 🎯 ARCHITETTURA SISTEMA
 
-### 🔄 FLUSSO REGISTRAZIONE E ISCRIZIONE (COMPLETATO)
+### 🔄 FLUSSO REGISTRAZIONE E ISCRIZIONE - DA AGGIORNARE
 
 **IMPORTANTE**: Il sistema separa completamente la registrazione utente (creazione profilo) dall'iscrizione ai corsi.
 
-#### ✅ **Registrazione Utente** - Implementata
+#### 🔧 **Registrazione Utente** - Da Modificare
 - Partner invia link referral → popup registrazione → form dati completi
 - Sistema crea profilo con partner permanente + email verifica
-- Post-verifica: redirect automatico al form iscrizione
+- ⬜ **NUOVO**: Post-verifica genera codice univoco per accesso form iscrizione
+- ⬜ **SICUREZZA**: Form iscrizione richiede codice invece di email
 
-#### ✅ **Iscrizione Corso** - Implementata  
-- Utenti registrati accedono con dati pre-compilati
-- Form dinamico per tipo offerta (TFA completo, Certificazioni ridotto)
-- Gestione documenti e pagamenti personalizzati
+#### 🔧 **Iscrizione Corso** - Da Aggiornare
+- ⬜ Utenti accedono con codice univoco (non email)
+- ⬜ Form TFA: aggiungere blocco informazioni diploma
+- ⬜ Select università/corsi con filtro testuale
+- ⬜ Rimuovere "tipo laurea triennale" quando selezionata magistrale
+- ⬜ Aggiungere campi voto laurea (opzionali)
+- ⬜ Aggiungere corsi vecchio ordinamento
 
 #### ✅ **Sistema Multi-Offerta** - Implementato
 - **TFA Romania**: Form completo + pagamenti fissi/personalizzati
@@ -23,9 +52,9 @@
 
 ---
 
-## 🎨 PANNELLO PARTNER - IMPLEMENTAZIONE COMPLETATA ✅
+## 🎨 PANNELLO PARTNER - AGGIORNAMENTI NECESSARI
 
-### 📊 **Dashboard Partner** ✅
+### 📊 **Dashboard Partner**
 
 #### 🔄 **Iscrizioni Recenti** - COMPLETATO
 - ✅ **Sezione rinominata**: Da "Attività recenti" a "Iscrizioni recenti"
@@ -33,202 +62,219 @@
 - ✅ **Card cliccabili**: Click su card → dettaglio utente completo
 - ✅ **Link "Vedi tutto"**: Porta alla gestione utenti completa
 
-### 👥 **Gestione Utenti - Sistema Implementato** ✅
+### 👥 **Gestione Utenti - Da Aggiornare**
 
-#### 📄 **Pagina Dettaglio Iscrizione** - COMPLETATA
-- ✅ **Righe table cliccabili**: Click su intera riga → pagina dettaglio iscrizione
-- ✅ **Vista workflow completa**: Diagramma step con stati visivi
-- ✅ **Sezioni organizzate**: Header, workflow, documenti, azioni rapide
-- ✅ **Stati iscrizione dinamici** implementati:
-  - `PENDING`: Iscrizione completata, contratto disponibile per download
-  - `CONTRACT_GENERATED`: In attesa caricamento contratto firmato
-  - `CONTRACT_SIGNED`: Contratto firmato, in attesa pagamento
-  - `ENROLLED`: Pagamento completato (gestito da sistema esterno)
-  - `COMPLETED`: Iscrizione definitivamente completata
+#### 📄 **Pagina Dettaglio Iscrizione** - MODIFICHE NECESSARIE
 
-#### 📑 **Sistema Contratti** - COMPLETATO ✅
+##### 🔧 **Workflow Stati - Da Modificare**
+- ⬜ **Primo step**: Rinominare da "Iscrizione completata" a "Iscrizione eseguita"
+- ⬜ **Piano pagamento**: Aggiungere scadenze rate visibili
+- ⬜ **Rimuovere**: Blocco sincronizzazione (non necessario)
 
-##### **Generazione Automatica** ✅
-- ✅ **Generazione automatica**: Contratto generato al completamento iscrizione
-- ✅ **Download interface**: Box dedicato per download contratto precompilato
-- ✅ **API endpoint**: `/api/partners/download-contract/:registrationId`
+##### 🎓 **Workflow Certificazioni - Da Implementare**
+Stati specifici per template Certificazioni:
+1. ⬜ Iscrizione completata
+2. ⬜ Pagamento completato  
+3. ⬜ Iscritto all'esame (con data inserita manualmente da operatore)
 
-##### **Upload Contratto Firmato** ✅
-- ✅ **Drag-and-drop upload**: Componente completo con validazione file
-- ✅ **Validazione PDF**: Solo PDF, massimo 10MB
-- ✅ **Feedback visivo**: Loading states, error handling, success callbacks
-- ✅ **API integration**: `/api/partners/upload-signed-contract`
-- ✅ **Cambio stato automatico**: `PENDING` → `CONTRACT_SIGNED`
+##### 📑 **Sistema Contratti** - DA RIPARARE
+**Problemi identificati**:
+- ⬜ Fix download contratto precompilato
+- ⬜ Fix anteprima contratto
+- ⬜ Fix upload contratto firmato
+- ⬜ Verificare API endpoints e permessi
 
-#### 📄 **Gestione Documenti** - COMPLETATA ✅
-- ✅ **Dati dinamici**: Caricamento documenti via API
-- ✅ **Progress circle**: Visualizzazione percentuale completamento
-- ✅ **Stati documenti**: Caricato/Non caricato con date
-- ✅ **Azioni documenti**: Visualizza, elimina per documenti caricati
-- ✅ **Filtro per tipo offerta**: Documenti mostrati secondo TFA/Certificazioni
+##### 📄 **Gestione Documenti Partner** - NUOVO
+- ⬜ **CNRed**: Partner può caricare, non visibile a utente
+- ⬜ **Adverintia**: Partner può caricare, non visibile a utente
+- ⬜ **Card notifica**: Card colorata quando documenti caricati
+- ⬜ **Verifica documenti**: Partner approva/rifiuta documenti utente
+- ⬜ **Email notifica**: Invio automatico se documento rifiutato
+
+---
+
+## 🧑‍💼 AREA RISERVATA UTENTE - MODIFICHE
+
+### 📁 **Gestione Documenti** - Da Fixare
+- ⬜ **Sincronizzazione**: Mostrare documenti caricati in iscrizione
+- ⬜ **Fix upload**: Risolvere errore caricamento documenti
+- ⬜ **Validazione**: Messaggio specifico "Il file è di un formato non supportato"
+- ⬜ **Stati documento**: Pending/Approvato/Rifiutato dal partner
+
+### 💳 **Piano Pagamenti** - Da Aggiornare
+- ⬜ **Scadenze dinamiche**: 
+  - Acconto: 7 giorni da iscrizione
+  - Prima rata: 30 giorni dopo scadenza acconto
+  - Rate successive: sempre al 30 del mese
+- ⬜ Non mostrare piano rate dopo selezione piano personalizzato
 
 ---
 
 ## 📊 Database Schema Aggiornamenti Necessari
 
 ```prisma
-// Aggiunte al modello Registration
+// Modifiche al modello Registration
 model Registration {
   // ... campi esistenti ...
   
+  // Sicurezza accesso
+  verificationCode        String?   @unique // Codice univoco post-verifica
+  codeExpiresAt          DateTime? // Scadenza codice
+  
   // Contratti
-  contractTemplateUrl     String?   // URL contratto precompilato
-  contractSignedUrl       String?   // URL contratto firmato
-  contractGeneratedAt     DateTime? // Data generazione template
-  contractUploadedAt      DateTime? // Data upload firmato
+  contractTemplateUrl     String?   
+  contractSignedUrl       String?   
+  contractGeneratedAt     DateTime? 
+  contractUploadedAt      DateTime? 
+  
+  // Documenti partner (non visibili a utente)
+  cnredUrl               String?
+  cnredUploadedAt        DateTime?
+  adverintiaUrl          String?
+  adverintiaUploadedAt   DateTime?
   
   // Stati workflow estesi
   status                  RegistrationStatus @default(PENDING)
   statusHistory           StatusChange[]
   
+  // Certificazioni - data esame
+  examDate               DateTime? // Per workflow certificazioni
+  examRegisteredBy       String?   // Partner che registra data
+  
   // ... relazioni esistenti ...
 }
 
-model StatusChange {
+// Nuovo modello per gestione documenti utente
+model UserDocument {
   id              String   @id @default(uuid())
-  registrationId  String
-  fromStatus      RegistrationStatus
-  toStatus        RegistrationStatus
-  changedBy       String   // userId che ha fatto il cambio
-  reason          String?  // Motivo cambio stato
-  createdAt       DateTime @default(now())
+  userId          String
+  registrationId  String?
+  type            String   // CI, Diploma, etc
+  url             String
+  status          DocumentStatus @default(PENDING)
+  verifiedBy      String?  // Partner che verifica
+  verifiedAt      DateTime?
+  rejectionReason String?
+  uploadedAt      DateTime @default(now())
   
-  registration    Registration @relation(fields: [registrationId], references: [id])
+  user            User @relation(fields: [userId], references: [id])
+  registration    Registration? @relation(fields: [registrationId], references: [id])
 }
 
-model Payment {
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Aggiornamento FormData per diploma
+model FormData {
   // ... campi esistenti ...
   
-  // Dettagli pagamento manuale
-  paymentMethod   String?   // Bonifico, contanti, altro
-  reference       String?   // Riferimento transazione
-  notes           String?   // Note aggiuntive
-  registeredBy    String    // Partner che registra
+  // Informazioni diploma (TFA)
+  diplomaDate          DateTime?
+  diplomaCity          String?
+  diplomaProvince      String?
+  diplomaInstitute     String?
+  diplomaGrade         String?
+  
+  // Voti laurea
+  bachelorGrade        String?
+  masterGrade          String?
 }
 ```
 
 ---
 
-## ✅ IMPLEMENTAZIONE COMPLETATA - PANNELLO PARTNER
+## 🚀 TASK PRIORITARIE - SPRINT IMMEDIATO
 
-### 🎯 **Sprint 1 - Dashboard** ✅ COMPLETATO
-1. ✅ Modificare "Attività recenti" → "Iscrizioni recenti"
-2. ✅ Aggiungere nome corso nelle card iscrizioni
-3. ✅ Implementare click su card → dettaglio utente
+### 🔴 **Sprint 1 - Sicurezza e Contratti** (CRITICO)
+1. ⬜ Implementare sistema codice univoco post-verifica email
+2. ⬜ Debug e fix sistema contratti (download/upload)
+3. ⬜ Fix validazione formato file con messaggi specifici
 
-### 🎯 **Sprint 2 - Gestione Utenti** ✅ COMPLETATO
-1. ✅ Creare pagina dettaglio iscrizione con workflow visuale
-2. ✅ Implementare sezioni: anagrafica, workflow, documenti, azioni rapide
-3. ✅ Sistema dati dinamici con API integration
+### 🟡 **Sprint 2 - Form Iscrizione**
+1. ⬜ Aggiungere blocco informazioni diploma (TFA)
+2. ⬜ Implementare select con filtro testuale per università/corsi
+3. ⬜ Fix logica selezione laurea magistrale/triennale
+4. ⬜ Aggiungere campi voto laurea opzionali
+5. ⬜ Integrare corsi vecchio ordinamento
 
-### 🎯 **Sprint 3 - Sistema Contratti** ✅ COMPLETATO
-1. ✅ Implementare interfaccia download contratto precompilato
-2. ✅ Creare componente drag-and-drop upload contratto firmato
-3. ✅ Automatizzare cambio stato con upload
-4. ✅ Workflow visuale con step dinamici
+### 🟡 **Sprint 3 - Pannello Partner**
+1. ⬜ Rinominare primo step workflow
+2. ⬜ Aggiungere scadenze rate nel piano pagamento
+3. ⬜ Implementare workflow certificazioni con data esame
+4. ⬜ Sistema upload CNRed/Adverintia
+5. ⬜ Verifica/rifiuto documenti con notifiche
 
-## 🚧 TASK FUTURE - ESTENSIONI OPZIONALI
-
-### 🎯 **Estensioni Sistema Contratti**
-- ⬜ **PDF Generation Backend**: Generazione PDF server-side con dati utente
-- ⬜ **Template personalizzabili**: Sistema template contratti per partner
-- ⬜ **Firma digitale**: Integrazione firma elettronica qualificata
-
-### 🎯 **Area Utente - Contratti**
-- ⬜ **Sezione contratti**: Visualizzazione contratti nell'area riservata utente
-- ⬜ **Download contratti**: Accesso utente ai propri contratti firmati
-- ⬜ **Stato avanzamento**: Progress bar iscrizione per utenti
-
-### 🎯 **Sistema Pagamenti** (Gestito Esternamente)
-- ⬜ **Integration layer**: API per ricevere notifiche pagamenti esterni
-- ⬜ **Webhook handler**: Gestione automatica aggiornamenti stati
-- ⬜ **Dashboard pagamenti**: Vista riepilogativa per partner
+### 🟢 **Sprint 4 - Area Utente**
+1. ⬜ Sincronizzare documenti iscrizione con area utente
+2. ⬜ Fix errore upload documenti
+3. ⬜ Implementare stati documento (pending/approved/rejected)
+4. ⬜ Aggiornare calcolo scadenze pagamenti
 
 ---
 
-## 🔧 API Endpoints Implementati ✅
+## 🔧 API Endpoints Da Implementare/Fixare
 
-### Partner Routes (`/api/partners`) ✅
+### Partner Routes (`/api/partners`)
 ```typescript
-// ✅ Dettaglio iscrizione - IMPLEMENTATO
-GET /registrations/:registrationId
-
-// ✅ Documenti iscrizione - IMPLEMENTATO
-GET /registrations/:registrationId/documents
-
-// ✅ Download contratto precompilato - IMPLEMENTATO
+// 🔴 DA FIXARE
 GET /download-contract/:registrationId
-
-// ✅ Upload contratto firmato - IMPLEMENTATO
 POST /upload-signed-contract
 
-// Dashboard stats - ESISTENTE ✅
+// 🟡 DA IMPLEMENTARE
+POST /registrations/:id/documents/cnred
+POST /registrations/:id/documents/adverintia
+POST /registrations/:id/verify-document
+POST /registrations/:id/reject-document
+POST /registrations/:id/exam-date
+
+// ✅ FUNZIONANTI
+GET /registrations/:registrationId
+GET /registrations/:registrationId/documents
 GET /stats
 GET /recent-users
 ```
 
-### Future API Extensions
+### User Routes (`/api/users`)
 ```typescript
-// Storico stati (future)
-GET /registrations/:id/status-history
-
-// Registra pagamento (gestito esternamente)
-POST /registrations/:id/payments
+// 🟡 DA IMPLEMENTARE
+POST /verify-code // Verifica codice accesso form
+GET /documents/all // Include documenti da iscrizione
+POST /documents/upload // Con validazione migliorata
 ```
 
-### User Routes (`/api/users`) - Future
+### Auth Routes (`/api/auth`)
 ```typescript
-// Contratti utente (future implementation)
-GET /contracts
-
-// Download contratto (future implementation)
-GET /contracts/:id/download
+// 🟡 DA MODIFICARE
+POST /verify-email // Deve generare codice univoco
 ```
 
 ---
 
-## 📁 Struttura File Frontend - IMPLEMENTATA ✅
+## 📁 Struttura File Frontend - MODIFICHE NECESSARIE
 
 ```
-frontend/src/components/Partner/
-├── Dashboard/
-│   ├── DashboardView.tsx        ✅ Dashboard con iscrizioni recenti
-│   └── StatsCards.tsx           ✅ Card statistiche
-├── UserManagement/
-│   ├── UserTable.tsx            ✅ Tabella utenti con click navigation
-│   └── index.tsx                ✅ Pagina principale gestione
-├── EnrollmentDetail/            ✅ CARTELLA IMPLEMENTATA
-│   ├── index.tsx                ✅ Pagina dettaglio completa
-│   ├── EnrollmentHeader.tsx     ✅ Header con info utente
-│   ├── EnrollmentFlow.tsx       ✅ Workflow visuale con contratti
-│   ├── ContractUpload.tsx       ✅ Drag-and-drop upload
-│   └── DocumentsSection.tsx     ✅ Sezione documenti dinamica
-└── CouponManagement.tsx         ✅ Sistema coupon esistente
+frontend/src/components/
+├── Enrollment/
+│   ├── EnrollmentForm.tsx       🔧 Sostituire email con codice
+│   ├── EducationFields.tsx      🔧 Aggiungere filtro testuale
+│   ├── DiplomaFields.tsx        🟡 NUOVO - Info diploma
+│   └── PaymentPlanDisplay.tsx   🔧 Non mostrare per personalizzato
+├── Partner/
+│   ├── EnrollmentDetail/
+│   │   ├── EnrollmentFlow.tsx   🔧 Fix stati e workflow
+│   │   ├── ContractSection.tsx  🔴 Fix download/upload
+│   │   ├── DocumentVerify.tsx   🟡 NUOVO - Verifica docs
+│   │   └── PartnerDocs.tsx      🟡 NUOVO - CNRed/Adverintia
+│   └── UserManagement/
+│       └── PaymentSchedule.tsx  🔧 Mostrare scadenze rate
+└── User/
+    └── Documents/
+        ├── DocumentList.tsx      🔧 Includere docs iscrizione
+        └── DocumentUpload.tsx    🔧 Fix validazione
 ```
-
-### 🔧 Servizi e Tipi ✅
-```
-frontend/src/services/
-└── partner.ts                   ✅ API calls per partner dashboard
-
-frontend/src/types/
-└── partner.ts                   ✅ TypeScript interfaces
-```
-
----
-
-## 🎟️ SISTEMA COUPON - COMPLETATO ✅
-
-Sistema di tracking utilizzi coupon completamente implementato con:
-- Limite utilizzi configurabile con disattivazione automatica
-- Dashboard con statistiche e progress bar colorate
-- Log dettagliato utilizzi con modal dedicata
-- Tracking transazionale per consistenza dati
 
 ---
 
@@ -256,44 +302,24 @@ npm start
 
 ---
 
-## 🎉 STATO PROGETTO - AGGIORNAMENTO COMPLETATO
+## 📊 METRICHE PROGETTO
 
-### ✅ **PANNELLO PARTNER - IMPLEMENTAZIONE COMPLETATA**
+### 🔴 **Problemi Critici**: 3
+- Sicurezza accesso dati
+- Sistema contratti non funzionante
+- Sincronizzazione documenti
 
-Il pannello partner è stato completamente implementato con:
+### 🟡 **Miglioramenti Necessari**: 15+
+- Form iscrizione (6 modifiche)
+- Pannello partner (5 modifiche)
+- Area utente (4 modifiche)
 
-**🔧 Funzionalità Core Implementate:**
-- ✅ Dashboard con iscrizioni recenti e navigazione fluida
-- ✅ Sistema gestione utenti con dettaglio completo per ogni iscrizione  
-- ✅ Workflow visuale interattivo a 5 step con stati dinamici
-- ✅ Sistema contratti con download automatico e upload drag-and-drop
-- ✅ Gestione documenti dinamica con caricamento API
-- ✅ Interfaccia responsive e moderna con TailwindCSS
-
-**🚀 Tecnologie Utilizzate:**
-- React 18 + TypeScript per type safety
-- TailwindCSS per styling moderno
-- API REST con autenticazione JWT
-- Drag-and-drop nativo con validazione file
-- State management con React hooks
-- Error boundaries e loading states
-
-**📊 Metriche Implementazione:**
-- **6 nuovi componenti** creati e integrati
-- **4 API endpoints** implementati per partner dashboard  
-- **100% responsive** - funziona su desktop e mobile
-- **TypeScript coverage** completa con interfacce dedicate
-- **Error handling** robusto con fallback states
+### ✅ **Funzionalità Complete**: 
+- Dashboard base
+- Sistema coupon
+- Registrazione/login
+- Gestione offerte
 
 ---
 
-**🎯 PROSSIMI SVILUPPI SUGGERITI:**
-
-1. **Backend PDF Generation**: Generazione server-side contratti con dati reali
-2. **Area Utente Contratti**: Sezione contratti nell'area riservata utenti
-3. **Sistema Notifiche**: Push notifications per cambio stati
-4. **Dashboard Analytics**: Grafici e metriche avanzate per partner
-
----
-
-*🚀 Il pannello partner ora offre una gestione completa e professionale del ciclo di vita delle iscrizioni con workflow visuale e gestione documentale avanzata.*
+*⚠️ ATTENZIONE: Risolvere prima i problemi di sicurezza e contratti prima di procedere con altre implementazioni.*

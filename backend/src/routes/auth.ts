@@ -259,6 +259,10 @@ router.post('/verify-email', async (req, res) => {
       });
     }
     
+    // Generate unique verification code for secure enrollment access
+    const verificationCode = crypto.randomBytes(16).toString('hex');
+    const codeExpiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+    
     // Update user as verified and activated
     await prisma.user.update({
       where: { id: user.id },
@@ -267,13 +271,16 @@ router.post('/verify-email', async (req, res) => {
         emailVerifiedAt: new Date(),
         emailVerificationToken: null,
         emailVerificationTokenExpiry: null,
-        isActive: true
+        isActive: true,
+        verificationCode,
+        codeExpiresAt
       }
     });
     
     res.json({ 
       success: true,
-      message: 'Account attivato con successo! Ora puoi effettuare il login.'
+      message: 'Account attivato con successo! Ora puoi effettuare il login.',
+      verificationCode // Include code for secure form access
     });
     
   } catch (error) {
@@ -575,6 +582,50 @@ router.get('/check-referral/:code', async (req, res) => {
     
   } catch (error) {
     console.error('Check referral error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Verify unique code for enrollment access
+router.post('/verify-code', async (req, res) => {
+  try {
+    const { code } = req.body;
+    
+    if (!code) {
+      return res.status(400).json({ error: 'Codice obbligatorio' });
+    }
+    
+    const user = await prisma.user.findUnique({
+      where: { verificationCode: code },
+      include: {
+        profile: true,
+        assignedPartner: true
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Codice non valido' });
+    }
+    
+    if (user.codeExpiresAt && user.codeExpiresAt < new Date()) {
+      return res.status(400).json({ error: 'Codice scaduto. Verifica nuovamente la tua email.' });
+    }
+    
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        hasProfile: !!user.profile,
+        assignedPartner: user.assignedPartner ? {
+          id: user.assignedPartner.id,
+          referralCode: user.assignedPartner.referralCode
+        } : null
+      }
+    });
+    
+  } catch (error) {
+    console.error('Verify code error:', error);
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });

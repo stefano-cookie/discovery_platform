@@ -194,10 +194,26 @@ export const sendEmailVerification = async (email: string, referralCode?: string
 };
 
 export const verifyEmail = async (token: string, email: string) => {
-  return apiRequest<{ success: boolean; message: string; alreadyVerified?: boolean }>({
+  return apiRequest<{ success: boolean; message: string; alreadyVerified?: boolean; verificationCode?: string }>({
     method: 'POST',
     url: '/auth/verify-email',
     data: { token, email }
+  });
+};
+
+export const verifyCode = async (code: string) => {
+  return apiRequest<{ 
+    success: boolean; 
+    user: { 
+      id: string; 
+      email: string; 
+      hasProfile: boolean;
+      assignedPartner?: { id: string; referralCode: string } | null;
+    } 
+  }>({
+    method: 'POST',
+    url: '/auth/verify-code',
+    data: { code }
   });
 };
 
