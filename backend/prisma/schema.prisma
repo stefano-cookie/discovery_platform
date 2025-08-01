@@ -33,6 +33,8 @@ model User {
   profile         UserProfile?  // Profilo con dati anagrafici
   registrations   Registration[] // Iscrizioni ai corsi
   documents       UserDocument[] // Repository documenti dell'utente
+  verifiedDocuments UserDocument[] @relation("DocumentVerifier") // Documenti verificati (per partner)
+  documentAuditLogs DocumentAuditLog[] // Log audit documenti
   offerVisibilities OfferVisibility[]
   offerAccess     UserOfferAccess[] // Accesso alle offerte aggiuntive
 }
@@ -213,6 +215,12 @@ model Registration {
   contractGeneratedAt     DateTime? // Data generazione template
   contractUploadedAt      DateTime? // Data upload firmato
   
+  // Documenti partner (non visibili a utente)
+  cnredUrl               String?
+  cnredUploadedAt        DateTime?
+  adverintiaUrl          String?
+  adverintiaUploadedAt   DateTime?
+  
   // Date workflow
   dataVerifiedAt      DateTime?
   contractSignedAt    DateTime?
@@ -223,8 +231,8 @@ model Registration {
   user            User         @relation(fields: [userId], references: [id])
   partner         Partner      @relation(fields: [partnerId], references: [id])
   offer           PartnerOffer? @relation(fields: [partnerOfferId], references: [id])
-  documents       Document[]
-  userDocuments   DocumentUsage[]
+  documents       Document[]    // Legacy documents
+  userDocuments   UserDocument[] // New document system
   payments        Payment[]
   deadlines       PaymentDeadline[]
   couponUses      CouponUse[]
@@ -256,6 +264,91 @@ enum RegistrationStatus {
   COMPLETED
 }
 
+// Enterprise Document Management System
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DocumentType {
+  CARTA_IDENTITA
+  TESSERA_SANITARIA
+  CERTIFICATO_TRIENNALE
+  CERTIFICATO_MAGISTRALE
+  PIANO_STUDIO_TRIENNALE
+  PIANO_STUDIO_MAGISTRALE
+  CERTIFICATO_MEDICO
+  CERTIFICATO_NASCITA
+  DIPLOMA_LAUREA
+  PERGAMENA_LAUREA
+  DIPLOMA_MATURITA
+  CONTRATTO
+  ALTRO
+}
+
+model UserDocument {
+  id               String        @id @default(uuid())
+  userId           String
+  registrationId   String?
+  type             DocumentType
+  fileName         String
+  originalFileName String
+  filePath         String
+  fileSize         Int
+  mimeType         String
+  status           DocumentStatus @default(PENDING)
+  verifiedBy       String?
+  verifiedAt       DateTime?
+  rejectionReason  String?
+  uploadedAt       DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  registration    Registration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+  verifier        User?         @relation("DocumentVerifier", fields: [verifiedBy], references: [id], onDelete: SetNull)
+  auditLogs       DocumentAuditLog[]
+  
+  @@index([userId])
+  @@index([registrationId])
+  @@index([type])
+  @@index([status])
+  @@index([uploadedAt])
+}
+
+model DocumentAuditLog {
+  id             String         @id @default(uuid())
+  documentId     String
+  action         String         // UPLOADED, APPROVED, REJECTED, DELETED, REPLACED
+  performedBy    String
+  previousStatus DocumentStatus?
+  newStatus      DocumentStatus?
+  notes          String?
+  createdAt      DateTime       @default(now())
+  
+  document       UserDocument   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  performer      User           @relation(fields: [performedBy], references: [id], onDelete: Restrict)
+  
+  @@index([documentId])
+  @@index([performedBy])
+  @@index([createdAt])
+}
+
+model DocumentTypeConfig {
+  id                String       @id @default(uuid())
+  type              DocumentType @unique
+  label             String
+  description       String?
+  isRequired        Boolean      @default(false)
+  acceptedMimeTypes String[]     @default(["application/pdf", "image/jpeg", "image/png"])
+  maxFileSize       Int          @default(10485760) // 10MB
+  isActive          Boolean      @default(true)
+  sortOrder         Int          @default(0)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+}
+
+// Legacy Document model - will be deprecated
 model Document {
   id              String   @id @default(uuid())
   registrationId  String
@@ -305,40 +398,6 @@ model CouponUse {
   registration    Registration @relation(fields: [registrationId], references: [id])
 }
 
-model UserDocument {
-  id              String   @id @default(uuid())
-  userId          String
-  type            DocumentType
-  fileName        String
-  filePath        String
-  isVerified      Boolean  @default(false)
-  uploadedAt      DateTime @default(now())
-  
-  user            User     @relation(fields: [userId], references: [id])
-  registrations   DocumentUsage[]
-}
-
-enum DocumentType {
-  CARTA_IDENTITA
-  TESSERA_SANITARIA
-  DIPLOMA_LAUREA
-  PERGAMENA_LAUREA
-  DIPLOMA_MATURITA
-  CERTIFICATO_MEDICO
-  CONTRATTO
-  ALTRO
-}
-
-model DocumentUsage {
-  id              String   @id @default(uuid())
-  registrationId  String
-  documentId      String
-  
-  registration    Registration @relation(fields: [registrationId], references: [id])
-  document        UserDocument @relation(fields: [documentId], references: [id])
-  
-  @@unique([registrationId, documentId])
-}
 
 model ChatConversation {
   id              String   @id @default(uuid())

@@ -500,17 +500,16 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
         }
       }
       
-      // Link existing user documents to new registration if needed
-      if (documents && documents.length > 0) {
-        for (const docId of documents) {
-          await tx.documentUsage.create({
-            data: {
-              registrationId: registration.id,
-              documentId: docId
-            }
-          });
-        }
-      }
+      // TODO: Link existing user documents to new registration 
+      // This will be handled by the new UserDocument system
+      // if (documents && documents.length > 0) {
+      //   for (const docId of documents) {
+      //     await tx.userDocument.update({
+      //       where: { id: docId },
+      //       data: { registrationId: registration.id }
+      //     });
+      //   }
+      // }
       
       return registration;
     });

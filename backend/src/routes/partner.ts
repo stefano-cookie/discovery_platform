@@ -1,7 +1,8 @@
 import { Router, Response as ExpressResponse } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, DocumentStatus } from '@prisma/client';
 import { authenticate, requireRole, AuthRequest } from '../middleware/auth';
 import { ContractService } from '../services/contractService';
+import { DocumentService, upload as documentUpload } from '../services/documentService';
 import multer from 'multer';
 import * as path from 'path';
 
@@ -304,7 +305,7 @@ router.get('/registrations/:registrationId/documents', authenticate, requireRole
         filePath: uploadedDoc?.filePath || null,
         uploadedAt: uploadedDoc?.uploadedAt || null,
         documentId: uploadedDoc?.id || null, // Add document ID for download
-        isVerified: uploadedDoc?.isVerified || false
+        isVerified: uploadedDoc?.status === 'APPROVED' || false
       };
     });
 
@@ -1287,6 +1288,436 @@ router.get('/users/:userId/documents/:documentId/download', authenticate, requir
     if (!res.headersSent) {
       res.status(500).json({ error: 'Errore interno del server' });
     }
+  }
+});
+
+// =====================================
+// ENTERPRISE DOCUMENT MANAGEMENT SYSTEM
+// =====================================
+
+// Get all documents for a registration (new document system)
+router.get('/registrations/:registrationId/documents', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { registrationId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify registration belongs to this partner
+    const registration = await prisma.registration.findFirst({
+      where: { id: registrationId, partnerId }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    const documents = await DocumentService.getRegistrationDocuments(registrationId);
+    
+    res.json({ documents });
+  } catch (error: any) {
+    console.error('Get registration documents error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Get all documents for a user (comprehensive view)
+router.get('/users/:userId/documents/all', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { userId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify user has registrations with this partner
+    const userRegistrations = await prisma.registration.findMany({
+      where: { userId, partnerId }
+    });
+
+    if (userRegistrations.length === 0) {
+      return res.status(403).json({ error: 'Non autorizzato a visualizzare i documenti di questo utente' });
+    }
+
+    const documents = await DocumentService.getAllUserDocuments(userId);
+    
+    const formattedDocs = documents.map(doc => ({
+      id: doc.id,
+      type: doc.type,
+      fileName: doc.originalFileName,
+      fileSize: doc.fileSize,
+      mimeType: doc.mimeType,
+      status: doc.status,
+      verifiedBy: doc.verifier?.email,
+      verifiedAt: doc.verifiedAt,
+      rejectionReason: doc.rejectionReason,
+      uploadedAt: doc.uploadedAt,
+      registrationId: doc.registrationId,
+      courseName: doc.registration?.offer?.course?.name,
+      auditTrail: doc.auditLogs.map(log => ({
+        action: log.action,
+        performedBy: log.performer.email,
+        performedAt: log.createdAt,
+        notes: log.notes
+      }))
+    }));
+
+    res.json({ documents: formattedDocs });
+  } catch (error: any) {
+    console.error('Get all user documents error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Download document (partner access with full permissions)
+router.get('/documents/:documentId/download', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { documentId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    const fileInfo = await DocumentService.downloadDocument(documentId, '', true); // Partner has full access
+    
+    res.setHeader('Content-Disposition', `attachment; filename="${fileInfo.fileName}"`);
+    res.setHeader('Content-Type', fileInfo.mimeType);
+    res.sendFile(fileInfo.filePath);
+  } catch (error: any) {
+    console.error('Partner download document error:', error);
+    res.status(404).json({ error: error.message || 'Documento non trovato' });
+  }
+});
+
+// Verify/Approve document
+router.post('/documents/:documentId/verify', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { documentId } = req.params;
+    const { status, rejectionReason } = req.body;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    if (!Object.values(DocumentStatus).includes(status)) {
+      return res.status(400).json({ error: 'Status documento non valido' });
+    }
+
+    if (status === DocumentStatus.REJECTED && !rejectionReason) {
+      return res.status(400).json({ error: 'Motivo del rifiuto obbligatorio' });
+    }
+
+    const document = await DocumentService.verifyDocument(
+      documentId, 
+      status as DocumentStatus, 
+      req.user!.id, 
+      rejectionReason
+    );
+    
+    res.json({ 
+      message: `Documento ${status === DocumentStatus.APPROVED ? 'approvato' : 'rifiutato'} con successo`,
+      document: {
+        id: document.id,
+        status: document.status,
+        verifiedAt: document.verifiedAt,
+        rejectionReason: document.rejectionReason
+      }
+    });
+  } catch (error: any) {
+    console.error('Verify document error:', error);
+    res.status(500).json({ error: 'Errore nella verifica del documento' });
+  }
+});
+
+// Upload CNRed document for registration
+router.post('/registrations/:registrationId/cnred', authenticate, requireRole(['PARTNER', 'ADMIN']), documentUpload.single('document'), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { registrationId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Nessun file caricato' });
+    }
+
+    // Verify registration belongs to this partner
+    const registration = await prisma.registration.findFirst({
+      where: { id: registrationId, partnerId }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    // Update registration with CNRed URL
+    const cnredUrl = `/uploads/documents/${req.file.filename}`;
+    
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        cnredUrl,
+        cnredUploadedAt: new Date()
+      }
+    });
+
+    res.json({
+      message: 'Documento CNRed caricato con successo',
+      cnredUrl
+    });
+  } catch (error: any) {
+    console.error('Upload CNRed error:', error);
+    res.status(500).json({ error: 'Errore nel caricamento del documento CNRed' });
+  }
+});
+
+// Upload Adverintia document for registration
+router.post('/registrations/:registrationId/adverintia', authenticate, requireRole(['PARTNER', 'ADMIN']), documentUpload.single('document'), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { registrationId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Nessun file caricato' });
+    }
+
+    // Verify registration belongs to this partner
+    const registration = await prisma.registration.findFirst({
+      where: { id: registrationId, partnerId }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    // Update registration with Adverintia URL
+    const adverintiaUrl = `/uploads/documents/${req.file.filename}`;
+    
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        adverintiaUrl,
+        adverintiaUploadedAt: new Date()
+      }
+    });
+
+    res.json({
+      message: 'Documento Adverintia caricato con successo',
+      adverintiaUrl
+    });
+  } catch (error: any) {
+    console.error('Upload Adverintia error:', error);
+    res.status(500).json({ error: 'Errore nel caricamento del documento Adverintia' });
+  }
+});
+
+// Download CNRed document
+router.get('/registrations/:registrationId/cnred/download', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { registrationId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    const registration = await prisma.registration.findFirst({
+      where: { id: registrationId, partnerId }
+    });
+
+    if (!registration || !registration.cnredUrl) {
+      return res.status(404).json({ error: 'Documento CNRed non trovato' });
+    }
+
+    const filePath = path.resolve(__dirname, '../..', registration.cnredUrl.substring(1));
+    
+    if (!require('fs').existsSync(filePath)) {
+      return res.status(404).json({ error: 'File non trovato sul server' });
+    }
+
+    res.setHeader('Content-Disposition', `attachment; filename="CNRed_${registrationId}.pdf"`);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.sendFile(filePath);
+  } catch (error: any) {
+    console.error('Download CNRed error:', error);
+    res.status(500).json({ error: 'Errore nel download del documento CNRed' });
+  }
+});
+
+// Download Adverintia document
+router.get('/registrations/:registrationId/adverintia/download', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { registrationId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    const registration = await prisma.registration.findFirst({
+      where: { id: registrationId, partnerId }
+    });
+
+    if (!registration || !registration.adverintiaUrl) {
+      return res.status(404).json({ error: 'Documento Adverintia non trovato' });
+    }
+
+    const filePath = path.resolve(__dirname, '../..', registration.adverintiaUrl.substring(1));
+    
+    if (!require('fs').existsSync(filePath)) {
+      return res.status(404).json({ error: 'File non trovato sul server' });
+    }
+
+    res.setHeader('Content-Disposition', `attachment; filename="Adverintia_${registrationId}.pdf"`);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.sendFile(filePath);
+  } catch (error: any) {
+    console.error('Download Adverintia error:', error);
+    res.status(500).json({ error: 'Errore nel download del documento Adverintia' });
+  }
+});
+
+// Set exam date for certification workflow
+router.post('/registrations/:registrationId/exam-date', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { registrationId } = req.params;
+    const { examDate } = req.body;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    if (!examDate) {
+      return res.status(400).json({ error: 'Data esame obbligatoria' });
+    }
+
+    // Verify registration belongs to this partner
+    const registration = await prisma.registration.findFirst({
+      where: { id: registrationId, partnerId }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    // For certification workflows, add exam date field to registration
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        // Add examDate and examRegisteredBy fields to the Registration model in the future
+        // For now, we'll use a generic approach
+        dataVerifiedAt: new Date(examDate), // Temporary field usage
+        status: 'ENROLLED' // Update status for certification workflow
+      }
+    });
+
+    res.json({
+      message: 'Data esame registrata con successo',
+      examDate: new Date(examDate)
+    });
+  } catch (error: any) {
+    console.error('Set exam date error:', error);
+    res.status(500).json({ error: 'Errore nella registrazione della data esame' });
+  }
+});
+
+// Get document audit trail for a specific document
+router.get('/documents/:documentId/audit', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { documentId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    const auditLog = await DocumentService.getDocumentAuditTrail(documentId);
+    
+    const formattedLog = auditLog.map(log => ({
+      id: log.id,
+      action: log.action,
+      performedBy: log.performer.email,
+      performedAt: log.createdAt,
+      previousStatus: log.previousStatus,
+      newStatus: log.newStatus,
+      notes: log.notes
+    }));
+
+    res.json({ auditLog: formattedLog });
+  } catch (error: any) {
+    console.error('Get document audit trail error:', error);
+    res.status(500).json({ error: 'Errore nel caricamento del log di audit' });
+  }
+});
+
+// Bulk verify documents for a registration
+router.post('/registrations/:registrationId/bulk-verify', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { registrationId } = req.params;
+    const { documentStatuses } = req.body; // Array of { documentId, status, rejectionReason }
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify registration belongs to this partner
+    const registration = await prisma.registration.findFirst({
+      where: { id: registrationId, partnerId }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    if (!Array.isArray(documentStatuses)) {
+      return res.status(400).json({ error: 'documentStatuses deve essere un array' });
+    }
+
+    const results = [];
+
+    for (const { documentId, status, rejectionReason } of documentStatuses) {
+      try {
+        const document = await DocumentService.verifyDocument(
+          documentId,
+          status as DocumentStatus,
+          req.user!.id,
+          rejectionReason
+        );
+        
+        results.push({
+          documentId,
+          success: true,
+          status: document.status
+        });
+      } catch (error: any) {
+        results.push({
+          documentId,
+          success: false,
+          error: error.message
+        });
+      }
+    }
+
+    res.json({
+      message: 'Verifica documenti completata',
+      results
+    });
+  } catch (error: any) {
+    console.error('Bulk verify documents error:', error);
+    res.status(500).json({ error: 'Errore nella verifica dei documenti' });
   }
 });
 

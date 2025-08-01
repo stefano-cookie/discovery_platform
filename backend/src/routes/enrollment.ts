@@ -251,8 +251,11 @@ router.post('/submit', handleAuthOrVerifiedEmail, upload.fields([
                 userId,
                 type: userDocumentType as any,
                 fileName: file.originalname,
+                originalFileName: file.originalname,
                 filePath: file.path,
-                isVerified: false
+                fileSize: file.size,
+                mimeType: file.mimetype,
+                status: 'PENDING'
               }
             });
           }

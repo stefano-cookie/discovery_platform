@@ -34,13 +34,16 @@ import courseRoutes from './routes/courses';
 import enrollmentRoutes from './routes/enrollment';
 import offerTypesRoutes from './routes/offerTypes';
 import adminRoutes from './routes/admin';
+import userDocumentRoutes from './routes/userDocuments';
+import userProfileRoutes from './routes/userProfile';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/partners', partnerRoutes);
 app.use('/api/registration', registrationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/offers', offerRoutes);
-app.use('/api/user', userRoutes);
+app.use('/api/user', userProfileRoutes); // Basic user profile routes
+app.use('/api/user/documents', userDocumentRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/enrollment', enrollmentRoutes);
 app.use('/api/offer-types', offerTypesRoutes);
