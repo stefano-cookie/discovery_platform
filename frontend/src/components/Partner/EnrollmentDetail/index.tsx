@@ -138,14 +138,14 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
 
           {/* Main Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column - User Info & Course */}
+            {/* Left Column - User Info & Documents */}
             <div className="lg:col-span-2 space-y-6">
               <UserInfo user={user} />
+              <EnhancedDocumentsSection user={user} />
             </div>
 
-            {/* Right Column - Documents & Actions */}
+            {/* Right Column - Offers Management */}
             <div className="space-y-6">
-              <EnhancedDocumentsSection user={user} />
               <OffersSection user={user} />
             </div>
           </div>

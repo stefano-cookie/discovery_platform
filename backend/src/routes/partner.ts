@@ -189,49 +189,123 @@ router.get('/registrations/:registrationId/documents', authenticate, requireRole
       return res.status(404).json({ error: 'Iscrizione non trovata' });
     }
 
-    // Determine required documents based on offer type
-    const requiredDocuments = [
-      {
-        type: 'identity',
-        name: 'Documento d\'Identità',
-        required: true
-      },
-      {
-        type: 'tax_code', 
-        name: 'Codice Fiscale',
-        required: true
-      }
-    ];
+    // Get user documents to match against required documents
+    const userDocuments = await prisma.userDocument.findMany({
+      where: { userId: registration.userId }
+    });
 
-    // Add additional documents for TFA
+    // Determine required documents based on offer type - EXACT match with form fields
+    let requiredDocuments: any[] = [];
+    
     if (registration.offerType === 'TFA_ROMANIA') {
-      requiredDocuments.push(
+      // Exact mapping from TFA form fields
+      requiredDocuments = [
+        // Basic documents
         {
-          type: 'degree',
-          name: 'Diploma di Laurea',
-          required: true
+          type: 'CARTA_IDENTITA',
+          name: 'Carta d\'Identità',
+          required: false,
+          description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità'
+        },
+        
+        // Certificati di Laurea section
+        {
+          type: 'CERTIFICATO_TRIENNALE', 
+          name: 'Certificato Laurea Triennale',
+          required: false,
+          description: 'Certificato di laurea triennale o diploma universitario'
         },
         {
-          type: 'service_certificate',
-          name: 'Certificato di Servizio',
-          required: false
+          type: 'CERTIFICATO_MAGISTRALE',
+          name: 'Certificato Laurea Magistrale', 
+          required: false,
+          description: 'Certificato di laurea magistrale, specialistica o vecchio ordinamento'
+        },
+        
+        // Piani di Studio section
+        {
+          type: 'PIANO_STUDIO_TRIENNALE',
+          name: 'Piano di Studio Triennale',
+          required: false,
+          description: 'Piano di studio della laurea triennale con lista esami sostenuti'
+        },
+        {
+          type: 'PIANO_STUDIO_MAGISTRALE',
+          name: 'Piano di Studio Magistrale',
+          required: false,
+          description: 'Piano di studio della laurea magistrale, specialistica o vecchio ordinamento'
+        },
+        
+        // Altri Documenti section
+        {
+          type: 'CERTIFICATO_MEDICO',
+          name: 'Certificato Medico di Sana e Robusta Costituzione',
+          required: false,
+          description: 'Certificato medico attestante la sana e robusta costituzione fisica e psichica'
+        },
+        {
+          type: 'CERTIFICATO_NASCITA',
+          name: 'Certificato di Nascita',
+          required: false,
+          description: 'Certificato di nascita o estratto di nascita dal Comune'
+        },
+        {
+          type: 'DIPLOMA_LAUREA',
+          name: 'Diploma di Laurea',
+          required: false,
+          description: 'Diploma di laurea (cartaceo o digitale)'
+        },
+        {
+          type: 'PERGAMENA_LAUREA',
+          name: 'Pergamena di Laurea',
+          required: false,
+          description: 'Pergamena di laurea (documento originale)'
         }
-      );
+      ];
+    } else if (registration.offerType === 'CERTIFICATION') {
+      // Certification documents (simplified)
+      requiredDocuments = [
+        {
+          type: 'CARTA_IDENTITA',
+          name: 'Carta d\'Identità',
+          required: false,
+          description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità'
+        },
+        {
+          type: 'TESSERA_SANITARIA',
+          name: 'Tessera Sanitaria / Codice Fiscale',
+          required: false,
+          description: 'Tessera sanitaria o documento che attesti il codice fiscale'
+        }
+      ];
+    } else {
+      // Default fallback
+      requiredDocuments = [
+        {
+          type: 'CARTA_IDENTITA',
+          name: 'Carta d\'Identità',
+          required: false,
+          description: 'Documento d\'identità valido'
+        }
+      ];
     }
 
-    // Map uploaded documents to required ones
+    // Map user documents to required ones (checking userDocument table instead of registration.documents)
     const documentsWithStatus = requiredDocuments.map(reqDoc => {
-      const uploadedDoc = registration.documents.find(doc => doc.type === reqDoc.type);
+      const uploadedDoc = userDocuments.find(doc => doc.type === reqDoc.type);
       
       return {
         id: reqDoc.type,
         name: reqDoc.name,
         type: reqDoc.type,
         required: reqDoc.required,
+        description: reqDoc.description,
         uploaded: !!uploadedDoc,
         fileName: uploadedDoc?.fileName || null,
         filePath: uploadedDoc?.filePath || null,
-        uploadedAt: uploadedDoc?.uploadedAt || null
+        uploadedAt: uploadedDoc?.uploadedAt || null,
+        documentId: uploadedDoc?.id || null, // Add document ID for download
+        isVerified: uploadedDoc?.isVerified || false
       };
     });
 

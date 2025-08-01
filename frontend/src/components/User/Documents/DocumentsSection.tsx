@@ -254,21 +254,40 @@ const DocumentsSection: React.FC<DocumentsSectionProps> = ({ onDocumentChange })
   };
 
   const getDocumentTypeLabel = (type: string) => {
+    // Comprehensive mapping supporting all document types across forms and dashboard
     const labels: Record<string, string> = {
+      // Backend document types (standardized format)
       'CARTA_IDENTITA': 'Carta d\'Identità',
-      'TESSERA_SANITARIA': 'Tessera Sanitaria',
+      'TESSERA_SANITARIA': 'Tessera Sanitaria / Codice Fiscale',
+      'CERTIFICATO_TRIENNALE': 'Certificato Laurea Triennale',
+      'CERTIFICATO_MAGISTRALE': 'Certificato Laurea Magistrale', 
+      'PIANO_STUDIO_TRIENNALE': 'Piano di Studio Triennale',
+      'PIANO_STUDIO_MAGISTRALE': 'Piano di Studio Magistrale',
+      'CERTIFICATO_MEDICO': 'Certificato Medico',
+      'CERTIFICATO_NASCITA': 'Certificato di Nascita',
       'DIPLOMA_LAUREA': 'Diploma di Laurea',
       'PERGAMENA_LAUREA': 'Pergamena di Laurea',
-      'CERTIFICATO_MEDICO': 'Certificato Medico',
       'DIPLOMA_MATURITA': 'Diploma di Maturità',
+      'CONTRATTO': 'Contratto',
+      'ALTRO': 'Altro',
+      
+      // Form field names (camelCase format for compatibility)
       'cartaIdentita': 'Carta d\'Identità',
-      'tesseraperSanitaria': 'Tessera Sanitaria',
-      'laurea': 'Diploma di Laurea',
-      'pergamenaLaurea': 'Pergamena di Laurea',
+      'tesseraperSanitaria': 'Tessera Sanitaria / Codice Fiscale',
+      'certificatoTriennale': 'Certificato Laurea Triennale',
+      'certificatoMagistrale': 'Certificato Laurea Magistrale',
+      'pianoStudioTriennale': 'Piano di Studio Triennale',
+      'pianoStudioMagistrale': 'Piano di Studio Magistrale',
       'certificatoMedico': 'Certificato Medico',
-      'diplomaMaturita': 'Diploma di Maturità'
+      'certificatoNascita': 'Certificato di Nascita',
+      'diplomoLaurea': 'Diploma di Laurea',
+      'pergamenaLaurea': 'Pergamena di Laurea',
+      'diplomaMaturita': 'Diploma di Maturità',
+      
+      // Legacy field names for backward compatibility
+      'laurea': 'Diploma di Laurea'
     };
-    return labels[type] || type;
+    return labels[type] || type.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
   };
 
   const handleDownloadEnrollmentDocument = async (documentId: string, fileName: string) => {
@@ -376,13 +395,12 @@ const DocumentsSection: React.FC<DocumentsSectionProps> = ({ onDocumentChange })
                 
                 {existingDoc && (
                   <div className="flex items-center space-x-2">
-                    {existingDoc.isVerified ? (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        ✓ Verificato
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                        ⏳ In attesa
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      ✓ Caricato
+                    </span>
+                    {existingDoc.isVerified && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        🔒 Verificato
                       </span>
                     )}
                   </div>
@@ -572,7 +590,8 @@ const DocumentsSection: React.FC<DocumentsSectionProps> = ({ onDocumentChange })
                 <li>I documenti caricati sono riutilizzabili per tutte le tue iscrizioni</li>
                 <li>Puoi sostituire o eliminare i documenti in qualsiasi momento</li>
                 <li>Il partner può visualizzare e scaricare i tuoi documenti</li>
-                <li>I documenti contrassegnati con * sono obbligatori</li>
+                <li>Tutti i documenti sono segnati come "Caricato" una volta completato l'upload</li>
+                <li>I documenti verificati dal partner mostrano anche il badge "Verificato"</li>
               </ul>
             </div>
           </div>
@@ -591,6 +610,8 @@ const DocumentsSection: React.FC<DocumentsSectionProps> = ({ onDocumentChange })
                 <li>Questi documenti sono stati caricati durante i form di iscrizione</li>
                 <li>Sono automaticamente sincronizzati con il tuo repository personale</li>
                 <li>Puoi sempre gestirli dalla tab "Repository Personale"</li>
+                <li>Una volta caricati, sono immediatamente disponibili per partner e utente</li>
+                <li>Non c'è stato "in attesa" - tutti i documenti sono considerati attivi</li>
               </ul>
             </div>
           </div>

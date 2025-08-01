@@ -48,10 +48,13 @@ export interface DocumentInfo {
   name: string;
   type: string;
   required: boolean;
+  description?: string;
   uploaded: boolean;
   fileName: string | null;
   filePath: string | null;
   uploadedAt: string | null;
+  documentId: string | null;
+  isVerified?: boolean;
 }
 
 export interface RegistrationDocuments {

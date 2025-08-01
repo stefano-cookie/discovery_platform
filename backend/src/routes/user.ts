@@ -66,11 +66,24 @@ router.post('/profile-by-email', async (req, res) => {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const folders: Record<string, string> = {
+      // Basic documents
       CARTA_IDENTITA: 'carte-identita',
       TESSERA_SANITARIA: 'certificati-medici',
+      
+      // TFA specific documents
+      CERTIFICATO_TRIENNALE: 'lauree',
+      CERTIFICATO_MAGISTRALE: 'lauree',
+      PIANO_STUDIO_TRIENNALE: 'piani-studio',
+      PIANO_STUDIO_MAGISTRALE: 'piani-studio',
+      CERTIFICATO_MEDICO: 'certificati-medici',
+      CERTIFICATO_NASCITA: 'certificati-nascita',
+      
+      // Diplomas
       DIPLOMA_LAUREA: 'diplomi-laurea',
       PERGAMENA_LAUREA: 'pergamene-laurea',
-      CERTIFICATO_MEDICO: 'certificati-medici',
+      DIPLOMA_MATURITA: 'diplomi-maturita',
+      
+      // Other
       CONTRATTO: 'contratti',
       ALTRO: 'altri'
     };
@@ -824,11 +837,25 @@ router.get('/documents/:id/download', authenticate, async (req: AuthRequest, res
 router.get('/documents/types', authenticate, async (_req: AuthRequest, res: Response) => {
   try {
     const documentTypes = [
-      { value: 'CARTA_IDENTITA', label: 'Carta d\'Identità', required: true },
-      { value: 'TESSERA_SANITARIA', label: 'Tessera Sanitaria', required: false },
+      // Basic documents available for all course types
+      { value: 'CARTA_IDENTITA', label: 'Carta d\'Identità', required: false },
+      { value: 'TESSERA_SANITARIA', label: 'Tessera Sanitaria / Codice Fiscale', required: false },
+      
+      // TFA Romania specific documents
+      { value: 'CERTIFICATO_TRIENNALE', label: 'Certificato Laurea Triennale', required: false },
+      { value: 'CERTIFICATO_MAGISTRALE', label: 'Certificato Laurea Magistrale', required: false },
+      { value: 'PIANO_STUDIO_TRIENNALE', label: 'Piano di Studio Triennale', required: false },
+      { value: 'PIANO_STUDIO_MAGISTRALE', label: 'Piano di Studio Magistrale', required: false },
+      { value: 'CERTIFICATO_MEDICO', label: 'Certificato Medico', required: false },
+      { value: 'CERTIFICATO_NASCITA', label: 'Certificato di Nascita', required: false },
+      
+      // Diplomas and degrees
       { value: 'DIPLOMA_LAUREA', label: 'Diploma di Laurea', required: false },
       { value: 'PERGAMENA_LAUREA', label: 'Pergamena di Laurea', required: false },
-      { value: 'CERTIFICATO_MEDICO', label: 'Certificato Medico', required: false },
+      { value: 'DIPLOMA_MATURITA', label: 'Diploma di Maturità', required: false },
+      
+      // Other documents
+      { value: 'CONTRATTO', label: 'Contratto', required: false },
       { value: 'ALTRO', label: 'Altro', required: false }
     ];
     
