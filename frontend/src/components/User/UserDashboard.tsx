@@ -96,39 +96,68 @@ const UserDashboard: React.FC = () => {
       const token = localStorage.getItem('token');
       
       // Load user registrations
-      const regResponse = await fetch('/api/user/registrations', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (regResponse.ok) {
-        const regData = await regResponse.json();
-        setRegistrations(regData.registrations || []);
+      try {
+        const regResponse = await fetch('/api/user/registrations', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (regResponse.ok) {
+          const regData = await regResponse.json();
+          setRegistrations(regData.registrations || []);
+        } else {
+          setRegistrations([]);
+        }
+      } catch (error) {
+        console.warn('Could not load user registrations:', error);
+        setRegistrations([]);
       }
 
       // Load user documents
-      const docResponse = await fetch('/api/user/documents', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (docResponse.ok) {
-        const docData = await docResponse.json();
-        setDocuments(docData.documents || []);
+      try {
+        const docResponse = await fetch('/api/user/documents', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (docResponse.ok) {
+          const docData = await docResponse.json();
+          setDocuments(docData.documents || []);
+        } else {
+          setDocuments([]);
+        }
+      } catch (error) {
+        console.warn('Could not load user documents:', error);
+        setDocuments([]);
       }
 
-      // Load available courses
-      const coursesResponse = await fetch('/api/user/available-courses', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (coursesResponse.ok) {
-        const coursesData = await coursesResponse.json();
-        setAvailableCourses(coursesData.courses || []);
+      // Load available courses (only for regular users, not admin/partner)
+      try {
+        const coursesResponse = await fetch('/api/user/available-courses', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (coursesResponse.ok) {
+          const coursesData = await coursesResponse.json();
+          setAvailableCourses(coursesData.courses || []);
+        } else {
+          // Handle error case (e.g., admin/partner users)
+          setAvailableCourses([]);
+        }
+      } catch (error) {
+        console.warn('Could not load available courses:', error);
+        setAvailableCourses([]);
       }
 
       // Load document types
-      const typesResponse = await fetch('/api/user/documents/types', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (typesResponse.ok) {
-        const typesData = await typesResponse.json();
-        setDocumentTypes(typesData.documentTypes || []);
+      try {
+        const typesResponse = await fetch('/api/user/documents/types', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (typesResponse.ok) {
+          const typesData = await typesResponse.json();
+          setDocumentTypes(typesData.documentTypes || []);
+        } else {
+          setDocumentTypes([]);
+        }
+      } catch (error) {
+        console.warn('Could not load document types:', error);
+        setDocumentTypes([]);
       }
 
     } catch (error) {
