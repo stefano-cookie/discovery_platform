@@ -33,6 +33,8 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
   // Gestisce utenti verificati via codice sicuro
   const urlParams = new URLSearchParams(location.search);
   const verificationCode = urlParams.get('code');
+  const emailVerified = urlParams.get('emailVerified');
+  const emailFromUrl = urlParams.get('email');
   const [verifiedUser, setVerifiedUser] = useState<any>(null);
   const [showCodeVerification, setShowCodeVerification] = useState(false);
   
@@ -108,7 +110,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
     // Convert profile data to form format
     return {
       // Email comes from user object OR from verified email for email-verified users
-      email: userData?.email || verifiedEmail || '',
+      email: userData?.email || verifiedUser?.email || '',
       // General data
       cognome: profileData.cognome || '',
       nome: profileData.nome || '',
@@ -268,21 +270,47 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
   // Verify code if present in URL
   useEffect(() => {
     const handleCodeVerification = async () => {
+      console.log('🔍 CODE VERIFICATION FLOW:', {
+        verificationCode,
+        emailVerified,
+        emailFromUrl,
+        verifiedUser: !!verifiedUser,
+        currentUser: !!currentUser
+      });
+
+      // Caso 1: Verifica tramite codice sicuro
       if (verificationCode && !verifiedUser && !currentUser) {
+        console.log('📝 Attempting to verify code:', verificationCode);
         try {
           const response = await verifyCode(verificationCode);
+          console.log('✅ Code verification successful:', response);
           setVerifiedUser(response.user);
         } catch (error) {
-          console.error('Error verifying code:', error);
+          console.error('❌ Error verifying code:', error);
           setShowCodeVerification(true);
         }
-      } else if (!currentUser && !verificationCode && !verifiedUser) {
+        return;
+      }
+
+      // Caso 2: Verifica tramite email (backward compatibility)
+      if (emailVerified === 'true' && emailFromUrl && !verifiedUser && !currentUser) {
+        console.log('📧 Email verification detected, creating verified user object');
+        setVerifiedUser({
+          email: emailFromUrl,
+          hasProfile: true // Assumiamo che abbia già un profilo se arriva da verifica email
+        });
+        return;
+      }
+
+      // Caso 3: Nessun metodo di verifica disponibile
+      if (!currentUser && !verificationCode && !verifiedUser && emailVerified !== 'true') {
+        console.log('🔑 No code, no user - showing code verification form');
         setShowCodeVerification(true);
       }
     };
 
     handleCodeVerification();
-  }, [verificationCode, verifiedUser, currentUser]);
+  }, [verificationCode, emailVerified, emailFromUrl, verifiedUser, currentUser]);
 
   // Load user profile when user is authenticated OR verified via code
   useEffect(() => {
@@ -514,9 +542,17 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
     }
   };
 
-  // SECURITY: This component is for authenticated users OR users verified via email
+  // SECURITY: This component is for authenticated users OR users verified via code
   // Non-authenticated users should be handled by ReferralGatekeeper → RegistrationModal
-  if (!currentUser && emailVerified !== 'true') {
+  if (!currentUser && !verifiedUser) {
+    console.log('🚫 ACCESS DENIED - Debug info:', {
+      currentUser: !!currentUser,
+      verifiedUser: !!verifiedUser,
+      verificationCode,
+      showCodeVerification,
+      urlParams: Object.fromEntries(urlParams.entries())
+    });
+    
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8 text-center">
@@ -525,6 +561,9 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
           <p className="text-gray-600 mb-6">
             Devi essere autenticato per accedere alla pagina di iscrizione al corso.
           </p>
+          <div className="text-xs text-gray-400 mb-4 bg-gray-50 p-2 rounded">
+            Debug: code={verificationCode}, user={!!currentUser}, verified={!!verifiedUser}
+          </div>
           <button
             onClick={() => window.location.href = '/login'}
             className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"

@@ -43,7 +43,7 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
     
     // If requiredFields is passed and only contains nomePadre/nomeMadre, we're in enrollment mode
     if (_requiredFields && _requiredFields.length > 0 && _requiredFields.every(f => ['nomePadre', 'nomeMadre'].includes(f))) {
-      // Enrollment mode - only show padre/madre fields
+      // Enrollment mode - only show padre/madre fields, NEVER show email for security
       shouldShowField = ['nomePadre', 'nomeMadre'].includes(fieldName);
       isRequired = _requiredFields.includes(fieldName);
     } else {
@@ -382,26 +382,34 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
     onNext(formData);
   };
 
+  // Check if we're in enrollment mode (only famiglia fields)
+  const isEnrollmentMode = _requiredFields && _requiredFields.length > 0 && _requiredFields.every(f => ['nomePadre', 'nomeMadre'].includes(f));
+  
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       {/* Pre-populated data notice for additional enrollment */}
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-2">
-          <div className="relative">
-            <Input
-              label="Email *"
-              type="email"
-              {...register('email')}
-              error={errors.email?.message}
-              className={`pr-10 ${
-                emailValidation?.exists && !currentUser
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-                  : emailValidation && !emailValidation.exists && !emailValidation.isChecking
-                    ? 'border-green-300 focus:ring-green-500 focus:border-green-500'
-                    : ''
-              }`}
-            />
+      <div className={isEnrollmentMode 
+        ? "flex flex-col md:flex-row gap-6" 
+        : "grid grid-cols-1 md:grid-cols-2 gap-6"
+      }>
+        {/* Only show email field if it's required for this step */}
+        {getFieldStatus('email').shouldShow && (
+          <div className="space-y-2">
+            <div className="relative">
+              <Input
+                label="Email *"
+                type="email"
+                {...register('email')}
+                error={errors.email?.message}
+                className={`pr-10 ${
+                  emailValidation?.exists && !currentUser
+                    ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                    : emailValidation && !emailValidation.exists && !emailValidation.isChecking
+                      ? 'border-green-300 focus:ring-green-500 focus:border-green-500'
+                      : ''
+                }`}
+              />
             
             {/* Email validation icon */}
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 top-6">
@@ -442,7 +450,8 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
             </div>
           )}
           
-        </div>
+          </div>
+        )}
 
         {(() => {
           const telefonoStatus = getFieldStatus('telefono');
@@ -623,19 +632,23 @@ Rigenera automaticamente
           return (
             <>
               {padreStatus.shouldShow && (
-                <Input
-                  label="Nome del Padre *"
-                  {...register('nomePadre')}
-                  error={errors.nomePadre?.message}
-                />
+                <div className={isEnrollmentMode ? "flex-1" : ""}>
+                  <Input
+                    label="Nome del Padre *"
+                    {...register('nomePadre')}
+                    error={errors.nomePadre?.message}
+                  />
+                </div>
               )}
               
               {madreStatus.shouldShow && (
-                <Input
-                  label="Nome della Madre *"
-                  {...register('nomeMadre')}
-                  error={errors.nomeMadre?.message}
-                />
+                <div className={isEnrollmentMode ? "flex-1" : ""}>
+                  <Input
+                    label="Nome della Madre *"
+                    {...register('nomeMadre')}
+                    error={errors.nomeMadre?.message}
+                  />
+                </div>
               )}
             </>
           );

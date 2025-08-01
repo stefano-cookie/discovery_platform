@@ -46,8 +46,16 @@ const ReferralGatekeeper: React.FC<ReferralGatekeeperProps> = ({
       const urlParams = new URLSearchParams(location.search);
       const emailVerified = urlParams.get('emailVerified');
       const email = urlParams.get('email');
+      const verificationCode = urlParams.get('code');
 
-      console.log('URL params:', { emailVerified, email });
+      console.log('URL params:', { emailVerified, email, verificationCode });
+
+      // Se c'è un codice di verifica, lascia che MultiStepForm lo gestisca
+      if (verificationCode && !user) {
+        console.log('Verification code present, letting MultiStepForm handle it:', verificationCode);
+        setIsValidating(false);
+        return;
+      }
 
       if (emailVerified === 'true' && email && !user) {
         // Auto-login dopo verifica email

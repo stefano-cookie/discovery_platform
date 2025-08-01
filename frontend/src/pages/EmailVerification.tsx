@@ -7,6 +7,11 @@ const EmailVerification: React.FC = () => {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const [verificationCode, setVerificationCode] = useState<string | null>(null);
+  
+  console.log('📧 EMAIL VERIFICATION PAGE LOADED:', {
+    url: window.location.href,
+    searchParams: Object.fromEntries(searchParams.entries())
+  });
 
   useEffect(() => {
     const verifyEmailToken = async () => {
@@ -26,6 +31,23 @@ const EmailVerification: React.FC = () => {
         // Store verification code if provided
         if (response.verificationCode) {
           setVerificationCode(response.verificationCode);
+          
+          // Get referral code from URL if present
+          const referralCode = searchParams.get('referralCode');
+          
+          // Prepare redirect URL but don't auto-redirect
+          const baseUrl = referralCode ? `/registration/${referralCode}` : '/registration';
+          const redirectUrl = `${baseUrl}?code=${response.verificationCode}`;
+          
+          console.log('🔗 CONSTRUCTING REDIRECT URL:', {
+            referralCode,
+            verificationCode: response.verificationCode,
+            baseUrl,
+            redirectUrl
+          });
+          
+          // Store redirect URL for manual button click
+          (window as any).enrollmentRedirectUrl = redirectUrl;
         }
         
         if (response.alreadyVerified) {
@@ -84,6 +106,24 @@ const EmailVerification: React.FC = () => {
                             {verificationCode}
                           </div>
                           <p className="mt-2">Usa questo codice per accedere al form di iscrizione. Valido per 30 minuti.</p>
+                          <div className="mt-4">
+                            <button
+                              onClick={() => {
+                                const url = (window as any).enrollmentRedirectUrl;
+                                console.log('🎯 BUTTON CLICKED - Redirect URL:', url);
+                                if (url) {
+                                  console.log('🚀 Redirecting to:', url);
+                                  window.location.href = url;
+                                } else {
+                                  console.log('⚠️ No URL found, using fallback');
+                                  window.location.href = '/registration';
+                                }
+                              }}
+                              className="w-full bg-blue-600 text-white px-4 py-3 rounded-md hover:bg-blue-700 font-medium"
+                            >
+                              Continua con l'Iscrizione
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <p className="mt-1">Puoi ora chiudere questa pagina e tornare alla registrazione per continuare.</p>
