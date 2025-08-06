@@ -5,6 +5,7 @@ import { OfferInfo } from '../../types/offers';
 import { useAuth } from '../../hooks/useAuth';
 import { apiRequest } from '../../services/api';
 import { useLocation } from 'react-router-dom';
+import { RegistrationData } from '../../types/registration';
 import StepIndicator from './StepIndicator';
 import GeneralDataStep from './FormSteps/GeneralDataStep';
 import ResidenceStep from './FormSteps/ResidenceStep';
@@ -14,6 +15,7 @@ import DocumentsStep from './FormSteps/DocumentsStep';
 import EnrollmentStep from './FormSteps/EnrollmentStep';
 import RegistrationStep from './FormSteps/RegistrationStep';
 import CodeVerification from './CodeVerification';
+import SetPassword from '../Auth/SetPassword';
 import { verifyCode } from '../../services/api';
 
 interface MultiStepFormProps {
@@ -30,13 +32,17 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   
-  // Gestisce utenti verificati via codice sicuro
+  // Gestisce utenti verificati via token sicuro
   const urlParams = new URLSearchParams(location.search);
-  const verificationCode = urlParams.get('code');
-  const emailVerified = urlParams.get('emailVerified');
-  const emailFromUrl = urlParams.get('email');
+  const secureToken = urlParams.get('token');
+  const verificationCode = urlParams.get('code'); // Legacy support
+  const emailVerified = urlParams.get('emailVerified'); // Legacy support
+  const emailFromUrl = urlParams.get('email'); // Legacy support
   const [verifiedUser, setVerifiedUser] = useState<any>(null);
   const [showCodeVerification, setShowCodeVerification] = useState(false);
+  const [needsPassword, setNeedsPassword] = useState(false);
+  const [passwordUserInfo, setPasswordUserInfo] = useState<any>(null);
+  const [showRestorationNotice, setShowRestorationNotice] = useState(false);
   
   const stepConfig = useMemo(() => {
     // Gli utenti NON autenticati vengono reindirizzati alla registrazione
@@ -213,7 +219,6 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
     const success = nextStep();
     if (!success) {
       // Alert user that all required fields must be completed
-      console.log('Cannot proceed: required fields not completed');
     }
   };
 
@@ -270,23 +275,96 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
   // Verify code if present in URL
   useEffect(() => {
     const handleCodeVerification = async () => {
-      console.log('🔍 CODE VERIFICATION FLOW:', {
-        verificationCode,
-        emailVerified,
-        emailFromUrl,
-        verifiedUser: !!verifiedUser,
-        currentUser: !!currentUser
-      });
 
-      // Caso 1: Verifica tramite codice sicuro
-      if (verificationCode && !verifiedUser && !currentUser) {
-        console.log('📝 Attempting to verify code:', verificationCode);
+      // Caso 0: Verifica tramite token sicuro (nuovo sistema)
+      if (secureToken && !verifiedUser && !currentUser) {
         try {
+          setLoadingProfile(true);
+          
+          const response = await apiRequest<{user: any; profile: any; registration: any; assignedPartner: any}>({
+            method: 'POST',
+            url: '/user/profile-by-token',
+            data: { accessToken: secureToken }
+          });
+          
+          
+          if (response.user) {
+            setVerifiedUser({
+              ...response.user,
+              hasProfile: !!response.profile
+            });
+            setUserProfile(response);
+            
+            // Pre-popola i dati del form se disponibili, ma non sovrascrive i dati già salvati in localStorage
+            if (response.profile) {
+              const profileData = {
+                // Email dall'utente verificato
+                email: response.user.email || '',
+                // Dati anagrafici dal profilo
+                cognome: response.profile.cognome || '',
+                nome: response.profile.nome || '',
+                dataNascita: response.profile.dataNascita ? new Date(response.profile.dataNascita).toISOString().split('T')[0] : '',
+                luogoNascita: response.profile.luogoNascita || '',
+                provinciaNascita: response.profile.provinciaNascita || '',
+                sesso: response.profile.sesso || '',
+                codiceFiscale: response.profile.codiceFiscale || '',
+                telefono: response.profile.telefono || '',
+                nomePadre: response.profile.nomePadre || '',
+                nomeMadre: response.profile.nomeMadre || '',
+                // Dati residenza
+                residenzaVia: response.profile.residenzaVia || '',
+                residenzaCitta: response.profile.residenzaCitta || '',
+                residenzaProvincia: response.profile.residenzaProvincia || '',
+                residenzaCap: response.profile.residenzaCap || '',
+                hasDifferentDomicilio: response.profile.hasDifferentDomicilio || false,
+                domicilioVia: response.profile.domicilioVia || '',
+                domicilioCitta: response.profile.domicilioCitta || '',
+                domicilioProvincia: response.profile.domicilioProvincia || '',
+                domicilioCap: response.profile.domicilioCap || ''
+              };
+              
+              
+              // Filter out nomePadre/nomeMadre from profile data to avoid overwriting user input
+              const { nomePadre, nomeMadre, ...profileDataFiltered } = profileData;
+              updateFormData(profileDataFiltered);
+              
+            }
+          } else {
+          }
+        } catch (error: any) {
+          console.error('❌ Token verification failed:', error);
+          // TODO: Redirect to error or login page
+        } finally {
+          setLoadingProfile(false);
+        }
+        return;
+      }
+      
+      // Caso 1: Verifica tramite codice sicuro (legacy)
+      if (verificationCode && !verifiedUser && !currentUser) {
+        try {
+          // First check if user needs to set password
+          const passwordCheckResponse = await fetch('/api/auth/check-password-status', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ verificationCode }),
+          });
+
+          if (passwordCheckResponse.ok) {
+            const passwordCheck = await passwordCheckResponse.json();
+            if (passwordCheck.needsPassword) {
+              setNeedsPassword(true);
+              setPasswordUserInfo(passwordCheck.user);
+              return;
+            }
+          }
+
+          // If no password needed, proceed with normal verification
           const response = await verifyCode(verificationCode);
-          console.log('✅ Code verification successful:', response);
           setVerifiedUser(response.user);
         } catch (error) {
-          console.error('❌ Error verifying code:', error);
           setShowCodeVerification(true);
         }
         return;
@@ -294,7 +372,6 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
 
       // Caso 2: Verifica tramite email (backward compatibility)
       if (emailVerified === 'true' && emailFromUrl && !verifiedUser && !currentUser) {
-        console.log('📧 Email verification detected, creating verified user object');
         setVerifiedUser({
           email: emailFromUrl,
           hasProfile: true // Assumiamo che abbia già un profilo se arriva da verifica email
@@ -304,13 +381,12 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
 
       // Caso 3: Nessun metodo di verifica disponibile
       if (!currentUser && !verificationCode && !verifiedUser && emailVerified !== 'true') {
-        console.log('🔑 No code, no user - showing code verification form');
         setShowCodeVerification(true);
       }
     };
 
     handleCodeVerification();
-  }, [verificationCode, emailVerified, emailFromUrl, verifiedUser, currentUser]);
+  }, [secureToken, verificationCode, emailVerified, emailFromUrl, verifiedUser, currentUser]);
 
   // Load user profile when user is authenticated OR verified via code
   useEffect(() => {
@@ -325,7 +401,6 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
           });
           setUserProfile(response.profile);
         } catch (error) {
-          console.error('Error loading user profile:', error);
           setUserProfile(null);
         } finally {
           setLoadingProfile(false);
@@ -333,8 +408,8 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
         return;
       }
 
-      // Se l'utente arriva da verifica codice, carica il profilo
-      if (verifiedUser && verifiedUser.hasProfile) {
+      // Se l'utente arriva da verifica codice legacy, carica il profilo con email (deprecato)
+      if (verifiedUser && verifiedUser.hasProfile && !secureToken && emailFromUrl) {
         try {
           setLoadingProfile(true);
           
@@ -346,9 +421,9 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
 
           setUserProfile(response);
           
-          // Pre-popola i dati del form se disponibili
+          // Pre-popola i dati del form se disponibili, ma non sovrascrive i dati già salvati in localStorage
           if (response.profile) {
-            updateFormData({
+            const profileData = {
               // Email dall'utente verificato
               email: verifiedUser.email || '',
               // Dati anagrafici dal profilo
@@ -386,10 +461,22 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
               scuolaDenominazione: response.profile.scuolaDenominazione || '',
               scuolaCitta: response.profile.scuolaCitta || '',
               scuolaProvincia: response.profile.scuolaProvincia || ''
+            };
+            
+            // Solo popola i campi che non sono già stati compilati dall'utente
+            updateFormData((prev: Partial<RegistrationData>) => {
+              const mergedData = { ...profileData };
+              // Mantieni i dati già compilati dall'utente
+              Object.keys(prev).forEach(key => {
+                const typedKey = key as keyof RegistrationData;
+                if (prev[typedKey] && prev[typedKey] !== '' && prev[typedKey] !== null && prev[typedKey] !== undefined) {
+                  (mergedData as any)[typedKey] = prev[typedKey];
+                }
+              });
+              return mergedData;
             });
           }
         } catch (error) {
-          console.error('Errore recupero profilo utente verificato:', error);
           // Non mostrare errore all'utente, semplicemente non pre-popola
           setUserProfile(null);
         } finally {
@@ -404,7 +491,38 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
 
     loadUserProfile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, verifiedUser, updateFormData]);
+  }, [currentUser, verifiedUser]);
+
+  // Check for restored data and show notification
+  useEffect(() => {
+    const hasRestoredData = localStorage.getItem('registrationForm');
+    const hasRestoredStep = localStorage.getItem('registrationFormStep');
+    
+    if (hasRestoredData && hasRestoredStep && !currentUser && !verifiedUser) {
+      const stepNum = parseInt(hasRestoredStep, 10);
+      if (!isNaN(stepNum) && stepNum > 0) {
+        setShowRestorationNotice(true);
+        // Hide after 5 seconds
+        setTimeout(() => setShowRestorationNotice(false), 5000);
+      }
+    }
+  }, [currentUser, verifiedUser]);
+
+  // Handle password set completion
+  const handlePasswordSet = async () => {
+    setNeedsPassword(false);
+    setPasswordUserInfo(null);
+    
+    // Now proceed with normal verification
+    if (verificationCode) {
+      try {
+        const response = await verifyCode(verificationCode);
+        setVerifiedUser(response.user);
+      } catch (error) {
+        setShowCodeVerification(true);
+      }
+    }
+  };
 
 
 
@@ -418,14 +536,14 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
     return () => clearInterval(autoSaveInterval);
   }, [formData, saveCurrentData]);
 
-  // Cleanup - remove legacy localStorage items on mount
+  // Cleanup - remove only legacy localStorage items on mount (preserve current form data)
   useEffect(() => {
-    // Clean up any legacy localStorage items that were used for step skipping
-    localStorage.removeItem('registrationFormData');
+    // Clean up only legacy localStorage items, not current ones
+    localStorage.removeItem('registrationFormData'); // Old key
     localStorage.removeItem('isAdditionalEnrollment');
     localStorage.removeItem('userDocuments');
     localStorage.removeItem('registrationReferralCode');
-    localStorage.removeItem('registrationFormStep');
+    // Keep registrationForm, registrationFormFiles, registrationFormStep for current session
   }, []);
 
   const shouldShowStep = (stepName: string) => stepConfig.steps.includes(stepName);
@@ -462,6 +580,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
       case 'generale':
         return (
           <GeneralDataStep
+            key={`generale-${Object.keys(formData).length}`}
             data={formData}
             onNext={handleStepComplete}
             onChange={updateFormData}
@@ -474,6 +593,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
       case 'datiFamiliari':
         return (
           <GeneralDataStep
+            key={`datiFamiliari-${Object.keys(formData).length}-${formData.nomePadre || 'empty'}-${formData.nomeMadre || 'empty'}`}
             data={formData}
             onNext={handleStepComplete}
             onChange={updateFormData}
@@ -494,6 +614,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
       case 'istruzione':
         return shouldShowStep('istruzione') ? (
           <EducationStep
+            key={`istruzione-${Object.keys(formData).length}`}
             data={formData}
             onNext={handleStepComplete}
             onChange={updateFormData}
@@ -502,6 +623,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
       case 'professione':
         return shouldShowStep('professione') ? (
           <ProfessionStep
+            key={`professione-${Object.keys(formData).length}`}
             data={formData}
             onNext={handleStepComplete}
             onChange={updateFormData}
@@ -515,6 +637,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
             onChange={updateFormData}
             templateType={stepConfig.templateType}
             requiredFields={stepConfig.requiredFields.documenti || []}
+            userId={currentUser?.id || verifiedUser?.id}
           />
         );
       case 'opzioni':
@@ -535,6 +658,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
             onNext={handleEnrollmentSuccess}
             onChange={updateFormData}
             offerInfo={offerInfo}
+            userProfile={userProfile}
           />
         );
       default:
@@ -542,16 +666,20 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
     }
   };
 
+  // Show password setup if needed
+  if (needsPassword && verificationCode) {
+    return (
+      <SetPassword
+        verificationCode={verificationCode}
+        onPasswordSet={handlePasswordSet}
+        userInfo={passwordUserInfo}
+      />
+    );
+  }
+
   // SECURITY: This component is for authenticated users OR users verified via code
   // Non-authenticated users should be handled by ReferralGatekeeper → RegistrationModal
   if (!currentUser && !verifiedUser) {
-    console.log('🚫 ACCESS DENIED - Debug info:', {
-      currentUser: !!currentUser,
-      verifiedUser: !!verifiedUser,
-      verificationCode,
-      showCodeVerification,
-      urlParams: Object.fromEntries(urlParams.entries())
-    });
     
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -631,6 +759,23 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
                 </p>
                 <p className="text-green-600 text-sm">
                   Dovrai completare solo i passaggi specifici per questo corso.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Restoration Notice */}
+        {showRestorationNotice && (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl shadow-xl p-6 mb-4 sm:mb-8">
+            <div className="flex items-start">
+              <svg className="w-6 h-6 text-blue-600 mt-0.5 mr-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-blue-800 mb-2">Dati ripristinati!</h3>
+                <p className="text-blue-700 text-sm">
+                  I tuoi dati precedenti sono stati ripristinati. Puoi continuare da dove avevi interrotto.
                 </p>
               </div>
             </div>

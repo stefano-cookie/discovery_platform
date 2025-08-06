@@ -2,9 +2,68 @@ import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import emailService from '../services/emailService';
+import SecureTokenService from '../services/secureTokenService';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+// Multer configuration for enrollment document uploads
+const enrollmentStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const folders: Record<string, string> = {
+      // Basic documents
+      cartaIdentita: 'carte-identita',
+      certificatoMedico: 'certificati-medici',
+      
+      // TFA specific documents
+      certificatoTriennale: 'lauree',
+      certificatoMagistrale: 'lauree',
+      pianoStudioTriennale: 'piani-studio',
+      pianoStudioMagistrale: 'piani-studio',
+      certificatoNascita: 'certificati-nascita',
+      
+      // Diplomas
+      diplomoLaurea: 'diplomi-laurea',
+      pergamenaLaurea: 'pergamene-laurea',
+      
+      // Other
+      altro: 'altri'
+    };
+    
+    const docType = req.body.documentType || 'altro';
+    const folder = folders[docType] || 'altri';
+    const uploadPath = `uploads/${folder}`;
+    
+    // Ensure directory exists
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(file.originalname)}`;
+    cb(null, uniqueName);
+  }
+});
+
+const enrollmentUpload = multer({
+  storage: enrollmentStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    const allowed = ['.pdf', '.jpg', '.jpeg', '.png'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    
+    if (allowed.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Tipo file non permesso'));
+    }
+  }
+});
 
 // Helper function to apply coupon and record usage
 async function applyCouponAndRecordUsage(
@@ -85,8 +144,182 @@ async function applyCouponAndRecordUsage(
   }
 }
 
-// NOTE: File upload configuration moved to the document upload endpoint
-// since enrollment now handles documents separately
+// Helper function to map frontend document types to database enum values
+function mapDocumentType(frontendType: string): string {
+  const typeMapping: Record<string, string> = {
+    cartaIdentita: 'CARTA_IDENTITA',
+    certificatoTriennale: 'CERTIFICATO_TRIENNALE',
+    certificatoMagistrale: 'CERTIFICATO_MAGISTRALE',
+    pianoStudioTriennale: 'PIANO_STUDIO_TRIENNALE',
+    pianoStudioMagistrale: 'PIANO_STUDIO_MAGISTRALE',
+    certificatoMedico: 'CERTIFICATO_MEDICO',
+    certificatoNascita: 'CERTIFICATO_NASCITA',
+    diplomoLaurea: 'DIPLOMA_LAUREA',
+    pergamenaLaurea: 'PERGAMENA_LAUREA'
+  };
+  
+  return typeMapping[frontendType] || 'ALTRO';
+}
+
+// POST /api/registration/upload-document - Upload document during enrollment
+router.post('/upload-document', enrollmentUpload.single('document'), async (req: Request, res: Response) => {
+  try {
+    const { userId, documentType, templateType } = req.body;
+    const file = req.file;
+    
+    if (!file) {
+      return res.status(400).json({ error: 'File non fornito' });
+    }
+    
+    if (!userId || !documentType) {
+      return res.status(400).json({ error: 'userId e documentType sono richiesti' });
+    }
+    
+    // Verify user exists
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Utente non trovato' });
+    }
+    
+    // Map frontend document type to database enum
+    const dbDocumentType = mapDocumentType(documentType);
+    
+    // Check if document of this type already exists for this user (not linked to a registration yet)
+    const existingDoc = await prisma.userDocument.findFirst({
+      where: {
+        userId,
+        type: dbDocumentType as any,
+        registrationId: null // Only unlinked documents
+      }
+    });
+    
+    let document;
+    
+    if (existingDoc) {
+      // Update existing document
+      document = await prisma.userDocument.update({
+        where: { id: existingDoc.id },
+        data: {
+          originalName: file.originalname,
+          url: file.path,
+          size: file.size,
+          mimeType: file.mimetype,
+          status: 'PENDING',
+          uploadedAt: new Date()
+        }
+      });
+      
+      // Clean up old file
+      try {
+        if (existingDoc.url && fs.existsSync(existingDoc.url)) {
+          fs.unlinkSync(existingDoc.url);
+        }
+      } catch (error) {
+        console.error('Error deleting old file:', error);
+      }
+    } else {
+      // Create new document
+      document = await prisma.userDocument.create({
+        data: {
+          userId,
+          type: dbDocumentType as any,
+          originalName: file.originalname,
+          url: file.path,
+          size: file.size,
+          mimeType: file.mimetype,
+          status: 'PENDING',
+          uploadSource: 'ENROLLMENT',
+          uploadedBy: userId,
+          uploadedByRole: 'USER'
+        }
+      });
+    }
+    
+    console.log(`📄 Document uploaded during enrollment: ${documentType} for user ${userId}`);
+    
+    res.json({
+      success: true,
+      document: {
+        id: document.id,
+        type: documentType, // Return frontend type
+        fileName: document.originalName,
+        uploadedAt: document.uploadedAt,
+        status: document.status
+      },
+      message: existingDoc ? 'Documento aggiornato con successo' : 'Documento caricato con successo'
+    });
+    
+  } catch (error) {
+    console.error('Error uploading enrollment document:', error);
+    
+    // Clean up uploaded file on error
+    if (req.file && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (cleanupError) {
+        console.error('Error cleaning up file on error:', cleanupError);
+      }
+    }
+    
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// GET /api/registration/user-documents/:userId - Get user's unlinked documents for enrollment
+router.get('/user-documents/:userId', async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    
+    // Verify user exists
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Utente non trovato' });
+    }
+    
+    // Get documents not yet linked to any registration
+    const documents = await prisma.userDocument.findMany({
+      where: {
+        userId,
+        registrationId: null
+      },
+      orderBy: { uploadedAt: 'desc' }
+    });
+    
+    // Map database types back to frontend types
+    const frontendTypeMapping: Record<string, string> = {
+      CARTA_IDENTITA: 'cartaIdentita',
+      CERTIFICATO_TRIENNALE: 'certificatoTriennale',
+      CERTIFICATO_MAGISTRALE: 'certificatoMagistrale',
+      PIANO_STUDIO_TRIENNALE: 'pianoStudioTriennale',
+      PIANO_STUDIO_MAGISTRALE: 'pianoStudioMagistrale',
+      CERTIFICATO_MEDICO: 'certificatoMedico',
+      CERTIFICATO_NASCITA: 'certificatoNascita',
+      DIPLOMA_LAUREA: 'diplomoLaurea',
+      PERGAMENA_LAUREA: 'pergamenaLaurea'
+    };
+    
+    const formattedDocuments = documents.map(doc => ({
+      id: doc.id,
+      type: frontendTypeMapping[doc.type] || 'altro',
+      fileName: doc.originalName,
+      uploadedAt: doc.uploadedAt,
+      status: doc.status,
+      isVerified: doc.status === 'APPROVED'
+    }));
+    
+    res.json({ documents: formattedDocuments });
+    
+  } catch (error) {
+    console.error('Error getting user documents:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
 
 // GET /api/registration/check-user/:email - Check if user exists
 router.get('/check-user/:email', async (req: Request, res: Response) => {
@@ -500,16 +733,50 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
         }
       }
       
-      // TODO: Link existing user documents to new registration 
-      // This will be handled by the new UserDocument system
-      // if (documents && documents.length > 0) {
-      //   for (const docId of documents) {
-      //     await tx.userDocument.update({
-      //       where: { id: docId },
-      //       data: { registrationId: registration.id }
-      //     });
-      //   }
-      // }
+      // Finalize temporarily uploaded documents first
+      if (documents && documents.length > 0) {
+        try {
+          const documentsToFinalize = Array.isArray(documents) ? documents : [];
+          
+          if (documentsToFinalize.length > 0) {
+            const { DocumentService } = await import('../services/documentService');
+            const finalizedDocs = await DocumentService.finalizeEnrollmentDocuments(
+              registration.id, 
+              userId, 
+              documentsToFinalize, 
+              tx
+            );
+            console.log(`✅ Finalized ${finalizedDocs.length} enrollment documents for registration ${registration.id}`);
+          }
+        } catch (docError) {
+          console.error('Document finalization error (non-blocking):', docError);
+          // Don't fail registration if document finalization fails
+        }
+      }
+
+      // Link existing user documents to new registration
+      // Find all unlinked documents for this user and link them to the registration
+      const userDocuments = await tx.userDocument.findMany({
+        where: {
+          userId: userId,
+          registrationId: null // Only unlinked documents
+        }
+      });
+      
+      if (userDocuments.length > 0) {
+        // Link all unlinked documents to this registration
+        await tx.userDocument.updateMany({
+          where: {
+            userId: userId,
+            registrationId: null
+          },
+          data: {
+            registrationId: registration.id
+          }
+        });
+        
+        console.log(`🔗 Linked ${userDocuments.length} documents to registration ${registration.id}`);
+      }
       
       return registration;
     });
@@ -851,6 +1118,51 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
         }
       }
       
+      // Finalize temporarily uploaded documents first
+      if (documents && documents.length > 0) {
+        try {
+          const documentsToFinalize = Array.isArray(documents) ? documents : [];
+          
+          if (documentsToFinalize.length > 0) {
+            const { DocumentService } = await import('../services/documentService');
+            const finalizedDocs = await DocumentService.finalizeEnrollmentDocuments(
+              registration.id, 
+              user.id, 
+              documentsToFinalize, 
+              tx
+            );
+            console.log(`✅ Finalized ${finalizedDocs.length} enrollment documents for verified user registration ${registration.id}`);
+          }
+        } catch (docError) {
+          console.error('Document finalization error (non-blocking):', docError);
+          // Don't fail registration if document finalization fails
+        }
+      }
+
+      // Link existing user documents to new registration
+      // Find all unlinked documents for this user and link them to the registration
+      const userDocuments = await tx.userDocument.findMany({
+        where: {
+          userId: user.id,
+          registrationId: null // Only unlinked documents
+        }
+      });
+      
+      if (userDocuments.length > 0) {
+        // Link all unlinked documents to this registration
+        await tx.userDocument.updateMany({
+          where: {
+            userId: user.id,
+            registrationId: null
+          },
+          data: {
+            registrationId: registration.id
+          }
+        });
+        
+        console.log(`🔗 Linked ${userDocuments.length} documents to verified user registration ${registration.id}`);
+      }
+      
       return registration;
     });
     
@@ -951,6 +1263,119 @@ router.post('/validate-coupon', async (req, res) => {
       isValid: false, 
       message: 'Errore interno del server' 
     });
+  }
+});
+
+// POST /api/registration/token-enrollment - Enrollment for token-based users (no auth required)
+router.post('/token-enrollment', async (req: Request, res: Response) => {
+  try {
+    const { 
+      accessToken,
+      courseId, 
+      partnerOfferId, 
+      paymentPlan, 
+      couponCode,
+      documents = [],
+      courseData = {},
+      referralCode,
+      // All the other enrollment data
+      ...enrollmentData
+    } = req.body;
+    
+    if (!accessToken) {
+      return res.status(400).json({ error: 'Token di accesso richiesto' });
+    }
+    
+    // Verify token and get associated data
+    const tokenData = await SecureTokenService.verifyToken(accessToken);
+    
+    if (!tokenData) {
+      return res.status(401).json({ error: 'Token non valido o scaduto' });
+    }
+    
+    const { user, registration: existingRegistration } = tokenData;
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Utente non trovato' });
+    }
+    
+    // Update the existing registration with enrollment data
+    const result = await prisma.$transaction(async (tx) => {
+      // Update registration with enrollment details
+      const updatedRegistration = await tx.registration.update({
+        where: { id: existingRegistration.id },
+        data: {
+          // Course-specific data
+          tipoLaurea: courseData.tipoLaurea || null,
+          laureaConseguita: courseData.laureaConseguita || null,
+          laureaUniversita: courseData.laureaUniversita || null,
+          laureaData: courseData.laureaData ? new Date(courseData.laureaData) : null,
+          tipoLaureaTriennale: courseData.tipoLaureaTriennale || null,
+          laureaConseguitaTriennale: courseData.laureaConseguitaTriennale || null,
+          laureaUniversitaTriennale: courseData.laureaUniversitaTriennale || null,
+          laureaDataTriennale: courseData.laureaDataTriennale ? new Date(courseData.laureaDataTriennale) : null,
+          tipoProfessione: courseData.tipoProfessione || null,
+          scuolaDenominazione: courseData.scuolaDenominazione || null,
+          scuolaCitta: courseData.scuolaCitta || null,
+          scuolaProvincia: courseData.scuolaProvincia || null,
+          
+          // Payment information (might be updated from frontend)
+          originalAmount: paymentPlan.originalAmount || existingRegistration.originalAmount,
+          finalAmount: paymentPlan.finalAmount || existingRegistration.finalAmount,
+          installments: paymentPlan.installments || existingRegistration.installments,
+          
+          // Mark as completed
+          status: 'PENDING', // Will be updated to appropriate status
+          
+          // Clear token since enrollment is complete
+          accessToken: null,
+          tokenExpiresAt: null
+        }
+      });
+      
+      // Process documents if any
+      if (documents && documents.length > 0) {
+        console.log('📄 Processing documents for token enrollment:', documents);
+        
+        for (const document of documents) {
+          // Validate document structure
+          if (!document.fileName || !document.url || !document.type) {
+            console.warn('⚠️ Skipping invalid document:', document);
+            continue;
+          }
+          
+          try {
+            await tx.document.create({
+              data: {
+                registrationId: updatedRegistration.id,
+                fileName: document.fileName,
+                filePath: document.url,
+                type: document.type,
+                uploadedAt: new Date()
+              }
+            });
+            console.log('✅ Created document record:', { fileName: document.fileName, type: document.type });
+          } catch (docError) {
+            console.error('❌ Error creating document:', docError, 'Document data:', document);
+            // Continue with other documents instead of failing the entire transaction
+          }
+        }
+      }
+      
+      return updatedRegistration;
+    });
+    
+    console.log(`✅ Token-based enrollment completed for user ${user.id}, registration ${result.id}`);
+    
+    res.json({
+      success: true,
+      registrationId: result.id,
+      message: 'Iscrizione completata con successo'
+    });
+    
+  } catch (error) {
+    console.error('Token enrollment error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
   }
 });
 

@@ -1,7 +1,9 @@
 import express from 'express';
 import { DocumentService, upload } from '../services/documentService';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { DocumentType } from '@prisma/client';
+import { DocumentType, PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 const router = express.Router();
 
@@ -35,8 +37,8 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
     const formattedDocs = documents.map(doc => ({
       id: doc.id,
       type: doc.type,
-      fileName: doc.originalFileName,
-      fileSize: doc.fileSize,
+      fileName: doc.originalName,
+      fileSize: doc.size,
       mimeType: doc.mimeType,
       status: doc.status,
       isVerified: doc.status === 'APPROVED',
@@ -62,8 +64,8 @@ router.get('/enrollment-documents', authenticate, async (req: AuthRequest, res) 
     const formattedDocs = enrollmentDocs.map(doc => ({
       id: doc.id,
       type: doc.type,
-      fileName: doc.originalFileName,
-      fileSize: doc.fileSize,
+      fileName: doc.originalName,
+      fileSize: doc.size,
       mimeType: doc.mimeType,
       status: doc.status,
       isVerified: doc.status === 'APPROVED',
@@ -102,7 +104,7 @@ router.post('/', authenticate, upload.single('document'), async (req: AuthReques
       document: {
         id: document.id,
         type: document.type,
-        fileName: document.originalFileName,
+        fileName: document.originalName,
         status: document.status,
         uploadedAt: document.uploadedAt
       }
@@ -192,6 +194,62 @@ router.get('/enrollment-documents/:documentId/download', authenticate, async (re
   } catch (error: any) {
     console.error('Error downloading enrollment document:', error);
     res.status(404).json({ error: error.message || 'Documento non trovato' });
+  }
+});
+
+// Sync user documents between enrollment and dashboard
+router.post('/sync', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const syncResult = await DocumentService.syncDocumentsForUser(userId);
+    
+    res.json({ 
+      message: 'Sincronizzazione completata con successo',
+      result: syncResult
+    });
+  } catch (error: any) {
+    console.error('Error syncing documents:', error);
+    res.status(500).json({ error: 'Errore nella sincronizzazione dei documenti' });
+  }
+});
+
+// Get document status
+router.get('/:documentId/status', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { documentId } = req.params;
+    const userId = req.user!.id;
+    
+    const document = await prisma.userDocument.findFirst({
+      where: { 
+        id: documentId,
+        userId 
+      },
+      select: {
+        id: true,
+        status: true,
+        verifiedAt: true,
+        rejectionReason: true,
+        rejectionDetails: true,
+        verifier: {
+          select: { email: true }
+        }
+      }
+    });
+
+    if (!document) {
+      return res.status(404).json({ error: 'Documento non trovato' });
+    }
+
+    res.json({ 
+      status: document.status,
+      verifiedAt: document.verifiedAt,
+      rejectionReason: document.rejectionReason,
+      rejectionDetails: document.rejectionDetails,
+      verifiedBy: document.verifier?.email
+    });
+  } catch (error: any) {
+    console.error('Error getting document status:', error);
+    res.status(500).json({ error: 'Errore nel caricamento dello stato del documento' });
   }
 });
 

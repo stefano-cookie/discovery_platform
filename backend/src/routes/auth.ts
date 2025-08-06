@@ -5,9 +5,12 @@ import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import emailService from '../services/emailService';
+import SecureTokenService from '../services/secureTokenService';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+const SALT_ROUNDS = 10;
 
 // Login
 router.post('/login', async (req, res) => {
@@ -259,10 +262,6 @@ router.post('/verify-email', async (req, res) => {
       });
     }
     
-    // Generate unique verification code for secure enrollment access
-    const verificationCode = crypto.randomBytes(16).toString('hex');
-    const codeExpiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
-    
     // Update user as verified and activated
     await prisma.user.update({
       where: { id: user.id },
@@ -271,20 +270,72 @@ router.post('/verify-email', async (req, res) => {
         emailVerifiedAt: new Date(),
         emailVerificationToken: null,
         emailVerificationTokenExpiry: null,
-        isActive: true,
-        verificationCode,
-        codeExpiresAt
+        isActive: true
       }
     });
     
     res.json({ 
       success: true,
-      message: 'Account attivato con successo! Ora puoi effettuare il login.',
-      verificationCode // Include code for secure form access
+      message: 'Account attivato con successo! Ora puoi effettuare il login.'
     });
     
   } catch (error) {
     console.error('Verify email error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Generate secure access token for enrollment form
+router.post('/generate-access-token', async (req, res) => {
+  try {
+    const { email, referralCode } = req.body;
+    
+    if (!email || !referralCode) {
+      return res.status(400).json({ error: 'Email e referral code sono obbligatori' });
+    }
+    
+    // Verifica che l'utente esista e abbia email verificata
+    const user = await prisma.user.findUnique({
+      where: { 
+        email,
+        emailVerified: true,
+        isActive: true
+      },
+      include: {
+        assignedPartner: true,
+        profile: true
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Utente non trovato o email non verificata' });
+    }
+    
+    if (!user.profile) {
+      return res.status(404).json({ error: 'Profilo utente non completo' });
+    }
+    
+    // Verifica che il referral code sia valido
+    const offer = await prisma.partnerOffer.findUnique({
+      where: { referralLink: referralCode },
+      include: { partner: true, course: true }
+    });
+    
+    if (!offer || !offer.isActive) {
+      return res.status(404).json({ error: 'Offerta non trovata o non attiva' });
+    }
+    
+    // Genera token sicuro
+    const token = await SecureTokenService.createAccessToken(user.id, referralCode);
+    
+    res.json({
+      success: true,
+      accessToken: token,
+      message: 'Token di accesso generato con successo'
+    });
+    
+  } catch (error) {
+    console.error('Generate access token error:', error);
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -498,6 +549,62 @@ router.post('/register', async (req, res) => {
         return res.status(400).json({ error: 'Email già registrata' });
       }
     }
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Set password for users with temporary password (after email verification)
+router.post('/set-password', async (req, res) => {
+  try {
+    const { verificationCode, password } = req.body;
+
+    if (!verificationCode || !password) {
+      return res.status(400).json({ error: 'Codice di verifica e password sono obbligatori' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'La password deve essere di almeno 6 caratteri' });
+    }
+
+    // Find user by verification code
+    const user = await prisma.user.findFirst({
+      where: {
+        verificationCode,
+        codeExpiresAt: {
+          gt: new Date()
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Codice di verifica non valido o scaduto' });
+    }
+
+    // Check if user has temporary password
+    if (user.password !== 'INCOMPLETE_TEMP') {
+      return res.status(400).json({ error: 'Utente già ha una password impostata' });
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+
+    // Update user with new password and clear verification code
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        verificationCode: null,
+        codeExpiresAt: null
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Password impostata con successo. Ora puoi accedere al tuo account.'
+    });
+
+  } catch (error) {
+    console.error('Set password error:', error);
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -746,5 +853,55 @@ if (process.env.NODE_ENV === 'development') {
     }
   });
 }
+
+// Check if user needs to set password (for temporary password users)
+router.post('/check-password-status', async (req, res) => {
+  try {
+    const { verificationCode } = req.body;
+
+    if (!verificationCode) {
+      return res.status(400).json({ error: 'Codice di verifica richiesto' });
+    }
+
+    const user = await prisma.user.findFirst({
+      where: {
+        verificationCode,
+        codeExpiresAt: {
+          gt: new Date()
+        }
+      },
+      select: {
+        id: true,
+        email: true,
+        password: true,
+        profile: {
+          select: {
+            nome: true,
+            cognome: true
+          }
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Codice di verifica non valido o scaduto' });
+    }
+
+    const needsPassword = user.password === 'INCOMPLETE_TEMP';
+
+    res.json({
+      needsPassword,
+      user: {
+        id: user.id,
+        email: user.email,
+        profile: user.profile
+      }
+    });
+
+  } catch (error) {
+    console.error('Check password status error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
 
 export default router;

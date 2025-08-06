@@ -34,7 +34,9 @@ model User {
   registrations   Registration[] // Iscrizioni ai corsi
   documents       UserDocument[] // Repository documenti dell'utente
   verifiedDocuments UserDocument[] @relation("DocumentVerifier") // Documenti verificati (per partner)
+  uploadedDocuments UserDocument[] @relation("DocumentUploader") // Documenti caricati
   documentAuditLogs DocumentAuditLog[] // Log audit documenti
+  documentActions   DocumentActionLog[] @relation("DocumentActions") // Azioni sui documenti
   offerVisibilities OfferVisibility[]
   offerAccess     UserOfferAccess[] // Accesso alle offerte aggiuntive
 }
@@ -221,10 +223,18 @@ model Registration {
   adverintiaUrl          String?
   adverintiaUploadedAt   DateTime?
   
+  // Certificazioni - data esame
+  examDate               DateTime? // Per workflow certificazioni
+  examRegisteredBy       String?   // Partner che registra data
+  
   // Date workflow
   dataVerifiedAt      DateTime?
   contractSignedAt    DateTime?
   enrolledAt          DateTime?
+  
+  // Sistema accesso sicuro
+  accessToken         String?   @unique // Token sicuro per accesso form
+  tokenExpiresAt      DateTime? // Scadenza token
   
   createdAt       DateTime @default(now())
   
@@ -264,55 +274,85 @@ enum RegistrationStatus {
   COMPLETED
 }
 
-// Enterprise Document Management System
+// Sistema Documenti Unificato - Enterprise Document Management
 enum DocumentStatus {
-  PENDING
-  APPROVED
-  REJECTED
+  PENDING    // In attesa di verifica
+  APPROVED   // Approvato dal partner
+  REJECTED   // Rifiutato con motivazione
+  EXPIRED    // Scaduto (per doc temporanei)
 }
 
 enum DocumentType {
-  CARTA_IDENTITA
-  TESSERA_SANITARIA
-  CERTIFICATO_TRIENNALE
-  CERTIFICATO_MAGISTRALE
-  PIANO_STUDIO_TRIENNALE
-  PIANO_STUDIO_MAGISTRALE
-  CERTIFICATO_MEDICO
-  CERTIFICATO_NASCITA
-  DIPLOMA_LAUREA
-  PERGAMENA_LAUREA
-  DIPLOMA_MATURITA
-  CONTRATTO
-  ALTRO
+  IDENTITY_CARD        // Carta identità
+  PASSPORT            // Passaporto
+  DIPLOMA             // Diploma superiori
+  BACHELOR_DEGREE     // Laurea triennale
+  MASTER_DEGREE       // Laurea magistrale
+  TRANSCRIPT          // Transcript voti
+  CV                  // Curriculum
+  PHOTO               // Foto tessera
+  RESIDENCE_CERT      // Certificato residenza
+  BIRTH_CERT          // Certificato nascita
+  CONTRACT_SIGNED     // Contratto firmato
+  MEDICAL_CERT        // Certificato medico
+  TESSERA_SANITARIA   // Tessera sanitaria
+  OTHER               // Altri documenti
+}
+
+enum UploadSource {
+  ENROLLMENT       // Durante iscrizione
+  USER_DASHBOARD   // Da area personale
+  PARTNER_PANEL    // Da pannello partner
 }
 
 model UserDocument {
-  id               String        @id @default(uuid())
-  userId           String
-  registrationId   String?
-  type             DocumentType
-  fileName         String
-  originalFileName String
-  filePath         String
-  fileSize         Int
-  mimeType         String
-  status           DocumentStatus @default(PENDING)
-  verifiedBy       String?
-  verifiedAt       DateTime?
-  rejectionReason  String?
-  uploadedAt       DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  id                String   @id @default(uuid())
+  userId            String
+  registrationId    String?
   
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  registration    Registration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
-  verifier        User?         @relation("DocumentVerifier", fields: [verifiedBy], references: [id], onDelete: SetNull)
-  auditLogs       DocumentAuditLog[]
+  // Tipo e contenuto documento
+  type              DocumentType  // Enum per tipo documento
+  originalName      String        // Nome file originale
+  mimeType          String        // MIME type per anteprima
+  size              Int           // Dimensione in bytes
+  url               String        // Path storage locale
+  signedUrl         String?       // URL firmato temporaneo per download
   
-  @@index([userId])
-  @@index([registrationId])
-  @@index([type])
-  @@index([status])
+  // Gestione approvazione
+  status            DocumentStatus @default(PENDING)
+  verifiedBy        String?       // ID partner che verifica
+  verifiedAt        DateTime?
+  rejectionReason   String?       // Motivo specifico rifiuto
+  rejectionDetails  String?       // Note aggiuntive per utente
+  
+  // Tracking sorgente upload
+  uploadSource      UploadSource  // ENROLLMENT, USER_DASHBOARD, PARTNER_PANEL
+  uploadedBy        String        // ID utente o partner che carica
+  uploadedByRole    UserRole      // USER, PARTNER, ADMIN
+  uploadedAt        DateTime @default(now())
+  
+  // Metadati sicurezza
+  checksum          String?       // Hash SHA-256 per integrità
+  encryptionKey     String?       // Per documenti sensibili
+  expiresAt         DateTime?     // Scadenza documento temporaneo
+  
+  // Notifiche
+  partnerNotifiedAt DateTime?     // Quando partner è stato notificato
+  userNotifiedAt    DateTime?     // Quando utente è stato notificato (per rifiuti)
+  emailSentAt       DateTime?     // Timestamp invio email
+  
+  // Relazioni
+  user              User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  registration      Registration? @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  verifier          User? @relation("DocumentVerifier", fields: [verifiedBy], references: [id])
+  uploader          User @relation("DocumentUploader", fields: [uploadedBy], references: [id])
+  auditLogs         DocumentAuditLog[]
+  actionLogs        DocumentActionLog[]
+  
+  // Indici per performance
+  @@index([userId, status])
+  @@index([registrationId, type])
+  @@index([status, partnerNotifiedAt])
   @@index([uploadedAt])
 }
 
@@ -332,6 +372,25 @@ model DocumentAuditLog {
   @@index([documentId])
   @@index([performedBy])
   @@index([createdAt])
+}
+
+// Modello per log azioni documenti dettagliato
+model DocumentActionLog {
+  id            String   @id @default(uuid())
+  documentId    String
+  action        String   // UPLOAD, APPROVE, REJECT, DELETE, VIEW, DOWNLOAD
+  performedBy   String
+  performedRole UserRole
+  details       Json?    // Dettagli aggiuntivi azione
+  ipAddress     String?
+  userAgent     String?
+  timestamp     DateTime @default(now())
+  
+  document      UserDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  performer     User @relation("DocumentActions", fields: [performedBy], references: [id])
+  
+  @@index([documentId, timestamp])
+  @@index([performedBy, action])
 }
 
 model DocumentTypeConfig {

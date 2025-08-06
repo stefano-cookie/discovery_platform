@@ -3,6 +3,7 @@ import { PrismaClient, DocumentStatus } from '@prisma/client';
 import { authenticate, requireRole, AuthRequest } from '../middleware/auth';
 import { ContractService } from '../services/contractService';
 import { DocumentService, upload as documentUpload } from '../services/documentService';
+import UnifiedDocumentService from '../services/unifiedDocumentService';
 import multer from 'multer';
 import * as path from 'path';
 
@@ -180,7 +181,8 @@ router.get('/registrations/:registrationId/documents', authenticate, requireRole
         partnerId 
       },
       include: {
-        documents: true,
+        documents: true,      // Legacy documents (dove sono i nostri)
+        userDocuments: true,  // New document system
         offer: true
       }
     });
@@ -193,6 +195,11 @@ router.get('/registrations/:registrationId/documents', authenticate, requireRole
     const userDocuments = await prisma.userDocument.findMany({
       where: { userId: registration.userId }
     });
+
+    console.log(`📄 Partner documents check for registration ${registrationId}:`);
+    console.log(`- Legacy documents: ${registration.documents.length}`);
+    console.log(`- UserDocuments from registration: ${registration.userDocuments.length}`);
+    console.log(`- UserDocuments from user: ${userDocuments.length}`);
 
     // Determine required documents based on offer type - EXACT match with form fields
     let requiredDocuments: any[] = [];
@@ -290,9 +297,60 @@ router.get('/registrations/:registrationId/documents', authenticate, requireRole
       ];
     }
 
-    // Map user documents to required ones (checking userDocument table instead of registration.documents)
+    // Combine all documents from different sources
+    const allDocuments = [
+      // UserDocuments from user query (with enum types)
+      ...userDocuments.map(doc => ({
+        id: doc.id,
+        type: doc.type,
+        fileName: doc.originalName,
+        filePath: doc.url,
+        uploadedAt: doc.uploadedAt,
+        isVerified: doc.status === 'APPROVED',
+        source: 'UserDocument'
+      })),
+      // UserDocuments from registration (with enum types)  
+      ...registration.userDocuments.map(doc => ({
+        id: doc.id,
+        type: doc.type,
+        fileName: doc.originalName,
+        filePath: doc.url,
+        uploadedAt: doc.uploadedAt,
+        isVerified: doc.status === 'APPROVED',
+        source: 'UserDocument-Registration'
+      })),
+      // Legacy documents from registration (with string types - need mapping)
+      ...registration.documents.map(doc => {
+        // Map string types to enum types
+        const typeMapping: { [key: string]: string } = {
+          'cartaIdentita': 'CARTA_IDENTITA',
+          'certificatoTriennale': 'CERTIFICATO_TRIENNALE',
+          'certificatoMagistrale': 'CERTIFICATO_MAGISTRALE',
+          'pianoStudioTriennale': 'PIANO_STUDIO_TRIENNALE',
+          'pianoStudioMagistrale': 'PIANO_STUDIO_MAGISTRALE',
+          'certificatoMedico': 'CERTIFICATO_MEDICO',
+          'certificatoNascita': 'CERTIFICATO_NASCITA',
+          'diplomoLaurea': 'DIPLOMA_LAUREA',
+          'pergamenaLaurea': 'PERGAMENA_LAUREA'
+        };
+        
+        return {
+          id: doc.id,
+          type: typeMapping[doc.type] || doc.type.toUpperCase(),
+          fileName: doc.fileName,
+          filePath: doc.filePath,
+          uploadedAt: doc.uploadedAt,
+          isVerified: false, // Legacy documents don't have verification status
+          source: 'Document-Legacy'
+        };
+      })
+    ];
+
+    console.log(`📄 All documents found: ${allDocuments.map(d => `${d.fileName} (${d.type}, ${d.source})`).join(', ')}`);
+
+    // Map user documents to required ones (checking all document sources)
     const documentsWithStatus = requiredDocuments.map(reqDoc => {
-      const uploadedDoc = userDocuments.find(doc => doc.type === reqDoc.type);
+      const uploadedDoc = allDocuments.find(doc => doc.type === reqDoc.type);
       
       return {
         id: reqDoc.type,
@@ -305,7 +363,8 @@ router.get('/registrations/:registrationId/documents', authenticate, requireRole
         filePath: uploadedDoc?.filePath || null,
         uploadedAt: uploadedDoc?.uploadedAt || null,
         documentId: uploadedDoc?.id || null, // Add document ID for download
-        isVerified: uploadedDoc?.status === 'APPROVED' || false
+        isVerified: uploadedDoc?.isVerified || false,
+        source: uploadedDoc?.source || null // For debugging
       };
     });
 
@@ -1198,6 +1257,70 @@ router.get('/recent-enrollments', authenticate, requireRole(['PARTNER', 'ADMIN']
   }
 });
 
+// Get pending documents for verification
+router.get('/documents/pending', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    const pendingDocuments = await DocumentService.getPendingDocumentsForPartner(partnerId);
+    
+    const formattedDocs = pendingDocuments.map(doc => ({
+      id: doc.id,
+      type: doc.type,
+      fileName: doc.originalName,
+      fileSize: doc.size,
+      mimeType: doc.mimeType,
+      uploadedAt: doc.uploadedAt,
+      uploadSource: doc.uploadSource,
+      user: {
+        id: doc.user.id,
+        email: doc.user.email,
+        name: doc.user.profile ? `${doc.user.profile.nome} ${doc.user.profile.cognome}` : 'Nome non disponibile'
+      },
+      registration: doc.registration ? {
+        id: doc.registration.id,
+        courseName: doc.registration.offer?.course?.name || 'Corso non specificato'
+      } : null
+    }));
+
+    res.json({ 
+      pendingDocuments: formattedDocs,
+      count: formattedDocs.length
+    });
+  } catch (error: any) {
+    console.error('Get pending documents error:', error);
+    res.status(500).json({ error: 'Errore nel caricamento dei documenti in sospeso' });
+  }
+});
+
+// Notify partner about document upload
+router.post('/documents/:documentId/notify', authenticate, requireRole(['USER']), async (req: AuthRequest, res) => {
+  try {
+    const { documentId } = req.params;
+    
+    // Get user's assigned partner
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { assignedPartnerId: true }
+    });
+
+    if (!user || !user.assignedPartnerId) {
+      return res.status(400).json({ error: 'Partner non assegnato' });
+    }
+
+    const result = await DocumentService.notifyPartnerNewDocument(documentId, user.assignedPartnerId);
+    
+    res.json(result);
+  } catch (error: any) {
+    console.error('Notify partner error:', error);
+    res.status(500).json({ error: 'Errore nella notifica al partner' });
+  }
+});
+
 // GET /api/partners/users/:userId/documents - Get all documents for a user (partner access)
 router.get('/users/:userId/documents', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
   try {
@@ -1255,26 +1378,56 @@ router.get('/users/:userId/documents/:documentId/download', authenticate, requir
       return res.status(403).json({ error: 'Non autorizzato a scaricare i documenti di questo utente' });
     }
 
-    // Get the document
-    const document = await prisma.userDocument.findFirst({
+    // Try to find document in UserDocument table first
+    const userDocument = await prisma.userDocument.findFirst({
       where: {
         id: documentId,
         userId
       }
     });
 
-    if (!document) {
+    let documentSource = 'UserDocument';
+    let filePath: string | undefined;
+    let fileName: string | undefined;
+
+    if (userDocument) {
+      filePath = userDocument.url;
+      fileName = userDocument.originalName;
+    } else {
+      // If not found in UserDocument, try Document table (legacy documents from registrations)
+      const legacyDoc = await prisma.document.findFirst({
+        where: {
+          id: documentId,
+          registration: {
+            userId,
+            partnerId // Ensure document belongs to user's registration with this partner
+          }
+        }
+      });
+      
+      if (legacyDoc) {
+        documentSource = 'Document';
+        filePath = legacyDoc.filePath;
+        fileName = legacyDoc.fileName;
+      }
+    }
+
+    if (!filePath || !fileName) {
+      console.log(`❌ Partner download: Document not found ${documentId} for user ${userId}`);
       return res.status(404).json({ error: 'Documento non trovato' });
     }
 
+    console.log(`📄 Partner download: Found document ${fileName} in ${documentSource} table`);
+
     // Check if file exists
     const fs = require('fs');
-    if (!fs.existsSync(document.filePath)) {
+    if (!fs.existsSync(filePath)) {
+      console.log(`❌ Partner download: File not found on disk: ${filePath}`);
       return res.status(404).json({ error: 'File non trovato sul server' });
     }
 
     // Send file
-    res.download(document.filePath, document.fileName, (err) => {
+    res.download(filePath, fileName, (err) => {
       if (err) {
         console.error('Error downloading file:', err);
         if (!res.headersSent) {
@@ -1314,7 +1467,7 @@ router.get('/registrations/:registrationId/documents', authenticate, requireRole
       return res.status(404).json({ error: 'Iscrizione non trovata' });
     }
 
-    const documents = await DocumentService.getRegistrationDocuments(registrationId);
+    const documents = await UnifiedDocumentService.getRegistrationDocuments(registrationId);
     
     res.json({ documents });
   } catch (error: any) {
@@ -1342,13 +1495,13 @@ router.get('/users/:userId/documents/all', authenticate, requireRole(['PARTNER',
       return res.status(403).json({ error: 'Non autorizzato a visualizzare i documenti di questo utente' });
     }
 
-    const documents = await DocumentService.getAllUserDocuments(userId);
+    const documents = await UnifiedDocumentService.getAllUserDocuments(userId);
     
-    const formattedDocs = documents.map(doc => ({
+    const formattedDocs = documents.map((doc: any) => ({
       id: doc.id,
       type: doc.type,
-      fileName: doc.originalFileName,
-      fileSize: doc.fileSize,
+      fileName: doc.originalName,
+      fileSize: doc.size,
       mimeType: doc.mimeType,
       status: doc.status,
       verifiedBy: doc.verifier?.email,
@@ -1356,13 +1509,7 @@ router.get('/users/:userId/documents/all', authenticate, requireRole(['PARTNER',
       rejectionReason: doc.rejectionReason,
       uploadedAt: doc.uploadedAt,
       registrationId: doc.registrationId,
-      courseName: doc.registration?.offer?.course?.name,
-      auditTrail: doc.auditLogs.map(log => ({
-        action: log.action,
-        performedBy: log.performer.email,
-        performedAt: log.createdAt,
-        notes: log.notes
-      }))
+      courseName: doc.registration?.offer?.course?.name
     }));
 
     res.json({ documents: formattedDocs });
@@ -1393,7 +1540,69 @@ router.get('/documents/:documentId/download', authenticate, requireRole(['PARTNE
   }
 });
 
-// Verify/Approve document
+// Approve document
+router.post('/documents/:documentId/approve', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { documentId } = req.params;
+    const { notes } = req.body;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    const result = await UnifiedDocumentService.approveDocument(documentId, req.user!.id, notes);
+    
+    res.json({ 
+      message: 'Documento approvato con successo',
+      document: {
+        id: result.document.id,
+        status: result.document.status,
+        verifiedAt: result.document.verifiedAt
+      },
+      emailSent: result.emailSent
+    });
+  } catch (error: any) {
+    console.error('Approve document error:', error);
+    res.status(500).json({ error: 'Errore nell\'approvazione del documento' });
+  }
+});
+
+// Reject document with email notification
+router.post('/documents/:documentId/reject', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { documentId } = req.params;
+    const { reason, details } = req.body;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    if (!reason) {
+      return res.status(400).json({ error: 'Motivo del rifiuto obbligatorio' });
+    }
+
+    const result = await UnifiedDocumentService.rejectDocument(documentId, req.user!.id, reason, details);
+    
+    res.json({ 
+      message: 'Documento rifiutato con successo',
+      document: {
+        id: result.document.id,
+        status: result.document.status,
+        verifiedAt: result.document.verifiedAt,
+        rejectionReason: result.document.rejectionReason,
+        rejectionDetails: result.document.rejectionDetails
+      },
+      emailSent: result.emailSent
+    });
+  } catch (error: any) {
+    console.error('Reject document error:', error);
+    res.status(500).json({ error: 'Errore nel rifiuto del documento' });
+  }
+});
+
+// Legacy verify endpoint (for backward compatibility)
 router.post('/documents/:documentId/verify', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
   try {
     const partnerId = req.partner?.id;
@@ -1412,21 +1621,20 @@ router.post('/documents/:documentId/verify', authenticate, requireRole(['PARTNER
       return res.status(400).json({ error: 'Motivo del rifiuto obbligatorio' });
     }
 
-    const document = await DocumentService.verifyDocument(
-      documentId, 
-      status as DocumentStatus, 
-      req.user!.id, 
-      rejectionReason
-    );
+    // Use new methods based on status
+    const result = status === DocumentStatus.APPROVED 
+      ? await UnifiedDocumentService.approveDocument(documentId, req.user!.id)
+      : await UnifiedDocumentService.rejectDocument(documentId, req.user!.id, rejectionReason);
     
     res.json({ 
       message: `Documento ${status === DocumentStatus.APPROVED ? 'approvato' : 'rifiutato'} con successo`,
       document: {
-        id: document.id,
-        status: document.status,
-        verifiedAt: document.verifiedAt,
-        rejectionReason: document.rejectionReason
-      }
+        id: result.document.id,
+        status: result.document.status,
+        verifiedAt: result.document.verifiedAt,
+        rejectionReason: result.document.rejectionReason
+      },
+      emailSent: result.emailSent
     });
   } catch (error: any) {
     console.error('Verify document error:', error);
@@ -1690,17 +1898,15 @@ router.post('/registrations/:registrationId/bulk-verify', authenticate, requireR
 
     for (const { documentId, status, rejectionReason } of documentStatuses) {
       try {
-        const document = await DocumentService.verifyDocument(
-          documentId,
-          status as DocumentStatus,
-          req.user!.id,
-          rejectionReason
-        );
+        // Use new methods based on status
+        const result = status === DocumentStatus.APPROVED 
+          ? await UnifiedDocumentService.approveDocument(documentId, req.user!.id)
+          : await UnifiedDocumentService.rejectDocument(documentId, req.user!.id, rejectionReason || 'Motivo non specificato');
         
         results.push({
           documentId,
           success: true,
-          status: document.status
+          status: result.document.status
         });
       } catch (error: any) {
         results.push({
@@ -1718,6 +1924,328 @@ router.post('/registrations/:registrationId/bulk-verify', authenticate, requireR
   } catch (error: any) {
     console.error('Bulk verify documents error:', error);
     res.status(500).json({ error: 'Errore nella verifica dei documenti' });
+  }
+});
+
+// Get unified documents for a specific registration (partner view)
+router.get('/registrations/:registrationId/documents/unified', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { registrationId } = req.params;
+
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify registration belongs to this partner
+    const registration = await prisma.registration.findFirst({
+      where: { id: registrationId, partnerId },
+      include: {
+        offer: {
+          include: {
+            course: true
+          }
+        }
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    // Document types based on template
+    const documentTypes = [
+      { type: 'IDENTITY_CARD', name: 'Carta d\'Identità', description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità' },
+      { type: 'TESSERA_SANITARIA', name: 'Tessera Sanitaria', description: 'Tessera sanitaria o documento che attesti il codice fiscale' },
+      { type: 'BACHELOR_DEGREE', name: 'Certificato Laurea Triennale', description: 'Certificato di laurea triennale o diploma universitario' },
+      { type: 'MASTER_DEGREE', name: 'Certificato Laurea Magistrale', description: 'Certificato di laurea magistrale, specialistica o vecchio ordinamento' },
+      { type: 'TRANSCRIPT', name: 'Piano di Studio Triennale', description: 'Piano di studio della laurea triennale con lista esami sostenuti' },
+      { type: 'TRANSCRIPT_MASTER', name: 'Piano di Studio Magistrale', description: 'Piano di studio della laurea magistrale, specialistica o vecchio ordinamento' },
+      { type: 'MEDICAL_CERT', name: 'Certificato Medico', description: 'Certificato medico attestante la sana e robusta costituzione fisica e psichica' },
+      { type: 'BIRTH_CERT', name: 'Certificato di Nascita', description: 'Certificato di nascita o estratto di nascita dal Comune' },
+      { type: 'DIPLOMA', name: 'Diploma di Laurea', description: 'Diploma di laurea (cartaceo o digitale)' },
+      { type: 'OTHER', name: 'Pergamena di Laurea', description: 'Pergamena di laurea (documento originale)' }
+    ];
+
+    // Get all documents for this user (from all sources)
+    const userDocuments = await prisma.userDocument.findMany({
+      where: { 
+        userId: registration.userId,
+        OR: [
+          { registrationId: registrationId },
+          { registrationId: null } // Include general documents
+        ]
+      },
+      include: {
+        verifier: {
+          select: { id: true, email: true }
+        },
+        uploader: {
+          select: { id: true, email: true }
+        }
+      },
+      orderBy: { uploadedAt: 'desc' }
+    });
+
+    // Create unified document structure
+    const documents = documentTypes.map(docType => {
+      const userDoc = userDocuments.find(doc => doc.type === docType.type);
+      
+      return {
+        id: userDoc?.id || `empty-${docType.type}`,
+        type: docType.type,
+        name: docType.name,
+        description: docType.description,
+        uploaded: !!userDoc,
+        fileName: userDoc?.originalName,
+        originalName: userDoc?.originalName,
+        mimeType: userDoc?.mimeType,
+        size: userDoc?.size,
+        uploadedAt: userDoc?.uploadedAt?.toISOString(),
+        documentId: userDoc?.id,
+        status: userDoc?.status,
+        rejectionReason: userDoc?.rejectionReason,
+        rejectionDetails: userDoc?.rejectionDetails,
+        verifiedBy: userDoc?.verifiedBy,
+        verifiedAt: userDoc?.verifiedAt?.toISOString(),
+        uploadSource: userDoc?.uploadSource,
+        isVerified: userDoc?.status === 'APPROVED'
+      };
+    });
+
+    const uploadedCount = documents.filter(doc => doc.uploaded).length;
+    const totalCount = documents.length;
+
+    res.json({
+      documents,
+      uploadedCount,
+      totalCount,
+      registration: {
+        id: registration.id,
+        courseName: registration.offer?.course?.name || 'Corso non specificato'
+      }
+    });
+  } catch (error) {
+    console.error('Error getting unified registration documents:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Approve document
+router.post('/documents/:documentId/approve', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const { documentId } = req.params;
+    const { notes } = req.body;
+    const partnerId = req.partner?.id;
+    const userId = req.user!.id;
+
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Find the document and verify user belongs to this partner
+    const document = await prisma.userDocument.findFirst({
+      where: { id: documentId },
+      include: {
+        user: {
+          include: {
+            registrations: {
+              where: { partnerId }
+            }
+          }
+        }
+      }
+    });
+
+    if (!document) {
+      return res.status(404).json({ error: 'Documento non trovato' });
+    }
+
+    // Check if user has registrations with this partner
+    if (!document.user.registrations.length) {
+      return res.status(403).json({ error: 'Non autorizzato ad approvare questo documento' });
+    }
+
+    // Update document status
+    const updatedDocument = await prisma.userDocument.update({
+      where: { id: documentId },
+      data: {
+        status: 'APPROVED',
+        verifiedBy: userId,
+        verifiedAt: new Date()
+      }
+    });
+
+    // Log the approval
+    await prisma.documentActionLog.create({
+      data: {
+        documentId: documentId,
+        action: 'APPROVE',
+        performedBy: userId,
+        performedRole: 'PARTNER',
+        details: { notes: notes || 'Documento approvato' }
+      }
+    });
+
+    res.json({
+      message: 'Documento approvato con successo',
+      document: {
+        id: updatedDocument.id,
+        status: updatedDocument.status,
+        verifiedAt: updatedDocument.verifiedAt
+      }
+    });
+  } catch (error) {
+    console.error('Error approving document:', error);
+    res.status(500).json({ error: 'Errore nell\'approvazione del documento' });
+  }
+});
+
+// Reject document
+router.post('/documents/:documentId/reject', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const { documentId } = req.params;
+    const { reason, details } = req.body;
+    const partnerId = req.partner?.id;
+    const userId = req.user!.id;
+
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    if (!reason) {
+      return res.status(400).json({ error: 'Motivo del rifiuto è richiesto' });
+    }
+
+    // Find the document and verify user belongs to this partner
+    const document = await prisma.userDocument.findFirst({
+      where: { id: documentId },
+      include: {
+        user: {
+          include: {
+            registrations: {
+              where: { partnerId }
+            }
+          }
+        }
+      }
+    });
+
+    if (!document) {
+      return res.status(404).json({ error: 'Documento non trovato' });
+    }
+
+    // Check if user has registrations with this partner
+    if (!document.user.registrations.length) {
+      return res.status(403).json({ error: 'Non autorizzato a rifiutare questo documento' });
+    }
+
+    // Update document status
+    const updatedDocument = await prisma.userDocument.update({
+      where: { id: documentId },
+      data: {
+        status: 'REJECTED',
+        rejectionReason: reason,
+        rejectionDetails: details,
+        verifiedBy: userId,
+        verifiedAt: new Date(),
+        userNotifiedAt: new Date()
+      }
+    });
+
+    // Log the rejection
+    await prisma.documentActionLog.create({
+      data: {
+        documentId: documentId,
+        action: 'REJECT',
+        performedBy: userId,
+        performedRole: 'PARTNER',
+        details: { reason, details }
+      }
+    });
+
+    // TODO: Send email notification to user about document rejection
+    // This should be implemented with the email service
+
+    res.json({
+      message: 'Documento rifiutato',
+      document: {
+        id: updatedDocument.id,
+        status: updatedDocument.status,
+        rejectionReason: updatedDocument.rejectionReason,
+        verifiedAt: updatedDocument.verifiedAt
+      }
+    });
+  } catch (error) {
+    console.error('Error rejecting document:', error);
+    res.status(500).json({ error: 'Errore nel rifiuto del documento' });
+  }
+});
+
+// POST /api/partners/users/:userId/documents/upload - Partner uploads document for user
+router.post('/users/:userId/documents/upload', authenticate, requireRole(['PARTNER', 'ADMIN']), documentUpload.single('document'), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { userId } = req.params;
+    const { type, registrationId } = req.body;
+
+    if (!partnerId) {
+      return res.status(403).json({ error: 'Accesso negato' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Nessun file caricato' });
+    }
+
+    if (!type) {
+      return res.status(400).json({ error: 'Tipo documento richiesto' });
+    }
+
+    // Verify partner has access to this user
+    const userRegistrations = await prisma.registration.findMany({
+      where: {
+        userId: userId,
+        partnerId: partnerId
+      }
+    });
+
+    if (userRegistrations.length === 0) {
+      return res.status(403).json({ error: 'Non autorizzato a caricare documenti per questo utente' });
+    }
+
+    // Use the UnifiedDocumentService to upload
+    const document = await UnifiedDocumentService.uploadDocument(
+      req.file,
+      userId, // Document belongs to the user
+      type,
+      'PARTNER_PANEL', // Upload source
+      req.user!.id, // Uploaded by partner
+      'PARTNER', // Uploaded by role
+      registrationId
+    );
+
+    res.json({
+      success: true,
+      document: {
+        id: document.id,
+        type: document.type,
+        fileName: document.originalName,
+        mimeType: document.mimeType,
+        fileSize: document.size,
+        uploadedAt: document.uploadedAt.toISOString(),
+        status: document.status,
+        uploadSource: document.uploadSource
+      },
+      message: 'Documento caricato con successo dal partner'
+    });
+
+  } catch (error: any) {
+    console.error('Partner upload error:', error);
+    // Clean up file on error
+    if (req.file && require('fs').existsSync(req.file.path)) {
+      require('fs').unlinkSync(req.file.path);
+    }
+    res.status(500).json({ error: error.message || 'Errore nel caricamento del documento' });
   }
 });
 

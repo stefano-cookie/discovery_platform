@@ -137,7 +137,7 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
           </div>
 
           {/* Main Content Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6">
             {/* Left Column - User Info & Documents */}
             <div className="lg:col-span-2 space-y-6">
               <UserInfo user={user} />

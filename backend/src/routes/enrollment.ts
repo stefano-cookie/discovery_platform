@@ -235,12 +235,13 @@ router.post('/submit', handleAuthOrVerifiedEmail, upload.fields([
           });
           
           if (existingUserDoc) {
-            // Update existing document
+            // Update existing document and link to registration
             await tx.userDocument.update({
               where: { id: existingUserDoc.id },
               data: {
-                fileName: file.originalname,
-                filePath: file.path,
+                registrationId: registration.id, // Link to the current registration
+                originalName: file.originalname,
+                url: file.path,
                 uploadedAt: new Date()
               }
             });
@@ -249,13 +250,16 @@ router.post('/submit', handleAuthOrVerifiedEmail, upload.fields([
             await tx.userDocument.create({
               data: {
                 userId,
+                registrationId: registration.id, // Link to the current registration
                 type: userDocumentType as any,
-                fileName: file.originalname,
-                originalFileName: file.originalname,
-                filePath: file.path,
-                fileSize: file.size,
+                originalName: file.originalname,
+                url: file.path,
+                size: file.size,
                 mimeType: file.mimetype,
-                status: 'PENDING'
+                status: 'PENDING' as any,
+                uploadSource: 'ENROLLMENT' as any,
+                uploadedBy: userId,
+                uploadedByRole: 'USER' as any
               }
             });
           }

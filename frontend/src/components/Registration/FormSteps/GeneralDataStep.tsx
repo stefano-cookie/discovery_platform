@@ -82,6 +82,7 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
     watch,
     setValue,
     trigger,
+    reset,
     formState: { errors },
   } = useForm<GeneralDataForm>({
     resolver: zodResolver(generalDataSchema),
@@ -97,6 +98,22 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
   const watchedLuogoNascita = watch('luogoNascita');
   const watchedSesso = watch('sesso');
   const watchedCodiceFiscale = watch('codiceFiscale');
+
+  // Special handling for datiFamiliari step (only nomePadre/nomeMadre)
+  useEffect(() => {
+    const isDataFamiliariStep = _requiredFields && _requiredFields.length === 2 && 
+                                _requiredFields.every(f => ['nomePadre', 'nomeMadre'].includes(f));
+    
+    if (isDataFamiliariStep && data) {
+      
+      if (data.nomePadre && data.nomePadre !== watch('nomePadre')) {
+        setValue('nomePadre', data.nomePadre);
+      }
+      if (data.nomeMadre && data.nomeMadre !== watch('nomeMadre')) {
+        setValue('nomeMadre', data.nomeMadre);
+      }
+    }
+  }, [data, _requiredFields, setValue, watch]);
 
   // Auto-generate codice fiscale when data changes
   useEffect(() => {
@@ -181,12 +198,13 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
         if (result.exists && result.user) {
           setExistingUser(result.user);
           
-          // Check if user came from email verification
+          // Check if user came from email verification or secure token
           const urlParams = new URLSearchParams(window.location.search);
           const emailVerified = urlParams.get('emailVerified');
+          const secureToken = urlParams.get('token');
           
-          // Don't show popup if user is logged in OR verified via email
-          if (!currentUser && emailVerified !== 'true') {
+          // Don't show popup if user is logged in OR verified via email OR has secure token
+          if (!currentUser && emailVerified !== 'true' && !secureToken) {
             setEmailValidation({
               isChecking: false,
               exists: true,
@@ -378,7 +396,6 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
       return;
     }
     
-    console.log('Form submission data:', formData); // Debug log
     onNext(formData);
   };
 

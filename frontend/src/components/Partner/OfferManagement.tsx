@@ -326,7 +326,7 @@ const OfferManagement: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="w-full h-fit space-y-6">
       {/* Notification */}
       {notification && (
         <div className={`fixed top-4 right-4 p-4 rounded-md shadow-lg z-50 ${
@@ -341,7 +341,7 @@ const OfferManagement: React.FC = () => {
         </div>
       )}
 
-      <div className="flex justify-between items-center">
+      <div className="w-full flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Gestione Offerte</h2>
         <button
           onClick={() => setShowCreateModal(true)}
@@ -352,9 +352,9 @@ const OfferManagement: React.FC = () => {
       </div>
 
       {/* Offers List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="w-full flex flex-wrap gap-4">
         {offers.map((offer) => (
-          <div key={offer.id} className="bg-white p-6 rounded-lg shadow">
+          <div key={offer.id} className="flex-1 min-w-[300px] max-w-[400px] bg-white p-6 rounded-lg shadow">
             <div className="flex justify-between items-start mb-4">
               <div>
                 <h3 className="font-semibold text-lg">{offer.name}</h3>

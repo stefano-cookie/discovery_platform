@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { registrationSchema, RegistrationForm } from '../../../utils/validation';
-import { submitEnrollment, submitVerifiedUserEnrollment, RegistrationData, apiRequest } from '../../../services/api';
+import { submitEnrollment, submitVerifiedUserEnrollment, submitTokenEnrollment, getUserProfileByToken, RegistrationData, apiRequest } from '../../../services/api';
 import { OfferInfo } from '../../../types/offers';
 import { useAuth } from '../../../hooks/useAuth';
 import { useLocation } from 'react-router-dom';
@@ -13,6 +13,7 @@ interface RegistrationStepProps {
   onNext: (data: RegistrationForm) => void;
   onChange?: (data: Partial<RegistrationForm>) => void;
   offerInfo?: OfferInfo | null;
+  userProfile?: any; // Profile data from MultiStepForm
 }
 
 const RegistrationStep: React.FC<RegistrationStepProps> = ({ 
@@ -20,14 +21,16 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
   formData, 
   onNext, 
   onChange,
-  offerInfo
+  offerInfo,
+  userProfile: passedUserProfile
 }) => {
   const { user } = useAuth();
   const location = useLocation();
-  const [userProfile, setUserProfile] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<any>(passedUserProfile || null);
   
-  // Gestisce utenti verificati via email
+  // Gestisce utenti verificati via token o email (legacy)
   const urlParams = new URLSearchParams(location.search);
+  const accessToken = urlParams.get('token');
   const emailVerified = urlParams.get('emailVerified');
   const verifiedEmail = urlParams.get('email');
   const {
@@ -56,6 +59,10 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
 
   // Load user profile data for complete display in summary
   useEffect(() => {
+    if (passedUserProfile) {
+      return; // Skip loading if profile is already provided
+    }
+    
     const loadUserProfile = async () => {
       // Se l'utente è autenticato, usa l'API normale
       if (user) {
@@ -72,7 +79,19 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
         return;
       }
 
-      // Se l'utente arriva da verifica email, carica il profilo con l'email
+      // Se l'utente arriva con un token di accesso, carica il profilo con il token
+      if (accessToken) {
+        try {
+          const response = await getUserProfileByToken(accessToken);
+          setUserProfile(response);
+        } catch (error) {
+          console.error('Error loading user profile by token:', error);
+          setUserProfile(null);
+        }
+        return;
+      }
+
+      // LEGACY: Se l'utente arriva da verifica email, carica il profilo con l'email
       if (emailVerified === 'true' && verifiedEmail) {
         try {
           const response = await apiRequest<{user: any; profile: any; assignedPartner: any}>({
@@ -93,13 +112,16 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
     };
 
     loadUserProfile();
-  }, [user, emailVerified, verifiedEmail]);
+  }, [user, accessToken, emailVerified, verifiedEmail, passedUserProfile]);
 
   // Helper function to get complete data (from formData or userProfile)
   const getCompleteData = useCallback((field: string) => {
     // First try formData (user input), then fallback to userProfile (saved data)
     const formValue = formData[field];
-    const profileValue = userProfile?.[field];
+    
+    // Handle nested userProfile structure (from token) vs flat structure (from direct API)
+    const profile = userProfile?.profile || userProfile;
+    const profileValue = profile?.[field];
     
     // Handle date formatting for display
     if (field === 'dataNascita' && (formValue || profileValue)) {
@@ -119,19 +141,35 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
       }
     }
     
-    // For email, if user is verified via email, use verifiedEmail
-    if (field === 'email' && !formValue && !profileValue && emailVerified === 'true' && verifiedEmail) {
-      return verifiedEmail;
+    // For email, if user is verified via token or email, use the appropriate email
+    if (field === 'email' && !formValue && !profileValue) {
+      if (accessToken && userProfile?.user?.email) {
+        return userProfile.user.email;
+      }
+      if (emailVerified === 'true' && verifiedEmail) {
+        return verifiedEmail;
+      }
     }
     
-    return formValue || profileValue || '';
-  }, [formData, userProfile, emailVerified, verifiedEmail]);
+    const result = formValue || profileValue || '';
+    
+    // Tutti i campi delle generalità sono obbligatori - se manca un valore significa che c'è un problema
+    if (!result && ['nome', 'cognome', 'email', 'dataNascita', 'luogoNascita', 'codiceFiscale', 'telefono'].includes(field)) {
+      console.warn(`⚠️ CAMPO OBBLIGATORIO MANCANTE: ${field}`, {
+        formValue,
+        profileValue,
+        userProfile: userProfile ? 'presente' : 'assente',
+        formDataKeys: formData ? Object.keys(formData) : 'nessuno'
+      });
+    }
+    
+    return result;
+  }, [formData, userProfile, accessToken, emailVerified, verifiedEmail]);
 
   const onSubmit = useCallback(async (finalData: RegistrationForm) => {
     
     // Prevent double submission
     if (isSubmitting) {
-      console.log('Already submitting, preventing double submission');
       return;
     }
     
@@ -226,9 +264,8 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
       };
 
       const paymentInfo = calculatePaymentInfo();
-      console.log('Payment info calculated:', paymentInfo, 'for plan:', formData.paymentPlan);
 
-      const registrationPayload: RegistrationData = {
+      const registrationPayload = {
         // Dati generali
         email: formData.email,
         cognome: formData.cognome,
@@ -288,7 +325,7 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
         downPayment: paymentInfo.downPayment,
         installmentAmount: paymentInfo.installmentAmount,
         
-        // File
+        // File - Include temporary documents from localStorage
         cartaIdentita: formData.cartaIdentita,
         certificatoTriennale: formData.certificatoTriennale,
         certificatoMagistrale: formData.certificatoMagistrale,
@@ -298,13 +335,57 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
         certificatoNascita: formData.certificatoNascita,
         diplomoLaurea: formData.diplomoLaurea,
         pergamenaLaurea: formData.pergamenaLaurea,
+        
+        // Add temporary documents for server processing (mapped to backend format)
+        documents: (() => {
+          try {
+            const tempDocuments = localStorage.getItem('tempDocuments');
+            const docs = tempDocuments ? JSON.parse(tempDocuments) : [];
+            console.log('📁 Temp documents loaded:', docs.length, 'documents');
+            
+            // Map temporary documents to format expected by backend
+            const mappedDocs = docs.map((doc: any) => ({
+              fileName: doc.originalFileName, // Backend expects fileName
+              url: doc.filePath, // Backend expects url (path to file)
+              type: doc.type,
+              fileSize: doc.fileSize,
+              mimeType: doc.mimeType
+            }));
+            
+            console.log('📄 Documents mapped for backend:', mappedDocs.map((d: any) => ({ fileName: d.fileName, type: d.type })));
+            return mappedDocs;
+          } catch (error) {
+            console.error('❌ Error loading temp documents:', error);
+            return [];
+          }
+        })(),
       };
+      
+      // DEBUG: Document upload analysis
+      console.log('📁 Document upload analysis:', {
+        cartaIdentita: !!registrationPayload.cartaIdentita,
+        certificatoTriennale: !!registrationPayload.certificatoTriennale,
+        certificatoMagistrale: !!registrationPayload.certificatoMagistrale,
+        pianoStudioTriennale: !!registrationPayload.pianoStudioTriennale,
+        pianoStudioMagistrale: !!registrationPayload.pianoStudioMagistrale,
+        certificatoMedico: !!registrationPayload.certificatoMedico,
+        certificatoNascita: !!registrationPayload.certificatoNascita,
+        diplomoLaurea: !!registrationPayload.diplomoLaurea,
+        pergamenaLaurea: !!registrationPayload.pergamenaLaurea
+      });
+      console.log('📄 Temp documents count:', registrationPayload.documents.length);
       
       // Invia i dati al server - scegli l'endpoint corretto
       let response;
       
-      if (emailVerified === 'true' && verifiedEmail) {
-        // Utente verificato via email - usa endpoint senza autenticazione
+      if (accessToken) {
+        // Utente verificato via token - usa endpoint token-based
+        response = await submitTokenEnrollment({
+          ...registrationPayload,
+          accessToken: accessToken
+        });
+      } else if (emailVerified === 'true' && verifiedEmail) {
+        // LEGACY: Utente verificato via email - usa endpoint senza autenticazione
         response = await submitVerifiedUserEnrollment({
           ...registrationPayload,
           verifiedEmail: verifiedEmail
@@ -326,13 +407,15 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
         localStorage.removeItem('registrationReferralCode');
         localStorage.removeItem('registrationFormData');
         localStorage.removeItem('isAdditionalEnrollment');
+        localStorage.removeItem('tempDocuments');
+        localStorage.removeItem('tempUserId');
         
         onNext(finalData);
       } else {
         throw new Error(response.message || 'Errore durante la registrazione');
       }
     } catch (error) {
-      console.error('Errore durante l\'invio:', error);
+      console.error('❌ Errore durante submission:', error);
       
       // Handle specific error types
       let userFriendlyMessage = 'Si è verificato un errore durante la registrazione. Riprova tra qualche minuto.';
@@ -358,7 +441,7 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, onNext, offerInfo, isSubmitting, acceptedPrivacy, emailVerified, verifiedEmail, user, couponValidation?.discount, couponValidation?.isValid]);
+  }, [formData, onNext, offerInfo, isSubmitting, acceptedPrivacy, accessToken, emailVerified, verifiedEmail, user, couponValidation?.discount, couponValidation?.isValid]);
 
   // Watch all form values and update parent in real-time
   useEffect(() => {
@@ -381,9 +464,43 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
     };
   }, [handleSubmit, onSubmit]);
 
-  const formatFileInfo = (file: File | null) => {
-    if (!file) return 'Non caricato';
-    return `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+  // Helper function to check if a document exists in tempDocuments
+  const hasDocument = (documentType: string): boolean => {
+    try {
+      const tempDocs = localStorage.getItem('tempDocuments');
+      if (tempDocs) {
+        const docs = JSON.parse(tempDocs);
+        return docs.some((d: any) => d.type === documentType);
+      }
+    } catch (e) {
+      console.error('Error checking temp documents:', e);
+    }
+    return false;
+  };
+
+  const formatFileInfo = (file: File | null, documentType?: string) => {
+    if (file) {
+      return `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+    }
+    
+    // Check if document exists in tempDocuments
+    if (documentType) {
+      try {
+        const tempDocs = localStorage.getItem('tempDocuments');
+        if (tempDocs) {
+          const docs = JSON.parse(tempDocs);
+          const doc = docs.find((d: any) => d.type === documentType);
+          if (doc) {
+            const size = doc.fileSize ? (doc.fileSize / 1024 / 1024).toFixed(2) : '0.00';
+            return `${doc.originalFileName} (${size} MB) ✅`;
+          }
+        }
+      } catch (e) {
+        console.error('Error checking temp documents:', e);
+      }
+    }
+    
+    return 'Non caricato';
   };
 
   const validateCoupon = useCallback(async (couponCode: string) => {
@@ -492,8 +609,8 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
           La tua iscrizione è stata inviata con successo. Riceverai una conferma via email a breve.
         </p>
         
-        {/* CTA per area riservata - mostra per utenti loggati E verificati via email */}
-        {(user || (emailVerified === 'true' && verifiedEmail)) && (
+        {/* CTA per area riservata - mostra per utenti loggati, con token o verificati via email */}
+        {(user || accessToken || (emailVerified === 'true' && verifiedEmail)) && (
           <div className="mb-8">
             <a
               href={user ? "/dashboard" : "/login"}
@@ -554,6 +671,59 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
       
       <div>
         <h3 className="text-lg font-medium text-gray-900 mb-4">Riepilogo Iscrizione</h3>
+        
+        {/* DEBUG: Log completo dati riepilogo */}
+        {(() => {
+          const debugData = {
+            // Dati form correnti
+            formData: {
+              email: formData.email,
+              nome: formData.nome,
+              cognome: formData.cognome,
+              paymentPlan: formData.paymentPlan,
+              courseId: formData.courseId,
+              referralCode: formData.referralCode
+            },
+            // Documenti dal formData
+            documentsInForm: {
+              cartaIdentita: !!formData.cartaIdentita ? `${formData.cartaIdentita.name} (${(formData.cartaIdentita.size / 1024 / 1024).toFixed(2)} MB)` : 'Non caricato',
+              certificatoTriennale: !!formData.certificatoTriennale ? `${formData.certificatoTriennale.name} (${(formData.certificatoTriennale.size / 1024 / 1024).toFixed(2)} MB)` : 'Non caricato',
+              certificatoMagistrale: !!formData.certificatoMagistrale ? `${formData.certificatoMagistrale.name} (${(formData.certificatoMagistrale.size / 1024 / 1024).toFixed(2)} MB)` : 'Non caricato',
+              pianoStudioTriennale: !!formData.pianoStudioTriennale ? `${formData.pianoStudioTriennale.name} (${(formData.pianoStudioTriennale.size / 1024 / 1024).toFixed(2)} MB)` : 'Non caricato',
+              pianoStudioMagistrale: !!formData.pianoStudioMagistrale ? `${formData.pianoStudioMagistrale.name} (${(formData.pianoStudioMagistrale.size / 1024 / 1024).toFixed(2)} MB)` : 'Non caricato',
+              certificatoMedico: !!formData.certificatoMedico ? `${formData.certificatoMedico.name} (${(formData.certificatoMedico.size / 1024 / 1024).toFixed(2)} MB)` : 'Non caricato',
+              certificatoNascita: !!formData.certificatoNascita ? `${formData.certificatoNascita.name} (${(formData.certificatoNascita.size / 1024 / 1024).toFixed(2)} MB)` : 'Non caricato',
+              diplomoLaurea: !!formData.diplomoLaurea ? `${formData.diplomoLaurea.name} (${(formData.diplomoLaurea.size / 1024 / 1024).toFixed(2)} MB)` : 'Non caricato',
+              pergamenaLaurea: !!formData.pergamenaLaurea ? `${formData.pergamenaLaurea.name} (${(formData.pergamenaLaurea.size / 1024 / 1024).toFixed(2)} MB)` : 'Non caricato'
+            },
+            // Documenti temporanei
+            tempDocuments: (() => {
+              try {
+                const tempDocs = localStorage.getItem('tempDocuments');
+                const docs = tempDocs ? JSON.parse(tempDocs) : [];
+                console.log('📄 Riepilogo documenti temporanei:', docs.map((d: any) => ({ type: d.type, filename: d.originalFileName })));
+                return docs;
+              } catch (e) { 
+                console.error('❌ Error loading temp documents for summary:', e);
+                return []; 
+              }
+            })(),
+            // User profile caricato
+            userProfile: userProfile ? {
+              hasProfile: !!userProfile,
+              email: userProfile?.email || 'Non disponibile'
+            } : 'Nessun profilo caricato',
+            // Offer info
+            offerInfo: offerInfo ? {
+              name: offerInfo.name,
+              id: offerInfo.id,
+              offerType: offerInfo.offerType,
+              totalAmount: offerInfo.totalAmount
+            } : 'Nessuna offerta caricata'
+          };
+          
+          return null;
+        })()}
         
         {/* Dynamic intro based on course template */}
         {offerInfo?.course?.templateType === 'CERTIFICATION' ? (
@@ -619,7 +789,7 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
             </div>
             <div>
               <span className="font-medium text-gray-500">Luogo di Nascita:</span>
-              <p className="text-gray-900">{getCompleteData('luogoNascita')}</p>
+              <p className="text-gray-900">{getCompleteData('luogoNascita') || 'Non specificato'}</p>
             </div>
             
             {/* Show parent names only for TFA template */}
@@ -777,8 +947,8 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
             {/* Documento principale - always shown */}
             <div className="flex justify-between">
               <span className="font-medium text-gray-500">Carta d'Identità:</span>
-              <span className={`${formData.cartaIdentita ? 'text-green-600' : 'text-gray-400'}`}>
-                {formatFileInfo(formData.cartaIdentita)}
+              <span className={`${formData.cartaIdentita || hasDocument('cartaIdentita') ? 'text-green-600' : 'text-gray-400'}`}>
+                {formatFileInfo(formData.cartaIdentita, 'cartaIdentita')}
               </span>
             </div>
             
@@ -791,14 +961,14 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
                   <div className="space-y-1">
                     <div className="flex justify-between">
                       <span className="font-medium text-gray-500">Triennale:</span>
-                      <span className={`${formData.certificatoTriennale ? 'text-green-600' : 'text-gray-400'}`}>
-                        {formatFileInfo(formData.certificatoTriennale)}
+                      <span className={`${formData.certificatoTriennale || hasDocument('certificatoTriennale') ? 'text-green-600' : 'text-gray-400'}`}>
+                        {formatFileInfo(formData.certificatoTriennale, 'certificatoTriennale')}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="font-medium text-gray-500">Magistrale:</span>
-                      <span className={`${formData.certificatoMagistrale ? 'text-green-600' : 'text-gray-400'}`}>
-                        {formatFileInfo(formData.certificatoMagistrale)}
+                      <span className={`${formData.certificatoMagistrale || hasDocument('certificatoMagistrale') ? 'text-green-600' : 'text-gray-400'}`}>
+                        {formatFileInfo(formData.certificatoMagistrale, 'certificatoMagistrale')}
                       </span>
                     </div>
                   </div>
@@ -810,14 +980,14 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
                   <div className="space-y-1">
                     <div className="flex justify-between">
                       <span className="font-medium text-gray-500">Triennale:</span>
-                      <span className={`${formData.pianoStudioTriennale ? 'text-green-600' : 'text-gray-400'}`}>
-                        {formatFileInfo(formData.pianoStudioTriennale)}
+                      <span className={`${formData.pianoStudioTriennale || hasDocument('pianoStudioTriennale') ? 'text-green-600' : 'text-gray-400'}`}>
+                        {formatFileInfo(formData.pianoStudioTriennale, 'pianoStudioTriennale')}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="font-medium text-gray-500">Magistrale/V.O.:</span>
-                      <span className={`${formData.pianoStudioMagistrale ? 'text-green-600' : 'text-gray-400'}`}>
-                        {formatFileInfo(formData.pianoStudioMagistrale)}
+                      <span className={`${formData.pianoStudioMagistrale || hasDocument('pianoStudioMagistrale') ? 'text-green-600' : 'text-gray-400'}`}>
+                        {formatFileInfo(formData.pianoStudioMagistrale, 'pianoStudioMagistrale')}
                       </span>
                     </div>
                   </div>
@@ -829,26 +999,26 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
                   <div className="space-y-1">
                     <div className="flex justify-between">
                       <span className="font-medium text-gray-500">Certificato Medico:</span>
-                      <span className={`${formData.certificatoMedico ? 'text-green-600' : 'text-gray-400'}`}>
-                        {formatFileInfo(formData.certificatoMedico)}
+                      <span className={`${formData.certificatoMedico || hasDocument('certificatoMedico') ? 'text-green-600' : 'text-gray-400'}`}>
+                        {formatFileInfo(formData.certificatoMedico, 'certificatoMedico')}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="font-medium text-gray-500">Certificato di Nascita:</span>
-                      <span className={`${formData.certificatoNascita ? 'text-green-600' : 'text-gray-400'}`}>
-                        {formatFileInfo(formData.certificatoNascita)}
+                      <span className={`${formData.certificatoNascita || hasDocument('certificatoNascita') ? 'text-green-600' : 'text-gray-400'}`}>
+                        {formatFileInfo(formData.certificatoNascita, 'certificatoNascita')}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="font-medium text-gray-500">Diploma:</span>
-                      <span className={`${formData.diplomoLaurea ? 'text-green-600' : 'text-gray-400'}`}>
-                        {formatFileInfo(formData.diplomoLaurea)}
+                      <span className={`${formData.diplomoLaurea || hasDocument('diplomoLaurea') ? 'text-green-600' : 'text-gray-400'}`}>
+                        {formatFileInfo(formData.diplomoLaurea, 'diplomoLaurea')}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="font-medium text-gray-500">Pergamena:</span>
-                      <span className={`${formData.pergamenaLaurea ? 'text-green-600' : 'text-gray-400'}`}>
-                        {formatFileInfo(formData.pergamenaLaurea)}
+                      <span className={`${formData.pergamenaLaurea || hasDocument('pergamenaLaurea') ? 'text-green-600' : 'text-gray-400'}`}>
+                        {formatFileInfo(formData.pergamenaLaurea, 'pergamenaLaurea')}
                       </span>
                     </div>
                   </div>
@@ -863,14 +1033,14 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
                 <div className="space-y-1">
                   <div className="flex justify-between">
                     <span className="font-medium text-gray-500">Diploma di Laurea:</span>
-                    <span className={`${formData.diplomoLaurea ? 'text-green-600' : 'text-gray-400'}`}>
-                      {formatFileInfo(formData.diplomoLaurea)}
+                    <span className={`${formData.diplomoLaurea || hasDocument('diplomoLaurea') ? 'text-green-600' : 'text-gray-400'}`}>
+                      {formatFileInfo(formData.diplomoLaurea, 'diplomoLaurea')}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="font-medium text-gray-500">Pergamena di Laurea:</span>
-                    <span className={`${formData.pergamenaLaurea ? 'text-green-600' : 'text-gray-400'}`}>
-                      {formatFileInfo(formData.pergamenaLaurea)}
+                    <span className={`${formData.pergamenaLaurea || hasDocument('pergamenaLaurea') ? 'text-green-600' : 'text-gray-400'}`}>
+                      {formatFileInfo(formData.pergamenaLaurea, 'pergamenaLaurea')}
                     </span>
                   </div>
                 </div>

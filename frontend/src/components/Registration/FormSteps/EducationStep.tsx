@@ -20,6 +20,7 @@ const EducationStep: React.FC<EducationStepProps> = ({ data, onNext, onChange })
     watch,
     control,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<EducationForm>({
     resolver: zodResolver(educationSchema),
@@ -33,6 +34,7 @@ const EducationStep: React.FC<EducationStepProps> = ({ data, onNext, onChange })
     name: 'tipoLaurea',
   });
   
+
   // Ensure tipoLaurea changes are propagated to parent immediately
   useEffect(() => {
     if (selectedDegreeType && onChange) {

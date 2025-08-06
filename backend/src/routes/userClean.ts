@@ -2,11 +2,36 @@ import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import emailService from '../services/emailService';
+import SecureTokenService from '../services/secureTokenService';
 
 const router = Router();
 const prisma = new PrismaClient();
 
-// Get user profile by verified email (no auth required)
+// Get user profile by secure access token (no auth required)
+router.post('/profile-by-token', async (req, res) => {
+  try {
+    const { accessToken } = req.body;
+    
+    if (!accessToken) {
+      return res.status(400).json({ error: 'Token di accesso è richiesto' });
+    }
+
+    // Verifica il token e recupera i dati associati
+    const tokenData = await SecureTokenService.verifyToken(accessToken);
+    
+    if (!tokenData) {
+      return res.status(401).json({ error: 'Token non valido o scaduto' });
+    }
+
+    res.json(tokenData);
+    
+  } catch (error) {
+    console.error('Profile by token error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Get user profile by verified email (no auth required) - DEPRECATED
 router.post('/profile-by-email', async (req, res) => {
   try {
     const { email } = req.body;
@@ -203,8 +228,7 @@ router.get('/registrations/:registrationId', authenticate, async (req: AuthReque
           select: {
             id: true,
             type: true,
-            fileName: true,
-            originalFileName: true,
+            originalName: true,
             status: true,
             uploadedAt: true
           }
@@ -216,28 +240,47 @@ router.get('/registrations/:registrationId', authenticate, async (req: AuthReque
       return res.status(404).json({ error: 'Registrazione non trovata' });
     }
     
-    res.json({
+    // DEBUG LOGS
+    console.log('=== DEBUG /user/registrations/:id (userClean.ts) ===');
+    console.log('Registration ID:', registrationId);
+    console.log('User ID:', userId);
+    console.log('Found registration:', {
       id: registration.id,
-      status: registration.status,
-      createdAt: registration.createdAt,
-      originalAmount: registration.originalAmount,
-      finalAmount: registration.finalAmount,
-      installments: registration.installments,
-      contractTemplateUrl: registration.contractTemplateUrl,
-      contractSignedUrl: registration.contractSignedUrl,
-      partner: {
-        email: registration.partner.user.email,
-        referralCode: registration.partner.referralCode
-      },
-      course: registration.offer?.course || null,
-      offer: registration.offer ? {
-        id: registration.offer.id,
-        name: registration.offer.name,
-        offerType: registration.offer.offerType
-      } : null,
-      payments: registration.payments,
-      deadlines: registration.deadlines,
-      documents: registration.userDocuments
+      offerName: registration.offer?.name,
+      courseName: registration.offer?.course?.name,
+      offerType: registration.offer?.offerType,
+      status: registration.status
+    });
+    
+    res.json({
+      registration: {
+        id: registration.id,
+        courseId: registration.offer?.course?.id || 'unknown',
+        courseName: registration.offer?.name || registration.offer?.course?.name || 'Corso non specificato',
+        status: registration.status,
+        originalAmount: Number(registration.originalAmount),
+        finalAmount: Number(registration.finalAmount),
+        installments: registration.installments,
+        offerType: registration.offer?.offerType || 'TFA_ROMANIA',
+        createdAt: registration.createdAt.toISOString(),
+        contractTemplateUrl: registration.contractTemplateUrl,
+        contractSignedUrl: registration.contractSignedUrl,
+        contractGeneratedAt: registration.contractGeneratedAt?.toISOString(),
+        contractUploadedAt: registration.contractUploadedAt?.toISOString(),
+        partner: {
+          referralCode: registration.partner?.referralCode || '',
+          user: {
+            email: registration.partner?.user?.email || ''
+          }
+        },
+        deadlines: (registration.deadlines || []).map((deadline: any) => ({
+          id: deadline.id,
+          amount: Number(deadline.amount),
+          dueDate: deadline.dueDate.toISOString(),
+          paymentNumber: deadline.paymentNumber,
+          isPaid: deadline.isPaid
+        }))
+      }
     });
   } catch (error) {
     console.error('Error getting registration details:', error);
@@ -279,6 +322,16 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
       orderBy: { createdAt: 'desc' }
     });
     
+    // DEBUG LOGS
+    console.log('=== DEBUG /user/registrations (userClean.ts) ===');
+    console.log('User ID:', userId);
+    console.log('Raw registrations:', registrations.map(r => ({ 
+      id: r.id, 
+      offerName: r.offer?.name, 
+      courseName: r.offer?.course?.name,
+      offerType: r.offer?.offerType 
+    })));
+    
     const formattedRegistrations = registrations.map(reg => {
       const totalPaid = reg.payments
         .filter(p => p.isConfirmed)
@@ -290,11 +343,14 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
       
       return {
         id: reg.id,
+        courseId: reg.offer?.course?.id || 'unknown',
+        courseName: reg.offer?.name || reg.offer?.course?.name || 'Corso non specificato', // Use partner's template name
         status: reg.status,
         createdAt: reg.createdAt,
         originalAmount: reg.originalAmount,
         finalAmount: reg.finalAmount,
         installments: reg.installments,
+        offerType: reg.offer?.offerType || 'TFA_ROMANIA',
         totalPaid,
         remainingAmount: Number(reg.finalAmount) - totalPaid,
         nextDeadline: nextDeadline ? {
@@ -303,15 +359,25 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
           paymentNumber: nextDeadline.paymentNumber
         } : null,
         partner: {
-          email: reg.partner.user.email,
-          referralCode: reg.partner.referralCode
+          referralCode: reg.partner.referralCode,
+          user: {
+            email: reg.partner.user.email
+          }
         },
-        course: reg.offer?.course || null,
-        offer: reg.offer ? {
-          id: reg.offer.id,
-          name: reg.offer.name,
-          offerType: reg.offer.offerType
-        } : null
+        deadlines: reg.deadlines.map(deadline => ({
+          id: deadline.id,
+          amount: Number(deadline.amount),
+          dueDate: deadline.dueDate.toISOString(),
+          paymentNumber: deadline.paymentNumber,
+          isPaid: deadline.isPaid
+        })),
+        payments: reg.payments.map(payment => ({
+          id: payment.id,
+          amount: Number(payment.amount),
+          paymentDate: payment.paymentDate.toISOString(),
+          isConfirmed: payment.isConfirmed,
+          paymentNumber: payment.paymentNumber || 1
+        }))
       };
     });
     
@@ -365,23 +431,7 @@ router.get('/available-courses', authenticate, async (req: AuthRequest, res: Res
       }
     });
     
-    // Filter offers based on visibility settings and user access
-    const availableOffers = partnerOffers.filter(offer => {
-      // Check visibility setting (default to visible if no setting exists)
-      const visibilityRecord = offer.visibilities[0];
-      const isVisible = visibilityRecord ? visibilityRecord.isVisible : true;
-      
-      if (!isVisible) return false;
-      
-      // If user has specific access record, they can see it
-      if (offer.userAccess.length > 0) return true;
-      
-      // Check if this is their original offer (they registered through this offer)
-      // This will be checked later in the registration query
-      return true;
-    });
-    
-    // Get user's registrations (original offers they signed up for)
+    // Get user's registrations (original offers they signed up for) - needed for filtering
     const userRegistrations = await prisma.registration.findMany({
       where: { userId },
       select: { partnerOfferId: true }
@@ -391,12 +441,52 @@ router.get('/available-courses', authenticate, async (req: AuthRequest, res: Res
       .filter(reg => reg.partnerOfferId)
       .map(reg => reg.partnerOfferId);
     
+    // DEBUG LOGS
+    console.log('=== DEBUG /user/available-courses (userClean.ts) ===');
+    console.log('User ID:', userId);
+    console.log('Partner offers count:', partnerOffers?.length);
+    console.log('Registered offer IDs:', registeredOfferIds);
+    console.log('Partner offers:', partnerOffers.map(o => ({ 
+      id: o.id, 
+      name: o.name, 
+      courseName: o.course.name,
+      userAccessCount: o.userAccess.length,
+      isRegistered: registeredOfferIds.includes(o.id)
+    })));
+    
+    // Filter offers based on partner enablement - show ONLY specifically enabled courses
+    const availableOffers = partnerOffers.filter(offer => {
+      // Only show offers that have been specifically enabled by the partner for this user
+      // This excludes original enrollment offers (they appear in "My Registrations" section)
+      const hasPartnerAccess = offer.userAccess.length > 0;
+      
+      // Check if this is an original offer (user registered through this offer)
+      const isOriginalOffer = registeredOfferIds.includes(offer.id);
+      
+      // Show ONLY partner-enabled courses that are NOT the original enrollment
+      const shouldShow = hasPartnerAccess && !isOriginalOffer;
+      
+      console.log(`Offer ${offer.name}: hasPartnerAccess=${hasPartnerAccess}, isOriginalOffer=${isOriginalOffer}, shouldShow=${shouldShow}`);
+      
+      return shouldShow;
+    });
+    
     // Format response
     const courses = availableOffers.map(offer => ({
       id: offer.course.id,
-      name: offer.course.name,
+      name: offer.name, // Use partner's template name instead of course name
       description: offer.course.description,
       templateType: offer.course.templateType,
+      courseName: offer.course.name, // Keep original course name for reference
+      partnerOfferId: offer.id,
+      offerType: offer.offerType.toString(),
+      totalAmount: Number(offer.totalAmount),
+      finalAmount: Number(offer.totalAmount), // No user registration means no discount
+      installments: offer.installments,
+      isOriginal: false, // These are additional partner-enabled courses
+      isEnrolled: false, // Not enrolled since they're additional offers
+      enrollmentStatus: null,
+      referralLink: `${process.env.FRONTEND_URL}/registration/${offer.referralLink}`,
       offer: {
         id: offer.id,
         name: offer.name,
@@ -413,6 +503,219 @@ router.get('/available-courses', authenticate, async (req: AuthRequest, res: Res
     res.json({ courses });
   } catch (error) {
     console.error('Error getting available courses:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// GET /api/user/enrollment-documents - Get documents uploaded during enrollment processes
+router.get('/enrollment-documents', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Utente non autenticato' });
+    }
+    
+    // Get all user's registrations with their documents from both tables
+    const registrations = await prisma.registration.findMany({
+      where: { userId },
+      include: {
+        userDocuments: true, // UserDocument table (new structure)
+        documents: true, // Document table (legacy/enrollment documents)
+        offer: {
+          include: {
+            course: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    // Flatten all documents from all registrations (both UserDocument and Document tables)
+    const enrollmentDocuments = registrations.flatMap(registration => {
+      const userDocs = registration.userDocuments.map(doc => ({
+        id: doc.id,
+        type: doc.type,
+        fileName: doc.originalName,
+        uploadedAt: doc.uploadedAt,
+        registrationId: registration.id,
+        courseName: registration.offer?.course?.name || 'Corso sconosciuto',
+        status: doc.status,
+        source: 'UserDocument' // Per debug
+      }));
+      
+      const enrollmentDocs = registration.documents.map(doc => ({
+        id: doc.id,
+        type: doc.type,
+        fileName: doc.fileName,
+        uploadedAt: doc.uploadedAt,
+        registrationId: registration.id,
+        courseName: registration.offer?.course?.name || 'Corso sconosciuto',
+        status: 'PENDING', // Document table doesn't have status field
+        source: 'Document' // Per debug
+      }));
+      
+      return [...userDocs, ...enrollmentDocs];
+    });
+    
+    console.log(`📄 Found ${enrollmentDocuments.length} enrollment documents for user ${userId}`);
+    
+    res.json({ documents: enrollmentDocuments });
+  } catch (error) {
+    console.error('Error getting enrollment documents:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// GET /api/user/enrollment-documents/:id/download - Download enrollment document
+router.get('/enrollment-documents/:id/download', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Utente non autenticato' });
+    }
+    
+    // Try to find document in UserDocument table first
+    const userDocument = await prisma.userDocument.findFirst({
+      where: {
+        id,
+        registration: {
+          userId
+        }
+      }
+    });
+    
+    let documentSource = 'UserDocument';
+    let filePath: string | undefined;
+    let fileName: string | undefined;
+    
+    if (userDocument) {
+      filePath = userDocument.url;
+      fileName = userDocument.originalName;
+    } else {
+      // If not found in UserDocument, try Document table
+      const enrollmentDoc = await prisma.document.findFirst({
+        where: {
+          id,
+          registration: {
+            userId
+          }
+        }
+      });
+      
+      if (enrollmentDoc) {
+        documentSource = 'Document';
+        filePath = enrollmentDoc.filePath;
+        fileName = enrollmentDoc.fileName;
+      }
+    }
+    
+    if (!filePath || !fileName) {
+      console.log(`❌ Document not found: ${id} for user ${userId}`);
+      return res.status(404).json({ error: 'Documento non trovato' });
+    }
+    
+    console.log(`📄 Found document ${fileName} in ${documentSource} table`);
+    
+    // Check if file exists
+    const fs = require('fs');
+    if (!fs.existsSync(filePath)) {
+      console.log(`❌ File not found on disk: ${filePath}`);
+      return res.status(404).json({ error: 'File non trovato sul server' });
+    }
+    
+    // Send file
+    res.download(filePath, fileName, (err) => {
+      if (err) {
+        console.error('Error downloading file:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Errore nel download del file' });
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error downloading enrollment document:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Errore interno del server' });
+    }
+  }
+});
+
+// GET /api/user/documents/unified - Get unified documents - shows documents from all sources
+router.get('/documents/unified', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { registrationId } = req.query;
+
+    // Document types based on template
+    const documentTypes = [
+      { type: 'IDENTITY_CARD', name: 'Carta d\'Identità', description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità' },
+      { type: 'TESSERA_SANITARIA', name: 'Tessera Sanitaria', description: 'Tessera sanitaria o documento che attesti il codice fiscale' },
+      { type: 'BACHELOR_DEGREE', name: 'Certificato Laurea Triennale', description: 'Certificato di laurea triennale o diploma universitario' },
+      { type: 'MASTER_DEGREE', name: 'Certificato Laurea Magistrale', description: 'Certificato di laurea magistrale, specialistica o vecchio ordinamento' },
+      { type: 'TRANSCRIPT', name: 'Piano di Studio Triennale', description: 'Piano di studio della laurea triennale con lista esami sostenuti' },
+      { type: 'TRANSCRIPT_MASTER', name: 'Piano di Studio Magistrale', description: 'Piano di studio della laurea magistrale, specialistica o vecchio ordinamento' },
+      { type: 'MEDICAL_CERT', name: 'Certificato Medico', description: 'Certificato medico attestante la sana e robusta costituzione fisica e psichica' },
+      { type: 'BIRTH_CERT', name: 'Certificato di Nascita', description: 'Certificato di nascita o estratto di nascita dal Comune' },
+      { type: 'DIPLOMA', name: 'Diploma di Laurea', description: 'Diploma di laurea (cartaceo o digitale)' },
+      { type: 'OTHER', name: 'Pergamena di Laurea', description: 'Pergamena di laurea (documento originale)' }
+    ];
+
+    // Get all user documents
+    const whereCondition: any = { userId };
+    if (registrationId) {
+      whereCondition.registrationId = registrationId;
+    }
+
+    const userDocuments = await prisma.userDocument.findMany({
+      where: whereCondition,
+      include: {
+        verifier: {
+          select: { id: true, email: true }
+        }
+      },
+      orderBy: { uploadedAt: 'desc' }
+    });
+
+    // Create unified document structure
+    const documents = documentTypes.map(docType => {
+      const userDoc = userDocuments.find(doc => doc.type === docType.type);
+      
+      return {
+        id: userDoc?.id || `empty-${docType.type}`,
+        type: docType.type,
+        name: docType.name,
+        description: docType.description,
+        uploaded: !!userDoc,
+        fileName: userDoc?.originalName,
+        originalName: userDoc?.originalName,
+        mimeType: userDoc?.mimeType,
+        size: userDoc?.size,
+        uploadedAt: userDoc?.uploadedAt?.toISOString(),
+        documentId: userDoc?.id,
+        status: userDoc?.status,
+        rejectionReason: userDoc?.rejectionReason,
+        rejectionDetails: userDoc?.rejectionDetails,
+        verifiedBy: userDoc?.verifiedBy,
+        verifiedAt: userDoc?.verifiedAt?.toISOString(),
+        uploadSource: userDoc?.uploadSource,
+        isVerified: userDoc?.status === 'APPROVED'
+      };
+    });
+
+    const uploadedCount = documents.filter(doc => doc.uploaded).length;
+    const totalCount = documents.length;
+
+    res.json({ 
+      documents,
+      uploadedCount,
+      totalCount
+    });
+  } catch (error) {
+    console.error('Error getting unified documents:', error);
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });

@@ -125,7 +125,34 @@ export interface RegistrationResponse {
   message: string;
 }
 
-// Submit enrollment for email-verified users (non-authenticated)
+// Get user profile by access token (for token-based authentication)
+export const getUserProfileByToken = async (accessToken: string): Promise<{
+  user: any;
+  profile: any;
+  registration: any;
+  assignedPartner: any;
+}> => {
+  try {
+    const response = await api.post('/user/profile-by-token', { accessToken });
+    return response.data;
+  } catch (error) {
+    console.error('Get profile by token error:', error);
+    throw error;
+  }
+};
+
+// Submit enrollment for token-based users (non-authenticated)
+export const submitTokenEnrollment = async (data: RegistrationData & { accessToken: string }): Promise<RegistrationResponse> => {
+  try {
+    const response = await api.post('/registration/token-enrollment', data);
+    return response.data;
+  } catch (error) {
+    console.error('Token enrollment error:', error);
+    throw error;
+  }
+};
+
+// Submit enrollment for email-verified users (non-authenticated) - DEPRECATED
 export const submitVerifiedUserEnrollment = async (data: RegistrationData & { verifiedEmail: string }): Promise<RegistrationResponse> => {
   try {
     const response = await api.post('/registration/verified-user-enrollment', data);
