@@ -46,12 +46,14 @@ const educationBaseSchema = z.object({
   laureaConseguitaCustom: z.string().optional(),
   laureaUniversita: z.string().min(1, 'Università richiesta'),
   laureaData: z.string().min(1, 'Data laurea richiesta'),
+  laureaVoto: z.string().optional(), // Voto laurea opzionale
   
   // Campi triennale condizionali
   tipoLaureaTriennale: z.string().optional(),
   laureaConseguitaTriennale: z.string().optional(),
   laureaUniversitaTriennale: z.string().optional(),
   laureaDataTriennale: z.string().optional(),
+  laureaVotoTriennale: z.string().optional(), // Voto laurea triennale opzionale
   
   // Diploma superiori (obbligatorio per TFA)
   diplomaData: z.string().min(1, 'Data conseguimento diploma richiesta'),

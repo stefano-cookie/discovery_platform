@@ -6,6 +6,7 @@ import { getCoursesByType } from '../../../data/courses';
 import { getUniversityOptions } from '../../../data/universities';
 import Input from '../../UI/Input';
 import Select from '../../UI/Select';
+import SearchableSelect from '../../UI/SearchableSelect';
 
 interface EducationStepProps {
   data: Partial<EducationForm>;
@@ -124,22 +125,18 @@ const EducationStep: React.FC<EducationStepProps> = ({ data, onNext, onChange })
             </label>
 {selectedDegreeType ? (
               <>
-                <select
-                  {...register('laureaConseguita')}
+                <SearchableSelect
+                  label=""
+                  options={availableCourses.map(course => ({ value: course, label: course }))}
                   value={selectedCourse}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  onChange={(e) => {
-                    setSelectedCourse(e.target.value);
-                    setValue('laureaConseguita', e.target.value);
+                  onChange={(value) => {
+                    setSelectedCourse(value);
+                    setValue('laureaConseguita', value);
                   }}
-                >
-                  <option value="">Seleziona il corso di laurea</option>
-                  {availableCourses.map((course) => (
-                    <option key={course} value={course}>
-                      {course}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Cerca e seleziona corso di laurea..."
+                  name="laureaConseguita"
+                  className="mt-1"
+                />
                 
               </>
             ) : (
@@ -158,12 +155,14 @@ const EducationStep: React.FC<EducationStepProps> = ({ data, onNext, onChange })
           </div>
 
           <div className="md:col-span-2">
-            <Select
+            <SearchableSelect
               label="Università *"
               options={universityOptions}
-              {...register('laureaUniversita')}
+              value={watch('laureaUniversita') || ''}
+              onChange={(value) => setValue('laureaUniversita', value)}
               error={errors.laureaUniversita?.message as string}
-              placeholder="Seleziona università"
+              placeholder="Cerca e seleziona università..."
+              name="laureaUniversita"
             />
           </div>
 
@@ -175,10 +174,20 @@ const EducationStep: React.FC<EducationStepProps> = ({ data, onNext, onChange })
               error={errors.laureaData?.message}
             />
           </div>
+          
+          <div>
+            <Input
+              label="Voto Laurea (opzionale)"
+              type="text"
+              {...register('laureaVoto')}
+              error={errors.laureaVoto?.message}
+              placeholder="es. 110/110, 110L, 105/110"
+            />
+          </div>
         </div>
       </div>
 
-      {/* Sezione triennale condizionale per lauree magistrali */}
+      {/* Sezione triennale condizionale per lauree magistrali - Fix: non mostrare per magistrale a ciclo unico e vecchio ordinamento */}
       {selectedDegreeType === 'Magistrale' && (
         <div className="mt-8">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Laurea Triennale Precedente</h3>
@@ -213,34 +222,32 @@ const EducationStep: React.FC<EducationStepProps> = ({ data, onNext, onChange })
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Corso di Laurea Triennale Conseguito *
               </label>
-              <select
-                {...register('laureaConseguitaTriennale')}
+              <SearchableSelect
+                label=""
+                options={availableTriennaleCourses.map(course => ({ value: course, label: course }))}
                 value={selectedTriennaleCourse}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                onChange={(e) => {
-                  setSelectedTriennaleCourse(e.target.value);
-                  setValue('laureaConseguitaTriennale', e.target.value);
+                onChange={(value) => {
+                  setSelectedTriennaleCourse(value);
+                  setValue('laureaConseguitaTriennale', value);
                 }}
-              >
-                <option value="">Seleziona il corso di laurea triennale</option>
-                {availableTriennaleCourses.map((course) => (
-                  <option key={course} value={course}>
-                    {course}
-                  </option>
-                ))}
-              </select>
+                placeholder="Cerca e seleziona corso di laurea triennale..."
+                name="laureaConseguitaTriennale"
+                className="mt-1"
+              />
               {errors.laureaConseguitaTriennale && (
                 <p className="mt-1 text-sm text-red-600">{errors.laureaConseguitaTriennale.message}</p>
               )}
             </div>
 
             <div className="md:col-span-2">
-              <Select
+              <SearchableSelect
                 label="Università Triennale *"
                 options={universityOptions}
-                {...register('laureaUniversitaTriennale')}
+                value={watch('laureaUniversitaTriennale') || ''}
+                onChange={(value) => setValue('laureaUniversitaTriennale', value)}
                 error={errors.laureaUniversitaTriennale?.message as string}
-                placeholder="Seleziona università triennale"
+                placeholder="Cerca e seleziona università triennale..."
+                name="laureaUniversitaTriennale"
               />
             </div>
 
@@ -250,6 +257,16 @@ const EducationStep: React.FC<EducationStepProps> = ({ data, onNext, onChange })
                 type="date"
                 {...register('laureaDataTriennale')}
                 error={errors.laureaDataTriennale?.message}
+              />
+            </div>
+            
+            <div>
+              <Input
+                label="Voto Laurea Triennale (opzionale)"
+                type="text"
+                {...register('laureaVotoTriennale')}
+                error={errors.laureaVotoTriennale?.message}
+                placeholder="es. 110/110, 105/110"
               />
             </div>
           </div>
