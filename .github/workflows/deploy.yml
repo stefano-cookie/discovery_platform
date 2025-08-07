@@ -22,8 +22,10 @@ jobs:
     - name: Install and build frontend
       working-directory: ./frontend
       run: |
-        npm ci
-        npm run build
+        # Clean install with legacy peer deps for React 19 compatibility
+        npm ci --legacy-peer-deps
+        # Build with increased memory limit
+        NODE_OPTIONS="--max-old-space-size=4096" npm run build
         
     - name: Install and build backend
       working-directory: ./backend
