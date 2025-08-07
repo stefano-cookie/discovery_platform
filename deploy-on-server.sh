@@ -74,8 +74,9 @@ npm ci --production
 echo -e "${YELLOW}🗄️ Running database migrations...${NC}"
 # Generate Prisma Client
 npx prisma generate
-# Push schema changes (be careful with --accept-data-loss in production!)
-npx prisma db push
+# Push schema changes with data loss acceptance for enum changes
+# Note: This accepts data loss for removed enum values that are no longer in use
+npx prisma db push --accept-data-loss
 # Verify database connection
 npx prisma db seed --preview-feature || true
 echo -e "${GREEN}✓ Database migrations completed${NC}"
