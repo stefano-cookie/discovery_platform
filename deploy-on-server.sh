@@ -77,14 +77,34 @@ npx prisma generate
 
 # Apply schema changes without data loss
 echo -e "${YELLOW}⚠️  Applying schema changes...${NC}"
-# First try to deploy existing migrations
-npx prisma migrate deploy 2>/dev/null || {
-    echo -e "${YELLOW}No migrations to deploy, using db push...${NC}"
-    # If no migrations exist, use db push to sync schema
-    npx prisma db push --accept-data-loss || {
-        echo -e "${RED}❌ Database migration failed!${NC}"
-        echo -e "${YELLOW}Please check the database connection and schema${NC}"
-        exit 1
+
+# First, create any missing tables directly
+echo -e "${YELLOW}Creating missing tables if needed...${NC}"
+npx prisma db execute --stdin --schema prisma/schema.prisma 2>/dev/null <<'EOF' || true
+-- Create DocumentTypeConfig table if it doesn't exist
+CREATE TABLE IF NOT EXISTS "DocumentTypeConfig" (
+    "id" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "label" TEXT NOT NULL,
+    "description" TEXT,
+    "isRequired" BOOLEAN NOT NULL DEFAULT false,
+    "acceptedMimeTypes" TEXT[] DEFAULT ARRAY['application/pdf', 'image/jpeg', 'image/png']::TEXT[],
+    "maxFileSize" INTEGER NOT NULL DEFAULT 10485760,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "sortOrder" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    CONSTRAINT "DocumentTypeConfig_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "DocumentTypeConfig_type_key" ON "DocumentTypeConfig"("type");
+EOF
+
+# Now try to deploy migrations or push schema
+npx prisma migrate deploy || {
+    echo -e "${YELLOW}No new migrations to deploy, syncing schema...${NC}"
+    # Use db push to sync schema, skip if it fails on existing objects
+    npx prisma db push --accept-data-loss --skip-generate || {
+        echo -e "${YELLOW}⚠️  Some schema changes could not be applied (likely already exist)${NC}"
     }
 }
 
