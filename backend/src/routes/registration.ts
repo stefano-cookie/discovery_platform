@@ -1345,18 +1345,26 @@ router.post('/token-enrollment', async (req: Request, res: Response) => {
           }
           
           try {
-            await tx.document.create({
+            // Create UserDocument instead of Document
+            await tx.userDocument.create({
               data: {
+                userId: user.id,
                 registrationId: updatedRegistration.id,
-                fileName: document.fileName,
-                filePath: document.url,
-                type: document.type,
+                type: document.type as any, // Convert to DocumentType enum
+                originalName: document.fileName,
+                url: document.url,
+                size: document.fileSize || 0,
+                mimeType: document.mimeType || 'application/octet-stream',
+                status: 'PENDING' as any,
+                uploadSource: 'ENROLLMENT' as any,
+                uploadedBy: user.id,
+                uploadedByRole: 'USER' as any,
                 uploadedAt: new Date()
               }
             });
-            console.log('✅ Created document record:', { fileName: document.fileName, type: document.type });
+            console.log('✅ Created UserDocument record:', { fileName: document.fileName, type: document.type });
           } catch (docError) {
-            console.error('❌ Error creating document:', docError, 'Document data:', document);
+            console.error('❌ Error creating UserDocument:', docError, 'Document data:', document);
             // Continue with other documents instead of failing the entire transaction
           }
         }

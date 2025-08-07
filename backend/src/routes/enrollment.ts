@@ -203,54 +203,46 @@ router.post('/submit', handleAuthOrVerifiedEmail, upload.fields([
         if (fileArray && fileArray.length > 0) {
           const file = fileArray[0];
           
-          // Create registration-specific document
-          const document = await tx.document.create({
-            data: {
-              registrationId: registration.id,
-              type: fieldname,
-              fileName: file.originalname,
-              filePath: file.path
-            }
-          });
-          documents.push(document);
-          
-          // Also create/update user document for reusability
+          // Document type mapping for UserDocument enum
           const documentTypeMap = {
-            'cartaIdentita': 'CARTA_IDENTITA',
-            'tesseraperSanitaria': 'TESSERA_SANITARIA',
-            'laurea': 'DIPLOMA_LAUREA',
-            'pergamenaLaurea': 'PERGAMENA_LAUREA',
-            'diplomaMaturita': 'DIPLOMA_MATURITA',
-            'certificatoMedico': 'CERTIFICATO_MEDICO'
+            'cartaIdentita': 'IDENTITY_CARD',
+            'tesseraperSanitaria': 'TESSERA_SANITARIA', 
+            'laurea': 'BACHELOR_DEGREE',
+            'pergamenaLaurea': 'MASTER_DEGREE',
+            'diplomaMaturita': 'DIPLOMA',
+            'certificatoMedico': 'MEDICAL_CERT'
           };
           
-          const userDocumentType = documentTypeMap[fieldname as keyof typeof documentTypeMap] || 'ALTRO';
+          const userDocumentType = documentTypeMap[fieldname as keyof typeof documentTypeMap] || 'OTHER';
           
-          // Check if user already has this document type
+          // Check if user already has this document type for this registration
           const existingUserDoc = await tx.userDocument.findFirst({
             where: {
               userId,
+              registrationId: registration.id,
               type: userDocumentType as any
             }
           });
           
           if (existingUserDoc) {
-            // Update existing document and link to registration
-            await tx.userDocument.update({
+            // Update existing document
+            const document = await tx.userDocument.update({
               where: { id: existingUserDoc.id },
               data: {
-                registrationId: registration.id, // Link to the current registration
                 originalName: file.originalname,
                 url: file.path,
+                size: file.size,
+                mimeType: file.mimetype,
                 uploadedAt: new Date()
               }
             });
+            documents.push(document);
           } else {
             // Create new user document
-            await tx.userDocument.create({
+            const document = await tx.userDocument.create({
               data: {
                 userId,
-                registrationId: registration.id, // Link to the current registration
+                registrationId: registration.id,
                 type: userDocumentType as any,
                 originalName: file.originalname,
                 url: file.path,
@@ -262,6 +254,7 @@ router.post('/submit', handleAuthOrVerifiedEmail, upload.fields([
                 uploadedByRole: 'USER' as any
               }
             });
+            documents.push(document);
           }
         }
       }

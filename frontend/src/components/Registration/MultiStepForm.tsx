@@ -593,7 +593,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
       case 'datiFamiliari':
         return (
           <GeneralDataStep
-            key={`datiFamiliari-${Object.keys(formData).length}-${formData.nomePadre || 'empty'}-${formData.nomeMadre || 'empty'}`}
+            key="datiFamiliari"
             data={formData}
             onNext={handleStepComplete}
             onChange={updateFormData}

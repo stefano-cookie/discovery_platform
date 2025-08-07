@@ -147,7 +147,7 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
 
       let endpoint = '';
       if (mode === 'user') {
-        endpoint = '/user/documents/upload';
+        endpoint = '/user/documents';
       } else if (mode === 'partner') {
         endpoint = `/partners/users/${userId}/documents/upload`;
       }

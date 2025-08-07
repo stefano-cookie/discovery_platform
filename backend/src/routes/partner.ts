@@ -1093,6 +1093,64 @@ router.get('/download-contract/:registrationId', authenticate, requireRole(['PAR
   }
 });
 
+// Preview contract template - inline display
+router.get('/preview-contract/:registrationId', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { registrationId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify registration belongs to this partner
+    const registration = await prisma.registration.findFirst({
+      where: { 
+        id: registrationId,
+        partnerId 
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    // Generate contract if not exists
+    if (!registration.contractTemplateUrl) {
+      const pdfBuffer = await contractService.generateContract(registrationId);
+      const contractUrl = await contractService.saveContract(registrationId, pdfBuffer);
+      
+      // Update registration with contract URL
+      await prisma.registration.update({
+        where: { id: registrationId },
+        data: {
+          contractTemplateUrl: contractUrl,
+          contractGeneratedAt: new Date()
+        }
+      });
+
+      // Set response headers for inline display and send PDF
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="contratto_${registrationId}.pdf"`);
+      return res.send(pdfBuffer);
+    }
+
+    // If contract already exists, serve the file for inline display
+    const contractPath = path.resolve(__dirname, '../..', registration.contractTemplateUrl.substring(1)); // Remove leading slash
+    if (!require('fs').existsSync(contractPath)) {
+      return res.status(404).json({ error: 'File contratto non trovato' });
+    }
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="contratto_${registrationId}.pdf"`);
+    res.sendFile(contractPath);
+
+  } catch (error) {
+    console.error('Preview contract error:', error);
+    res.status(500).json({ error: 'Errore durante la preview del contratto' });
+  }
+});
+
 // Upload signed contract
 router.post('/upload-signed-contract', authenticate, requireRole(['PARTNER', 'ADMIN']), uploadContract.single('contract'), async (req: AuthRequest, res) => {
   try {
