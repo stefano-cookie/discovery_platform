@@ -815,10 +815,7 @@ if (process.env.NODE_ENV === 'development') {
         if (existingUser.registrations.length > 0) {
           const registrationIds = existingUser.registrations.map(r => r.id);
           
-          // Clean up both old Document and new UserDocument tables
-          await tx.document.deleteMany({
-            where: { registrationId: { in: registrationIds } }
-          });
+          // Clean up UserDocument tables
           await tx.userDocument.deleteMany({
             where: { registrationId: { in: registrationIds } }
           });

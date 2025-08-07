@@ -35,7 +35,7 @@ const enrollmentStorage = multer.diskStorage({
     
     const docType = req.body.documentType || 'altro';
     const folder = folders[docType] || 'altri';
-    const uploadPath = `uploads/${folder}`;
+    const uploadPath = path.join(__dirname, '../../uploads', folder);
     
     // Ensure directory exists
     if (!fs.existsSync(uploadPath)) {
@@ -162,6 +162,42 @@ function mapDocumentType(frontendType: string): string {
 }
 
 // POST /api/registration/upload-document - Upload document during enrollment
+// Temporary document upload for enrollment (no userId required)
+router.post('/upload-temp-document', enrollmentUpload.single('document'), async (req: Request, res: Response) => {
+  try {
+    const { documentType } = req.body;
+    const file = req.file;
+    
+    if (!file) {
+      return res.status(400).json({ error: 'File non fornito' });
+    }
+    
+    if (!documentType) {
+      return res.status(400).json({ error: 'documentType è richiesto' });
+    }
+    
+    // Generate temporary ID
+    const tempId = Date.now().toString() + '-' + Math.random().toString(36).substr(2, 9);
+    
+    // Return file info for localStorage storage
+    res.json({
+      success: true,
+      tempId: tempId,
+      filePath: file.path,
+      url: file.path,
+      originalName: file.originalname,
+      size: file.size,
+      mimeType: file.mimetype,
+      documentType: documentType,
+      uploadedAt: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Temp document upload error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
 router.post('/upload-document', enrollmentUpload.single('document'), async (req: Request, res: Response) => {
   try {
     const { userId, documentType, templateType } = req.body;
@@ -423,9 +459,13 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
       paymentPlan, 
       couponCode,
       documents = [],
+      tempDocuments = [], // Also accept tempDocuments
       courseData = {},
       referralCode  // Add referralCode to help identify partner if user doesn't have one assigned
     } = req.body;
+    
+    // Use tempDocuments if documents is empty
+    const documentsToProcess = documents.length > 0 ? documents : tempDocuments;
     
     if (!userId) {
       return res.status(401).json({ error: 'Utente non autenticato' });
@@ -543,6 +583,12 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
           laureaConseguita: courseData.laureaConseguita || null,
           laureaUniversita: courseData.laureaUniversita || null,
           laureaData: courseData.laureaData ? new Date(courseData.laureaData) : null,
+          // Diploma data
+          diplomaData: courseData.diplomaData ? new Date(courseData.diplomaData) : null,
+          diplomaCitta: courseData.diplomaCitta || null,
+          diplomaProvincia: courseData.diplomaProvincia || null,
+          diplomaIstituto: courseData.diplomaIstituto || null,
+          diplomaVoto: courseData.diplomaVoto || null,
           // Triennale education data
           tipoLaureaTriennale: courseData.tipoLaureaTriennale || null,
           laureaConseguitaTriennale: courseData.laureaConseguitaTriennale || null,
@@ -734,9 +780,9 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
       }
       
       // Finalize temporarily uploaded documents first
-      if (documents && documents.length > 0) {
+      if (documentsToProcess && documentsToProcess.length > 0) {
         try {
-          const documentsToFinalize = Array.isArray(documents) ? documents : [];
+          const documentsToFinalize = Array.isArray(documentsToProcess) ? documentsToProcess : [];
           
           if (documentsToFinalize.length > 0) {
             const { DocumentService } = await import('../services/documentService');
@@ -830,11 +876,15 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
       paymentPlan, 
       couponCode,
       documents = [],
+      tempDocuments = [], // Also accept tempDocuments
       courseData = {},
       referralCode,
       // All the other enrollment data
       ...enrollmentData
     } = req.body;
+    
+    // Use tempDocuments if documents is empty
+    const documentsToProcess = documents.length > 0 ? documents : tempDocuments;
     
     if (!verifiedEmail) {
       return res.status(400).json({ error: 'Email verificata richiesta' });
@@ -951,6 +1001,12 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
           laureaConseguita: courseData.laureaConseguita || null,
           laureaUniversita: courseData.laureaUniversita || null,
           laureaData: courseData.laureaData ? new Date(courseData.laureaData) : null,
+          // Diploma data
+          diplomaData: courseData.diplomaData ? new Date(courseData.diplomaData) : null,
+          diplomaCitta: courseData.diplomaCitta || null,
+          diplomaProvincia: courseData.diplomaProvincia || null,
+          diplomaIstituto: courseData.diplomaIstituto || null,
+          diplomaVoto: courseData.diplomaVoto || null,
           tipoLaureaTriennale: courseData.tipoLaureaTriennale || null,
           laureaConseguitaTriennale: courseData.laureaConseguitaTriennale || null,
           laureaUniversitaTriennale: courseData.laureaUniversitaTriennale || null,
@@ -1119,9 +1175,9 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
       }
       
       // Finalize temporarily uploaded documents first
-      if (documents && documents.length > 0) {
+      if (documentsToProcess && documentsToProcess.length > 0) {
         try {
-          const documentsToFinalize = Array.isArray(documents) ? documents : [];
+          const documentsToFinalize = Array.isArray(documentsToProcess) ? documentsToProcess : [];
           
           if (documentsToFinalize.length > 0) {
             const { DocumentService } = await import('../services/documentService');
@@ -1276,11 +1332,15 @@ router.post('/token-enrollment', async (req: Request, res: Response) => {
       paymentPlan, 
       couponCode,
       documents = [],
+      tempDocuments = [], // Also accept tempDocuments
       courseData = {},
       referralCode,
       // All the other enrollment data
       ...enrollmentData
     } = req.body;
+    
+    // Use tempDocuments if documents is empty
+    const documentsToProcess = documents.length > 0 ? documents : tempDocuments;
     
     if (!accessToken) {
       return res.status(400).json({ error: 'Token di accesso richiesto' });
@@ -1310,6 +1370,12 @@ router.post('/token-enrollment', async (req: Request, res: Response) => {
           laureaConseguita: courseData.laureaConseguita || null,
           laureaUniversita: courseData.laureaUniversita || null,
           laureaData: courseData.laureaData ? new Date(courseData.laureaData) : null,
+          // Diploma data
+          diplomaData: courseData.diplomaData ? new Date(courseData.diplomaData) : null,
+          diplomaCitta: courseData.diplomaCitta || null,
+          diplomaProvincia: courseData.diplomaProvincia || null,
+          diplomaIstituto: courseData.diplomaIstituto || null,
+          diplomaVoto: courseData.diplomaVoto || null,
           tipoLaureaTriennale: courseData.tipoLaureaTriennale || null,
           laureaConseguitaTriennale: courseData.laureaConseguitaTriennale || null,
           laureaUniversitaTriennale: courseData.laureaUniversitaTriennale || null,
@@ -1334,10 +1400,10 @@ router.post('/token-enrollment', async (req: Request, res: Response) => {
       });
       
       // Process documents if any
-      if (documents && documents.length > 0) {
-        console.log('📄 Processing documents for token enrollment:', documents);
+      if (documentsToProcess && documentsToProcess.length > 0) {
+        console.log('📄 Processing documents for token enrollment:', documentsToProcess);
         
-        for (const document of documents) {
+        for (const document of documentsToProcess) {
           // Validate document structure
           if (!document.fileName || !document.url || !document.type) {
             console.warn('⚠️ Skipping invalid document:', document);
@@ -1345,14 +1411,30 @@ router.post('/token-enrollment', async (req: Request, res: Response) => {
           }
           
           try {
+            // Map frontend document types to backend enum
+            const documentTypeMap: Record<string, string> = {
+              'cartaIdentita': 'IDENTITY_CARD',
+              'certificatoTriennale': 'BACHELOR_DEGREE',
+              'certificatoMagistrale': 'MASTER_DEGREE',
+              'pianoStudioTriennale': 'TRANSCRIPT',
+              'pianoStudioMagistrale': 'TRANSCRIPT',
+              'certificatoMedico': 'MEDICAL_CERT',
+              'certificatoNascita': 'BIRTH_CERT',
+              'diplomoLaurea': 'BACHELOR_DEGREE',
+              'pergamenaLaurea': 'MASTER_DEGREE',
+              'diplomaMaturita': 'DIPLOMA'
+            };
+            
+            const documentType = documentTypeMap[document.type] || 'OTHER';
+            
             // Create UserDocument instead of Document
             await tx.userDocument.create({
               data: {
                 userId: user.id,
                 registrationId: updatedRegistration.id,
-                type: document.type as any, // Convert to DocumentType enum
-                originalName: document.fileName,
-                url: document.url,
+                type: documentType as any, // Convert to DocumentType enum
+                originalName: document.fileName || document.originalFileName,
+                url: document.url || document.filePath,
                 size: document.fileSize || 0,
                 mimeType: document.mimeType || 'application/octet-stream',
                 status: 'PENDING' as any,

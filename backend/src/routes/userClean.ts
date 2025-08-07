@@ -520,8 +520,7 @@ router.get('/enrollment-documents', authenticate, async (req: AuthRequest, res: 
     const registrations = await prisma.registration.findMany({
       where: { userId },
       include: {
-        userDocuments: true, // UserDocument table (new structure)
-        documents: true, // Document table (legacy/enrollment documents)
+        userDocuments: true, // UserDocument table (unified document system)
         offer: {
           include: {
             course: true
@@ -531,7 +530,7 @@ router.get('/enrollment-documents', authenticate, async (req: AuthRequest, res: 
       orderBy: { createdAt: 'desc' }
     });
     
-    // Flatten all documents from all registrations (both UserDocument and Document tables)
+    // Flatten all documents from all registrations (unified UserDocument system)
     const enrollmentDocuments = registrations.flatMap(registration => {
       const userDocs = registration.userDocuments.map(doc => ({
         id: doc.id,
@@ -541,21 +540,10 @@ router.get('/enrollment-documents', authenticate, async (req: AuthRequest, res: 
         registrationId: registration.id,
         courseName: registration.offer?.course?.name || 'Corso sconosciuto',
         status: doc.status,
-        source: 'UserDocument' // Per debug
+        source: 'UserDocument' // Unified document system
       }));
       
-      const enrollmentDocs = registration.documents.map(doc => ({
-        id: doc.id,
-        type: doc.type,
-        fileName: doc.fileName,
-        uploadedAt: doc.uploadedAt,
-        registrationId: registration.id,
-        courseName: registration.offer?.course?.name || 'Corso sconosciuto',
-        status: 'PENDING', // Document table doesn't have status field
-        source: 'Document' // Per debug
-      }));
-      
-      return [...userDocs, ...enrollmentDocs];
+      return userDocs;
     });
     
     console.log(`📄 Found ${enrollmentDocuments.length} enrollment documents for user ${userId}`);
@@ -595,21 +583,7 @@ router.get('/enrollment-documents/:id/download', authenticate, async (req: AuthR
       filePath = userDocument.url;
       fileName = userDocument.originalName;
     } else {
-      // If not found in UserDocument, try Document table
-      const enrollmentDoc = await prisma.document.findFirst({
-        where: {
-          id,
-          registration: {
-            userId
-          }
-        }
-      });
-      
-      if (enrollmentDoc) {
-        documentSource = 'Document';
-        filePath = enrollmentDoc.filePath;
-        fileName = enrollmentDoc.fileName;
-      }
+      // Legacy Document table no longer used - only UserDocument
     }
     
     if (!filePath || !fileName) {

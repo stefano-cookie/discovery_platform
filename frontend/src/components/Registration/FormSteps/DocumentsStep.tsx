@@ -96,7 +96,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
     }
   };
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     // Validazione tipo file
     const validTypes = accept.split(',').map(type => type.trim());
     const fileType = `.${file.name.split('.').pop()?.toLowerCase()}`;
@@ -119,14 +119,75 @@ const FileUpload: React.FC<FileUploadProps> = ({
     }
 
     setUploadStatus('uploading');
-    // Simula upload
-    setTimeout(() => {
+    
+    try {
+      // Upload file temporaneo per enrollment
+      await uploadTemporaryFile(file, documentType);
       setUploadStatus('success');
       onChange(file);
-    }, 1000);
+    } catch (error) {
+      console.error('Error uploading temporary file:', error);
+      setUploadStatus('error');
+    }
+  };
+
+  // Function to upload file temporarily and save in localStorage
+  const uploadTemporaryFile = async (file: File, docType: string): Promise<void> => {
+    const formData = new FormData();
+    formData.append('document', file);
+    formData.append('type', docType);
+    
+    // Get or create temp user ID for tracking
+    const tempUserId = localStorage.getItem('tempUserId') || `temp_${Date.now()}`;
+    formData.append('tempUserId', tempUserId);
+    localStorage.setItem('tempUserId', tempUserId);
+    
+    const response = await fetch('/api/document-upload/temp', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      throw new Error('Upload failed');
+    }
+
+    const result = await response.json();
+    
+    // Save to tempDocuments localStorage
+    const tempDoc = {
+      id: result.document?.id || Date.now().toString(),
+      type: docType,
+      originalFileName: file.name,
+      fileName: result.document?.fileName || file.name,
+      filePath: result.document?.filePath || result.filePath,
+      fileSize: file.size,
+      mimeType: file.type,
+      uploadedAt: new Date().toISOString()
+    };
+
+    // Get existing tempDocuments
+    const existingDocs = JSON.parse(localStorage.getItem('tempDocuments') || '[]');
+    
+    // Remove any existing document of same type
+    const filteredDocs = existingDocs.filter((doc: any) => doc.type !== docType);
+    
+    // Add new document
+    filteredDocs.push(tempDoc);
+    
+    // Save back to localStorage
+    localStorage.setItem('tempDocuments', JSON.stringify(filteredDocs));
+    
+    console.log('📁 Document saved to tempDocuments:', tempDoc);
   };
 
   const removeFile = () => {
+    // Remove from tempDocuments localStorage
+    const existingDocs = JSON.parse(localStorage.getItem('tempDocuments') || '[]');
+    const filteredDocs = existingDocs.filter((doc: any) => doc.type !== documentType);
+    localStorage.setItem('tempDocuments', JSON.stringify(filteredDocs));
+    
+    console.log('📁 Document removed from tempDocuments:', documentType);
+    
     onChange(null);
     setUploadStatus('idle');
   };
@@ -313,43 +374,9 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
   // Auto-save when files change - removed to prevent infinite loop
   // The onChange is now handled directly in handleFileChange
 
-  const handleFileChange = useCallback(async (fieldName: string, file: File | null) => {
-    if (file) {
-      try {
-        // Upload temporaneo per l'iscrizione
-        const formData = new FormData();
-        formData.append('document', file);
-        formData.append('type', fieldName);
-        
-        const tempUserId = localStorage.getItem('tempUserId') || `temp_${Date.now()}`;
-        formData.append('tempUserId', tempUserId);
-        localStorage.setItem('tempUserId', tempUserId);
-
-        const response = await fetch('/api/document-upload/temp', {
-          method: 'POST',
-          body: formData
-        });
-
-        if (!response.ok) {
-          throw new Error('Errore nel caricamento del documento');
-        }
-
-        const result = await response.json();
-        
-        // Salva informazioni del documento temporaneo
-        const tempDocuments = JSON.parse(localStorage.getItem('tempDocuments') || '[]');
-        // Remove any existing document of the same type
-        const filteredDocs = tempDocuments.filter((doc: any) => doc.type !== fieldName);
-        filteredDocs.push(result.document);
-        localStorage.setItem('tempDocuments', JSON.stringify(filteredDocs));
-        
-        console.log(`✅ Document ${file.name} uploaded temporarily for field ${fieldName}`);
-        
-      } catch (error) {
-        console.error('Document upload error:', error);
-        // Still proceed with local file handling even if upload fails
-      }
-    }
+  const handleFileChange = useCallback((fieldName: string, file: File | null) => {
+    // Note: The actual file upload happens in the FileUpload component's handleFile method
+    // which calls uploadTemporaryFile. Here we just update the local state.
     
     const updatedFiles = { ...files, [fieldName]: file };
     setFiles(updatedFiles);

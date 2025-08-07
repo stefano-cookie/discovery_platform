@@ -181,8 +181,7 @@ router.get('/registrations/:registrationId/documents', authenticate, requireRole
         partnerId 
       },
       include: {
-        documents: true,      // Legacy documents (dove sono i nostri)
-        userDocuments: true,  // New document system
+        userDocuments: true,  // Unified document system
         offer: true
       }
     });
@@ -197,7 +196,6 @@ router.get('/registrations/:registrationId/documents', authenticate, requireRole
     });
 
     console.log(`📄 Partner documents check for registration ${registrationId}:`);
-    console.log(`- Legacy documents: ${registration.documents.length}`);
     console.log(`- UserDocuments from registration: ${registration.userDocuments.length}`);
     console.log(`- UserDocuments from user: ${userDocuments.length}`);
 
@@ -309,7 +307,7 @@ router.get('/registrations/:registrationId/documents', authenticate, requireRole
         isVerified: doc.status === 'APPROVED',
         source: 'UserDocument'
       })),
-      // UserDocuments from registration (with enum types)  
+      // UserDocuments from registration (unified document system)
       ...registration.userDocuments.map(doc => ({
         id: doc.id,
         type: doc.type,
@@ -318,32 +316,7 @@ router.get('/registrations/:registrationId/documents', authenticate, requireRole
         uploadedAt: doc.uploadedAt,
         isVerified: doc.status === 'APPROVED',
         source: 'UserDocument-Registration'
-      })),
-      // Legacy documents from registration (with string types - need mapping)
-      ...registration.documents.map(doc => {
-        // Map string types to enum types
-        const typeMapping: { [key: string]: string } = {
-          'cartaIdentita': 'CARTA_IDENTITA',
-          'certificatoTriennale': 'CERTIFICATO_TRIENNALE',
-          'certificatoMagistrale': 'CERTIFICATO_MAGISTRALE',
-          'pianoStudioTriennale': 'PIANO_STUDIO_TRIENNALE',
-          'pianoStudioMagistrale': 'PIANO_STUDIO_MAGISTRALE',
-          'certificatoMedico': 'CERTIFICATO_MEDICO',
-          'certificatoNascita': 'CERTIFICATO_NASCITA',
-          'diplomoLaurea': 'DIPLOMA_LAUREA',
-          'pergamenaLaurea': 'PERGAMENA_LAUREA'
-        };
-        
-        return {
-          id: doc.id,
-          type: typeMapping[doc.type] || doc.type.toUpperCase(),
-          fileName: doc.fileName,
-          filePath: doc.filePath,
-          uploadedAt: doc.uploadedAt,
-          isVerified: false, // Legacy documents don't have verification status
-          source: 'Document-Legacy'
-        };
-      })
+      }))
     ];
 
     console.log(`📄 All documents found: ${allDocuments.map(d => `${d.fileName} (${d.type}, ${d.source})`).join(', ')}`);
@@ -1000,7 +973,7 @@ router.get('/registrations/:registrationId', authenticate, requireRole(['PARTNER
           include: { course: true }
         },
         payments: true,
-        documents: true
+        userDocuments: true
       }
     });
 
@@ -1027,7 +1000,7 @@ router.get('/registrations/:registrationId', authenticate, requireRole(['PARTNER
         course: registration.offer?.course
       },
       payments: registration.payments,
-      documents: registration.documents
+      userDocuments: registration.userDocuments
     });
   } catch (error) {
     console.error('Get registration details error:', error);
@@ -1452,22 +1425,7 @@ router.get('/users/:userId/documents/:documentId/download', authenticate, requir
       filePath = userDocument.url;
       fileName = userDocument.originalName;
     } else {
-      // If not found in UserDocument, try Document table (legacy documents from registrations)
-      const legacyDoc = await prisma.document.findFirst({
-        where: {
-          id: documentId,
-          registration: {
-            userId,
-            partnerId // Ensure document belongs to user's registration with this partner
-          }
-        }
-      });
-      
-      if (legacyDoc) {
-        documentSource = 'Document';
-        filePath = legacyDoc.filePath;
-        fileName = legacyDoc.fileName;
-      }
+      // Document not found - legacy Document table no longer used
     }
 
     if (!filePath || !fileName) {

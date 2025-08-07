@@ -302,6 +302,13 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
         laureaUniversitaTriennale: offerInfo?.offerType === 'CERTIFICATION' ? undefined : formData.laureaUniversitaTriennale,
         laureaDataTriennale: offerInfo?.offerType === 'CERTIFICATION' ? undefined : formData.laureaDataTriennale,
         
+        // Diploma Superiori - required for TFA Romania
+        diplomaData: offerInfo?.offerType === 'CERTIFICATION' ? undefined : formData.diplomaData,
+        diplomaCitta: offerInfo?.offerType === 'CERTIFICATION' ? undefined : formData.diplomaCitta,
+        diplomaProvincia: offerInfo?.offerType === 'CERTIFICATION' ? undefined : formData.diplomaProvincia,
+        diplomaIstituto: offerInfo?.offerType === 'CERTIFICATION' ? undefined : formData.diplomaIstituto,
+        diplomaVoto: offerInfo?.offerType === 'CERTIFICATION' ? undefined : formData.diplomaVoto,
+        
         // Professione - only for TFA Romania
         tipoProfessione: offerInfo?.offerType === 'CERTIFICATION' ? 'Non specificato' : (formData.tipoProfessione || 'Non specificato'),
         scuolaDenominazione: offerInfo?.offerType === 'CERTIFICATION' ? undefined : formData.scuolaDenominazione,
@@ -337,7 +344,7 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
         pergamenaLaurea: formData.pergamenaLaurea,
         
         // Add temporary documents for server processing (mapped to backend format)
-        documents: (() => {
+        tempDocuments: (() => {
           try {
             const tempDocuments = localStorage.getItem('tempDocuments');
             const docs = tempDocuments ? JSON.parse(tempDocuments) : [];
@@ -345,8 +352,10 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
             
             // Map temporary documents to format expected by backend
             const mappedDocs = docs.map((doc: any) => ({
-              fileName: doc.originalFileName, // Backend expects fileName
+              fileName: doc.fileName, // Use actual fileName not originalFileName for temp file
+              originalFileName: doc.originalFileName,
               url: doc.filePath, // Backend expects url (path to file)
+              filePath: doc.filePath, // Include filePath as well for backward compatibility
               type: doc.type,
               fileSize: doc.fileSize,
               mimeType: doc.mimeType
@@ -373,7 +382,7 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
         diplomoLaurea: !!registrationPayload.diplomoLaurea,
         pergamenaLaurea: !!registrationPayload.pergamenaLaurea
       });
-      console.log('📄 Temp documents count:', registrationPayload.documents.length);
+      console.log('📄 Temp documents count:', registrationPayload.tempDocuments.length);
       
       // Invia i dati al server - scegli l'endpoint corretto
       let response;
@@ -897,6 +906,45 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
                       <span className="font-medium text-gray-500">Data Conseguimento:</span>
                       <p className="text-gray-900">{getCompleteData('laureaDataTriennale')}</p>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Diploma Superiori - mostra se ci sono dati diploma */}
+              {(getCompleteData('diplomaData') || getCompleteData('diplomaCitta') || getCompleteData('diplomaIstituto')) && (
+                <div className="border-t pt-4">
+                  <h5 className="text-sm font-semibold text-gray-800 mb-2">Diploma di Scuola Superiore</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    {getCompleteData('diplomaData') && (
+                      <div>
+                        <span className="font-medium text-gray-500">Data Conseguimento:</span>
+                        <p className="text-gray-900">{getCompleteData('diplomaData')}</p>
+                      </div>
+                    )}
+                    {getCompleteData('diplomaIstituto') && (
+                      <div>
+                        <span className="font-medium text-gray-500">Istituto:</span>
+                        <p className="text-gray-900">{getCompleteData('diplomaIstituto')}</p>
+                      </div>
+                    )}
+                    {getCompleteData('diplomaCitta') && (
+                      <div>
+                        <span className="font-medium text-gray-500">Città:</span>
+                        <p className="text-gray-900">{getCompleteData('diplomaCitta')}</p>
+                      </div>
+                    )}
+                    {getCompleteData('diplomaProvincia') && (
+                      <div>
+                        <span className="font-medium text-gray-500">Provincia:</span>
+                        <p className="text-gray-900">{getCompleteData('diplomaProvincia')}</p>
+                      </div>
+                    )}
+                    {getCompleteData('diplomaVoto') && (
+                      <div>
+                        <span className="font-medium text-gray-500">Voto:</span>
+                        <p className="text-gray-900">{getCompleteData('diplomaVoto')}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

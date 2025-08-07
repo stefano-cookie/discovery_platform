@@ -52,6 +52,13 @@ const educationBaseSchema = z.object({
   laureaConseguitaTriennale: z.string().optional(),
   laureaUniversitaTriennale: z.string().optional(),
   laureaDataTriennale: z.string().optional(),
+  
+  // Diploma superiori (obbligatorio per TFA)
+  diplomaData: z.string().min(1, 'Data conseguimento diploma richiesta'),
+  diplomaCitta: z.string().min(1, 'Città conseguimento diploma richiesta'),
+  diplomaProvincia: z.string().min(1, 'Provincia conseguimento diploma richiesta'),
+  diplomaIstituto: z.string().min(1, 'Istituto conseguimento diploma richiesto'),
+  diplomaVoto: z.string().min(1, 'Voto diploma richiesto'),
 });
 
 // Step 3: Education - with validation

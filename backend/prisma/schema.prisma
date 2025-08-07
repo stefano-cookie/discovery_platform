@@ -198,6 +198,13 @@ model Registration {
   numeroPergamena         String?
   dataRilascioPergamena   DateTime?
   
+  // Diploma Superiori (obbligatorio per TFA)
+  diplomaData             DateTime?  // Data conseguimento diploma
+  diplomaCitta            String?    // Città conseguimento
+  diplomaProvincia        String?    // Provincia conseguimento
+  diplomaIstituto         String?    // Nome istituto
+  diplomaVoto             String?    // Voto diploma
+  
   // Professione (solo TFA Romania)
   tipoProfessione         String?
   scuolaDenominazione     String?
@@ -241,8 +248,7 @@ model Registration {
   user            User         @relation(fields: [userId], references: [id])
   partner         Partner      @relation(fields: [partnerId], references: [id])
   offer           PartnerOffer? @relation(fields: [partnerOfferId], references: [id])
-  documents       Document[]    // Legacy documents
-  userDocuments   UserDocument[] // New document system
+  userDocuments   UserDocument[] // Unified document system
   payments        Payment[]
   deadlines       PaymentDeadline[]
   couponUses      CouponUse[]
@@ -407,17 +413,7 @@ model DocumentTypeConfig {
   updatedAt         DateTime     @updatedAt
 }
 
-// Legacy Document model - will be deprecated
-model Document {
-  id              String   @id @default(uuid())
-  registrationId  String
-  type            String
-  fileName        String
-  filePath        String
-  uploadedAt      DateTime @default(now())
-  
-  registration    Registration @relation(fields: [registrationId], references: [id])
-}
+// Legacy Document model removed - replaced by UserDocument
 
 model Payment {
   id              String   @id @default(uuid())

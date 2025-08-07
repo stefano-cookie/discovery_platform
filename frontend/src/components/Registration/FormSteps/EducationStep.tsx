@@ -256,6 +256,63 @@ const EducationStep: React.FC<EducationStepProps> = ({ data, onNext, onChange })
         </div>
       )}
 
+      {/* Sezione Diploma Superiori */}
+      <div className="mt-8">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Diploma di Scuola Superiore</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <Input
+              label="Data Conseguimento Diploma *"
+              type="date"
+              {...register('diplomaData')}
+              error={errors.diplomaData?.message}
+            />
+          </div>
+          
+          <div>
+            <Input
+              label="Voto Diploma *"
+              type="text"
+              {...register('diplomaVoto')}
+              error={errors.diplomaVoto?.message}
+              placeholder="es. 100/100, 60/60, ecc."
+            />
+          </div>
+
+          <div>
+            <Input
+              label="Città Conseguimento *"
+              type="text"
+              {...register('diplomaCitta')}
+              error={errors.diplomaCitta?.message}
+              placeholder="es. Roma"
+            />
+          </div>
+
+          <div>
+            <Input
+              label="Provincia *"
+              type="text"
+              {...register('diplomaProvincia')}
+              error={errors.diplomaProvincia?.message}
+              placeholder="es. RM"
+              maxLength={2}
+              style={{ textTransform: 'uppercase' }}
+            />
+          </div>
+
+          <div className="md:col-span-2">
+            <Input
+              label="Nome Istituto *"
+              type="text"
+              {...register('diplomaIstituto')}
+              error={errors.diplomaIstituto?.message}
+              placeholder="es. Liceo Classico Giuseppe Garibaldi"
+            />
+          </div>
+        </div>
+      </div>
+
       <div className="mt-8">
         <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
           <div className="flex items-center">
