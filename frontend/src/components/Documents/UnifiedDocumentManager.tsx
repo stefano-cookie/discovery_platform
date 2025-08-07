@@ -185,7 +185,8 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
         endpoint = `/user/documents/${doc.id}/download`;
       }
 
-      const response = await fetch(`http://localhost:3001/api${endpoint}`, {
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -211,7 +212,8 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
         endpoint = `/user/documents/${doc.id}/download`;
       }
 
-      const response = await fetch(`http://localhost:3001/api${endpoint}`, {
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
