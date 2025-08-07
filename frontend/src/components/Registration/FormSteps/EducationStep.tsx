@@ -41,7 +41,14 @@ const EducationStep: React.FC<EducationStepProps> = ({ data, onNext, onChange })
     if (selectedDegreeType && onChange) {
       onChange({ tipoLaurea: selectedDegreeType });
     }
-  }, [selectedDegreeType, onChange]);
+    // Set tipoLaureaTriennale to "Triennale" automatically when Magistrale is selected
+    if (selectedDegreeType === 'Magistrale') {
+      setValue('tipoLaureaTriennale', 'Triennale');
+      if (onChange) {
+        onChange({ tipoLaureaTriennale: 'Triennale' });
+      }
+    }
+  }, [selectedDegreeType, onChange, setValue]);
 
   // Local state to handle course selection (needed for custom onChange)
   const [selectedCourse, setSelectedCourse] = useState(data.laureaConseguita || '');
@@ -192,31 +199,6 @@ const EducationStep: React.FC<EducationStepProps> = ({ data, onNext, onChange })
         <div className="mt-8">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Laurea Triennale Precedente</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tipo di Laurea Triennale *
-              </label>
-              <select
-                {...register('tipoLaureaTriennale', {
-                  onChange: (e) => {
-                    const value = e.target.value;
-                    setValue('tipoLaureaTriennale', value);
-                    if (onChange) {
-                      onChange({ tipoLaureaTriennale: value });
-                    }
-                  }
-                })}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Seleziona il tipo di laurea triennale</option>
-                <option value="Triennale">Laurea Triennale (L)</option>
-                <option value="Diploma universitario">Diploma Universitario</option>
-                <option value="Altro">Altro</option>
-              </select>
-              {errors.tipoLaureaTriennale && (
-                <p className="mt-1 text-sm text-red-600">{errors.tipoLaureaTriennale.message}</p>
-              )}
-            </div>
 
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">

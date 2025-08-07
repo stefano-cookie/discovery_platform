@@ -886,14 +886,10 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
               </div>
 
               {/* Laurea Triennale - mostrata solo se presente */}
-              {getCompleteData('tipoLaurea') === 'Magistrale' && getCompleteData('tipoLaureaTriennale') && (
+              {getCompleteData('tipoLaurea') === 'Magistrale' && getCompleteData('laureaConseguitaTriennale') && (
                 <div className="border-t pt-4">
                   <h5 className="text-sm font-semibold text-gray-800 mb-2">Laurea Triennale Precedente</h5>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="font-medium text-gray-500">Tipo:</span>
-                      <p className="text-gray-900">{getCompleteData('tipoLaureaTriennale')}</p>
-                    </div>
                     <div>
                       <span className="font-medium text-gray-500">Corso di Laurea:</span>
                       <p className="text-gray-900">{getCompleteData('laureaConseguitaTriennale')}</p>
