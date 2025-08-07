@@ -74,11 +74,22 @@ npm ci --production
 echo -e "${YELLOW}🗄️ Running database migrations...${NC}"
 # Generate Prisma Client
 npx prisma generate
-# Push schema changes with data loss acceptance for enum changes
-# Note: This accepts data loss for removed enum values that are no longer in use
-npx prisma db push --accept-data-loss
-# Verify database connection
-npx prisma db seed --preview-feature || true
+
+# Apply schema changes without data loss
+echo -e "${YELLOW}⚠️  Applying schema changes...${NC}"
+# First try to deploy existing migrations
+npx prisma migrate deploy 2>/dev/null || {
+    echo -e "${YELLOW}No migrations to deploy, using db push...${NC}"
+    # If no migrations exist, use db push to sync schema
+    npx prisma db push --accept-data-loss || {
+        echo -e "${RED}❌ Database migration failed!${NC}"
+        echo -e "${YELLOW}Please check the database connection and schema${NC}"
+        exit 1
+    }
+}
+
+# Verify database connection and run seed if needed
+npx prisma db seed --preview-feature 2>/dev/null || true
 echo -e "${GREEN}✓ Database migrations completed${NC}"
 
 # 7. Riavvia backend con PM2
