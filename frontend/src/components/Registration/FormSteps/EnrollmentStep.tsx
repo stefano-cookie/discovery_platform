@@ -655,8 +655,8 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
                     </div>
                   </label>
 
-                  {/* Payment Schedule Table - shown when plan is selected */}
-                  {selectedPaymentPlan === plan.id && plan.installments > 1 && (
+                  {/* Payment Schedule Table - shown when plan is selected - NON mostrare per piano personalizzato */}
+                  {selectedPaymentPlan === plan.id && plan.installments > 1 && !plan.useCustomSchedule && (
                     <div className="ml-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                       <h5 className="text-sm font-semibold text-blue-900 mb-3 flex items-center">
                         <svg className="w-4 h-4 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -709,6 +709,24 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
                               ))}
                             </tbody>
                           </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Messaggio informativo per piani personalizzati */}
+                  {selectedPaymentPlan === plan.id && plan.useCustomSchedule && (
+                    <div className="ml-6 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                      <div className="flex items-start">
+                        <svg className="w-5 h-5 text-indigo-600 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                        <div>
+                          <h5 className="text-sm font-semibold text-indigo-900 mb-1">Piano Personalizzato Attivo</h5>
+                          <p className="text-indigo-800 text-sm">
+                            Il calendario e le scadenze specifiche saranno visibili nella tua area riservata dopo il completamento dell'iscrizione. 
+                            Il partner ha configurato un piano di pagamento personalizzato per le tue esigenze.
+                          </p>
                         </div>
                       </div>
                     </div>

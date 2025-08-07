@@ -5,6 +5,8 @@ import ContractPreview from './ContractPreview';
 interface EnrollmentFlowProps {
   status: string;
   registrationId: string;
+  offerType?: string;
+  examDate?: string;
 }
 
 interface FlowStep {
@@ -15,8 +17,11 @@ interface FlowStep {
   status: 'completed' | 'current' | 'pending';
 }
 
-const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId }) => {
+const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId, offerType, examDate }) => {
   const [currentStatus, setCurrentStatus] = useState(status);
+  const [currentExamDate, setCurrentExamDate] = useState(examDate);
+  const [isSettingExamDate, setIsSettingExamDate] = useState(false);
+  const [examDateInput, setExamDateInput] = useState('');
 
   const handleContractUploadSuccess = () => {
     setCurrentStatus('CONTRACT_SIGNED');
@@ -26,14 +31,24 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId 
 
   const handleContractDownload = async () => {
     try {
-      const response = await fetch(`/api/partners/download-contract/${registrationId}`, {
+      // Use correct backend URL
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+      const response = await fetch(`${API_BASE_URL}/partners/download-contract/${registrationId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
       });
 
       if (!response.ok) {
-        throw new Error('Errore durante il download del contratto');
+        // Parse error message from backend
+        let errorMessage = 'Errore durante il download del contratto';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // Response is not JSON, use default message
+        }
+        throw new Error(errorMessage);
       }
 
       const blob = await response.blob();
@@ -46,15 +61,102 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId 
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error: any) {
+      console.error('Contract download error:', error);
       alert('Errore durante il download: ' + error.message);
+    }
+  };
+
+  const handleExamDateSubmit = async () => {
+    if (!examDateInput) return;
+
+    try {
+      setIsSettingExamDate(true);
+      
+      // Call API to update exam date
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+      const response = await fetch(`${API_BASE_URL}/partners/registrations/${registrationId}/exam-date`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ examDate: examDateInput })
+      });
+
+      if (!response.ok) {
+        throw new Error('Errore durante l\'aggiornamento della data esame');
+      }
+
+      setCurrentExamDate(examDateInput);
+      setCurrentStatus('EXAM_REGISTERED');
+      setExamDateInput('');
+      alert('Data esame aggiornata con successo!');
+      
+    } catch (error: any) {
+      console.error('Exam date update error:', error);
+      alert('Errore durante l\'aggiornamento: ' + error.message);
+    } finally {
+      setIsSettingExamDate(false);
     }
   };
   // Definisco gli step del workflow
   const getFlowSteps = (): FlowStep[] => {
+    // Workflow specifico per certificazioni
+    if (offerType === 'CERTIFICATION') {
+      return getCertificationFlowSteps();
+    }
+    
+    // Workflow standard per TFA
+    return getTFAFlowSteps();
+  };
+
+  const getCertificationFlowSteps = (): FlowStep[] => {
     const steps: FlowStep[] = [
       {
         id: 'pending',
         title: 'Iscrizione Completata',
+        description: 'L\'utente ha completato il form di iscrizione',
+        icon: (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        ),
+        status: 'completed'
+      },
+      {
+        id: 'payment',
+        title: 'Pagamento Completato',
+        description: 'Pagamento ricevuto e confermato',
+        icon: (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+          </svg>
+        ),
+        status: currentStatus === 'PENDING' ? 'current' : 
+               ['PAYMENT_COMPLETED', 'EXAM_REGISTERED', 'COMPLETED'].includes(currentStatus) ? 'completed' : 'pending'
+      },
+      {
+        id: 'exam_registered',
+        title: 'Iscritto all\'esame',
+        description: currentExamDate ? `Data esame: ${new Date(currentExamDate).toLocaleDateString('it-IT')}` : 'Partner deve inserire data esame',
+        icon: (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a2 2 0 012-2h2a2 2 0 012 2v4m-6 0V6a2 2 0 012-2h4a2 2 0 012 2v1m-6 0h6m-2 4v2m0 0v2m0-2h2m-2 0H10" />
+          </svg>
+        ),
+        status: currentStatus === 'PAYMENT_COMPLETED' ? 'current' : 
+               ['EXAM_REGISTERED', 'COMPLETED'].includes(currentStatus) ? 'completed' : 'pending'
+      }
+    ];
+
+    return steps;
+  };
+
+  const getTFAFlowSteps = (): FlowStep[] => {
+    const steps: FlowStep[] = [
+      {
+        id: 'pending',
+        title: 'Iscrizione Eseguita',
         description: 'L\'utente ha completato il form di iscrizione',
         icon: (
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -266,6 +368,65 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId 
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Exam Date Management for Certifications */}
+      {offerType === 'CERTIFICATION' && currentStatus === 'PAYMENT_COMPLETED' && (
+        <div className="mt-6 bg-white rounded-xl shadow-sm border p-6">
+          <div className="mb-4">
+            <h4 className="text-lg font-semibold text-gray-900 mb-2">Gestione Data Esame</h4>
+            <p className="text-sm text-gray-600">
+              Il pagamento è stato completato. Inserisci la data dell'esame per completare l'iscrizione.
+            </p>
+          </div>
+
+          <div className="flex items-end space-x-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Data Esame
+              </label>
+              <input
+                type="date"
+                value={examDateInput}
+                onChange={(e) => setExamDateInput(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <button
+              onClick={handleExamDateSubmit}
+              disabled={!examDateInput || isSettingExamDate}
+              className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+            >
+              {isSettingExamDate ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Aggiornando...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Conferma Data
+                </>
+              )}
+            </button>
+          </div>
+
+          {currentExamDate && (
+            <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-sm text-green-800 font-medium">
+                  Data esame confermata: {new Date(currentExamDate).toLocaleDateString('it-IT')}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

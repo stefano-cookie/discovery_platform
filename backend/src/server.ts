@@ -29,18 +29,24 @@ import partnerRoutes from './routes/partner';
 import registrationRoutes from './routes/registration';
 import paymentRoutes from './routes/payment';
 import offerRoutes from './routes/offers';
-import userRoutes from './routes/user';
+import userRoutes from './routes/userClean';
 import courseRoutes from './routes/courses';
 import enrollmentRoutes from './routes/enrollment';
 import offerTypesRoutes from './routes/offerTypes';
 import adminRoutes from './routes/admin';
+import userDocumentRoutes from './routes/userDocuments';
+import documentUploadRoutes from './routes/documentUpload';
+import documentsRoutes from './routes/documents';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/partners', partnerRoutes);
 app.use('/api/registration', registrationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/offers', offerRoutes);
-app.use('/api/user', userRoutes);
+app.use('/api/user/documents', userDocumentRoutes); // More specific route first
+app.use('/api/user', userRoutes); // Clean user routes without old document conflicts
+app.use('/api/documents', documentsRoutes); // New unified documents API
+app.use('/api/document-upload', documentUploadRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/enrollment', enrollmentRoutes);
 app.use('/api/offer-types', offerTypesRoutes);

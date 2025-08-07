@@ -19,7 +19,7 @@ const UserEnrollmentFlow: React.FC<UserEnrollmentFlowProps> = ({ status, registr
     const steps: FlowStep[] = [
       {
         id: 'pending',
-        title: 'Iscrizione Inviata',
+        title: 'Iscrizione Eseguita',
         description: 'Hai completato con successo il form di iscrizione',
         icon: (
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

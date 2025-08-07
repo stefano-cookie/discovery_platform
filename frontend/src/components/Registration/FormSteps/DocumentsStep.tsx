@@ -9,6 +9,7 @@ interface DocumentsStepProps {
   onChange?: (data: Partial<DocumentsForm>) => void;
   templateType?: 'TFA' | 'CERTIFICATION';
   requiredFields?: string[];
+  userId?: string; // Add userId for document uploads
 }
 
 interface FileUploadProps {
@@ -19,6 +20,9 @@ interface FileUploadProps {
   error?: string;
   onChange: (file: File | null) => void;
   value?: File | null;
+  documentType: string; // Add document type for backend uploads
+  userId?: string; // Add userId for backend uploads
+  templateType?: 'TFA' | 'CERTIFICATION';
 }
 
 const FileUpload: React.FC<FileUploadProps> = ({ 
@@ -28,10 +32,42 @@ const FileUpload: React.FC<FileUploadProps> = ({
   required = false, 
   error, 
   onChange, 
-  value 
+  value,
+  documentType,
+  userId,
+  templateType
 }) => {
   const [dragActive, setDragActive] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+
+  // Function to upload file to backend during enrollment
+  const uploadFileToBackend = async (file: File): Promise<void> => {
+    if (!userId) {
+      console.warn('No userId provided for document upload');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('document', file);
+    formData.append('userId', userId);
+    formData.append('documentType', documentType);
+    if (templateType) {
+      formData.append('templateType', templateType);
+    }
+
+    const response = await fetch('/api/registration/upload-document', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Upload failed');
+    }
+
+    const result = await response.json();
+    console.log('Document uploaded successfully:', result);
+  };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -60,7 +96,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
     }
   };
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     // Validazione tipo file
     const validTypes = accept.split(',').map(type => type.trim());
     const fileType = `.${file.name.split('.').pop()?.toLowerCase()}`;
@@ -83,14 +119,75 @@ const FileUpload: React.FC<FileUploadProps> = ({
     }
 
     setUploadStatus('uploading');
-    // Simula upload
-    setTimeout(() => {
+    
+    try {
+      // Upload file temporaneo per enrollment
+      await uploadTemporaryFile(file, documentType);
       setUploadStatus('success');
       onChange(file);
-    }, 1000);
+    } catch (error) {
+      console.error('Error uploading temporary file:', error);
+      setUploadStatus('error');
+    }
+  };
+
+  // Function to upload file temporarily and save in localStorage
+  const uploadTemporaryFile = async (file: File, docType: string): Promise<void> => {
+    const formData = new FormData();
+    formData.append('document', file);
+    formData.append('type', docType);
+    
+    // Get or create temp user ID for tracking
+    const tempUserId = localStorage.getItem('tempUserId') || `temp_${Date.now()}`;
+    formData.append('tempUserId', tempUserId);
+    localStorage.setItem('tempUserId', tempUserId);
+    
+    const response = await fetch('/api/document-upload/temp', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      throw new Error('Upload failed');
+    }
+
+    const result = await response.json();
+    
+    // Save to tempDocuments localStorage
+    const tempDoc = {
+      id: result.document?.id || Date.now().toString(),
+      type: docType,
+      originalFileName: file.name,
+      fileName: result.document?.fileName || file.name,
+      filePath: result.document?.filePath || result.filePath,
+      fileSize: file.size,
+      mimeType: file.type,
+      uploadedAt: new Date().toISOString()
+    };
+
+    // Get existing tempDocuments
+    const existingDocs = JSON.parse(localStorage.getItem('tempDocuments') || '[]');
+    
+    // Remove any existing document of same type
+    const filteredDocs = existingDocs.filter((doc: any) => doc.type !== docType);
+    
+    // Add new document
+    filteredDocs.push(tempDoc);
+    
+    // Save back to localStorage
+    localStorage.setItem('tempDocuments', JSON.stringify(filteredDocs));
+    
+    console.log('📁 Document saved to tempDocuments:', tempDoc);
   };
 
   const removeFile = () => {
+    // Remove from tempDocuments localStorage
+    const existingDocs = JSON.parse(localStorage.getItem('tempDocuments') || '[]');
+    const filteredDocs = existingDocs.filter((doc: any) => doc.type !== documentType);
+    localStorage.setItem('tempDocuments', JSON.stringify(filteredDocs));
+    
+    console.log('📁 Document removed from tempDocuments:', documentType);
+    
     onChange(null);
     setUploadStatus('idle');
   };
@@ -176,7 +273,8 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
   onNext, 
   onChange,
   templateType = 'TFA',
-  requiredFields = []
+  requiredFields = [],
+  userId
 }) => {
   // Check if this is additional enrollment and load existing documents
   const isAdditionalEnrollment = localStorage.getItem('registrationFormData') !== null;
@@ -277,6 +375,9 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
   // The onChange is now handled directly in handleFileChange
 
   const handleFileChange = useCallback((fieldName: string, file: File | null) => {
+    // Note: The actual file upload happens in the FileUpload component's handleFile method
+    // which calls uploadTemporaryFile. Here we just update the local state.
+    
     const updatedFiles = { ...files, [fieldName]: file };
     setFiles(updatedFiles);
     previousFilesRef.current = updatedFiles; // Update ref to prevent loops
@@ -377,6 +478,9 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
             value={files.cartaIdentita}
             onChange={(file) => handleFileChange('cartaIdentita', file)}
             error={errors.cartaIdentita?.message as string}
+            documentType="cartaIdentita"
+            userId={userId}
+            templateType={templateType}
           />
 
           {/* Sezione specifica per Certificazioni */}
@@ -396,6 +500,9 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
                   value={files.certificatoMedico}
                   onChange={(file) => handleFileChange('certificatoMedico', file)}
                   error={errors.certificatoMedico?.message as string}
+                  documentType="certificatoMedico"
+                  userId={userId}
+                  templateType={templateType}
                 />
               </div>
             </div>
@@ -419,6 +526,9 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
                     value={files.certificatoTriennale}
                     onChange={(file) => handleFileChange('certificatoTriennale', file)}
                     error={errors.certificatoTriennale?.message as string}
+                    documentType="certificatoTriennale"
+                    userId={userId}
+                    templateType={templateType}
                   />
                   
                   <FileUpload
@@ -428,6 +538,9 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
                     value={files.certificatoMagistrale}
                     onChange={(file) => handleFileChange('certificatoMagistrale', file)}
                     error={errors.certificatoMagistrale?.message as string}
+                    documentType="certificatoMagistrale"
+                    userId={userId}
+                    templateType={templateType}
                   />
                 </div>
               </div>
@@ -448,6 +561,9 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
                     value={files.pianoStudioTriennale}
                     onChange={(file) => handleFileChange('pianoStudioTriennale', file)}
                     error={errors.pianoStudioTriennale?.message as string}
+                    documentType="pianoStudioTriennale"
+                    userId={userId}
+                    templateType={templateType}
                   />
                   
                   <FileUpload
@@ -457,6 +573,9 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
                     value={files.pianoStudioMagistrale}
                     onChange={(file) => handleFileChange('pianoStudioMagistrale', file)}
                     error={errors.pianoStudioMagistrale?.message as string}
+                    documentType="pianoStudioMagistrale"
+                    userId={userId}
+                    templateType={templateType}
                   />
                 </div>
               </div>
@@ -480,6 +599,9 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
                   value={files.certificatoMedico}
                   onChange={(file) => handleFileChange('certificatoMedico', file)}
                   error={errors.certificatoMedico?.message as string}
+                  documentType="certificatoMedico"
+                  userId={userId}
+                  templateType={templateType}
                 />
                 
                 <FileUpload
@@ -489,6 +611,9 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
                   value={files.certificatoNascita}
                   onChange={(file) => handleFileChange('certificatoNascita', file)}
                   error={errors.certificatoNascita?.message as string}
+                  documentType="certificatoNascita"
+                  userId={userId}
+                  templateType={templateType}
                 />
                           
                 <FileUpload
@@ -498,6 +623,9 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
                   value={files.diplomoLaurea}
                   onChange={(file) => handleFileChange('diplomoLaurea', file)}
                   error={errors.diplomoLaurea?.message as string}
+                  documentType="diplomoLaurea"
+                  userId={userId}
+                  templateType={templateType}
                 />
                 
                 <FileUpload
@@ -507,6 +635,9 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
                   value={files.pergamenaLaurea}
                   onChange={(file) => handleFileChange('pergamenaLaurea', file)}
                   error={errors.pergamenaLaurea?.message as string}
+                  documentType="pergamenaLaurea"
+                  userId={userId}
+                  templateType={templateType}
                 />
               </div>
             </div>

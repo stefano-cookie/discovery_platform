@@ -17,6 +17,71 @@ const UserInfo: React.FC<UserInfoProps> = ({ user }) => {
     return new Date(dateString).toLocaleDateString('it-IT');
   };
 
+  const calculatePaymentDeadlines = (enrollmentDate: string, installments: number) => {
+    const enrollment = new Date(enrollmentDate);
+    const deadlines = [];
+
+    if (installments === 1) {
+      // Pagamento unico: 7 giorni da iscrizione
+      const deadline = new Date(enrollment);
+      deadline.setDate(deadline.getDate() + 7);
+      deadlines.push({
+        type: 'Pagamento Unico',
+        date: deadline,
+        amount: user.finalAmount
+      });
+    } else {
+      // Acconto: 7 giorni da iscrizione
+      const downPayment = new Date(enrollment);
+      downPayment.setDate(downPayment.getDate() + 7);
+      
+      const downPaymentAmount = Math.round(user.finalAmount * 0.2); // 20% acconto
+      deadlines.push({
+        type: 'Acconto',
+        date: downPayment,
+        amount: downPaymentAmount
+      });
+
+      // Prima rata: 30 giorni dopo scadenza acconto
+      const firstInstallment = new Date(downPayment);
+      firstInstallment.setDate(firstInstallment.getDate() + 30);
+      
+      const remainingAmount = user.finalAmount - downPaymentAmount;
+      const installmentAmount = Math.round(remainingAmount / (installments - 1));
+      
+      deadlines.push({
+        type: 'Prima Rata',
+        date: firstInstallment,
+        amount: installmentAmount
+      });
+
+      // Rate successive: sempre al 30 del mese
+      for (let i = 2; i < installments; i++) {
+        const nextInstallment = new Date(firstInstallment);
+        nextInstallment.setMonth(nextInstallment.getMonth() + (i - 1));
+        nextInstallment.setDate(30);
+        
+        // Se il 30 non esiste in quel mese, usa l'ultimo giorno del mese
+        if (nextInstallment.getMonth() !== firstInstallment.getMonth() + (i - 1)) {
+          nextInstallment.setDate(0); // Ultimo giorno del mese precedente
+        }
+        
+        const isLast = i === installments - 1;
+        const amount = isLast ? remainingAmount - (installmentAmount * (installments - 2)) : installmentAmount;
+        
+        deadlines.push({
+          type: `${i}° Rata`,
+          date: nextInstallment,
+          amount: amount
+        });
+      }
+    }
+
+    return deadlines;
+  };
+
+  const paymentDeadlines = calculatePaymentDeadlines(user.enrollmentDate, user.installments);
+
   return (
     <div className="space-y-6">
       {/* Dati Anagrafici */}
@@ -142,6 +207,67 @@ const UserInfo: React.FC<UserInfoProps> = ({ user }) => {
             </div>
           </div>
         )}
+
+        {/* Scadenze Pagamenti */}
+        <div className="mt-6 border-t pt-4">
+          <h4 className="text-sm font-medium text-gray-900 mb-3">Scadenze Pagamenti</h4>
+          <div className="space-y-3">
+            {paymentDeadlines.map((deadline, index) => {
+              const isOverdue = new Date(deadline.date) < new Date() && user.status !== 'COMPLETED';
+              const isCurrent = new Date(deadline.date) >= new Date() && new Date(deadline.date) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+              
+              return (
+                <div
+                  key={index}
+                  className={`flex items-center justify-between p-3 rounded-lg border ${
+                    isOverdue 
+                      ? 'bg-red-50 border-red-200' 
+                      : isCurrent 
+                        ? 'bg-yellow-50 border-yellow-200' 
+                        : 'bg-gray-50 border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 ${
+                      isOverdue 
+                        ? 'bg-red-100 text-red-600' 
+                        : isCurrent 
+                          ? 'bg-yellow-100 text-yellow-600' 
+                          : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {index + 1}
+                    </div>
+                    <div>
+                      <p className={`text-sm font-medium ${
+                        isOverdue ? 'text-red-900' : isCurrent ? 'text-yellow-900' : 'text-gray-900'
+                      }`}>
+                        {deadline.type}
+                      </p>
+                      <p className={`text-xs ${
+                        isOverdue ? 'text-red-600' : isCurrent ? 'text-yellow-600' : 'text-gray-600'
+                      }`}>
+                        Scadenza: {formatDate(deadline.date.toISOString())}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-sm font-semibold ${
+                      isOverdue ? 'text-red-900' : isCurrent ? 'text-yellow-900' : 'text-gray-900'
+                    }`}>
+                      {formatCurrency(deadline.amount)}
+                    </p>
+                    {isOverdue && (
+                      <p className="text-xs text-red-600 font-medium">In ritardo</p>
+                    )}
+                    {isCurrent && (
+                      <p className="text-xs text-yellow-600 font-medium">In scadenza</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );

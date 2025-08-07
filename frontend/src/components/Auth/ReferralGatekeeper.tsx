@@ -42,12 +42,28 @@ const ReferralGatekeeper: React.FC<ReferralGatekeeperProps> = ({
       console.log('Referral validation result:', referralData);
       setReferralInfo(referralData);
 
-      // Controlla se arriva da verifica email
+      // Controlla se arriva da verifica email o token sicuro
       const urlParams = new URLSearchParams(location.search);
       const emailVerified = urlParams.get('emailVerified');
       const email = urlParams.get('email');
+      const verificationCode = urlParams.get('code');
+      const secureToken = urlParams.get('token');
 
-      console.log('URL params:', { emailVerified, email });
+      console.log('URL params:', { emailVerified, email, verificationCode, secureToken });
+
+      // Se c'è un token sicuro, lascia che MultiStepForm lo gestisca
+      if (secureToken && !user) {
+        console.log('Secure token present, letting MultiStepForm handle it:', secureToken);
+        setIsValidating(false);
+        return;
+      }
+
+      // Se c'è un codice di verifica, lascia che MultiStepForm lo gestisca
+      if (verificationCode && !user) {
+        console.log('Verification code present, letting MultiStepForm handle it:', verificationCode);
+        setIsValidating(false);
+        return;
+      }
 
       if (emailVerified === 'true' && email && !user) {
         // Auto-login dopo verifica email
@@ -145,10 +161,12 @@ const ReferralGatekeeper: React.FC<ReferralGatekeeperProps> = ({
     );
   }
 
-  // Controllo prioritario: Utente verificato via email - accesso consentito senza login
+  // Controllo prioritario: Utente verificato via token sicuro o email - accesso consentito senza login
   const urlParams = new URLSearchParams(location.search);
   const emailVerified = urlParams.get('emailVerified');
-  if (emailVerified === 'true') {
+  const secureToken = urlParams.get('token');
+  
+  if (secureToken || emailVerified === 'true') {
     return <>{children}</>;
   }
 

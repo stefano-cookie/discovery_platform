@@ -43,7 +43,7 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
     
     // If requiredFields is passed and only contains nomePadre/nomeMadre, we're in enrollment mode
     if (_requiredFields && _requiredFields.length > 0 && _requiredFields.every(f => ['nomePadre', 'nomeMadre'].includes(f))) {
-      // Enrollment mode - only show padre/madre fields
+      // Enrollment mode - only show padre/madre fields, NEVER show email for security
       shouldShowField = ['nomePadre', 'nomeMadre'].includes(fieldName);
       isRequired = _requiredFields.includes(fieldName);
     } else {
@@ -82,6 +82,7 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
     watch,
     setValue,
     trigger,
+    reset,
     formState: { errors },
   } = useForm<GeneralDataForm>({
     resolver: zodResolver(generalDataSchema),
@@ -97,6 +98,22 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
   const watchedLuogoNascita = watch('luogoNascita');
   const watchedSesso = watch('sesso');
   const watchedCodiceFiscale = watch('codiceFiscale');
+
+  // Special handling for datiFamiliari step (only nomePadre/nomeMadre)
+  useEffect(() => {
+    const isDataFamiliariStep = _requiredFields && _requiredFields.length === 2 && 
+                                _requiredFields.every(f => ['nomePadre', 'nomeMadre'].includes(f));
+    
+    if (isDataFamiliariStep && data) {
+      
+      if (data.nomePadre && data.nomePadre !== watch('nomePadre')) {
+        setValue('nomePadre', data.nomePadre);
+      }
+      if (data.nomeMadre && data.nomeMadre !== watch('nomeMadre')) {
+        setValue('nomeMadre', data.nomeMadre);
+      }
+    }
+  }, [data, _requiredFields, setValue, watch]);
 
   // Auto-generate codice fiscale when data changes
   useEffect(() => {
@@ -181,12 +198,13 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
         if (result.exists && result.user) {
           setExistingUser(result.user);
           
-          // Check if user came from email verification
+          // Check if user came from email verification or secure token
           const urlParams = new URLSearchParams(window.location.search);
           const emailVerified = urlParams.get('emailVerified');
+          const secureToken = urlParams.get('token');
           
-          // Don't show popup if user is logged in OR verified via email
-          if (!currentUser && emailVerified !== 'true') {
+          // Don't show popup if user is logged in OR verified via email OR has secure token
+          if (!currentUser && emailVerified !== 'true' && !secureToken) {
             setEmailValidation({
               isChecking: false,
               exists: true,
@@ -378,30 +396,37 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
       return;
     }
     
-    console.log('Form submission data:', formData); // Debug log
     onNext(formData);
   };
 
+  // Check if we're in enrollment mode (only famiglia fields)
+  const isEnrollmentMode = _requiredFields && _requiredFields.length > 0 && _requiredFields.every(f => ['nomePadre', 'nomeMadre'].includes(f));
+  
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       {/* Pre-populated data notice for additional enrollment */}
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-2">
-          <div className="relative">
-            <Input
-              label="Email *"
-              type="email"
-              {...register('email')}
-              error={errors.email?.message}
-              className={`pr-10 ${
-                emailValidation?.exists && !currentUser
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-                  : emailValidation && !emailValidation.exists && !emailValidation.isChecking
-                    ? 'border-green-300 focus:ring-green-500 focus:border-green-500'
-                    : ''
-              }`}
-            />
+      <div className={isEnrollmentMode 
+        ? "flex flex-col md:flex-row gap-6" 
+        : "grid grid-cols-1 md:grid-cols-2 gap-6"
+      }>
+        {/* Only show email field if it's required for this step */}
+        {getFieldStatus('email').shouldShow && (
+          <div className="space-y-2">
+            <div className="relative">
+              <Input
+                label="Email *"
+                type="email"
+                {...register('email')}
+                error={errors.email?.message}
+                className={`pr-10 ${
+                  emailValidation?.exists && !currentUser
+                    ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                    : emailValidation && !emailValidation.exists && !emailValidation.isChecking
+                      ? 'border-green-300 focus:ring-green-500 focus:border-green-500'
+                      : ''
+                }`}
+              />
             
             {/* Email validation icon */}
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 top-6">
@@ -442,7 +467,8 @@ const GeneralDataStep: React.FC<GeneralDataStepProps> = ({
             </div>
           )}
           
-        </div>
+          </div>
+        )}
 
         {(() => {
           const telefonoStatus = getFieldStatus('telefono');
@@ -623,19 +649,23 @@ Rigenera automaticamente
           return (
             <>
               {padreStatus.shouldShow && (
-                <Input
-                  label="Nome del Padre *"
-                  {...register('nomePadre')}
-                  error={errors.nomePadre?.message}
-                />
+                <div className={isEnrollmentMode ? "flex-1" : ""}>
+                  <Input
+                    label="Nome del Padre *"
+                    {...register('nomePadre')}
+                    error={errors.nomePadre?.message}
+                  />
+                </div>
               )}
               
               {madreStatus.shouldShow && (
-                <Input
-                  label="Nome della Madre *"
-                  {...register('nomeMadre')}
-                  error={errors.nomeMadre?.message}
-                />
+                <div className={isEnrollmentMode ? "flex-1" : ""}>
+                  <Input
+                    label="Nome della Madre *"
+                    {...register('nomeMadre')}
+                    error={errors.nomeMadre?.message}
+                  />
+                </div>
               )}
             </>
           );

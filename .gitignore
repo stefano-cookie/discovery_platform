@@ -37,6 +37,10 @@ uploads/
 
 # Documentation
 CLAUDE.md
+.claude/
+
+# Test files
+test_*.js
 
 # Deployment files (keep only essentials)
 sync-db*.sh

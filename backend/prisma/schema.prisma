@@ -20,6 +20,10 @@ model User {
   lastLoginAt     DateTime?
   createdAt       DateTime @default(now())
   
+  // Codice univoco per accesso sicuro al form iscrizione
+  verificationCode String? @unique
+  codeExpiresAt   DateTime?
+  
   // Partner assignment (permanent association)
   assignedPartnerId String?
   
@@ -29,6 +33,10 @@ model User {
   profile         UserProfile?  // Profilo con dati anagrafici
   registrations   Registration[] // Iscrizioni ai corsi
   documents       UserDocument[] // Repository documenti dell'utente
+  verifiedDocuments UserDocument[] @relation("DocumentVerifier") // Documenti verificati (per partner)
+  uploadedDocuments UserDocument[] @relation("DocumentUploader") // Documenti caricati
+  documentAuditLogs DocumentAuditLog[] // Log audit documenti
+  documentActions   DocumentActionLog[] @relation("DocumentActions") // Azioni sui documenti
   offerVisibilities OfferVisibility[]
   offerAccess     UserOfferAccess[] // Accesso alle offerte aggiuntive
 }
@@ -190,6 +198,13 @@ model Registration {
   numeroPergamena         String?
   dataRilascioPergamena   DateTime?
   
+  // Diploma Superiori (obbligatorio per TFA)
+  diplomaData             DateTime?  // Data conseguimento diploma
+  diplomaCitta            String?    // Città conseguimento
+  diplomaProvincia        String?    // Provincia conseguimento
+  diplomaIstituto         String?    // Nome istituto
+  diplomaVoto             String?    // Voto diploma
+  
   // Professione (solo TFA Romania)
   tipoProfessione         String?
   scuolaDenominazione     String?
@@ -209,18 +224,31 @@ model Registration {
   contractGeneratedAt     DateTime? // Data generazione template
   contractUploadedAt      DateTime? // Data upload firmato
   
+  // Documenti partner (non visibili a utente)
+  cnredUrl               String?
+  cnredUploadedAt        DateTime?
+  adverintiaUrl          String?
+  adverintiaUploadedAt   DateTime?
+  
+  // Certificazioni - data esame
+  examDate               DateTime? // Per workflow certificazioni
+  examRegisteredBy       String?   // Partner che registra data
+  
   // Date workflow
   dataVerifiedAt      DateTime?
   contractSignedAt    DateTime?
   enrolledAt          DateTime?
+  
+  // Sistema accesso sicuro
+  accessToken         String?   @unique // Token sicuro per accesso form
+  tokenExpiresAt      DateTime? // Scadenza token
   
   createdAt       DateTime @default(now())
   
   user            User         @relation(fields: [userId], references: [id])
   partner         Partner      @relation(fields: [partnerId], references: [id])
   offer           PartnerOffer? @relation(fields: [partnerOfferId], references: [id])
-  documents       Document[]
-  userDocuments   DocumentUsage[]
+  userDocuments   UserDocument[] // Unified document system
   payments        Payment[]
   deadlines       PaymentDeadline[]
   couponUses      CouponUse[]
@@ -252,16 +280,140 @@ enum RegistrationStatus {
   COMPLETED
 }
 
-model Document {
-  id              String   @id @default(uuid())
-  registrationId  String
-  type            String
-  fileName        String
-  filePath        String
-  uploadedAt      DateTime @default(now())
-  
-  registration    Registration @relation(fields: [registrationId], references: [id])
+// Sistema Documenti Unificato - Enterprise Document Management
+enum DocumentStatus {
+  PENDING    // In attesa di verifica
+  APPROVED   // Approvato dal partner
+  REJECTED   // Rifiutato con motivazione
+  EXPIRED    // Scaduto (per doc temporanei)
 }
+
+enum DocumentType {
+  IDENTITY_CARD        // Carta identità
+  PASSPORT            // Passaporto
+  DIPLOMA             // Diploma superiori
+  BACHELOR_DEGREE     // Laurea triennale
+  MASTER_DEGREE       // Laurea magistrale
+  TRANSCRIPT          // Transcript voti
+  CV                  // Curriculum
+  PHOTO               // Foto tessera
+  RESIDENCE_CERT      // Certificato residenza
+  BIRTH_CERT          // Certificato nascita
+  CONTRACT_SIGNED     // Contratto firmato
+  MEDICAL_CERT        // Certificato medico
+  TESSERA_SANITARIA   // Tessera sanitaria
+  OTHER               // Altri documenti
+}
+
+enum UploadSource {
+  ENROLLMENT       // Durante iscrizione
+  USER_DASHBOARD   // Da area personale
+  PARTNER_PANEL    // Da pannello partner
+}
+
+model UserDocument {
+  id                String   @id @default(uuid())
+  userId            String
+  registrationId    String?
+  
+  // Tipo e contenuto documento
+  type              DocumentType  // Enum per tipo documento
+  originalName      String        // Nome file originale
+  mimeType          String        // MIME type per anteprima
+  size              Int           // Dimensione in bytes
+  url               String        // Path storage locale
+  signedUrl         String?       // URL firmato temporaneo per download
+  
+  // Gestione approvazione
+  status            DocumentStatus @default(PENDING)
+  verifiedBy        String?       // ID partner che verifica
+  verifiedAt        DateTime?
+  rejectionReason   String?       // Motivo specifico rifiuto
+  rejectionDetails  String?       // Note aggiuntive per utente
+  
+  // Tracking sorgente upload
+  uploadSource      UploadSource  // ENROLLMENT, USER_DASHBOARD, PARTNER_PANEL
+  uploadedBy        String        // ID utente o partner che carica
+  uploadedByRole    UserRole      // USER, PARTNER, ADMIN
+  uploadedAt        DateTime @default(now())
+  
+  // Metadati sicurezza
+  checksum          String?       // Hash SHA-256 per integrità
+  encryptionKey     String?       // Per documenti sensibili
+  expiresAt         DateTime?     // Scadenza documento temporaneo
+  
+  // Notifiche
+  partnerNotifiedAt DateTime?     // Quando partner è stato notificato
+  userNotifiedAt    DateTime?     // Quando utente è stato notificato (per rifiuti)
+  emailSentAt       DateTime?     // Timestamp invio email
+  
+  // Relazioni
+  user              User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  registration      Registration? @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  verifier          User? @relation("DocumentVerifier", fields: [verifiedBy], references: [id])
+  uploader          User @relation("DocumentUploader", fields: [uploadedBy], references: [id])
+  auditLogs         DocumentAuditLog[]
+  actionLogs        DocumentActionLog[]
+  
+  // Indici per performance
+  @@index([userId, status])
+  @@index([registrationId, type])
+  @@index([status, partnerNotifiedAt])
+  @@index([uploadedAt])
+}
+
+model DocumentAuditLog {
+  id             String         @id @default(uuid())
+  documentId     String
+  action         String         // UPLOADED, APPROVED, REJECTED, DELETED, REPLACED
+  performedBy    String
+  previousStatus DocumentStatus?
+  newStatus      DocumentStatus?
+  notes          String?
+  createdAt      DateTime       @default(now())
+  
+  document       UserDocument   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  performer      User           @relation(fields: [performedBy], references: [id], onDelete: Restrict)
+  
+  @@index([documentId])
+  @@index([performedBy])
+  @@index([createdAt])
+}
+
+// Modello per log azioni documenti dettagliato
+model DocumentActionLog {
+  id            String   @id @default(uuid())
+  documentId    String
+  action        String   // UPLOAD, APPROVE, REJECT, DELETE, VIEW, DOWNLOAD
+  performedBy   String
+  performedRole UserRole
+  details       Json?    // Dettagli aggiuntivi azione
+  ipAddress     String?
+  userAgent     String?
+  timestamp     DateTime @default(now())
+  
+  document      UserDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  performer     User @relation("DocumentActions", fields: [performedBy], references: [id])
+  
+  @@index([documentId, timestamp])
+  @@index([performedBy, action])
+}
+
+model DocumentTypeConfig {
+  id                String       @id @default(uuid())
+  type              DocumentType @unique
+  label             String
+  description       String?
+  isRequired        Boolean      @default(false)
+  acceptedMimeTypes String[]     @default(["application/pdf", "image/jpeg", "image/png"])
+  maxFileSize       Int          @default(10485760) // 10MB
+  isActive          Boolean      @default(true)
+  sortOrder         Int          @default(0)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+}
+
+// Legacy Document model removed - replaced by UserDocument
 
 model Payment {
   id              String   @id @default(uuid())
@@ -301,40 +453,6 @@ model CouponUse {
   registration    Registration @relation(fields: [registrationId], references: [id])
 }
 
-model UserDocument {
-  id              String   @id @default(uuid())
-  userId          String
-  type            DocumentType
-  fileName        String
-  filePath        String
-  isVerified      Boolean  @default(false)
-  uploadedAt      DateTime @default(now())
-  
-  user            User     @relation(fields: [userId], references: [id])
-  registrations   DocumentUsage[]
-}
-
-enum DocumentType {
-  CARTA_IDENTITA
-  TESSERA_SANITARIA
-  DIPLOMA_LAUREA
-  PERGAMENA_LAUREA
-  DIPLOMA_MATURITA
-  CERTIFICATO_MEDICO
-  CONTRATTO
-  ALTRO
-}
-
-model DocumentUsage {
-  id              String   @id @default(uuid())
-  registrationId  String
-  documentId      String
-  
-  registration    Registration @relation(fields: [registrationId], references: [id])
-  document        UserDocument @relation(fields: [documentId], references: [id])
-  
-  @@unique([registrationId, documentId])
-}
 
 model ChatConversation {
   id              String   @id @default(uuid())

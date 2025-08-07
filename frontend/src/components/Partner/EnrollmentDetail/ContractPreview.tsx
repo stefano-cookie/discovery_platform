@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+import 'react-pdf/dist/Page/TextLayer.css';
 
-// Configure PDF.js worker - Use bundled worker from node_modules
-pdfjs.GlobalWorkerOptions.workerSrc = `${process.env.PUBLIC_URL}/pdf.worker.min.js`;
+// Configure PDF.js worker - Use local worker file with fallback
+if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+  pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+}
 
 interface ContractPreviewProps {
   registrationId: string;
@@ -21,7 +25,7 @@ const ContractPreview: React.FC<ContractPreviewProps> = ({ registrationId, onDow
     setError(null);
 
     try {
-      const response = await fetch(`/api/partners/download-contract/${registrationId}`, {
+      const response = await fetch(`/api/partners/preview-contract/${registrationId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
@@ -81,9 +85,21 @@ const ContractPreview: React.FC<ContractPreviewProps> = ({ registrationId, onDow
           <Document
             file={previewUrl}
             onLoadSuccess={onDocumentLoadSuccess}
+            onLoadError={(error) => {
+              console.error('PDF load error:', error);
+              setError('Errore nel caricamento del PDF. Prova a scaricare il file.');
+            }}
             loading={
               <div className="flex items-center justify-center p-8">
                 <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            }
+            error={
+              <div className="flex items-center justify-center p-8">
+                <div className="text-center">
+                  <div className="text-red-600 mb-2">⚠️ Errore caricamento PDF</div>
+                  <p className="text-sm text-gray-600">Prova a scaricare il contratto</p>
+                </div>
               </div>
             }
           >
@@ -94,6 +110,9 @@ const ContractPreview: React.FC<ContractPreviewProps> = ({ registrationId, onDow
                   width={400}
                   renderTextLayer={false}
                   renderAnnotationLayer={false}
+                  onRenderError={(error) => {
+                    console.error(`Error rendering page ${index + 1}:`, error);
+                  }}
                 />
               </div>
             ))}

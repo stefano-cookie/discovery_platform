@@ -15,12 +15,58 @@ interface UseMultiStepFormOptions {
 
 export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
   const { referralCode, initialData, stepConfig } = options;
-  const [currentStep, setCurrentStep] = useState(0);
+  const [currentStep, setCurrentStep] = useState(() => {
+    // Restore saved step, but only if we have saved form data
+    try {
+      const savedFormData = localStorage.getItem('registrationForm');
+      const savedStep = localStorage.getItem('registrationFormStep');
+      if (savedFormData && savedStep) {
+        const stepNum = parseInt(savedStep, 10);
+        return isNaN(stepNum) ? 0 : stepNum;
+      }
+    } catch (error) {
+      console.warn('Failed to restore current step:', error);
+    }
+    return 0;
+  });
   
   const [formData, setFormData] = useState<Partial<RegistrationData>>(() => {
-    // Always start fresh - no more saved form data loading
-    // Only use initialData passed from props (for authenticated users with profile)
-    const baseData = { ...initialData, referralCode };
+    // Try to restore saved form data first
+    let savedData = {};
+    try {
+      const savedFormData = localStorage.getItem('registrationForm');
+      if (savedFormData) {
+        const parsedData = JSON.parse(savedFormData);
+        // Check if data has expiration and is still valid
+        if (parsedData._expires && parsedData._expires > Date.now()) {
+          const { _timestamp, _expires, ...dataWithoutMeta } = parsedData;
+          savedData = dataWithoutMeta;
+          
+        } else if (!parsedData._expires) {
+          // Old format without expiration, still use it but add expiration
+          const { _timestamp, ...dataWithoutMeta } = parsedData;
+          savedData = dataWithoutMeta;
+          
+          // Re-save with expiration to prevent future issues
+          const dataToSave = {
+            ...dataWithoutMeta,
+            _timestamp: Date.now(),
+            _expires: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+          };
+          localStorage.setItem('registrationForm', JSON.stringify(dataToSave));
+        } else {
+          // Data expired, clear it
+          localStorage.removeItem('registrationForm');
+          localStorage.removeItem('registrationFormFiles');
+          localStorage.removeItem('registrationFormStep');
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to restore form data:', error);
+    }
+    
+    // Merge with initial data (prioritize initialData over saved data for authenticated users)
+    const baseData = { ...savedData, ...initialData, referralCode };
     return baseData || {};
   });
 
@@ -36,9 +82,10 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
     { id: 'riepilogo', title: 'Riepilogo', isValid: false, isCompleted: false },
   ];
 
-  const updateFormData = useCallback((stepData: Partial<RegistrationData>) => {
+  const updateFormData = useCallback((stepData: Partial<RegistrationData> | ((prev: Partial<RegistrationData>) => Partial<RegistrationData>)) => {
     setFormData(prev => {
-      const updated = { ...prev, ...stepData };
+      const updated = typeof stepData === 'function' ? stepData(prev) : { ...prev, ...stepData };
+      
       
       // Separa i file dagli altri dati per il salvataggio
       const { 
@@ -54,8 +101,14 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
         ...otherData 
       } = updated;
       
-      // Salva i dati non-file
-      localStorage.setItem('registrationForm', JSON.stringify(otherData));
+      // Salva i dati non-file con timestamp di scadenza (24 ore)
+      const dataToSave = {
+        ...otherData,
+        _timestamp: Date.now(),
+        _expires: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+      };
+      
+      localStorage.setItem('registrationForm', JSON.stringify(dataToSave));
       
       // Salva informazioni sui file
       const fileInfo = {
@@ -86,17 +139,30 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
   useEffect(() => {
     if (initialData && Object.keys(initialData).length > 0) {
       setFormData(prev => {
-        // Only update if the new data is different from current
-        const hasChanges = Object.keys(initialData).some(key => {
-          const newValue = initialData[key as keyof RegistrationData];
-          const currentValue = prev[key as keyof RegistrationData];
-          return newValue !== currentValue;
-        });
+        // Check if we have existing saved data (user input)
+        const existingUserData = Object.keys(prev).filter(k => 
+          !['_timestamp', '_expires'].includes(k) && 
+          prev[k as keyof RegistrationData] && 
+          prev[k as keyof RegistrationData] !== ''
+        );
         
-        if (hasChanges) {
+        // If we have existing user data, prioritize it over profile data
+        if (existingUserData.length > 0) {
+          // Special handling for nomePadre/nomeMadre - these should never be overwritten by empty profile values
+          const merged = {
+            ...initialData, // Profile data as base
+            ...prev,        // User input has priority
+          };
+          
+          // Ensure nomePadre/nomeMadre from localStorage are preserved
+          if (prev.nomePadre && !merged.nomePadre) merged.nomePadre = prev.nomePadre;
+          if (prev.nomeMadre && !merged.nomeMadre) merged.nomeMadre = prev.nomeMadre;
+          
+          return merged;
+        } else {
+          // No user data, use profile data
           return { ...prev, ...initialData };
         }
-        return prev;
       });
     }
   }, [initialData]);
@@ -271,6 +337,8 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
       if (isStepValid(currentStep)) {
         const newStep = currentStep + 1;
         setCurrentStep(newStep);
+        // Save current step to localStorage
+        localStorage.setItem('registrationFormStep', newStep.toString());
         return true; // Avanzamento riuscito
       } else {
         return false;
@@ -283,6 +351,8 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
     if (currentStep > 0) {
       const newStep = currentStep - 1;
       setCurrentStep(newStep);
+      // Save current step to localStorage
+      localStorage.setItem('registrationFormStep', newStep.toString());
     }
   }, [currentStep]);
 
@@ -294,6 +364,8 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
       // Controlla se è possibile navigare a questo step
       if (canNavigateToStep(step)) {
         setCurrentStep(step);
+        // Save current step to localStorage
+        localStorage.setItem('registrationFormStep', step.toString());
         return true; // Navigazione riuscita
       } else {
         return false;
@@ -317,8 +389,14 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
       ...otherData 
     } = formData;
     
-    // Salva i dati non-file (mantenuto per backup locale)
-    localStorage.setItem('registrationForm', JSON.stringify(otherData));
+    // Salva i dati non-file con timestamp di scadenza (mantenuto per backup locale)
+    const dataToSave = {
+      ...otherData,
+      _timestamp: Date.now(),
+      _expires: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+    };
+    
+    localStorage.setItem('registrationForm', JSON.stringify(dataToSave));
     
     // Salva informazioni sui file (senza il contenuto binario)
     const fileInfo = {
@@ -338,9 +416,10 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
   }, [formData]);
 
   const clearFormData = useCallback(() => {
-    setFormData({});
+setFormData({});
     localStorage.removeItem('registrationForm');
     localStorage.removeItem('registrationFormFiles');
+    localStorage.removeItem('registrationFormStep');
     setCurrentStep(0);
   }, []);
 

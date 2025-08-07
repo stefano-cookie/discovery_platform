@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../../hooks/useAuth';
 import { apiRequest } from '../../../services/api';
 import UserEnrollmentFlow from './UserEnrollmentFlow';
 import UserContractSection from './UserContractSection';
-import DocumentsSection from '../Documents/DocumentsSection';
+import MyDocuments from '../Documents/MyDocuments';
 
 interface UserRegistration {
   id: string;
@@ -42,6 +43,7 @@ const UserEnrollmentDetail: React.FC<UserEnrollmentDetailProps> = ({
   registrationId, 
   onBack 
 }) => {
+  const { user } = useAuth();
   const [registration, setRegistration] = useState<UserRegistration | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -280,16 +282,14 @@ const UserEnrollmentDetail: React.FC<UserEnrollmentDetailProps> = ({
           <UserContractSection registration={registration} />
 
           {/* Documents Section */}
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">I Miei Documenti</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              Gestisci i tuoi documenti che sono visibili al partner per questa e altre iscrizioni.
-            </p>
-            <DocumentsSection onDocumentChange={() => {
-              // Potremmo ricaricare i dati della registrazione se necessario
-              fetchRegistrationDetails();
-            }} />
-          </div>
+          {user && (
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <MyDocuments 
+                userId={user.id} 
+                registrations={registration ? [registration] : []}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -194,6 +194,158 @@ class EmailService {
     `;
   }
 
+  async sendDocumentApprovedEmail(email: string, userName: string, documentType: string): Promise<void> {
+    const mailOptions = {
+      from: this.fromEmail,
+      to: email,
+      subject: 'Documento Approvato - Piattaforma Diamante',
+      html: this.getDocumentApprovedTemplate(userName, documentType),
+      text: `
+        Gentile ${userName},
+        
+        Il tuo documento "${documentType}" è stato approvato con successo.
+        
+        Puoi visualizzare lo stato di tutti i tuoi documenti nella tua area personale.
+        
+        Cordiali saluti,
+        Il team di Piattaforma Diamante
+      `
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log(`✉️ Email di approvazione documento inviata a: ${email}`);
+    } catch (error) {
+      console.error('Errore nell\'invio dell\'email di approvazione:', error);
+      throw error;
+    }
+  }
+
+  async sendDocumentRejectedEmail(
+    email: string, 
+    userName: string, 
+    documentType: string, 
+    reason: string,
+    details?: string
+  ): Promise<void> {
+    const mailOptions = {
+      from: this.fromEmail,
+      to: email,
+      subject: 'Documento Non Conforme - Azione Richiesta',
+      html: this.getDocumentRejectedTemplate(userName, documentType, reason, details),
+      text: `
+        Gentile ${userName},
+        
+        Il documento "${documentType}" che hai caricato non è conforme e richiede una tua azione.
+        
+        Motivo del rifiuto: ${reason}
+        ${details ? `\nDettagli aggiuntivi: ${details}` : ''}
+        
+        Per procedere con la tua iscrizione, ti preghiamo di:
+        1. Accedere alla tua area personale
+        2. Caricare nuovamente il documento corretto
+        3. Attendere la verifica del partner
+        
+        Link area personale: ${process.env.FRONTEND_URL}/dashboard
+        
+        Cordiali saluti,
+        Il team di Piattaforma Diamante
+      `
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log(`✉️ Email di rifiuto documento inviata a: ${email}`);
+    } catch (error) {
+      console.error('Errore nell\'invio dell\'email di rifiuto:', error);
+      throw error;
+    }
+  }
+
+  private getDocumentApprovedTemplate(userName: string, documentType: string): string {
+    return `
+    <!DOCTYPE html>
+    <html lang="it">
+    <head>
+        <meta charset="UTF-8">
+        <title>Documento Approvato</title>
+        <style>
+            body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+            .container { background: white; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header { text-align: center; margin-bottom: 30px; }
+            .success { color: #10b981; font-size: 48px; }
+            .title { font-size: 24px; font-weight: bold; margin: 20px 0; }
+            .button { display: inline-block; padding: 12px 24px; background: #3b82f6; color: white; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <div class="success">✓</div>
+                <div class="title">Documento Approvato</div>
+            </div>
+            <p>Gentile ${userName},</p>
+            <p>Il tuo documento <strong>"${documentType}"</strong> è stato approvato con successo.</p>
+            <p>Puoi visualizzare lo stato di tutti i tuoi documenti nella tua area personale.</p>
+            <a href="${process.env.FRONTEND_URL}/dashboard" class="button">Vai all'Area Personale</a>
+            <p>Cordiali saluti,<br>Il team di Piattaforma Diamante</p>
+        </div>
+    </body>
+    </html>
+    `;
+  }
+
+  private getDocumentRejectedTemplate(userName: string, documentType: string, reason: string, details?: string): string {
+    return `
+    <!DOCTYPE html>
+    <html lang="it">
+    <head>
+        <meta charset="UTF-8">
+        <title>Documento Non Conforme</title>
+        <style>
+            body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+            .container { background: white; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header { text-align: center; margin-bottom: 30px; }
+            .warning { color: #ef4444; font-size: 48px; }
+            .title { font-size: 24px; font-weight: bold; margin: 20px 0; color: #ef4444; }
+            .reason-box { background: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; }
+            .steps { background: #f3f4f6; padding: 20px; border-radius: 6px; margin: 20px 0; }
+            .button { display: inline-block; padding: 12px 24px; background: #3b82f6; color: white; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <div class="warning">⚠</div>
+                <div class="title">Documento Non Conforme</div>
+            </div>
+            <p>Gentile ${userName},</p>
+            <p>Il documento <strong>"${documentType}"</strong> che hai caricato non è conforme e richiede una tua azione.</p>
+            
+            <div class="reason-box">
+                <strong>Motivo del rifiuto:</strong><br>
+                ${reason}
+                ${details ? `<br><br><strong>Dettagli aggiuntivi:</strong><br>${details}` : ''}
+            </div>
+            
+            <div class="steps">
+                <strong>Per procedere con la tua iscrizione:</strong>
+                <ol>
+                    <li>Accedi alla tua area personale</li>
+                    <li>Carica nuovamente il documento corretto</li>
+                    <li>Attendi la verifica del partner</li>
+                </ol>
+            </div>
+            
+            <a href="${process.env.FRONTEND_URL}/dashboard" class="button">Vai all'Area Personale</a>
+            
+            <p>Cordiali saluti,<br>Il team di Piattaforma Diamante</p>
+        </div>
+    </body>
+    </html>
+    `;
+  }
+
   async sendRegistrationConfirmation(email: string, registrationData: any): Promise<void> {
     const mailOptions = {
       from: this.fromEmail,
@@ -761,7 +913,6 @@ class EmailService {
         
         Dettagli iscrizione:
         - Corso: ${enrollmentData.courseName}
-        - Tipo: ${enrollmentData.offerType}
         - ID Iscrizione: ${enrollmentData.registrationId}
         - Partner di riferimento: ${enrollmentData.partnerName}
         
@@ -918,10 +1069,6 @@ class EmailService {
                         <span class="info-value">${enrollmentData.courseName}</span>
                     </div>
                     <div class="info-row">
-                        <span class="info-label">Tipologia:</span>
-                        <span class="info-value">${enrollmentData.offerType === 'TFA_ROMANIA' ? 'TFA' : 'Certificazione'}</span>
-                    </div>
-                    <div class="info-row">
                         <span class="info-label">ID Iscrizione:</span>
                         <span class="info-value">${enrollmentData.registrationId}</span>
                     </div>
@@ -963,6 +1110,285 @@ class EmailService {
     </body>
     </html>
     `;
+  }
+
+  // Send document rejection email
+  async sendDocumentRejectionEmail(
+    userEmail: string,
+    userName: string,
+    documentType: string,
+    reason: string,
+    details?: string,
+    registrationId?: string
+  ): Promise<boolean> {
+    try {
+      const template = this.getDocumentRejectionTemplate(userName, documentType, reason, details);
+      
+      const mailOptions = {
+        from: this.fromEmail,
+        to: userEmail,
+        subject: template.subject,
+        html: template.html,
+        text: template.text
+      };
+
+      const result = await this.transporter.sendMail(mailOptions);
+      console.log('Document rejection email sent successfully:', result.messageId);
+
+      if (process.env.NODE_ENV === 'development' && result.previewURL) {
+        console.log('Preview email:', nodemailer.getTestMessageUrl(result));
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Failed to send document rejection email:', error);
+      return false;
+    }
+  }
+
+  // Send document approval email
+  async sendDocumentApprovalEmail(
+    userEmail: string,
+    userName: string,
+    documentType: string
+  ): Promise<boolean> {
+    try {
+      const template = this.getDocumentApprovalTemplate(userName, documentType);
+      
+      const mailOptions = {
+        from: this.fromEmail,
+        to: userEmail,
+        subject: template.subject,
+        html: template.html,
+        text: template.text
+      };
+
+      const result = await this.transporter.sendMail(mailOptions);
+      console.log('Document approval email sent successfully:', result.messageId);
+
+      if (process.env.NODE_ENV === 'development' && result.previewURL) {
+        console.log('Preview email:', nodemailer.getTestMessageUrl(result));
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Failed to send document approval email:', error);
+      return false;
+    }
+  }
+
+  // Document rejection email template
+  private getDocumentRejectionTemplate(
+    userName: string,
+    documentType: string,
+    reason: string,
+    details?: string
+  ) {
+    const documentTypeMap: Record<string, string> = {
+      'IDENTITY_CARD': 'Carta d\'Identità',
+      'PASSPORT': 'Passaporto', 
+      'DIPLOMA': 'Diploma',
+      'BACHELOR_DEGREE': 'Laurea Triennale',
+      'MASTER_DEGREE': 'Laurea Magistrale',
+      'TRANSCRIPT': 'Piano di Studi',
+      'CV': 'Curriculum Vitae',
+      'PHOTO': 'Foto Tessera',
+      'RESIDENCE_CERT': 'Certificato di Residenza',
+      'BIRTH_CERT': 'Certificato di Nascita',
+      'MEDICAL_CERT': 'Certificato Medico',
+      'CONTRACT_SIGNED': 'Contratto Firmato',
+      'OTHER': 'Altro Documento'
+    };
+
+    const documentTypeName = documentTypeMap[documentType] || documentType;
+    const dashboardUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard`;
+
+    const subject = '🚨 Documento non conforme - Azione richiesta';
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #dc3545; color: white; padding: 15px; border-radius: 5px 5px 0 0; }
+          .content { background: #f8f9fa; padding: 20px; border-radius: 0 0 5px 5px; }
+          .button { 
+            display: inline-block; 
+            background: #007bff; 
+            color: white; 
+            padding: 10px 20px; 
+            text-decoration: none; 
+            border-radius: 5px; 
+            margin: 10px 0;
+          }
+          .details { background: #fff3cd; border: 1px solid #ffeaa7; padding: 10px; border-radius: 3px; margin: 10px 0; }
+          .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h2>🚨 Documento non conforme</h2>
+          </div>
+          
+          <div class="content">
+            <p>Gentile <strong>${userName}</strong>,</p>
+            
+            <p>Il documento "<strong>${documentTypeName}</strong>" non è conforme ai requisiti richiesti.</p>
+            
+            <div class="details">
+              <h4>📋 Motivo del rifiuto:</h4>
+              <p><strong>${reason}</strong></p>
+              ${details ? `<p><em>Note aggiuntive:</em> ${details}</p>` : ''}
+            </div>
+            
+            <p>Per procedere con la sua iscrizione, la preghiamo di:</p>
+            <ol>
+              <li>Accedere alla sua area personale</li>
+              <li>Caricare nuovamente il documento corretto</li>
+              <li>Attendere la verifica del partner</li>
+            </ol>
+            
+            <div style="text-align: center;">
+              <a href="${dashboardUrl}" class="button">🔗 Accedi all'Area Personale</a>
+            </div>
+            
+            <p><strong>Documenti richiesti:</strong></p>
+            <ul>
+              <li>Formato: PDF, JPG o PNG</li>
+              <li>Dimensione massima: 10MB</li>
+              <li>Documento leggibile e completo</li>
+              <li>Non scannerizzato da fotocopia</li>
+            </ul>
+          </div>
+          
+          <div class="footer">
+            <p>Questa è una email automatica. Non rispondere a questo messaggio.</p>
+            <p><strong>Team Diamante</strong><br>Piattaforma TFA e Certificazioni</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Documento non conforme - Azione richiesta
+
+Gentile ${userName},
+
+Il documento "${documentTypeName}" non è conforme.
+
+Motivo del rifiuto: ${reason}
+${details ? `Note aggiuntive: ${details}` : ''}
+
+Per procedere:
+1. Accedere all'area personale
+2. Caricare nuovamente il documento corretto  
+3. Attendere la verifica del partner
+
+Link area personale: ${dashboardUrl}
+
+Requisiti documenti:
+- Formato: PDF, JPG o PNG
+- Dimensione massima: 10MB
+- Documento leggibile e completo
+
+Team Diamante
+    `;
+
+    return { subject, html, text };
+  }
+
+  // Document approval email template
+  private getDocumentApprovalTemplate(userName: string, documentType: string) {
+    const documentTypeMap: Record<string, string> = {
+      'IDENTITY_CARD': 'Carta d\'Identità',
+      'PASSPORT': 'Passaporto',
+      'DIPLOMA': 'Diploma', 
+      'BACHELOR_DEGREE': 'Laurea Triennale',
+      'MASTER_DEGREE': 'Laurea Magistrale',
+      'TRANSCRIPT': 'Piano di Studi',
+      'CV': 'Curriculum Vitae',
+      'PHOTO': 'Foto Tessera',
+      'RESIDENCE_CERT': 'Certificato di Residenza',
+      'BIRTH_CERT': 'Certificato di Nascita',
+      'MEDICAL_CERT': 'Certificato Medico',
+      'CONTRACT_SIGNED': 'Contratto Firmato',
+      'OTHER': 'Altro Documento'
+    };
+
+    const documentTypeName = documentTypeMap[documentType] || documentType;
+    const dashboardUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard`;
+
+    const subject = '✅ Documento approvato';
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #28a745; color: white; padding: 15px; border-radius: 5px 5px 0 0; }
+          .content { background: #f8f9fa; padding: 20px; border-radius: 0 0 5px 5px; }
+          .button { 
+            display: inline-block; 
+            background: #007bff; 
+            color: white; 
+            padding: 10px 20px; 
+            text-decoration: none; 
+            border-radius: 5px; 
+            margin: 10px 0;
+          }
+          .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h2>✅ Documento Approvato</h2>
+          </div>
+          
+          <div class="content">
+            <p>Gentile <strong>${userName}</strong>,</p>
+            
+            <p>Il suo documento "<strong>${documentTypeName}</strong>" è stato verificato e <strong>approvato</strong> dal nostro team.</p>
+            
+            <p>Può procedere con il completamento della sua iscrizione accedendo alla sua area personale.</p>
+            
+            <div style="text-align: center;">
+              <a href="${dashboardUrl}" class="button">🔗 Accedi all'Area Personale</a>
+            </div>
+          </div>
+          
+          <div class="footer">
+            <p>Grazie per aver scelto la Piattaforma Diamante.</p>
+            <p><strong>Team Diamante</strong><br>Piattaforma TFA e Certificazioni</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Documento Approvato
+
+Gentile ${userName},
+
+Il suo documento "${documentTypeName}" è stato verificato e approvato.
+
+Può procedere con il completamento della sua iscrizione.
+
+Link area personale: ${dashboardUrl}
+
+Team Diamante
+    `;
+
+    return { subject, html, text };
   }
 
   async testConnection(): Promise<boolean> {

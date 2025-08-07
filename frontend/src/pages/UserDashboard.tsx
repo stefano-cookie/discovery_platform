@@ -3,7 +3,6 @@ import { useAuth } from '../hooks/useAuth';
 import { apiRequest } from '../services/api';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import UserEnrollmentDetail from '../components/User/EnrollmentDetail';
-import DocumentsSection from '../components/User/Documents/DocumentsSection';
 import { getUserStatusDisplay, getStatusColors } from '../utils/statusTranslations';
 
 interface UserRegistration {
@@ -94,11 +93,11 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
   }[]>([]);
   const [coursesMessage, setCoursesMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'registrations' | 'documents' | 'profile'>(
+  const [activeTab, setActiveTab] = useState<'overview' | 'registrations' | 'profile'>(
     () => {
       const tabParam = urlParams.get('tab');
-      if (tabParam && ['overview', 'registrations', 'documents', 'profile'].includes(tabParam)) {
-        return tabParam as 'overview' | 'registrations' | 'documents' | 'profile';
+      if (tabParam && ['overview', 'registrations', 'profile'].includes(tabParam)) {
+        return tabParam as 'overview' | 'registrations' | 'profile';
       }
       return 'overview';
     }
@@ -125,9 +124,17 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
         })
       ]);
 
+      console.log('API Response - Registrations:', registrationsData);
+      console.log('Registrations array:', registrationsData.registrations);
+      
       setRegistrations(registrationsData.registrations || []);
       setProfile(profileResponse.profile);
       setAssignedPartner(profileResponse.assignedPartner);
+      
+      console.log('API Response - Available Courses:', coursesData);
+      console.log('Courses array:', coursesData.courses);
+      console.log('Courses length:', coursesData.courses?.length);
+      
       setAvailableCourses(coursesData.courses || []);
       setCoursesMessage(coursesData.message || null);
     } catch (error) {
@@ -157,6 +164,10 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
 
 
   const getNextPaymentDue = (registration: UserRegistration) => {
+    if (!registration.deadlines || !Array.isArray(registration.deadlines)) {
+      return null;
+    }
+    
     const unpaidDeadlines = registration.deadlines
       .filter(d => !d.isPaid)
       .sort((a, b) => {
@@ -178,10 +189,14 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
     });
   };
 
-  const formatCurrency = (amount: number) => `€${amount.toFixed(2)}`;
+  const formatCurrency = (amount: number | undefined | null) => {
+    const value = Number(amount);
+    const safeValue = isNaN(value) ? 0 : value;
+    return `€${safeValue.toFixed(2)}`;
+  };
   const formatDate = (date: string) => new Date(date).toLocaleDateString('it-IT');
 
-  const handleTabChange = (newTab: 'overview' | 'registrations' | 'documents' | 'profile') => {
+  const handleTabChange = (newTab: 'overview' | 'registrations' | 'profile') => {
     setActiveTab(newTab);
     // Aggiorna l'URL senza ricaricare la pagina
     const url = new URL(window.location.href);
@@ -232,7 +247,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
             {[
               { id: 'overview', label: 'Panoramica' },
               { id: 'registrations', label: 'Le Mie Iscrizioni' },
-              { id: 'documents', label: 'I Miei Documenti' },
               { id: 'profile', label: 'Profilo' }
             ].map((tab) => (
               <button
@@ -318,7 +332,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                   if (!nextPayment || nextPayment.paymentNumber !== 0) return null;
                   
                   // Calculate installment amount dynamically from actual deadlines
-                  const installmentDeadlines = registration.deadlines.filter(d => d.paymentNumber > 0);
+                  const installmentDeadlines = registration.deadlines?.filter(d => d.paymentNumber > 0) || [];
                   const installmentAmount = installmentDeadlines.length > 0 ? Number(installmentDeadlines[0].amount) : 0;
                   
                   return (
@@ -338,10 +352,10 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                           <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
                             <div className="flex items-center justify-between text-sm">
                               <span className="text-green-700">
-                                🎉 Sconto applicato: <span className="font-bold">{formatCurrency(Number(registration.originalAmount) - Number(registration.finalAmount))}</span>
+                                🎉 Sconto applicato: <span className="font-bold">{formatCurrency((registration.originalAmount || 0) - (registration.finalAmount || 0))}</span>
                               </span>
                               <span className="text-green-600">
-                                Da {formatCurrency(Number(registration.originalAmount))} a {formatCurrency(Number(registration.finalAmount))}
+                                Da {formatCurrency(registration.originalAmount)} a {formatCurrency(registration.finalAmount)}
                               </span>
                             </div>
                           </div>
@@ -350,7 +364,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                           <div className="bg-white rounded-lg p-3 border border-blue-100">
                             <div className="flex items-center justify-between">
                               <span className="text-sm text-blue-700">Acconto</span>
-                              <span className="font-bold text-blue-900">{formatCurrency(Number(nextPayment.amount))}</span>
+                              <span className="font-bold text-blue-900">{formatCurrency(nextPayment?.amount)}</span>
                             </div>
                             <div className="text-xs text-blue-600 mt-1">
                               Scadenza: {formatDate(nextPayment.dueDate)}
@@ -370,7 +384,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                           <div className="bg-white rounded-lg p-3 border border-blue-100">
                             <div className="flex items-center justify-between">
                               <span className="text-sm text-blue-700">Totale corso</span>
-                              <span className="font-bold text-blue-900">{formatCurrency(Number(registration.finalAmount))}</span>
+                              <span className="font-bold text-blue-900">{formatCurrency(registration.finalAmount)}</span>
                             </div>
                             <div className="text-xs text-blue-600 mt-1">
                               Importo finale
@@ -407,7 +421,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                               {nextPayment.paymentNumber === 0 ? 'Acconto' : `Rata ${nextPayment.paymentNumber}`} - Scadenza: {formatDate(nextPayment.dueDate)}
                             </p>
                           </div>
-                          <span className="font-bold text-yellow-800">{formatCurrency(Number(nextPayment.amount))}</span>
+                          <span className="font-bold text-yellow-800">{formatCurrency(nextPayment?.amount)}</span>
                         </div>
                       );
                     })}
@@ -416,14 +430,15 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
               </div>
             )}
 
-            {/* Available Courses */}
-            <div className="bg-white rounded-lg shadow">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">Corsi Disponibili</h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  Corsi che il tuo partner ha abilitato per te
-                </p>
-              </div>
+            {/* Available Courses - Only show if there are enabled courses */}
+            {availableCourses.length > 0 && (
+              <div className="bg-white rounded-lg shadow">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <h3 className="text-lg font-medium text-gray-900">Corsi Disponibili</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Corsi aggiuntivi che il tuo partner ha abilitato per te
+                  </p>
+                </div>
               <div className="p-6">
                 {availableCourses.length > 0 ? (
                   <div className="space-y-4">
@@ -444,7 +459,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                             </div>
                             <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
                               <div>
-                                <span className="font-medium">Prezzo:</span> {formatCurrency(course.finalAmount ?? course.totalAmount)}
+                                <span className="font-medium">Prezzo:</span> {formatCurrency(course.finalAmount || course.totalAmount)}
                               </div>
                               <div>
                                 <span className="font-medium">Rate:</span> {course.installments} {course.installments === 1 ? 'rata' : 'rate'}
@@ -538,7 +553,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                   </div>
                 )}
               </div>
-            </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -583,13 +599,13 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                         {Number(registration.originalAmount) !== Number(registration.finalAmount) && (
                           <div className="bg-green-50 border border-green-200 rounded-lg p-2 mb-2">
                             <div className="text-xs text-green-700 font-medium">
-                              🎉 Sconto: {formatCurrency(Number(registration.originalAmount) - Number(registration.finalAmount))}
+                              🎉 Sconto: {formatCurrency((registration.originalAmount || 0) - (registration.finalAmount || 0))}
                             </div>
                           </div>
                         )}
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">Importo totale:</span>
-                          <span className="text-lg font-bold text-gray-900">{formatCurrency(Number(registration.finalAmount))}</span>
+                          <span className="text-lg font-bold text-gray-900">{formatCurrency(registration.finalAmount)}</span>
                         </div>
                       </div>
 
@@ -615,7 +631,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                                 {nextPayment.paymentNumber === 0 ? 'Acconto' : `Rata ${nextPayment.paymentNumber}`}
                               </span>
                               <span className="text-xs font-bold text-yellow-900">
-                                {formatCurrency(Number(nextPayment.amount))}
+                                {formatCurrency(nextPayment?.amount)}
                               </span>
                             </div>
                             <div className="text-xs text-yellow-700 mt-1">
@@ -637,11 +653,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
               </div>
             )}
           </div>
-        )}
-
-        {/* Documents Tab */}
-        {activeTab === 'documents' && (
-          <DocumentsSection onDocumentChange={loadUserData} />
         )}
 
         {/* Profile Tab */}

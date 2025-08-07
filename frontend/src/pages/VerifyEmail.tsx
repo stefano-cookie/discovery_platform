@@ -1,12 +1,30 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth';
+import { apiRequest } from '../services/api';
 
 const VerifyEmail: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
+  
+  const generateSecureAccess = async (email: string, referralCode: string) => {
+    try {
+      const response = await apiRequest<{accessToken: string}>({
+        method: 'POST',
+        url: '/auth/generate-access-token',
+        data: { email, referralCode }
+      });
+      
+      // Redirect al form di iscrizione con token sicuro
+      navigate(`/registration/${referralCode}?token=${response.accessToken}`);
+    } catch (error: any) {
+      console.error('Error generating secure access:', error);
+      // Fallback to login if token generation fails
+      navigate('/login');
+    }
+  };
 
   useEffect(() => {
     const verifyEmailToken = async () => {
@@ -30,9 +48,9 @@ const VerifyEmail: React.FC = () => {
         
         // Dopo 3 secondi redirect
         setTimeout(() => {
-          if (referralCode) {
-            // Redirect al form di iscrizione con auto-login
-            navigate(`/registration/${referralCode}?emailVerified=true&email=${encodeURIComponent(email)}`);
+          if (referralCode && email) {
+            // Genera token sicuro per accesso al form
+            generateSecureAccess(email, referralCode);
           } else {
             // Redirect normale al login
             navigate('/login');
@@ -83,7 +101,7 @@ const VerifyEmail: React.FC = () => {
                 const email = urlParams.get('email');
                 
                 if (referralCode && email) {
-                  navigate(`/registration/${referralCode}?emailVerified=true&email=${encodeURIComponent(email)}`);
+                  generateSecureAccess(email, referralCode);
                 } else {
                   navigate('/login');
                 }

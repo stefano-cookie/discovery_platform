@@ -16,6 +16,8 @@ const ProfessionStep: React.FC<ProfessionStepProps> = ({ data, onNext, onChange 
     handleSubmit,
     watch,
     control,
+    setValue,
+    reset,
     formState: { errors },
   } = useForm<ProfessionForm>({
     resolver: zodResolver(professionSchema),
@@ -29,6 +31,7 @@ const ProfessionStep: React.FC<ProfessionStepProps> = ({ data, onNext, onChange 
     name: 'tipoProfessione',
   });
   
+
   // Ensure tipoProfessione changes are propagated to parent immediately
   useEffect(() => {
     if (selectedProfessionType && onChange) {

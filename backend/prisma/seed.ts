@@ -16,8 +16,7 @@ async function main() {
       password: adminPassword,
       role: 'ADMIN',
       isActive: true,
-      emailVerified: true,
-      emailVerifiedAt: new Date()
+      emailVerified: true
     }
   });
 
@@ -31,8 +30,7 @@ async function main() {
       password: partnerPassword,
       role: 'PARTNER',
       isActive: true,
-      emailVerified: true,
-      emailVerifiedAt: new Date()
+      emailVerified: true
     }
   });
 
