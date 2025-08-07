@@ -133,7 +133,11 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
           {/* Workflow Flow */}
           <div className="bg-white rounded-xl shadow-sm border p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Stato Iscrizione</h2>
-            <EnrollmentFlow status={user.status} registrationId={registrationId} />
+            <EnrollmentFlow 
+              status={user.status} 
+              registrationId={registrationId} 
+              offerType={user.offerType}
+            />
           </div>
 
           {/* Main Content Grid */}

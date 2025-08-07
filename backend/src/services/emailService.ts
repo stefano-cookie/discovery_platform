@@ -913,7 +913,6 @@ class EmailService {
         
         Dettagli iscrizione:
         - Corso: ${enrollmentData.courseName}
-        - Tipo: ${enrollmentData.offerType}
         - ID Iscrizione: ${enrollmentData.registrationId}
         - Partner di riferimento: ${enrollmentData.partnerName}
         
@@ -1068,10 +1067,6 @@ class EmailService {
                     <div class="info-row">
                         <span class="info-label">Corso:</span>
                         <span class="info-value">${enrollmentData.courseName}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Tipologia:</span>
-                        <span class="info-value">${enrollmentData.offerType === 'TFA_ROMANIA' ? 'TFA' : 'Certificazione'}</span>
                     </div>
                     <div class="info-row">
                         <span class="info-label">ID Iscrizione:</span>

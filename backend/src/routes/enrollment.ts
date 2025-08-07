@@ -156,10 +156,11 @@ router.post('/submit', handleAuthOrVerifiedEmail, upload.fields([
     let courseInfo = null;
     let finalAmount = 0;
     let installments = 1;
+    let offer = null;
 
     if (partnerOfferId) {
       // Get offer details
-      const offer = await prisma.partnerOffer.findUnique({
+      offer = await prisma.partnerOffer.findUnique({
         where: { id: partnerOfferId },
         include: { 
           partner: true,
@@ -518,8 +519,8 @@ router.post('/submit', handleAuthOrVerifiedEmail, upload.fields([
         }
       });
 
-      // Use course name directly (it's already the display name)
-      courseDisplayName = courseInfo?.name || 'Corso';
+      // Use partner offer name (template name) instead of course name
+      courseDisplayName = offer?.name || courseInfo?.name || 'Corso';
 
       // Get partner display name
       const partnerName = partnerData?.user?.profile 
