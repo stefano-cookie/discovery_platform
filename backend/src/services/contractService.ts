@@ -113,20 +113,47 @@ export class ContractService {
       console.log('[CONTRACT_SERVICE] Launching Puppeteer...');
       console.log('[CONTRACT_SERVICE] Puppeteer executable path:', puppeteer.executablePath());
       
-      const browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox', 
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process',
-          '--disable-gpu'
-        ]
-      });
-      console.log('[CONTRACT_SERVICE] Puppeteer browser launched successfully');
+      let browser;
+      try {
+        browser = await puppeteer.launch({
+          headless: true,
+          args: [
+            '--no-sandbox', 
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process',
+            '--disable-gpu'
+          ]
+        });
+        console.log('[CONTRACT_SERVICE] Puppeteer browser launched successfully');
+      } catch (puppeteerError) {
+        console.error('[CONTRACT_SERVICE] Puppeteer launch failed:', puppeteerError);
+        console.error('[CONTRACT_SERVICE] Puppeteer error message:', puppeteerError.message);
+        console.error('[CONTRACT_SERVICE] Puppeteer error stack:', puppeteerError.stack);
+        
+        // Prova con opzioni alternative per server headless
+        console.log('[CONTRACT_SERVICE] Trying alternative Puppeteer configuration...');
+        try {
+          browser = await puppeteer.launch({
+            headless: 'new',
+            args: [
+              '--no-sandbox',
+              '--disable-setuid-sandbox', 
+              '--disable-dev-shm-usage',
+              '--disable-gpu',
+              '--no-zygote'
+            ],
+            executablePath: '/usr/bin/chromium-browser' // Percorso comune per Chromium su server Linux
+          });
+          console.log('[CONTRACT_SERVICE] Puppeteer launched with alternative config');
+        } catch (altError) {
+          console.error('[CONTRACT_SERVICE] Alternative launch also failed:', altError.message);
+          throw new Error(`Puppeteer non può essere avviato: ${puppeteerError.message}`);
+        }
+      }
 
       const page = await browser.newPage();
       console.log('[CONTRACT_SERVICE] Setting page content...');
