@@ -349,24 +349,70 @@ export class ContractService {
       // Piano pagamenti di default basato su installments della registrazione
       const today = new Date();
       const installments = registration.installments || 12;
-      const monthlyAmount = totalAmount / installments;
       
-      for (let i = 0; i < installments; i++) {
-        const dueDate = new Date(today);
-        dueDate.setMonth(today.getMonth() + i + 1);
+      // Determina se è TFA Romania per calcolare correttamente le rate
+      const isTfaRomania = registration.offer?.course?.templateType === 'TFA' || 
+                           registration.offer?.offerType === 'TFA_ROMANIA';
+      
+      if (isTfaRomania && installments > 1) {
+        // Per TFA Romania con rate: acconto €1500 + rate sul restante
+        const downPayment = 1500;
+        const installmentableAmount = Math.max(0, totalAmount - downPayment);
+        const monthlyAmount = installmentableAmount / installments;
         
-        // Calcola importo per ultima rata (remainder)
-        let amount = monthlyAmount;
-        if (i === installments - 1) {
-          // Ultima rata: aggiusta per eventuali differenze di arrotondamento
-          const totalPaid = monthlyAmount * (installments - 1);
-          amount = totalAmount - totalPaid;
-        }
+        // Aggiungi l'acconto come primo pagamento (paymentNumber 0)
+        const downPaymentDate = new Date(today);
+        downPaymentDate.setDate(downPaymentDate.getDate() + 7); // 7 giorni dopo registrazione
         
         allPayments.push({
-          amount: amount,
-          dueDate: dueDate
+          amount: downPayment,
+          dueDate: downPaymentDate,
+          paymentNumber: 0
         });
+        
+        // Calcola le rate mensili a partire da 37 giorni dopo la registrazione
+        const baseDate = new Date(today);
+        baseDate.setDate(baseDate.getDate() + 37); // 7 giorni acconto + 30 giorni prima rata
+        
+        for (let i = 0; i < installments; i++) {
+          const dueDate = new Date(baseDate);
+          dueDate.setMonth(dueDate.getMonth() + i);
+          
+          // Calcola importo per ultima rata (remainder)
+          let amount = monthlyAmount;
+          if (i === installments - 1) {
+            // Ultima rata: aggiusta per eventuali differenze di arrotondamento
+            const totalPaid = monthlyAmount * (installments - 1);
+            amount = installmentableAmount - totalPaid;
+          }
+          
+          allPayments.push({
+            amount: amount,
+            dueDate: dueDate,
+            paymentNumber: i + 1
+          });
+        }
+      } else {
+        // Per certificazioni o pagamento unico: usa il calcolo standard
+        const monthlyAmount = totalAmount / installments;
+        
+        for (let i = 0; i < installments; i++) {
+          const dueDate = new Date(today);
+          dueDate.setMonth(today.getMonth() + i + 1);
+          
+          // Calcola importo per ultima rata (remainder)
+          let amount = monthlyAmount;
+          if (i === installments - 1) {
+            // Ultima rata: aggiusta per eventuali differenze di arrotondamento
+            const totalPaid = monthlyAmount * (installments - 1);
+            amount = totalAmount - totalPaid;
+          }
+          
+          allPayments.push({
+            amount: amount,
+            dueDate: dueDate
+          });
+        }
       }
     }
 
@@ -377,8 +423,13 @@ export class ContractService {
       // Layout verticale - un pagamento per riga
       for (let i = 0; i < allPayments.length; i++) {
         const payment = allPayments[i];
+        // Gestisci correttamente la numerazione: paymentNumber 0 = Acconto, altrimenti Rata N
+        const paymentLabel = payment.paymentNumber === 0 ? 'Acconto' : 
+                           payment.paymentNumber ? `Rata ${payment.paymentNumber}` : 
+                           `Rata ${i + 1}`;
+        
         paymentPlan.push({
-          number: (i + 1).toString(),
+          number: paymentLabel,
           amount: `${payment.amount.toFixed(2).replace('.', ',')}`,
           dueDate: new Date(payment.dueDate).toLocaleDateString('it-IT'),
           secondNumber: undefined,
@@ -392,11 +443,23 @@ export class ContractService {
         const firstPayment = allPayments[i];
         const secondPayment = allPayments[i + 1];
         
+        // Gestisci correttamente la numerazione per il primo pagamento
+        const firstLabel = firstPayment.paymentNumber === 0 ? 'Acconto' : 
+                          firstPayment.paymentNumber ? `Rata ${firstPayment.paymentNumber}` : 
+                          `Rata ${i + 1}`;
+        
+        // Gestisci correttamente la numerazione per il secondo pagamento
+        const secondLabel = secondPayment ? (
+          secondPayment.paymentNumber === 0 ? 'Acconto' :
+          secondPayment.paymentNumber ? `Rata ${secondPayment.paymentNumber}` :
+          `Rata ${i + 2}`
+        ) : undefined;
+        
         paymentPlan.push({
-          number: (i + 1).toString(),
+          number: firstLabel,
           amount: `${firstPayment.amount.toFixed(2).replace('.', ',')}`,
           dueDate: new Date(firstPayment.dueDate).toLocaleDateString('it-IT'),
-          secondNumber: secondPayment ? (i + 2).toString() : undefined,
+          secondNumber: secondLabel,
           secondAmount: secondPayment ? `${secondPayment.amount.toFixed(2).replace('.', ',')}` : undefined,
           secondDueDate: secondPayment ? new Date(secondPayment.dueDate).toLocaleDateString('it-IT') : undefined
         });
