@@ -131,14 +131,16 @@ export class ContractService {
         console.log('[CONTRACT_SERVICE] Puppeteer browser launched successfully');
       } catch (puppeteerError) {
         console.error('[CONTRACT_SERVICE] Puppeteer launch failed:', puppeteerError);
-        console.error('[CONTRACT_SERVICE] Puppeteer error message:', puppeteerError.message);
-        console.error('[CONTRACT_SERVICE] Puppeteer error stack:', puppeteerError.stack);
+        const errorMessage = puppeteerError instanceof Error ? puppeteerError.message : String(puppeteerError);
+        const errorStack = puppeteerError instanceof Error ? puppeteerError.stack : 'No stack trace';
+        console.error('[CONTRACT_SERVICE] Puppeteer error message:', errorMessage);
+        console.error('[CONTRACT_SERVICE] Puppeteer error stack:', errorStack);
         
         // Prova con opzioni alternative per server headless
         console.log('[CONTRACT_SERVICE] Trying alternative Puppeteer configuration...');
         try {
           browser = await puppeteer.launch({
-            headless: 'new',
+            headless: true, // Usa true invece di 'new' per compatibilità
             args: [
               '--no-sandbox',
               '--disable-setuid-sandbox', 
@@ -150,8 +152,9 @@ export class ContractService {
           });
           console.log('[CONTRACT_SERVICE] Puppeteer launched with alternative config');
         } catch (altError) {
-          console.error('[CONTRACT_SERVICE] Alternative launch also failed:', altError.message);
-          throw new Error(`Puppeteer non può essere avviato: ${puppeteerError.message}`);
+          const altErrorMessage = altError instanceof Error ? altError.message : String(altError);
+          console.error('[CONTRACT_SERVICE] Alternative launch also failed:', altErrorMessage);
+          throw new Error(`Puppeteer non può essere avviato: ${errorMessage}`);
         }
       }
 
