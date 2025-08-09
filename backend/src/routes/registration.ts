@@ -721,7 +721,7 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
         
         if (installments > 1) {
           // For TFA: down payment is NOT counted as an installment
-          // If installments = 10, it means 1 down payment + 10 monthly installments
+          // Calculate: (total price - down payment) / number of installments
           const amountPerInstallment = installmentableAmount / installments;
           
           if (downPayment > 0) {
@@ -1113,7 +1113,7 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
         
         if (installments > 1) {
           // For TFA: down payment is NOT counted as an installment
-          // If installments = 10, it means 1 down payment + 10 monthly installments
+          // Calculate: (total price - down payment) / number of installments
           const amountPerInstallment = installmentableAmount / installments;
           
           // Create down payment deadline for TFA Romania

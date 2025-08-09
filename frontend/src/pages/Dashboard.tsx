@@ -9,7 +9,6 @@ import CouponManagement from '../components/Partner/CouponManagement';
 import OfferManagement from '../components/Partner/OfferManagement';
 import UserManagement from '../components/Admin/UserManagement';
 import EnrollmentDetail from '../components/Partner/EnrollmentDetail';
-import DocumentManagement from '../components/Partner/DocumentManagement';
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -18,16 +17,15 @@ const Dashboard: React.FC = () => {
   const { registrationId } = useParams();
   
   // Determine active tab from URL
-  const getActiveTabFromPath = (pathname: string): 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'documents' => {
+  const getActiveTabFromPath = (pathname: string): 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' => {
     if (pathname.includes('/users')) return 'users';
     if (pathname.includes('/chat')) return 'chat';
     if (pathname.includes('/coupons')) return 'coupons';
     if (pathname.includes('/offers')) return 'offers';
-    if (pathname.includes('/documents')) return 'documents';
     return 'dashboard';
   };
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'documents'>(
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'chat' | 'coupons' | 'offers'>(
     getActiveTabFromPath(location.pathname)
   );
 
@@ -37,7 +35,7 @@ const Dashboard: React.FC = () => {
   }, [location.pathname]);
 
   // Navigation functions
-  const handleTabChange = (tab: 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'documents') => {
+  const handleTabChange = (tab: 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers') => {
     const basePath = '/dashboard';
     const newPath = tab === 'dashboard' ? basePath : `${basePath}/${tab}`;
     navigate(newPath);
@@ -89,7 +87,6 @@ const Dashboard: React.FC = () => {
                 )}
                 {activeTab === 'coupons' && <CouponManagement />}
                 {activeTab === 'offers' && <OfferManagement />}
-                {activeTab === 'documents' && <DocumentManagement partnerId={user?.id || ''} />}
                 {activeTab === 'chat' && <ChatView />}
               </div>
             </div>
