@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, DocumentType } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import multer from 'multer';
 import path from 'path';
@@ -90,33 +90,16 @@ router.post('/profile-by-email', async (req, res) => {
 
 // Multer configuration for user document uploads
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const folders: Record<string, string> = {
-      // Basic documents
-      CARTA_IDENTITA: 'carte-identita',
-      TESSERA_SANITARIA: 'certificati-medici',
-      
-      // TFA specific documents
-      CERTIFICATO_TRIENNALE: 'lauree',
-      CERTIFICATO_MAGISTRALE: 'lauree',
-      PIANO_STUDIO_TRIENNALE: 'piani-studio',
-      PIANO_STUDIO_MAGISTRALE: 'piani-studio',
-      CERTIFICATO_MEDICO: 'certificati-medici',
-      CERTIFICATO_NASCITA: 'certificati-nascita',
-      
-      // Diplomas
-      DIPLOMA_LAUREA: 'diplomi-laurea',
-      PERGAMENA_LAUREA: 'pergamene-laurea',
-      DIPLOMA_MATURITA: 'diplomi-maturita',
-      
-      // Other
-      CONTRATTO: 'contratti',
-      ALTRO: 'altri'
-    };
+  destination: async (req, file, cb) => {
+    // Use a generic uploads folder since req.body is not available here
+    const uploadDir = path.join(__dirname, '../../uploads/user-documents');
     
-    const docType = req.body.type as string;
-    const folder = folders[docType] || 'altri';
-    cb(null, `uploads/${folder}`);
+    // Ensure directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(file.originalname)}`;
@@ -713,7 +696,7 @@ router.put('/change-password', authenticate, async (req: AuthRequest, res: Respo
 router.post('/documents', authenticate, upload.single('document'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { type } = req.body;
+    const { type, registrationId } = req.body;
     const file = req.file;
     
     if (!userId) {
@@ -728,66 +711,39 @@ router.post('/documents', authenticate, upload.single('document'), async (req: A
       return res.status(400).json({ error: 'Tipo documento non specificato' });
     }
     
-    // Check if document type already exists for user
-    const existingDoc = await prisma.userDocument.findFirst({
-      where: {
+    // Always create a new document, don't overwrite existing ones
+    // This allows users to upload multiple documents of the same type
+    // Store only the relative path
+    const relativePath = file.path;
+    
+    // Create new document
+    const newDoc = await prisma.userDocument.create({
+      data: {
         userId,
-        type: type as any
+        type: type as any,
+        originalName: file.originalname,
+        url: relativePath,
+        size: file.size,
+        mimeType: file.mimetype,
+        status: 'PENDING' as any,
+        uploadSource: 'USER_DASHBOARD' as any,
+        uploadedBy: userId,
+        uploadedByRole: 'USER' as any,
+        ...(registrationId && { registrationId })
       }
     });
     
-    if (existingDoc) {
-      // Update existing document
-      const updatedDoc = await prisma.userDocument.update({
-        where: { id: existingDoc.id },
-        data: {
-          originalName: file.originalname,
-          url: file.path,
-          status: 'PENDING' as any,
-          uploadedAt: new Date()
-        }
-      });
-      
-      return res.json({
-        success: true,
-        document: {
-          id: updatedDoc.id,
-          type: updatedDoc.type,
-          fileName: updatedDoc.originalName,
-          uploadedAt: updatedDoc.uploadedAt,
-          isVerified: updatedDoc.status === 'APPROVED'
-        },
-        message: 'Documento aggiornato con successo'
-      });
-    } else {
-      // Create new document
-      const newDoc = await prisma.userDocument.create({
-        data: {
-          userId,
-          type: type as any,
-          originalName: file.originalname,
-          url: file.path,
-          size: file.size,
-          mimeType: file.mimetype,
-          status: 'PENDING' as any,
-          uploadSource: 'USER_DASHBOARD' as any,
-          uploadedBy: userId,
-          uploadedByRole: 'USER' as any
-        }
-      });
-      
-      return res.json({
-        success: true,
-        document: {
-          id: newDoc.id,
-          type: newDoc.type,
-          fileName: newDoc.originalName,
-          uploadedAt: newDoc.uploadedAt,
-          isVerified: newDoc.status === 'APPROVED'
-        },
-        message: 'Documento caricato con successo'
-      });
-    }
+    return res.json({
+      success: true,
+      document: {
+        id: newDoc.id,
+        type: newDoc.type,
+        fileName: newDoc.originalName,
+        uploadedAt: newDoc.uploadedAt,
+        isVerified: newDoc.status === 'APPROVED'
+      },
+      message: 'Documento caricato con successo'
+    });
     
   } catch (error) {
     console.error('Error uploading document:', error);
@@ -818,8 +774,17 @@ router.delete('/documents/:id', authenticate, async (req: AuthRequest, res: Resp
     
     // Delete file from filesystem
     const fs = require('fs');
+    const path = require('path');
+    
+    // Build full path - handle both absolute and relative paths
+    const filePath = path.isAbsolute(document.url) 
+      ? document.url 
+      : path.join('uploads', document.url);
+    
     try {
-      fs.unlinkSync(document.url);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     } catch (error) {
       console.error('Error deleting file:', error);
     }
@@ -1193,81 +1158,6 @@ const documentUpload = multer({
   }
 });
 
-// Get unified documents - shows documents from all sources
-router.get('/documents/unified', authenticate, async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user!.id;
-    const { registrationId } = req.query;
-
-    // Document types based on template
-    const documentTypes = [
-      { type: 'IDENTITY_CARD', name: 'Carta d\'Identità', description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità' },
-      { type: 'TESSERA_SANITARIA', name: 'Tessera Sanitaria', description: 'Tessera sanitaria o documento che attesti il codice fiscale' },
-      { type: 'BACHELOR_DEGREE', name: 'Certificato Laurea Triennale', description: 'Certificato di laurea triennale o diploma universitario' },
-      { type: 'MASTER_DEGREE', name: 'Certificato Laurea Magistrale', description: 'Certificato di laurea magistrale, specialistica o vecchio ordinamento' },
-      { type: 'TRANSCRIPT', name: 'Piano di Studio Triennale', description: 'Piano di studio della laurea triennale con lista esami sostenuti' },
-      { type: 'TRANSCRIPT_MASTER', name: 'Piano di Studio Magistrale', description: 'Piano di studio della laurea magistrale, specialistica o vecchio ordinamento' },
-      { type: 'MEDICAL_CERT', name: 'Certificato Medico', description: 'Certificato medico attestante la sana e robusta costituzione fisica e psichica' },
-      { type: 'BIRTH_CERT', name: 'Certificato di Nascita', description: 'Certificato di nascita o estratto di nascita dal Comune' },
-      { type: 'DIPLOMA', name: 'Diploma di Laurea', description: 'Diploma di laurea (cartaceo o digitale)' },
-      { type: 'OTHER', name: 'Pergamena di Laurea', description: 'Pergamena di laurea (documento originale)' }
-    ];
-
-    // Get all user documents
-    const whereCondition: any = { userId };
-    if (registrationId) {
-      whereCondition.registrationId = registrationId;
-    }
-
-    const userDocuments = await prisma.userDocument.findMany({
-      where: whereCondition,
-      include: {
-        verifier: {
-          select: { id: true, email: true }
-        }
-      },
-      orderBy: { uploadedAt: 'desc' }
-    });
-
-    // Create unified document structure
-    const documents = documentTypes.map(docType => {
-      const userDoc = userDocuments.find(doc => doc.type === docType.type);
-      
-      return {
-        id: userDoc?.id || `empty-${docType.type}`,
-        type: docType.type,
-        name: docType.name,
-        description: docType.description,
-        uploaded: !!userDoc,
-        fileName: userDoc?.originalName,
-        originalName: userDoc?.originalName,
-        mimeType: userDoc?.mimeType,
-        size: userDoc?.size,
-        uploadedAt: userDoc?.uploadedAt?.toISOString(),
-        documentId: userDoc?.id,
-        status: userDoc?.status,
-        rejectionReason: userDoc?.rejectionReason,
-        rejectionDetails: userDoc?.rejectionDetails,
-        verifiedBy: userDoc?.verifiedBy,
-        verifiedAt: userDoc?.verifiedAt?.toISOString(),
-        uploadSource: userDoc?.uploadSource,
-        isVerified: userDoc?.status === 'APPROVED'
-      };
-    });
-
-    const uploadedCount = documents.filter(doc => doc.uploaded).length;
-    const totalCount = documents.length;
-
-    res.json({ 
-      documents,
-      uploadedCount,
-      totalCount
-    });
-  } catch (error) {
-    console.error('Error getting unified documents:', error);
-    res.status(500).json({ error: 'Errore interno del server' });
-  }
-});
 
 // Upload document to user dashboard
 router.post('/documents/upload', authenticate, documentUpload.single('document'), async (req: AuthRequest, res: Response) => {
@@ -1295,9 +1185,14 @@ router.post('/documents/upload', authenticate, documentUpload.single('document')
 
     if (existingDoc) {
       // Delete old file
+      const path = require('path');
+      const oldFilePath = path.isAbsolute(existingDoc.url) 
+        ? existingDoc.url 
+        : path.join('uploads', existingDoc.url);
+      
       try {
-        if (fs.existsSync(existingDoc.url)) {
-          fs.unlinkSync(existingDoc.url);
+        if (fs.existsSync(oldFilePath)) {
+          fs.unlinkSync(oldFilePath);
         }
       } catch (err) {
         console.error('Error deleting old file:', err);
@@ -1309,6 +1204,9 @@ router.post('/documents/upload', authenticate, documentUpload.single('document')
       });
     }
 
+    // Store only the relative path from project root
+    const relativePath = file.path;
+    
     // Create new document record
     const document = await prisma.userDocument.create({
       data: {
@@ -1318,7 +1216,7 @@ router.post('/documents/upload', authenticate, documentUpload.single('document')
         originalName: file.originalname,
         mimeType: file.mimetype,
         size: file.size,
-        url: file.path,
+        url: relativePath,
         uploadSource: 'USER_DASHBOARD',
         uploadedBy: userId,
         uploadedByRole: 'USER',
@@ -1359,8 +1257,14 @@ router.get('/documents/:id/download', authenticate, async (req: AuthRequest, res
       return res.status(404).json({ error: 'Documento non trovato' });
     }
 
+    // Build full path - handle both absolute and relative paths
+    const filePath = path.isAbsolute(document.url) 
+      ? document.url 
+      : path.join('uploads', document.url);
+    
     // Check if file exists
-    if (!fs.existsSync(document.url)) {
+    if (!fs.existsSync(filePath)) {
+      console.error(`File not found for download: ${filePath}`);
       return res.status(404).json({ error: 'File non trovato sul server' });
     }
 
@@ -1379,6 +1283,166 @@ router.get('/documents/:id/download', authenticate, async (req: AuthRequest, res
     res.setHeader('Content-Disposition', `attachment; filename="${document.originalName}"`);
     res.setHeader('Content-Type', document.mimeType || 'application/octet-stream');
     res.sendFile(path.resolve(document.url));
+  } catch (error) {
+    console.error('Error downloading document:', error);
+    res.status(500).json({ error: 'Errore nel download del documento' });
+  }
+});
+
+// GET /api/user/documents/unified - Get unified documents view for user
+router.get('/documents/unified', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { registrationId } = req.query;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Utente non autenticato' });
+    }
+    
+    // Get registration info if registrationId is provided
+    let registration = null;
+    let courseTemplateType = 'TFA'; // Default
+    
+    if (registrationId && typeof registrationId === 'string') {
+      registration = await prisma.registration.findFirst({
+        where: { 
+          id: registrationId,
+          userId // Ensure registration belongs to this user
+        },
+        include: {
+          offer: {
+            include: {
+              course: true
+            }
+          }
+        }
+      });
+      
+      if (registration) {
+        courseTemplateType = registration.offer?.course?.templateType || 'TFA';
+      }
+    }
+    
+    // Document types based on course template
+    const documentTypes = courseTemplateType === 'CERTIFICATION' ? [
+      { type: 'IDENTITY_CARD', name: 'Carta d\'Identità', description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità' },
+      { type: 'DIPLOMA', name: 'Diploma di Laurea', description: 'Diploma di laurea (cartaceo o digitale)' }
+    ] : [
+      // TFA documents (9 types)
+      { type: 'IDENTITY_CARD', name: 'Carta d\'Identità', description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità' },
+      { type: 'TESSERA_SANITARIA', name: 'Tessera Sanitaria / Codice Fiscale', description: 'Tessera sanitaria o documento che attesti il codice fiscale' },
+      { type: 'BACHELOR_DEGREE', name: 'Certificato Laurea Triennale', description: 'Certificato di laurea triennale o diploma universitario' },
+      { type: 'MASTER_DEGREE', name: 'Certificato Laurea Magistrale', description: 'Certificato di laurea magistrale, specialistica o vecchio ordinamento' },
+      { type: 'TRANSCRIPT', name: 'Piano di Studio', description: 'Piano di studio con lista esami sostenuti' },
+      { type: 'MEDICAL_CERT', name: 'Certificato Medico', description: 'Certificato medico attestante la sana e robusta costituzione fisica e psichica' },
+      { type: 'BIRTH_CERT', name: 'Certificato di Nascita', description: 'Certificato di nascita o estratto di nascita dal Comune' },
+      { type: 'DIPLOMA', name: 'Diploma di Laurea', description: 'Diploma di laurea (cartaceo o digitale)' },
+      { type: 'OTHER', name: 'Altri Documenti', description: 'Altri documenti rilevanti' }
+    ];
+    
+    // Get ALL user documents - no filter by registrationId
+    // This ensures user can see all their documents regardless of where they were uploaded
+    const userDocuments = await prisma.userDocument.findMany({
+      where: { 
+        userId,
+        // Filter only by valid document types for this course template
+        type: {
+          in: documentTypes.map(dt => dt.type) as any
+        }
+      },
+      include: {
+        verifier: {
+          select: { id: true, email: true }
+        },
+        uploader: {
+          select: { id: true, email: true }
+        }
+      },
+      orderBy: { uploadedAt: 'desc' }
+    });
+    
+    // Create unified document structure
+    const documents = documentTypes.map(docType => {
+      // Get the most recent document of this type
+      const userDoc = userDocuments.find(doc => doc.type === docType.type);
+      
+      return {
+        id: userDoc?.id || `empty-${docType.type}`,
+        type: docType.type,
+        name: docType.name,
+        description: docType.description,
+        uploaded: !!userDoc,
+        fileName: userDoc?.originalName,
+        originalName: userDoc?.originalName,
+        mimeType: userDoc?.mimeType,
+        size: userDoc?.size,
+        uploadedAt: userDoc?.uploadedAt?.toISOString(),
+        documentId: userDoc?.id,
+        status: userDoc?.status,
+        rejectionReason: userDoc?.rejectionReason,
+        rejectionDetails: userDoc?.rejectionDetails,
+        verifiedBy: userDoc?.verifiedBy,
+        verifiedAt: userDoc?.verifiedAt?.toISOString(),
+        uploadSource: userDoc?.uploadSource,
+        isVerified: userDoc?.status === 'APPROVED',
+        registrationId: userDoc?.registrationId // Include to show where it was uploaded
+      };
+    });
+    
+    const uploadedCount = documents.filter(doc => doc.uploaded).length;
+    const totalCount = documents.length;
+    
+    res.json({
+      documents,
+      uploadedCount,
+      totalCount,
+      registration: registration ? {
+        id: registration.id,
+        courseName: registration.offer?.course?.name || 'Corso non specificato'
+      } : null
+    });
+  } catch (error) {
+    console.error('Error getting unified documents:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+
+// GET /api/user/documents/:documentId/download - Download user document  
+router.get('/documents/:documentId/download', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { documentId } = req.params;
+
+    // Use documentId as parameter name for consistency
+    const document = await prisma.userDocument.findFirst({
+      where: {
+        id: documentId,
+        userId: userId
+      }
+    });
+
+    if (!document) {
+      return res.status(404).json({ error: 'Documento non trovato' });
+    }
+
+    // Build the full file path
+    const filePath = path.isAbsolute(document.url) 
+      ? document.url 
+      : path.join(process.cwd(), 'uploads', document.url);
+
+    if (!fs.existsSync(filePath)) {
+      console.error(`File not found: ${filePath}`);
+      return res.status(404).json({ error: 'File non trovato sul server' });
+    }
+
+    // Set headers for download
+    res.setHeader('Content-Disposition', `attachment; filename="${document.originalName}"`);
+    res.setHeader('Content-Type', document.mimeType);
+
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+    
   } catch (error) {
     console.error('Error downloading document:', error);
     res.status(500).json({ error: 'Errore nel download del documento' });

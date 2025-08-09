@@ -344,16 +344,22 @@ router.post('/upload', authenticate, upload.single('document'), async (req: Auth
 
     if (existingDoc) {
       // Delete old file if it exists
-      if (fs.existsSync(existingDoc.url)) {
-        fs.unlinkSync(existingDoc.url);
+      const oldFilePath = path.isAbsolute(existingDoc.url) 
+        ? existingDoc.url 
+        : path.join(baseUploadDir, existingDoc.url);
+      if (fs.existsSync(oldFilePath)) {
+        fs.unlinkSync(oldFilePath);
       }
+      
+      // Store relative path instead of absolute
+      const relativePath = path.relative(baseUploadDir, req.file.path);
       
       // Update existing document record
       const updatedDocument = await prisma.userDocument.update({
         where: { id: existingDoc.id },
         data: {
           originalName: req.file.originalname,
-          url: req.file.path,
+          url: relativePath,
           size: req.file.size,
           mimeType: req.file.mimetype,
           status: 'PENDING',
@@ -391,6 +397,9 @@ router.post('/upload', authenticate, upload.single('document'), async (req: Auth
         message: 'Documento aggiornato con successo'
       });
     } else {
+      // Store relative path instead of absolute
+      const relativePath = path.relative(baseUploadDir, req.file.path);
+      
       // Create new document record
       const newDocument = await prisma.userDocument.create({
         data: {
@@ -398,7 +407,7 @@ router.post('/upload', authenticate, upload.single('document'), async (req: Auth
           registrationId: registrationId || null,
           type: type as DocumentType,
           originalName: req.file.originalname,
-          url: req.file.path,
+          url: relativePath,
           size: req.file.size,
           mimeType: req.file.mimetype,
           status: 'PENDING',
@@ -442,6 +451,49 @@ router.post('/upload', authenticate, upload.single('document'), async (req: Auth
   }
 });
 
+// GET /api/documents/:documentId/preview - Preview a document
+router.get('/:documentId/preview', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { documentId } = req.params;
+
+    const document = await prisma.userDocument.findFirst({
+      where: {
+        id: documentId,
+        userId: userId
+      }
+    });
+
+    if (!document) {
+      return res.status(404).json({ error: 'Documento non trovato' });
+    }
+
+    // Build the full file path
+    const filePath = path.isAbsolute(document.url) 
+      ? document.url 
+      : path.join(baseUploadDir, document.url);
+
+    if (!fs.existsSync(filePath)) {
+      console.error(`File not found for preview: ${filePath}`);
+      return res.status(404).json({ error: 'File non trovato sul server' });
+    }
+
+    const fileName = document.originalName;
+    const mimeType = document.mimeType;
+
+    // Set headers for inline display instead of download
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.setHeader('Content-Type', mimeType);
+
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+    
+  } catch (error) {
+    console.error('Error previewing document:', error);
+    res.status(500).json({ error: 'Errore nella visualizzazione del documento' });
+  }
+});
+
 // GET /api/documents/:documentId/download - Download a document
 router.get('/:documentId/download', authenticate, async (req: AuthRequest, res: Response) => {
   try {
@@ -459,7 +511,13 @@ router.get('/:documentId/download', authenticate, async (req: AuthRequest, res: 
       return res.status(404).json({ error: 'Documento non trovato' });
     }
 
-    if (!fs.existsSync(document.url)) {
+    // Build the full file path
+    const filePath = path.isAbsolute(document.url) 
+      ? document.url 
+      : path.join(baseUploadDir, document.url);
+
+    if (!fs.existsSync(filePath)) {
+      console.error(`File not found: ${filePath}`);
       return res.status(404).json({ error: 'File non trovato sul server' });
     }
 
@@ -469,7 +527,7 @@ router.get('/:documentId/download', authenticate, async (req: AuthRequest, res: 
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     res.setHeader('Content-Type', mimeType);
 
-    const fileStream = fs.createReadStream(document.url);
+    const fileStream = fs.createReadStream(filePath);
     fileStream.pipe(res);
     
   } catch (error) {
@@ -497,8 +555,11 @@ router.delete('/:documentId', authenticate, async (req: AuthRequest, res: Respon
     }
 
     // Delete file from filesystem
-    if (fs.existsSync(document.url)) {
-      fs.unlinkSync(document.url);
+    const filePath = path.isAbsolute(document.url) 
+      ? document.url 
+      : path.join(baseUploadDir, document.url);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
     }
 
     // Delete database record

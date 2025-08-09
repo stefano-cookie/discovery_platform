@@ -61,13 +61,18 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
         endpoint = `/user/documents/unified${registrationId ? `?registrationId=${registrationId}` : ''}`;
       }
 
+      console.log('📋 Fetching documents from:', endpoint);
       const response = await apiRequest<{ documents: UnifiedDocument[], uploadedCount: number, totalCount: number }>({
         method: 'GET',
         url: endpoint
       });
       
+      console.log('📋 Documents received:', response.documents?.length, 'total');
+      console.log('📋 Uploaded documents:', response.documents?.filter(d => d.uploaded).map(d => ({ type: d.type, name: d.name })));
+      
       setDocuments(response.documents || []);
     } catch (err: any) {
+      console.error('📋 Error fetching documents:', err);
       setError(err.response?.data?.error || 'Errore nel caricamento documenti');
     } finally {
       setLoading(false);
@@ -85,23 +90,11 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
       'TESSERA_SANITARIA': 'Tessera Sanitaria / Codice Fiscale',
       'BACHELOR_DEGREE': 'Certificato Laurea Triennale',
       'MASTER_DEGREE': 'Certificato Laurea Magistrale',
-      'TRANSCRIPT': 'Piano di Studio Triennale',
-      'TRANSCRIPT_MASTER': 'Piano di Studio Magistrale',
-      'MEDICAL_CERT': 'Certificato Medico di Sana e Robusta Costituzione',
+      'TRANSCRIPT': 'Piano di Studio',
+      'MEDICAL_CERT': 'Certificato Medico',
       'BIRTH_CERT': 'Certificato di Nascita',
       'DIPLOMA': 'Diploma di Laurea',
-      'OTHER': 'Pergamena di Laurea',
-      
-      // Form field compatibility
-      'cartaIdentita': 'Carta d\'Identità',
-      'certificatoTriennale': 'Certificato Laurea Triennale',
-      'certificatoMagistrale': 'Certificato Laurea Magistrale',
-      'pianoStudioTriennale': 'Piano di Studio Triennale',
-      'pianoStudioMagistrale': 'Piano di Studio Magistrale',
-      'certificatoMedico': 'Certificato Medico di Sana e Robusta Costituzione',
-      'certificatoNascita': 'Certificato di Nascita',
-      'diplomoLaurea': 'Diploma di Laurea',
-      'pergamenaLaurea': 'Pergamena di Laurea'
+      'OTHER': 'Altri Documenti'
     };
     return labels[type] || type.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
   };
@@ -112,23 +105,11 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
       'TESSERA_SANITARIA': 'Tessera sanitaria o documento che attesti il codice fiscale',
       'BACHELOR_DEGREE': 'Certificato di laurea triennale o diploma universitario',
       'MASTER_DEGREE': 'Certificato di laurea magistrale, specialistica o vecchio ordinamento',
-      'TRANSCRIPT': 'Piano di studio della laurea triennale con lista esami sostenuti',
-      'TRANSCRIPT_MASTER': 'Piano di studio della laurea magistrale, specialistica o vecchio ordinamento',
+      'TRANSCRIPT': 'Piano di studio con lista esami sostenuti',
       'MEDICAL_CERT': 'Certificato medico attestante la sana e robusta costituzione fisica e psichica',
       'BIRTH_CERT': 'Certificato di nascita o estratto di nascita dal Comune',
       'DIPLOMA': 'Diploma di laurea (cartaceo o digitale)',
-      'OTHER': 'Pergamena di laurea (documento originale)',
-      
-      // Form field compatibility 
-      'cartaIdentita': 'Fronte e retro della carta d\'identità o passaporto in corso di validità',
-      'certificatoTriennale': 'Certificato di laurea triennale o diploma universitario',
-      'certificatoMagistrale': 'Certificato di laurea magistrale, specialistica o vecchio ordinamento',
-      'pianoStudioTriennale': 'Piano di studio della laurea triennale con lista esami sostenuti',
-      'pianoStudioMagistrale': 'Piano di studio della laurea magistrale, specialistica o vecchio ordinamento',
-      'certificatoMedico': 'Certificato medico attestante la sana e robusta costituzione fisica e psichica',
-      'certificatoNascita': 'Certificato di nascita o estratto di nascita dal Comune',
-      'diplomoLaurea': 'Diploma di laurea (cartaceo o digitale)',
-      'pergamenaLaurea': 'Pergamena di laurea (documento originale)'
+      'OTHER': 'Altri documenti rilevanti'
     };
     return descriptions[type] || '';
   };
@@ -140,7 +121,12 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
       const formData = new FormData();
       formData.append('document', file);
       formData.append('type', documentType);
-      formData.append('userId', userId);
+      
+      // Only append userId for partner mode
+      if (mode === 'partner') {
+        formData.append('userId', userId);
+      }
+      
       if (registrationId) {
         formData.append('registrationId', registrationId);
       }
@@ -152,7 +138,9 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
         endpoint = `/partners/users/${userId}/documents/upload`;
       }
 
-      await apiRequest({
+      console.log('📤 Uploading document type:', documentType, 'to endpoint:', endpoint);
+      
+      const uploadResponse = await apiRequest({
         method: 'POST',
         url: endpoint,
         data: formData,
@@ -161,10 +149,15 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
         }
       });
 
+      console.log('📤 Upload response:', uploadResponse);
+      console.log('📤 Refreshing documents...');
+      
       await fetchDocuments();
       if (onDocumentChange) {
         onDocumentChange();
       }
+      
+      console.log('📤 Documents updated');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Errore nel caricamento del documento');
     } finally {
@@ -178,11 +171,17 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
 
   const handlePreview = async (doc: UnifiedDocument) => {
     try {
+      // Check if document is actually uploaded
+      if (!doc.uploaded || !doc.documentId || doc.id.startsWith('empty-')) {
+        setError('Documento non ancora caricato');
+        return;
+      }
+
       let endpoint = '';
       if (mode === 'partner') {
-        endpoint = `/partners/users/${userId}/documents/${doc.id}/download`;
+        endpoint = `/partners/users/${userId}/documents/${doc.documentId}/download`;
       } else {
-        endpoint = `/user/documents/${doc.id}/download`;
+        endpoint = `/user/documents/${doc.documentId}/download`;
       }
 
       const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
@@ -205,11 +204,17 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
 
   const handleDownload = async (doc: UnifiedDocument) => {
     try {
+      // Check if document is actually uploaded
+      if (!doc.uploaded || !doc.documentId || doc.id.startsWith('empty-')) {
+        setError('Documento non ancora caricato');
+        return;
+      }
+
       let endpoint = '';
       if (mode === 'partner') {
-        endpoint = `/partners/users/${userId}/documents/${doc.id}/download`;
+        endpoint = `/partners/users/${userId}/documents/${doc.documentId}/download`;
       } else {
-        endpoint = `/user/documents/${doc.id}/download`;
+        endpoint = `/user/documents/${doc.documentId}/download`;
       }
 
       const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';

@@ -631,21 +631,22 @@ router.get('/documents/unified', authenticate, async (req: AuthRequest, res: Res
       { type: 'BACHELOR_DEGREE', name: 'Certificato Laurea Triennale', description: 'Certificato di laurea triennale o diploma universitario' },
       { type: 'MASTER_DEGREE', name: 'Certificato Laurea Magistrale', description: 'Certificato di laurea magistrale, specialistica o vecchio ordinamento' },
       { type: 'TRANSCRIPT', name: 'Piano di Studio Triennale', description: 'Piano di studio della laurea triennale con lista esami sostenuti' },
-      { type: 'TRANSCRIPT_MASTER', name: 'Piano di Studio Magistrale', description: 'Piano di studio della laurea magistrale, specialistica o vecchio ordinamento' },
       { type: 'MEDICAL_CERT', name: 'Certificato Medico', description: 'Certificato medico attestante la sana e robusta costituzione fisica e psichica' },
       { type: 'BIRTH_CERT', name: 'Certificato di Nascita', description: 'Certificato di nascita o estratto di nascita dal Comune' },
       { type: 'DIPLOMA', name: 'Diploma di Laurea', description: 'Diploma di laurea (cartaceo o digitale)' },
       { type: 'OTHER', name: 'Pergamena di Laurea', description: 'Pergamena di laurea (documento originale)' }
     ];
 
-    // Get all user documents
-    const whereCondition: any = { userId };
-    if (registrationId) {
-      whereCondition.registrationId = registrationId;
-    }
-
+    // Get all user documents - NOT filtered by registrationId
+    // We want to show ALL user documents regardless of where they were uploaded
     const userDocuments = await prisma.userDocument.findMany({
-      where: whereCondition,
+      where: { 
+        userId,
+        // Filter only by valid document types
+        type: {
+          in: documentTypes.map(dt => dt.type) as any
+        }
+      },
       include: {
         verifier: {
           select: { id: true, email: true }

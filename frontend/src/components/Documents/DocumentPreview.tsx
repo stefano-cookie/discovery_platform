@@ -56,21 +56,38 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     
     const loadDocument = async () => {
       try {
-        const response = await fetch(`/api/documents/${document.id}/download`, {
+        // Use preview endpoint for better compatibility
+        const response = await fetch(`/api/documents/${document.id}/preview`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         
         if (!response.ok) {
-          throw new Error('Failed to load document');
-        }
-        
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        
-        if (mounted) {
-          setDocumentUrl(url);
+          // Fallback to download endpoint if preview fails
+          const downloadResponse = await fetch(`/api/documents/${document.id}/download`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          });
+          
+          if (!downloadResponse.ok) {
+            throw new Error('Failed to load document');
+          }
+          
+          const blob = await downloadResponse.blob();
+          const url = URL.createObjectURL(blob);
+          
+          if (mounted) {
+            setDocumentUrl(url);
+          } else {
+            URL.revokeObjectURL(url);
+          }
         } else {
-          URL.revokeObjectURL(url);
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          
+          if (mounted) {
+            setDocumentUrl(url);
+          } else {
+            URL.revokeObjectURL(url);
+          }
         }
       } catch (error) {
         console.error('Error loading document:', error);

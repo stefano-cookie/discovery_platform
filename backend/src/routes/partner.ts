@@ -164,6 +164,117 @@ router.get('/users', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req
   }
 });
 
+// GET /api/partners/registrations/:registrationId/documents/unified - Get unified documents for a registration (partner view)
+router.get('/registrations/:registrationId/documents/unified', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const { registrationId } = req.params;
+    const partnerId = req.partner?.id || req.user?.partnerId;
+
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify the registration belongs to this partner
+    const registration = await prisma.registration.findFirst({
+      where: {
+        id: registrationId,
+        partnerId: partnerId
+      },
+      include: {
+        user: true,
+        offer: {
+          include: {
+            course: true
+          }
+        }
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Registrazione non trovata' });
+    }
+
+    // Get course template type
+    const courseTemplateType = registration.offer?.course?.templateType || 'TFA';
+
+    // Define document types based on course template
+    const allDocumentTypes = courseTemplateType === 'CERTIFICATION' ? [
+      { type: 'IDENTITY_CARD', name: 'Carta d\'Identità', description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità' },
+      { type: 'DIPLOMA', name: 'Diploma di Laurea', description: 'Diploma di laurea (cartaceo o digitale)' }
+    ] : [
+      // TFA documents (9 types)
+      { type: 'IDENTITY_CARD', name: 'Carta d\'Identità', description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità' },
+      { type: 'TESSERA_SANITARIA', name: 'Tessera Sanitaria / Codice Fiscale', description: 'Tessera sanitaria o documento che attesti il codice fiscale' },
+      { type: 'BACHELOR_DEGREE', name: 'Certificato Laurea Triennale', description: 'Certificato di laurea triennale o diploma universitario' },
+      { type: 'MASTER_DEGREE', name: 'Certificato Laurea Magistrale', description: 'Certificato di laurea magistrale, specialistica o vecchio ordinamento' },
+      { type: 'TRANSCRIPT', name: 'Piano di Studio', description: 'Piano di studio con lista esami sostenuti' },
+      { type: 'MEDICAL_CERT', name: 'Certificato Medico', description: 'Certificato medico attestante la sana e robusta costituzione fisica e psichica' },
+      { type: 'BIRTH_CERT', name: 'Certificato di Nascita', description: 'Certificato di nascita o estratto di nascita dal Comune' },
+      { type: 'DIPLOMA', name: 'Diploma di Laurea', description: 'Diploma di laurea (cartaceo o digitale)' },
+      { type: 'OTHER', name: 'Altri Documenti', description: 'Altri documenti rilevanti' }
+    ];
+
+    // Get ALL documents for this user - no filter by registrationId
+    // Partner can see all user documents to have complete view
+    const userDocuments = await prisma.userDocument.findMany({
+      where: {
+        userId: registration.userId,
+        // Filter only by valid document types for this course template
+        type: {
+          in: allDocumentTypes.map(dt => dt.type) as any
+        }
+      },
+      include: {
+        verifier: {
+          select: { id: true, email: true }
+        },
+        uploader: {
+          select: { id: true, email: true }
+        }
+      },
+      orderBy: { uploadedAt: 'desc' }
+    });
+
+    // Map to unified structure
+    const documents = allDocumentTypes.map(docType => {
+      const userDoc = userDocuments.find(doc => doc.type === docType.type);
+      
+      return {
+        id: userDoc?.id || `empty-${docType.type}`,
+        type: docType.type,
+        name: docType.name,
+        description: docType.description,
+        uploaded: !!userDoc,
+        fileName: userDoc?.originalName,
+        originalName: userDoc?.originalName,
+        mimeType: userDoc?.mimeType,
+        size: userDoc?.size,
+        uploadedAt: userDoc?.uploadedAt?.toISOString(),
+        documentId: userDoc?.id,
+        status: userDoc?.status,
+        rejectionReason: userDoc?.rejectionReason,
+        rejectionDetails: userDoc?.rejectionDetails,
+        verifiedBy: userDoc?.verifier?.email,
+        verifiedAt: userDoc?.verifiedAt?.toISOString(),
+        uploadSource: userDoc?.uploadSource,
+        isVerified: userDoc?.status === 'APPROVED'
+      };
+    });
+
+    const uploadedCount = documents.filter(doc => doc.uploaded).length;
+    const totalCount = documents.length;
+
+    res.json({ 
+      documents,
+      uploadedCount,
+      totalCount
+    });
+  } catch (error) {
+    console.error('Error getting unified documents for partner:', error);
+    res.status(500).json({ error: 'Errore nel recupero dei documenti' });
+  }
+});
+
 // Get documents for a specific registration
 router.get('/registrations/:registrationId/documents', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
   try {
@@ -1969,27 +2080,30 @@ router.get('/registrations/:registrationId/documents/unified', authenticate, req
       return res.status(404).json({ error: 'Iscrizione non trovata' });
     }
 
-    // Document types based on template
+    // Document types that exist in the database enum
     const documentTypes = [
       { type: 'IDENTITY_CARD', name: 'Carta d\'Identità', description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità' },
       { type: 'TESSERA_SANITARIA', name: 'Tessera Sanitaria', description: 'Tessera sanitaria o documento che attesti il codice fiscale' },
       { type: 'BACHELOR_DEGREE', name: 'Certificato Laurea Triennale', description: 'Certificato di laurea triennale o diploma universitario' },
       { type: 'MASTER_DEGREE', name: 'Certificato Laurea Magistrale', description: 'Certificato di laurea magistrale, specialistica o vecchio ordinamento' },
-      { type: 'TRANSCRIPT', name: 'Piano di Studio Triennale', description: 'Piano di studio della laurea triennale con lista esami sostenuti' },
-      { type: 'TRANSCRIPT_MASTER', name: 'Piano di Studio Magistrale', description: 'Piano di studio della laurea magistrale, specialistica o vecchio ordinamento' },
+      { type: 'TRANSCRIPT', name: 'Piano di Studio', description: 'Piano di studio con lista esami sostenuti' },
       { type: 'MEDICAL_CERT', name: 'Certificato Medico', description: 'Certificato medico attestante la sana e robusta costituzione fisica e psichica' },
       { type: 'BIRTH_CERT', name: 'Certificato di Nascita', description: 'Certificato di nascita o estratto di nascita dal Comune' },
       { type: 'DIPLOMA', name: 'Diploma di Laurea', description: 'Diploma di laurea (cartaceo o digitale)' },
-      { type: 'OTHER', name: 'Pergamena di Laurea', description: 'Pergamena di laurea (documento originale)' }
+      { type: 'OTHER', name: 'Altri Documenti', description: 'Altri documenti rilevanti' }
     ];
 
     // Get all documents for this user (from all sources)
     const userDocuments = await prisma.userDocument.findMany({
       where: { 
-        userId: registration.userId,
-        OR: [
-          { registrationId: registrationId },
-          { registrationId: null } // Include general documents
+        AND: [
+          { userId: registration.userId },
+          {
+            OR: [
+              { registrationId: registrationId },
+              { registrationId: null } // Include general documents
+            ]
+          }
         ]
       },
       include: {
