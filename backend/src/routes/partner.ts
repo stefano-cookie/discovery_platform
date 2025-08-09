@@ -1183,7 +1183,10 @@ router.get('/preview-contract/:registrationId', authenticate, requireRole(['PART
     const partnerId = req.partner?.id;
     const { registrationId } = req.params;
     
+    console.log(`[CONTRACT_PREVIEW] Starting preview for registration: ${registrationId}, partner: ${partnerId}`);
+    
     if (!partnerId) {
+      console.log('[CONTRACT_PREVIEW] Error: Partner not found');
       return res.status(400).json({ error: 'Partner non trovato' });
     }
 
@@ -1196,37 +1199,54 @@ router.get('/preview-contract/:registrationId', authenticate, requireRole(['PART
     });
 
     if (!registration) {
+      console.log(`[CONTRACT_PREVIEW] Error: Registration not found for ID: ${registrationId}`);
       return res.status(404).json({ error: 'Iscrizione non trovata' });
     }
 
+    console.log(`[CONTRACT_PREVIEW] Registration found, contractTemplateUrl: ${registration.contractTemplateUrl}`);
+
     // Generate contract if not exists
     if (!registration.contractTemplateUrl) {
-      const pdfBuffer = await contractService.generateContract(registrationId);
-      const contractUrl = await contractService.saveContract(registrationId, pdfBuffer);
-      
-      // Update registration with contract URL
-      await prisma.registration.update({
-        where: { id: registrationId },
-        data: {
-          contractTemplateUrl: contractUrl,
-          contractGeneratedAt: new Date()
-        }
-      });
+      console.log('[CONTRACT_PREVIEW] Generating new contract...');
+      try {
+        const pdfBuffer = await contractService.generateContract(registrationId);
+        console.log(`[CONTRACT_PREVIEW] Contract generated, buffer size: ${pdfBuffer.length}`);
+        
+        const contractUrl = await contractService.saveContract(registrationId, pdfBuffer);
+        console.log(`[CONTRACT_PREVIEW] Contract saved to: ${contractUrl}`);
+        
+        // Update registration with contract URL
+        await prisma.registration.update({
+          where: { id: registrationId },
+          data: {
+            contractTemplateUrl: contractUrl,
+            contractGeneratedAt: new Date()
+          }
+        });
 
-      // Set response headers for inline display and send PDF
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="contratto_${registrationId}.pdf"`);
-      return res.send(pdfBuffer);
+        // Set response headers for inline display and send PDF
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="contratto_${registrationId}.pdf"`);
+        console.log('[CONTRACT_PREVIEW] Sending generated PDF buffer');
+        return res.send(pdfBuffer);
+      } catch (generateError) {
+        console.error('[CONTRACT_PREVIEW] Error generating contract:', generateError);
+        throw generateError;
+      }
     }
 
     // If contract already exists, serve the file for inline display
-    const contractPath = path.resolve(__dirname, '../..', registration.contractTemplateUrl.substring(1)); // Remove leading slash
+    const contractPath = path.resolve(__dirname, '../..', registration.contractTemplateUrl.substring(1));
+    console.log(`[CONTRACT_PREVIEW] Serving existing contract from: ${contractPath}`);
+    
     if (!require('fs').existsSync(contractPath)) {
+      console.log(`[CONTRACT_PREVIEW] Error: Contract file not found at path: ${contractPath}`);
       return res.status(404).json({ error: 'File contratto non trovato' });
     }
     
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="contratto_${registrationId}.pdf"`);
+    console.log('[CONTRACT_PREVIEW] Sending existing contract file');
     res.sendFile(contractPath);
 
   } catch (error) {

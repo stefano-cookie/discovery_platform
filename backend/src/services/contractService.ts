@@ -53,6 +53,8 @@ export class ContractService {
 
   async generateContract(registrationId: string): Promise<Buffer> {
     try {
+      console.log(`[CONTRACT_SERVICE] Starting contract generation for: ${registrationId}`);
+      
       // Recupera i dati dell'iscrizione dal database
       const registration = await prisma.registration.findUnique({
         where: { id: registrationId },
@@ -72,8 +74,11 @@ export class ContractService {
       });
 
       if (!registration) {
+        console.log(`[CONTRACT_SERVICE] Error: Registration not found: ${registrationId}`);
         throw new Error('Registrazione non trovata');
       }
+      
+      console.log(`[CONTRACT_SERVICE] Registration data loaded for user: ${registration.user?.email}`);
 
       console.log('Registration data:', {
         id: registration.id,
@@ -92,20 +97,30 @@ export class ContractService {
       console.log('Contract data prepared:', JSON.stringify(contractData, null, 2));
 
       // Legge il template HTML
+      console.log(`[CONTRACT_SERVICE] Reading template from: ${this.templatePath}`);
+      if (!fs.existsSync(this.templatePath)) {
+        console.log(`[CONTRACT_SERVICE] Error: Template file not found: ${this.templatePath}`);
+        throw new Error(`Template file not found: ${this.templatePath}`);
+      }
       const templateHtml = fs.readFileSync(this.templatePath, 'utf8');
+      console.log(`[CONTRACT_SERVICE] Template loaded, length: ${templateHtml.length}`);
       
       // Compila il template con Handlebars
       const template = Handlebars.compile(templateHtml);
       const html = template(contractData);
 
       // Genera il PDF usando Puppeteer
+      console.log('[CONTRACT_SERVICE] Launching Puppeteer...');
       const browser = await puppeteer.launch({
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox']
       });
+      console.log('[CONTRACT_SERVICE] Puppeteer browser launched successfully');
 
       const page = await browser.newPage();
+      console.log('[CONTRACT_SERVICE] Setting page content...');
       await page.setContent(html, { waitUntil: 'networkidle0' });
+      console.log('[CONTRACT_SERVICE] Generating PDF...');
 
       const pdfBuffer = Buffer.from(await page.pdf({
         format: 'A4',
@@ -117,8 +132,10 @@ export class ContractService {
           left: '1cm'
         }
       }));
-
+      
+      console.log(`[CONTRACT_SERVICE] PDF generated, buffer size: ${pdfBuffer.length}`);
       await browser.close();
+      console.log('[CONTRACT_SERVICE] Browser closed');
 
       return pdfBuffer;
 
