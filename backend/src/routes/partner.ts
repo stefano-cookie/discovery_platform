@@ -1125,7 +1125,10 @@ router.get('/download-contract/:registrationId', authenticate, requireRole(['PAR
     const partnerId = req.partner?.id;
     const { registrationId } = req.params;
     
+    console.log(`[CONTRACT_DOWNLOAD] Starting download for registration: ${registrationId}, partner: ${partnerId}`);
+    
     if (!partnerId) {
+      console.log('[CONTRACT_DOWNLOAD] Error: Partner not found');
       return res.status(400).json({ error: 'Partner non trovato' });
     }
 
@@ -1138,41 +1141,61 @@ router.get('/download-contract/:registrationId', authenticate, requireRole(['PAR
     });
 
     if (!registration) {
+      console.log(`[CONTRACT_DOWNLOAD] Error: Registration not found for ID: ${registrationId}`);
       return res.status(404).json({ error: 'Iscrizione non trovata' });
     }
 
+    console.log(`[CONTRACT_DOWNLOAD] Registration found, contractTemplateUrl: ${registration.contractTemplateUrl}`);
+
     // Generate contract if not exists
     if (!registration.contractTemplateUrl) {
-      const pdfBuffer = await contractService.generateContract(registrationId);
-      const contractUrl = await contractService.saveContract(registrationId, pdfBuffer);
-      
-      // Update registration with contract URL
-      await prisma.registration.update({
-        where: { id: registrationId },
-        data: {
-          contractTemplateUrl: contractUrl,
-          contractGeneratedAt: new Date()
-        }
-      });
+      console.log('[CONTRACT_DOWNLOAD] Generating new contract...');
+      try {
+        const pdfBuffer = await contractService.generateContract(registrationId);
+        console.log(`[CONTRACT_DOWNLOAD] Contract generated, buffer size: ${pdfBuffer.length}`);
+        
+        const contractUrl = await contractService.saveContract(registrationId, pdfBuffer);
+        console.log(`[CONTRACT_DOWNLOAD] Contract saved to: ${contractUrl}`);
+        
+        // Update registration with contract URL
+        await prisma.registration.update({
+          where: { id: registrationId },
+          data: {
+            contractTemplateUrl: contractUrl,
+            contractGeneratedAt: new Date()
+          }
+        });
 
-      // Set response headers and send PDF
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="contratto_${registrationId}.pdf"`);
-      return res.send(pdfBuffer);
+        // Set response headers and send PDF
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="contratto_${registrationId}.pdf"`);
+        console.log('[CONTRACT_DOWNLOAD] Sending generated PDF buffer');
+        return res.send(pdfBuffer);
+      } catch (generateError) {
+        console.error('[CONTRACT_DOWNLOAD] Error generating contract:', generateError);
+        throw generateError;
+      }
     }
 
     // If contract already exists, serve the file
     const contractPath = path.resolve(__dirname, '../..', registration.contractTemplateUrl.substring(1)); // Remove leading slash
+    console.log(`[CONTRACT_DOWNLOAD] Attempting to serve existing contract from: ${contractPath}`);
+    
     if (!require('fs').existsSync(contractPath)) {
+      console.log(`[CONTRACT_DOWNLOAD] Error: Contract file not found at path: ${contractPath}`);
+      console.log(`[CONTRACT_DOWNLOAD] Current directory: ${__dirname}`);
+      console.log(`[CONTRACT_DOWNLOAD] Resolved path components: dir=${__dirname}, url=${registration.contractTemplateUrl}`);
       return res.status(404).json({ error: 'File contratto non trovato' });
     }
     
+    console.log('[CONTRACT_DOWNLOAD] File exists, sending...');
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="contratto_${registrationId}.pdf"`);
     res.sendFile(contractPath);
 
   } catch (error) {
-    console.error('Download contract error:', error);
+    console.error('[CONTRACT_DOWNLOAD] Full error details:', error);
+    console.error('[CONTRACT_DOWNLOAD] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     res.status(500).json({ error: 'Errore durante il download del contratto' });
   }
 });

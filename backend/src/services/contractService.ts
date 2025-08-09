@@ -111,9 +111,20 @@ export class ContractService {
 
       // Genera il PDF usando Puppeteer
       console.log('[CONTRACT_SERVICE] Launching Puppeteer...');
+      console.log('[CONTRACT_SERVICE] Puppeteer executable path:', puppeteer.executablePath());
+      
       const browser = await puppeteer.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        args: [
+          '--no-sandbox', 
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--single-process',
+          '--disable-gpu'
+        ]
       });
       console.log('[CONTRACT_SERVICE] Puppeteer browser launched successfully');
 
@@ -330,21 +341,34 @@ export class ContractService {
 
   async saveContract(registrationId: string, pdfBuffer: Buffer): Promise<string> {
     try {
+      console.log(`[CONTRACT_SAVE] Starting save for registration: ${registrationId}`);
+      console.log(`[CONTRACT_SAVE] __dirname: ${__dirname}`);
+      
       // Crea directory per i contratti se non exists
       const contractsDir = path.join(__dirname, '../../uploads/contracts');
+      console.log(`[CONTRACT_SAVE] Contracts directory: ${contractsDir}`);
+      
       if (!fs.existsSync(contractsDir)) {
+        console.log(`[CONTRACT_SAVE] Creating directory: ${contractsDir}`);
         fs.mkdirSync(contractsDir, { recursive: true });
+      } else {
+        console.log(`[CONTRACT_SAVE] Directory already exists: ${contractsDir}`);
       }
 
       // Salva il file PDF
       const fileName = `contract_${registrationId}.pdf`;
       const filePath = path.join(contractsDir, fileName);
+      console.log(`[CONTRACT_SAVE] Saving file to: ${filePath}`);
       
       fs.writeFileSync(filePath, pdfBuffer);
+      console.log(`[CONTRACT_SAVE] File saved successfully, size: ${pdfBuffer.length} bytes`);
 
-      return `/uploads/contracts/${fileName}`;
+      const returnPath = `/uploads/contracts/${fileName}`;
+      console.log(`[CONTRACT_SAVE] Returning URL path: ${returnPath}`);
+      return returnPath;
     } catch (error) {
-      console.error('Errore salvataggio contratto:', error);
+      console.error('[CONTRACT_SAVE] Error saving contract:', error);
+      console.error('[CONTRACT_SAVE] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       throw new Error('Errore durante il salvataggio del contratto');
     }
   }
