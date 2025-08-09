@@ -113,6 +113,13 @@ export class ContractService {
       console.log('[CONTRACT_SERVICE] Launching Puppeteer...');
       console.log('[CONTRACT_SERVICE] Puppeteer executable path:', puppeteer.executablePath());
       
+      // Verifica se Chrome esiste e può essere eseguito
+      const chromeExecutable = puppeteer.executablePath();
+      if (!fs.existsSync(chromeExecutable)) {
+        console.error('[CONTRACT_SERVICE] Chrome executable not found at:', chromeExecutable);
+        throw new Error('Chrome/Chromium non è installato sul server. Contattare l\'amministratore di sistema.');
+      }
+      
       let browser;
       try {
         browser = await puppeteer.launch({
@@ -132,30 +139,60 @@ export class ContractService {
       } catch (puppeteerError) {
         console.error('[CONTRACT_SERVICE] Puppeteer launch failed:', puppeteerError);
         const errorMessage = puppeteerError instanceof Error ? puppeteerError.message : String(puppeteerError);
-        const errorStack = puppeteerError instanceof Error ? puppeteerError.stack : 'No stack trace';
-        console.error('[CONTRACT_SERVICE] Puppeteer error message:', errorMessage);
-        console.error('[CONTRACT_SERVICE] Puppeteer error stack:', errorStack);
         
-        // Prova con opzioni alternative per server headless
-        console.log('[CONTRACT_SERVICE] Trying alternative Puppeteer configuration...');
-        try {
-          browser = await puppeteer.launch({
-            headless: true, // Usa true invece di 'new' per compatibilità
-            args: [
-              '--no-sandbox',
-              '--disable-setuid-sandbox', 
-              '--disable-dev-shm-usage',
-              '--disable-gpu',
-              '--no-zygote'
-            ],
-            executablePath: '/usr/bin/chromium-browser' // Percorso comune per Chromium su server Linux
-          });
-          console.log('[CONTRACT_SERVICE] Puppeteer launched with alternative config');
-        } catch (altError) {
-          const altErrorMessage = altError instanceof Error ? altError.message : String(altError);
-          console.error('[CONTRACT_SERVICE] Alternative launch also failed:', altErrorMessage);
-          throw new Error(`Puppeteer non può essere avviato: ${errorMessage}`);
+        // Check if it's a missing library error
+        if (errorMessage.includes('error while loading shared libraries')) {
+          console.error('[CONTRACT_SERVICE] Missing system libraries detected');
+          console.error('[CONTRACT_SERVICE] The following packages need to be installed:');
+          console.error('[CONTRACT_SERVICE] sudo apt-get install -y libatk1.0-0 libatk-bridge2.0-0 libcups2 libatspi2.0-0 libxdamage1 libasound2');
+          
+          // Provide a user-friendly error message
+          throw new Error('Il server non ha le librerie necessarie per generare i PDF. Contattare l\'amministratore di sistema per installare le dipendenze richieste.');
         }
+        
+        console.error('[CONTRACT_SERVICE] Puppeteer error stack:', puppeteerError instanceof Error ? puppeteerError.stack : 'No stack trace');
+        
+        // Try alternative configurations
+        const alternativePaths = [
+          '/usr/bin/chromium-browser',
+          '/usr/bin/chromium',
+          '/usr/bin/google-chrome-stable',
+          '/usr/bin/google-chrome',
+          '/snap/bin/chromium'
+        ];
+        
+        let alternativeFound = false;
+        for (const altPath of alternativePaths) {
+          if (fs.existsSync(altPath)) {
+            console.log(`[CONTRACT_SERVICE] Trying alternative browser at: ${altPath}`);
+            try {
+              browser = await puppeteer.launch({
+                headless: true,
+                args: [
+                  '--no-sandbox',
+                  '--disable-setuid-sandbox', 
+                  '--disable-dev-shm-usage',
+                  '--disable-gpu',
+                  '--no-zygote'
+                ],
+                executablePath: altPath
+              });
+              console.log(`[CONTRACT_SERVICE] Successfully launched with ${altPath}`);
+              alternativeFound = true;
+              break;
+            } catch (altError) {
+              console.log(`[CONTRACT_SERVICE] Failed with ${altPath}: ${altError instanceof Error ? altError.message : String(altError)}`);
+            }
+          }
+        }
+        
+        if (!alternativeFound) {
+          throw new Error(`Impossibile avviare il browser per generare il PDF. Errore: ${errorMessage}`);
+        }
+      }
+
+      if (!browser) {
+        throw new Error('Browser non inizializzato correttamente');
       }
 
       const page = await browser.newPage();
