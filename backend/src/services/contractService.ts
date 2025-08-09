@@ -356,9 +356,10 @@ export class ContractService {
       
       if (isTfaRomania && installments > 1) {
         // Per TFA Romania con rate: acconto €1500 + rate sul restante
+        // L'acconto NON è contato come rata, quindi se installments = 10, avremo 1 acconto + 10 rate
         const downPayment = 1500;
         const installmentableAmount = Math.max(0, totalAmount - downPayment);
-        const monthlyAmount = installmentableAmount / installments;
+        const monthlyAmount = installments > 0 ? installmentableAmount / installments : installmentableAmount;
         
         // Aggiungi l'acconto come primo pagamento (paymentNumber 0)
         const downPaymentDate = new Date(today);
