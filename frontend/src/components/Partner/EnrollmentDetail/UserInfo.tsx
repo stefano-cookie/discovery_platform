@@ -31,47 +31,61 @@ const UserInfo: React.FC<UserInfoProps> = ({ user }) => {
         amount: user.finalAmount
       });
     } else {
-      // Acconto: 7 giorni da iscrizione
-      const downPayment = new Date(enrollment);
-      downPayment.setDate(downPayment.getDate() + 7);
+      // Determina se è TFA o Certificazione
+      const isTFA = user.offerType === 'TFA_ROMANIA';
       
-      const downPaymentAmount = Math.round(user.finalAmount * 0.2); // 20% acconto
-      deadlines.push({
-        type: 'Acconto',
-        date: downPayment,
-        amount: downPaymentAmount
-      });
-
-      // Prima rata: 30 giorni dopo scadenza acconto
-      const firstInstallment = new Date(downPayment);
-      firstInstallment.setDate(firstInstallment.getDate() + 30);
+      let remainingAmount = user.finalAmount;
+      let installmentAmount = 0;
+      let baseDate = new Date(enrollment);
+      baseDate.setDate(baseDate.getDate() + 7);
       
-      const remainingAmount = user.finalAmount - downPaymentAmount;
-      const installmentAmount = Math.round(remainingAmount / (installments - 1));
-      
-      deadlines.push({
-        type: 'Prima Rata',
-        date: firstInstallment,
-        amount: installmentAmount
-      });
-
-      // Rate successive: sempre al 30 del mese
-      for (let i = 2; i < installments; i++) {
-        const nextInstallment = new Date(firstInstallment);
-        nextInstallment.setMonth(nextInstallment.getMonth() + (i - 1));
-        nextInstallment.setDate(30);
+      if (isTFA) {
+        // Solo TFA ha l'acconto di €1500
+        const downPaymentAmount = 1500;
+        deadlines.push({
+          type: 'Acconto',
+          date: new Date(baseDate),
+          amount: downPaymentAmount
+        });
         
-        // Se il 30 non esiste in quel mese, usa l'ultimo giorno del mese
-        if (nextInstallment.getMonth() !== firstInstallment.getMonth() + (i - 1)) {
-          nextInstallment.setDate(0); // Ultimo giorno del mese precedente
+        remainingAmount = user.finalAmount - downPaymentAmount;
+        installmentAmount = Math.round(remainingAmount / installments);
+        
+        // Per TFA, le rate iniziano 30 giorni dopo l'acconto
+        baseDate.setDate(baseDate.getDate() + 30);
+      } else {
+        // Per certificazioni e altri: nessun acconto, solo rate uguali
+        installmentAmount = Math.round(user.finalAmount / installments);
+      }
+      
+      // Genera le rate
+      for (let i = 1; i <= installments; i++) {
+        const rateDate = new Date(baseDate);
+        if (i > 1) {
+          rateDate.setMonth(rateDate.getMonth() + (i - 1));
+          rateDate.setDate(30);
+          
+          // Se il 30 non esiste in quel mese, usa l'ultimo giorno del mese
+          if (rateDate.getMonth() !== baseDate.getMonth() + (i - 1)) {
+            rateDate.setDate(0); // Ultimo giorno del mese precedente
+          }
         }
         
-        const isLast = i === installments - 1;
-        const amount = isLast ? remainingAmount - (installmentAmount * (installments - 2)) : installmentAmount;
+        const isLast = i === installments;
+        let amount = installmentAmount;
+        
+        // Per l'ultima rata, aggiusta per eventuali arrotondamenti
+        if (isLast) {
+          if (isTFA) {
+            amount = remainingAmount - (installmentAmount * (installments - 1));
+          } else {
+            amount = user.finalAmount - (installmentAmount * (installments - 1));
+          }
+        }
         
         deadlines.push({
-          type: `${i}° Rata`,
-          date: nextInstallment,
+          type: i === 1 ? 'Prima Rata' : `${i}° Rata`,
+          date: rateDate,
           amount: amount
         });
       }
