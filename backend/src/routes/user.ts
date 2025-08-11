@@ -357,6 +357,19 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
         payment.isConfirmed ? sum + Number(payment.amount) : sum, 0
       );
       
+      // Calculate remaining amount
+      const remainingAmount = Number(reg.finalAmount) - totalPaid;
+      
+      // Find next payment deadline (first unpaid deadline)
+      const now = new Date();
+      const nextDeadline = reg.deadlines
+        .filter(d => !d.isPaid)
+        .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())[0];
+      
+      // Count paid and unpaid deadlines
+      const paidDeadlines = reg.deadlines.filter(d => d.isPaid).length;
+      const unpaidDeadlines = reg.deadlines.filter(d => !d.isPaid).length;
+      
       return {
         id: reg.id,
         courseId: reg.offer?.course?.id || 'unknown',
@@ -368,6 +381,7 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
         offerType: reg.offerType,
         createdAt: reg.createdAt.toISOString(),
         totalPaid,
+        remainingAmount,
         partner: {
           referralCode: reg.partner?.referralCode || '',
           user: {
@@ -387,7 +401,22 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
           dueDate: deadline.dueDate.toISOString(),
           paymentNumber: deadline.paymentNumber,
           isPaid: deadline.isPaid
-        }))
+        })),
+        // Payment summary info
+        paymentSummary: {
+          nextDeadline: nextDeadline ? {
+            id: nextDeadline.id,
+            amount: Number(nextDeadline.amount),
+            dueDate: nextDeadline.dueDate.toISOString(),
+            paymentNumber: nextDeadline.paymentNumber,
+            daysUntilDue: Math.ceil((nextDeadline.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
+            isOverdue: nextDeadline.dueDate < now
+          } : null,
+          paidInstallments: paidDeadlines,
+          unpaidInstallments: unpaidDeadlines,
+          totalInstallments: reg.deadlines.length,
+          percentagePaid: reg.finalAmount > 0 ? Math.round((totalPaid / Number(reg.finalAmount)) * 100) : 0
+        }
       };
     });
     

@@ -15,6 +15,8 @@ interface UserRegistration {
   installments: number;
   offerType: 'TFA_ROMANIA' | 'CERTIFICATION';
   createdAt: string;
+  totalPaid?: number;
+  remainingAmount?: number;
   partner: {
     referralCode: string;
     user: {
@@ -35,6 +37,20 @@ interface UserRegistration {
     paymentNumber: number;
     isPaid: boolean;
   }>;
+  paymentSummary?: {
+    nextDeadline: {
+      id: string;
+      amount: number;
+      dueDate: string;
+      paymentNumber: number;
+      daysUntilDue: number;
+      isOverdue: boolean;
+    } | null;
+    paidInstallments: number;
+    unpaidInstallments: number;
+    totalInstallments: number;
+    percentagePaid: number;
+  };
 }
 
 interface UserProfile {
@@ -401,31 +417,221 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
               </div>
             )}
 
-            {/* Next Payments */}
-            {registrations.some(r => getNextPaymentDue(r)) && (
+            {/* Payment Overview Section */}
+            {registrations.length > 0 && (
               <div className="bg-white rounded-lg shadow">
                 <div className="px-6 py-4 border-b border-gray-200">
-                  <h3 className="text-lg font-medium text-gray-900">Prossimi Pagamenti</h3>
+                  <h3 className="text-lg font-medium text-gray-900">Riepilogo Pagamenti</h3>
                 </div>
-                <div className="p-6">
-                  <div className="space-y-3">
-                    {registrations.map((registration) => {
-                      const nextPayment = getNextPaymentDue(registration);
-                      if (!nextPayment) return null;
-                      
-                      return (
-                        <div key={registration.id} className="flex justify-between items-center p-3 bg-yellow-50 rounded-lg">
-                          <div>
-                            <p className="font-medium text-gray-900">{registration.courseName}</p>
-                            <p className="text-sm text-gray-600">
-                              {nextPayment.paymentNumber === 0 ? 'Acconto' : `Rata ${nextPayment.paymentNumber}`} - Scadenza: {formatDate(nextPayment.dueDate)}
-                            </p>
-                          </div>
-                          <span className="font-bold text-yellow-800">{formatCurrency(nextPayment?.amount)}</span>
+                <div className="p-6 space-y-6">
+                  {registrations.map((registration) => (
+                    <div key={registration.id} className="border rounded-lg p-4 bg-gray-50">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h4 className="font-semibold text-gray-900">{registration.courseName}</h4>
+                          <p className="text-sm text-gray-600">
+                            {registration.offerType === 'TFA_ROMANIA' ? 'TFA Romania' : 'Certificazione'}
+                          </p>
                         </div>
-                      );
-                    })}
-                  </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-600">Totale corso</p>
+                          <p className="text-xl font-bold text-gray-900">{formatCurrency(registration.finalAmount)}</p>
+                        </div>
+                      </div>
+
+                      {/* Progress Bar */}
+                      {registration.paymentSummary && (
+                        <div className="mb-4">
+                          <div className="flex justify-between text-sm text-gray-600 mb-1">
+                            <span>Progresso pagamenti</span>
+                            <span>{registration.paymentSummary.percentagePaid}% completato</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${registration.paymentSummary.percentagePaid}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>{registration.paymentSummary.paidInstallments} rate pagate</span>
+                            <span>{registration.paymentSummary.unpaidInstallments} rate rimanenti</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Payment Details Grid */}
+                      <div className="grid grid-cols-3 gap-3 mb-4">
+                        <div className="bg-white rounded p-3">
+                          <p className="text-xs text-gray-600">Pagato</p>
+                          <p className="text-lg font-semibold text-green-600">
+                            {formatCurrency(registration.totalPaid || 0)}
+                          </p>
+                        </div>
+                        <div className="bg-white rounded p-3">
+                          <p className="text-xs text-gray-600">Rimanente</p>
+                          <p className="text-lg font-semibold text-orange-600">
+                            {formatCurrency(registration.remainingAmount || 0)}
+                          </p>
+                        </div>
+                        <div className="bg-white rounded p-3">
+                          <p className="text-xs text-gray-600">Rate totali</p>
+                          <p className="text-lg font-semibold text-gray-900">
+                            {registration.paymentSummary?.totalInstallments || registration.installments}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Next Payment Alert */}
+                      {registration.paymentSummary?.nextDeadline && (
+                        <div className={`border rounded-lg p-3 mb-4 ${
+                          registration.paymentSummary.nextDeadline.isOverdue 
+                            ? 'bg-red-50 border-red-200' 
+                            : registration.paymentSummary.nextDeadline.daysUntilDue <= 7
+                            ? 'bg-yellow-50 border-yellow-200'
+                            : 'bg-blue-50 border-blue-200'
+                        }`}>
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className={`font-medium ${
+                                registration.paymentSummary.nextDeadline.isOverdue 
+                                  ? 'text-red-900' 
+                                  : registration.paymentSummary.nextDeadline.daysUntilDue <= 7
+                                  ? 'text-yellow-900'
+                                  : 'text-blue-900'
+                              }`}>
+                                ⏰ Prossima scadenza: {
+                                  registration.paymentSummary.nextDeadline.paymentNumber === 0 
+                                    ? 'Acconto' 
+                                    : `Rata ${registration.paymentSummary.nextDeadline.paymentNumber}`
+                                }
+                              </p>
+                              <p className={`text-sm ${
+                                registration.paymentSummary.nextDeadline.isOverdue 
+                                  ? 'text-red-700' 
+                                  : registration.paymentSummary.nextDeadline.daysUntilDue <= 7
+                                  ? 'text-yellow-700'
+                                  : 'text-blue-700'
+                              }`}>
+                                {registration.paymentSummary.nextDeadline.isOverdue 
+                                  ? '⚠️ SCADUTA' 
+                                  : registration.paymentSummary.nextDeadline.daysUntilDue === 0
+                                  ? 'Scade oggi'
+                                  : registration.paymentSummary.nextDeadline.daysUntilDue === 1
+                                  ? 'Scade domani'
+                                  : `Scade tra ${registration.paymentSummary.nextDeadline.daysUntilDue} giorni`
+                                } - {formatDate(registration.paymentSummary.nextDeadline.dueDate)}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className={`text-lg font-bold ${
+                                registration.paymentSummary.nextDeadline.isOverdue 
+                                  ? 'text-red-900' 
+                                  : registration.paymentSummary.nextDeadline.daysUntilDue <= 7
+                                  ? 'text-yellow-900'
+                                  : 'text-blue-900'
+                              }`}>
+                                {formatCurrency(registration.paymentSummary.nextDeadline.amount)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* All Payment Deadlines */}
+                      {registration.deadlines && registration.deadlines.length > 0 && (
+                        <div className="mt-4">
+                          <h5 className="text-sm font-semibold text-gray-700 mb-2">📅 Scadenzario Completo</h5>
+                          <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {registration.deadlines
+                              .sort((a, b) => a.paymentNumber - b.paymentNumber)
+                              .map((deadline, index) => {
+                                const isNext = registration.paymentSummary?.nextDeadline?.id === deadline.id;
+                                const isOverdue = !deadline.isPaid && new Date(deadline.dueDate) < new Date();
+                                
+                                return (
+                                  <div 
+                                    key={deadline.id}
+                                    className={`flex items-center justify-between p-2 rounded-lg border ${
+                                      deadline.isPaid 
+                                        ? 'bg-green-50 border-green-200' 
+                                        : isNext
+                                        ? 'bg-yellow-50 border-yellow-300 ring-2 ring-yellow-400'
+                                        : isOverdue
+                                        ? 'bg-red-50 border-red-200'
+                                        : 'bg-white border-gray-200'
+                                    }`}
+                                  >
+                                    <div className="flex items-center space-x-3">
+                                      <div className="flex-shrink-0">
+                                        {deadline.isPaid ? (
+                                          <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                            </svg>
+                                          </div>
+                                        ) : isNext ? (
+                                          <div className="w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center animate-pulse">
+                                            <span className="text-white text-xs font-bold">!</span>
+                                          </div>
+                                        ) : (
+                                          <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
+                                            <span className="text-gray-600 text-xs">{index + 1}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div>
+                                        <p className={`text-sm font-medium ${
+                                          deadline.isPaid 
+                                            ? 'text-green-700' 
+                                            : isNext
+                                            ? 'text-yellow-900'
+                                            : isOverdue
+                                            ? 'text-red-700'
+                                            : 'text-gray-700'
+                                        }`}>
+                                          {deadline.paymentNumber === 0 ? 'Acconto' : `Rata ${deadline.paymentNumber}`}
+                                          {isNext && <span className="ml-2 text-xs bg-yellow-200 px-2 py-1 rounded">PROSSIMA</span>}
+                                        </p>
+                                        <p className={`text-xs ${
+                                          deadline.isPaid 
+                                            ? 'text-green-600' 
+                                            : 'text-gray-500'
+                                        }`}>
+                                          {formatDate(deadline.dueDate)}
+                                          {deadline.isPaid && ' - Pagata'}
+                                          {!deadline.isPaid && isOverdue && ' - SCADUTA'}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className={`font-semibold ${
+                                        deadline.isPaid 
+                                          ? 'text-green-700 line-through' 
+                                          : isNext
+                                          ? 'text-yellow-900 text-lg'
+                                          : 'text-gray-700'
+                                      }`}>
+                                        {formatCurrency(deadline.amount)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* View Details Link */}
+                      <div className="mt-3 text-center">
+                        <button
+                          onClick={() => navigate(`/dashboard/enrollment/${registration.id}`)}
+                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        >
+                          Visualizza dettagli completi →
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
