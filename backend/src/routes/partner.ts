@@ -6,6 +6,7 @@ import { DocumentService, upload as documentUpload } from '../services/documentS
 import UnifiedDocumentService from '../services/unifiedDocumentService';
 import multer from 'multer';
 import * as path from 'path';
+import ExcelJS from 'exceljs';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -2566,6 +2567,164 @@ router.post('/users/:userId/documents/upload', authenticate, requireRole(['PARTN
       require('fs').unlinkSync(req.file.path);
     }
     res.status(500).json({ error: error.message || 'Errore nel caricamento del documento' });
+  }
+});
+
+// GET /api/partner/export/registrations - Export partner's registrations to Excel
+router.get('/export/registrations', authenticate, requireRole(['PARTNER']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Get partner info for filename
+    const partner = await prisma.partner.findUnique({
+      where: { id: partnerId },
+      select: { referralCode: true }
+    });
+
+    if (!partner) {
+      return res.status(404).json({ error: 'Partner non trovato' });
+    }
+
+    // Fetch partner's registrations with comprehensive data
+    const registrations = await prisma.registration.findMany({
+      where: { partnerId },
+      include: {
+        user: {
+          include: {
+            profile: true
+          }
+        },
+        offer: {
+          include: {
+            course: true
+          }
+        },
+        deadlines: {
+          orderBy: {
+            dueDate: 'asc'
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    console.log(`Found ${registrations.length} registrations for partner ${partner.referralCode}`);
+
+    // Create workbook and worksheet
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Le Mie Registrazioni');
+
+    // Define columns (same as admin but tailored for partners)
+    worksheet.columns = [
+      { header: 'ID Registrazione', key: 'registrationId', width: 15 },
+      { header: 'Data Iscrizione', key: 'createdAt', width: 12 },
+      { header: 'Stato', key: 'status', width: 15 },
+      { header: 'Nome', key: 'nome', width: 15 },
+      { header: 'Cognome', key: 'cognome', width: 15 },
+      { header: 'Email', key: 'email', width: 25 },
+      { header: 'Codice Fiscale', key: 'codiceFiscale', width: 16 },
+      { header: 'Telefono', key: 'telefono', width: 12 },
+      { header: 'Data Nascita', key: 'dataNascita', width: 12 },
+      { header: 'Luogo Nascita', key: 'luogoNascita', width: 15 },
+      { header: 'Residenza Via', key: 'residenzaVia', width: 25 },
+      { header: 'Residenza Città', key: 'residenzaCitta', width: 15 },
+      { header: 'Residenza Provincia', key: 'residenzaProvincia', width: 8 },
+      { header: 'Residenza CAP', key: 'residenzaCap', width: 8 },
+      { header: 'Corso', key: 'courseName', width: 30 },
+      { header: 'Tipo Corso', key: 'courseType', width: 12 },
+      { header: 'Offerta', key: 'offerName', width: 25 },
+      { header: 'Tipo Offerta', key: 'offerType', width: 15 },
+      { header: 'Costo Totale', key: 'totalAmount', width: 12 },
+      { header: 'Importo Finale', key: 'finalAmount', width: 12 },
+      { header: 'Rate Pagate', key: 'paidInstallments', width: 12 },
+      { header: 'Rate Totali', key: 'totalInstallments', width: 12 },
+      { header: 'Residuo da Pagare', key: 'remainingAmount', width: 15 },
+      { header: 'Prossima Scadenza', key: 'nextDueDate', width: 15 },
+      { header: 'Importo Prossima Rata', key: 'nextAmount', width: 15 }
+    ];
+
+    // Style the header row
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE2E2E2' }
+    };
+
+    // Add data rows
+    for (const registration of registrations) {
+      const profile = registration.user.profile;
+      const paidDeadlines = registration.deadlines.filter((pd: any) => pd.isPaid);
+      const unpaidDeadlines = registration.deadlines.filter((pd: any) => !pd.isPaid);
+      const nextDeadline = unpaidDeadlines[0];
+      
+      // Calculate remaining amount
+      const totalPaid = paidDeadlines.reduce((sum: number, pd: any) => sum + pd.amount, 0);
+      const remainingAmount = Number(registration.finalAmount) - totalPaid;
+
+      worksheet.addRow({
+        registrationId: registration.id.substring(0, 8) + '...',
+        createdAt: registration.createdAt.toLocaleDateString('it-IT'),
+        status: registration.status,
+        nome: profile?.nome || '',
+        cognome: profile?.cognome || '',
+        email: registration.user.email,
+        codiceFiscale: profile?.codiceFiscale || '',
+        telefono: profile?.telefono || '',
+        dataNascita: profile?.dataNascita ? new Date(profile.dataNascita).toLocaleDateString('it-IT') : '',
+        luogoNascita: profile?.luogoNascita || '',
+        residenzaVia: profile?.residenzaVia || '',
+        residenzaCitta: profile?.residenzaCitta || '',
+        residenzaProvincia: profile?.residenzaProvincia || '',
+        residenzaCap: profile?.residenzaCap || '',
+        courseName: registration.offer?.course?.name || 'N/A',
+        courseType: registration.offer?.course?.templateType || 'N/A',
+        offerName: registration.offer?.name || 'N/A',
+        offerType: registration.offer?.offerType || 'N/A',
+        totalAmount: `€ ${Number(registration.offer?.totalAmount || 0).toFixed(2)}`,
+        finalAmount: `€ ${Number(registration.finalAmount).toFixed(2)}`,
+        paidInstallments: paidDeadlines.length,
+        totalInstallments: registration.deadlines.length,
+        remainingAmount: `€ ${remainingAmount.toFixed(2)}`,
+        nextDueDate: nextDeadline ? nextDeadline.dueDate.toLocaleDateString('it-IT') : '',
+        nextAmount: nextDeadline ? `€ ${nextDeadline.amount.toFixed(2)}` : ''
+      });
+    }
+
+    // Auto-fit columns
+    worksheet.columns.forEach(column => {
+      if (column.width && column.width < 8) {
+        column.width = 8;
+      }
+    });
+
+    // Generate filename with current date and partner code
+    const now = new Date();
+    const dateString = now.toISOString().split('T')[0];
+    const filename = `registrazioni_${partner.referralCode}_${dateString}.xlsx`;
+
+    console.log(`Generated Excel file: ${filename}`);
+
+    // Set response headers for file download
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Write workbook to response
+    await workbook.xlsx.write(res);
+    res.end();
+
+  } catch (error) {
+    console.error('Error generating Partner Excel export:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
