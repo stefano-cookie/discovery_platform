@@ -337,9 +337,9 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
     })));
     
     const formattedRegistrations = registrations.map(reg => {
-      const totalPaid = reg.payments
-        .filter(p => p.isConfirmed)
-        .reduce((sum, payment) => sum + Number(payment.amount), 0);
+      const totalPaid = reg.deadlines
+        .filter(d => d.isPaid)
+        .reduce((sum, deadline) => sum + Number(deadline.amount), 0);
       
       const nextDeadline = reg.deadlines
         .filter(d => !d.isPaid && new Date(d.dueDate) >= new Date())

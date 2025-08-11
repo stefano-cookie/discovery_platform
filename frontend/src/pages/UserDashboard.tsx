@@ -233,33 +233,33 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <div className="bg-white shadow">
+      <div className="bg-white shadow-sm border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="py-6 flex justify-between items-start">
+          <div className="py-8 flex justify-between items-start">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Ciao, {profile?.nome || user?.email}!
+              <h1 className="text-4xl font-bold text-slate-900 tracking-tight">
+                Benvenuto, {profile?.nome || user?.email?.split('@')[0]}
               </h1>
-              <p className="mt-1 text-gray-600">
+              <p className="mt-2 text-lg text-slate-600">
                 Gestisci le tue iscrizioni e il tuo profilo
               </p>
             </div>
             <button
               onClick={logout}
-              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
             >
-              Logout
+              Esci
             </button>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Tabs */}
-        <div className="border-b border-gray-200 mb-8">
-          <nav className="-mb-px flex space-x-8">
+        {/* Navigation Tabs */}
+        <div className="mb-10">
+          <nav className="flex space-x-1 bg-slate-100 p-1 rounded-lg">
             {[
               { id: 'overview', label: 'Panoramica' },
               { id: 'registrations', label: 'Le Mie Iscrizioni' },
@@ -268,10 +268,10 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
               <button
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id as any)}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                className={`px-6 py-3 text-sm font-medium rounded-md transition-all duration-200 ${
                   activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                 }`}
               >
                 {tab.label}
@@ -284,31 +284,76 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
         {activeTab === 'overview' && (
           <div className="space-y-6">
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-lg shadow">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Iscrizioni Totali</h3>
-                <p className="text-3xl font-bold text-blue-600">{registrations.length}</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-slate-600">Iscrizioni Totali</p>
+                    <p className="text-2xl font-bold text-slate-900">{registrations.length}</p>
+                  </div>
+                </div>
               </div>
-              <div className="bg-white p-6 rounded-lg shadow">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Iscrizioni Attive</h3>
-                <p className="text-3xl font-bold text-green-600">
-                  {registrations.filter(r => ['ENROLLED', 'CONTRACT_SIGNED'].includes(r.status)).length}
-                </p>
+              
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-slate-600">Iscrizioni Attive</p>
+                    <p className="text-2xl font-bold text-slate-900">
+                      {registrations.filter(r => ['ENROLLED', 'CONTRACT_SIGNED'].includes(r.status)).length}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-slate-600">Importo Totale</p>
+                    <p className="text-2xl font-bold text-slate-900">
+                      {formatCurrency(registrations.reduce((sum, r) => sum + (r.finalAmount || 0), 0))}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* Recent Registrations */}
-            <div className="bg-white rounded-lg shadow">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">Iscrizioni Recenti</h3>
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+              <div className="px-6 py-4 border-b border-slate-200">
+                <h3 className="text-lg font-semibold text-slate-900">Iscrizioni Recenti</h3>
               </div>
               <div className="p-6">
                 {registrations.length === 0 ? (
-                  <div className="text-center py-8">
-                    <div className="text-gray-400 text-xl mb-2">📚</div>
-                    <p className="text-gray-500 mb-4">Non hai ancora nessuna iscrizione</p>
-                    <p className="text-gray-400 text-sm">
-                      Controlla la sezione "Corsi Disponibili" per vedere i corsi a cui puoi iscriverti
+                  <div className="text-center py-12">
+                    <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                      </svg>
+                    </div>
+                    <h4 className="text-lg font-medium text-slate-900 mb-2">Nessuna iscrizione</h4>
+                    <p className="text-slate-600 text-sm max-w-sm mx-auto">
+                      Non hai ancora effettuato nessuna iscrizione. Controlla la sezione "Corsi Disponibili" per iniziare.
                     </p>
                   </div>
                 ) : (
@@ -316,25 +361,39 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                     {registrations.slice(0, 3).map((registration) => (
                       <div 
                         key={registration.id} 
-                        className="border rounded-lg p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                        className="group p-4 border border-slate-200 rounded-lg cursor-pointer hover:border-blue-300 hover:bg-blue-50/50 transition-all duration-200"
                         onClick={() => navigate(`/dashboard/enrollment/${registration.id}`)}
                       >
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <h4 className="font-medium text-gray-900">
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
                               {registration.courseName}
                             </h4>
-                            <p className="text-sm text-gray-600">
+                            <p className="text-sm text-slate-600 mt-1">
                               {registration.offerType === 'TFA_ROMANIA' ? 'TFA Romania' : 'Certificazione'}
                             </p>
                           </div>
                           {getStatusBadge(registration.status)}
                         </div>
-                        <div className="flex justify-between text-sm text-gray-600">
-                          <span>Iscritto il: {formatDate(registration.createdAt)}</span>
+                        <div className="flex justify-between items-center text-sm text-slate-600">
+                          <span>Iscritto il {formatDate(registration.createdAt)}</span>
+                          <span className="text-blue-600 group-hover:text-blue-700 font-medium">
+                            Visualizza dettagli →
+                          </span>
                         </div>
                       </div>
                     ))}
+                    
+                    {registrations.length > 3 && (
+                      <div className="pt-4 border-t border-slate-200">
+                        <button
+                          onClick={() => handleTabChange('registrations')}
+                          className="w-full text-center py-2 text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                        >
+                          Visualizza tutte le iscrizioni ({registrations.length - 3} altre)
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -766,64 +825,73 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
 
         {/* Registrations Tab */}
         {activeTab === 'registrations' && (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {registrations.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-gray-400 text-6xl mb-4">📚</div>
-                <h3 className="text-xl font-medium text-gray-900 mb-2">Nessuna iscrizione</h3>
-                <p className="text-gray-600 mb-4">Non hai ancora effettuato nessuna iscrizione ai corsi.</p>
-                <p className="text-gray-500 text-sm">
+              <div className="text-center py-16">
+                <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-bold text-slate-900 mb-4">Nessuna iscrizione</h3>
+                <p className="text-slate-600 text-lg mb-2 max-w-md mx-auto">Non hai ancora effettuato nessuna iscrizione ai corsi.</p>
+                <p className="text-slate-500 text-sm max-w-lg mx-auto">
                   Controlla la sezione "Corsi Disponibili" per vedere i corsi a cui puoi iscriverti tramite i link del tuo partner
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                 {registrations.map((registration) => (
                   <div 
                     key={registration.id} 
-                    className="bg-white rounded-lg shadow-sm border border-gray-200 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all duration-200 transform hover:-translate-y-1"
+                    className="group bg-white rounded-xl shadow-sm border border-slate-200 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all duration-200"
                     onClick={() => navigate(`/dashboard/enrollment/${registration.id}`)}
                   >
-                    <div className="p-4">
+                    <div className="p-6">
                       {/* Header */}
-                      <div className="flex justify-between items-start mb-3">
+                      <div className="flex justify-between items-start mb-4">
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-base font-semibold text-gray-900 truncate">
+                          <h3 className="text-lg font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
                             {registration.courseName}
                           </h3>
-                          <p className="text-sm text-gray-600">
+                          <p className="text-sm text-slate-600 mt-1">
                             {registration.offerType === 'TFA_ROMANIA' ? 'TFA Romania' : 'Certificazione'}
                           </p>
                         </div>
-                        <div className="ml-2 flex-shrink-0">
+                        <div className="ml-3 flex-shrink-0">
                           {getStatusBadge(registration.status)}
                         </div>
                       </div>
 
                       {/* Amount & Discount */}
-                      <div className="mb-3">
+                      <div className="mb-4">
                         {Number(registration.originalAmount) !== Number(registration.finalAmount) && (
-                          <div className="bg-green-50 border border-green-200 rounded-lg p-2 mb-2">
-                            <div className="text-xs text-green-700 font-medium">
-                              🎉 Sconto: {formatCurrency((registration.originalAmount || 0) - (registration.finalAmount || 0))}
+                          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-3">
+                            <div className="flex items-center">
+                              <div className="w-4 h-4 bg-emerald-500 rounded-full flex-shrink-0 mr-2"></div>
+                              <span className="text-sm text-emerald-700 font-medium">
+                                Sconto applicato: {formatCurrency((registration.originalAmount || 0) - (registration.finalAmount || 0))}
+                              </span>
                             </div>
                           </div>
                         )}
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Importo totale:</span>
-                          <span className="text-lg font-bold text-gray-900">{formatCurrency(registration.finalAmount)}</span>
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium text-slate-600">Importo totale</span>
+                            <span className="text-xl font-bold text-slate-900">{formatCurrency(registration.finalAmount)}</span>
+                          </div>
                         </div>
                       </div>
 
                       {/* Payment Info */}
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Rate:</span>
-                          <span className="font-medium">{registration.installments}</span>
+                      <div className="grid grid-cols-2 gap-3 mb-4">
+                        <div className="text-center p-3 bg-blue-50 rounded-lg">
+                          <div className="text-xs text-blue-600 font-medium mb-1">Rate</div>
+                          <div className="text-lg font-bold text-blue-900">{registration.installments}</div>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Data iscrizione:</span>
-                          <span className="font-medium">{formatDate(registration.createdAt)}</span>
+                        <div className="text-center p-3 bg-slate-50 rounded-lg">
+                          <div className="text-xs text-slate-600 font-medium mb-1">Iscrizione</div>
+                          <div className="text-sm font-bold text-slate-900">{formatDate(registration.createdAt)}</div>
                         </div>
                       </div>
 
@@ -831,16 +899,16 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                       {(() => {
                         const nextPayment = getNextPaymentDue(registration);
                         return nextPayment ? (
-                          <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs font-medium text-yellow-800">
-                                {nextPayment.paymentNumber === 0 ? 'Acconto' : `Rata ${nextPayment.paymentNumber}`}
+                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-4">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-sm font-semibold text-amber-800">
+                                {nextPayment.paymentNumber === 0 ? 'Acconto in scadenza' : `Rata ${nextPayment.paymentNumber}`}
                               </span>
-                              <span className="text-xs font-bold text-yellow-900">
+                              <span className="text-sm font-bold text-amber-900">
                                 {formatCurrency(nextPayment?.amount)}
                               </span>
                             </div>
-                            <div className="text-xs text-yellow-700 mt-1">
+                            <div className="text-xs text-amber-700">
                               Scadenza: {formatDate(nextPayment.dueDate)}
                             </div>
                           </div>
@@ -848,9 +916,9 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                       })()}
 
                       {/* Click indicator */}
-                      <div className="mt-3 text-center">
-                        <div className="text-xs text-blue-600 font-medium">
-                          Clicca per vedere i dettagli →
+                      <div className="pt-3 border-t border-slate-200">
+                        <div className="text-center text-sm text-blue-600 group-hover:text-blue-700 font-medium transition-colors">
+                          Visualizza dettagli completi →
                         </div>
                       </div>
                     </div>
@@ -863,106 +931,139 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
 
         {/* Profile Tab */}
         {activeTab === 'profile' && profile && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="px-6 py-4 bg-gray-50 border-b">
+          <div className="space-y-8">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-6 py-5 bg-slate-50 border-b border-slate-200">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium text-gray-900">Dati Anagrafici</h3>
+                  <h3 className="text-xl font-bold text-slate-900">Dati Anagrafici</h3>
                   <Link
                     to="/change-password"
-                    className="text-blue-600 hover:text-blue-800 text-sm"
+                    className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition-colors duration-200"
                   >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m0 0a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9a2 2 0 012-2m0 0V5a2 2 0 012-2h4a2 2 0 012 2v2m-6 9l2 2 4-4" />
+                    </svg>
                     Cambia Password
                   </Link>
                 </div>
               </div>
-              <div className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-3">Informazioni Personali</h4>
-                    <div className="space-y-3 text-sm">
-                      <div>
-                        <span className="text-gray-600 block">Email:</span>
-                        <span className="font-medium">{user?.email}</span>
+              <div className="p-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <div className="space-y-6">
+                    <div className="flex items-center space-x-3 mb-6">
+                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
                       </div>
-                      <div>
-                        <span className="text-gray-600 block">Nome Completo:</span>
-                        <span className="font-medium">{profile.nome} {profile.cognome}</span>
+                      <h4 className="text-lg font-bold text-slate-900">Informazioni Personali</h4>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="p-4 bg-slate-50 rounded-lg">
+                        <span className="text-sm font-medium text-slate-600 block mb-1">Email</span>
+                        <span className="text-slate-900 font-medium">{user?.email}</span>
                       </div>
-                      <div>
-                        <span className="text-gray-600 block">Data di Nascita:</span>
-                        <span className="font-medium">{new Date(profile.dataNascita).toLocaleDateString('it-IT')}</span>
+                      <div className="p-4 bg-slate-50 rounded-lg">
+                        <span className="text-sm font-medium text-slate-600 block mb-1">Nome Completo</span>
+                        <span className="text-slate-900 font-medium">{profile.nome} {profile.cognome}</span>
                       </div>
-                      <div>
-                        <span className="text-gray-600 block">Luogo di Nascita:</span>
-                        <span className="font-medium">{profile.luogoNascita}</span>
+                      <div className="p-4 bg-slate-50 rounded-lg">
+                        <span className="text-sm font-medium text-slate-600 block mb-1">Data di Nascita</span>
+                        <span className="text-slate-900 font-medium">{new Date(profile.dataNascita).toLocaleDateString('it-IT')}</span>
                       </div>
-                      <div>
-                        <span className="text-gray-600 block">Codice Fiscale:</span>
-                        <span className="font-medium">{profile.codiceFiscale}</span>
+                      <div className="p-4 bg-slate-50 rounded-lg">
+                        <span className="text-sm font-medium text-slate-600 block mb-1">Luogo di Nascita</span>
+                        <span className="text-slate-900 font-medium">{profile.luogoNascita}</span>
                       </div>
-                      <div>
-                        <span className="text-gray-600 block">Telefono:</span>
-                        <span className="font-medium">{profile.telefono}</span>
+                      <div className="p-4 bg-slate-50 rounded-lg">
+                        <span className="text-sm font-medium text-slate-600 block mb-1">Codice Fiscale</span>
+                        <span className="text-slate-900 font-medium font-mono tracking-wide">{profile.codiceFiscale}</span>
+                      </div>
+                      <div className="p-4 bg-slate-50 rounded-lg">
+                        <span className="text-sm font-medium text-slate-600 block mb-1">Telefono</span>
+                        <span className="text-slate-900 font-medium">{profile.telefono}</span>
                       </div>
                       {profile.nomePadre && (
-                        <div>
-                          <span className="text-gray-600 block">Nome Padre:</span>
-                          <span className="font-medium">{profile.nomePadre}</span>
+                        <div className="p-4 bg-slate-50 rounded-lg">
+                          <span className="text-sm font-medium text-slate-600 block mb-1">Nome Padre</span>
+                          <span className="text-slate-900 font-medium">{profile.nomePadre}</span>
                         </div>
                       )}
                       {profile.nomeMadre && (
-                        <div>
-                          <span className="text-gray-600 block">Nome Madre:</span>
-                          <span className="font-medium">{profile.nomeMadre}</span>
+                        <div className="p-4 bg-slate-50 rounded-lg">
+                          <span className="text-sm font-medium text-slate-600 block mb-1">Nome Madre</span>
+                          <span className="text-slate-900 font-medium">{profile.nomeMadre}</span>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-3">Residenza</h4>
-                    <div className="space-y-3 text-sm">
-                      <div>
-                        <span className="text-gray-600 block">Indirizzo:</span>
-                        <span className="font-medium">
-                          {profile.residenzaVia}, {profile.residenzaCap} {profile.residenzaCitta} ({profile.residenzaProvincia})
-                        </span>
+                  <div className="space-y-6">
+                    <div className="flex items-center space-x-3 mb-6">
+                      <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                        </svg>
+                      </div>
+                      <h4 className="text-lg font-bold text-slate-900">Residenza</h4>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="p-4 bg-purple-50 rounded-lg border border-purple-100">
+                        <span className="text-sm font-medium text-purple-700 block mb-1">Indirizzo di Residenza</span>
+                        <div className="text-slate-900 font-medium">
+                          <div>{profile.residenzaVia}</div>
+                          <div className="text-slate-600 mt-1">
+                            {profile.residenzaCap} {profile.residenzaCitta} ({profile.residenzaProvincia})
+                          </div>
+                        </div>
                       </div>
                       {profile.hasDifferentDomicilio && (
-                        <div>
-                          <span className="text-gray-600 block">Domicilio:</span>
-                          <span className="font-medium">
-                            {profile.domicilioVia}, {profile.domicilioCap} {profile.domicilioCitta} ({profile.domicilioProvincia})
-                          </span>
+                        <div className="p-4 bg-amber-50 rounded-lg border border-amber-100">
+                          <span className="text-sm font-medium text-amber-700 block mb-1">Domicilio</span>
+                          <div className="text-slate-900 font-medium">
+                            <div>{profile.domicilioVia}</div>
+                            <div className="text-slate-600 mt-1">
+                              {profile.domicilioCap} {profile.domicilioCitta} ({profile.domicilioProvincia})
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
 
                     {(profile.tipoLaurea || profile.tipoProfessione) && (
                       <>
-                        <h4 className="font-medium text-gray-900 mb-3 mt-6">Istruzione e Professione</h4>
-                        <div className="space-y-3 text-sm">
+                        <div className="flex items-center space-x-3 mb-6 mt-8">
+                          <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                            <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+                            </svg>
+                          </div>
+                          <h4 className="text-lg font-bold text-slate-900">Istruzione e Professione</h4>
+                        </div>
+                        <div className="space-y-4">
                           {profile.tipoLaurea && (
-                            <div>
-                              <span className="text-gray-600 block">Laurea:</span>
-                              <span className="font-medium">
-                                {profile.tipoLaurea} in {profile.laureaConseguita}
-                              </span>
-                              {profile.laureaUniversita && (
-                                <span className="block text-gray-600">presso {profile.laureaUniversita}</span>
-                              )}
+                            <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-100">
+                              <span className="text-sm font-medium text-emerald-700 block mb-1">Laurea</span>
+                              <div className="text-slate-900 font-medium">
+                                <div>{profile.tipoLaurea} in {profile.laureaConseguita}</div>
+                                {profile.laureaUniversita && (
+                                  <div className="text-slate-600 mt-1">presso {profile.laureaUniversita}</div>
+                                )}
+                              </div>
                             </div>
                           )}
                           {profile.tipoProfessione && (
-                            <div>
-                              <span className="text-gray-600 block">Professione:</span>
-                              <span className="font-medium">{profile.tipoProfessione}</span>
-                              {profile.scuolaDenominazione && (
-                                <span className="block text-gray-600">
-                                  presso {profile.scuolaDenominazione}, {profile.scuolaCitta}
-                                </span>
-                              )}
+                            <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+                              <span className="text-sm font-medium text-blue-700 block mb-1">Professione</span>
+                              <div className="text-slate-900 font-medium">
+                                <div>{profile.tipoProfessione}</div>
+                                {profile.scuolaDenominazione && (
+                                  <div className="text-slate-600 mt-1">
+                                    presso {profile.scuolaDenominazione}, {profile.scuolaCitta}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -974,17 +1075,41 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
             </div>
 
             {assignedPartner && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                <h4 className="font-medium text-blue-900 mb-2">Partner di Riferimento</h4>
-                <p className="text-blue-700">
-                  Il tuo partner di riferimento è: <span className="font-medium">{assignedPartner.email}</span>
-                </p>
-                <p className="text-sm text-blue-600 mt-1">
-                  Codice Partner: <span className="font-medium">{assignedPartner.referralCode}</span>
-                </p>
-                <p className="text-sm text-blue-600 mt-1">
-                  Tutte le tue future iscrizioni saranno associate a questo partner.
-                </p>
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6">
+                <div className="flex items-center space-x-4 mb-4">
+                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <h4 className="text-xl font-bold text-blue-900">Partner di Riferimento</h4>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div className="bg-white/70 rounded-lg p-4">
+                    <div className="text-sm font-medium text-blue-700 mb-1">Email Partner</div>
+                    <div className="text-blue-900 font-bold">{assignedPartner.email}</div>
+                  </div>
+                  <div className="bg-white/70 rounded-lg p-4">
+                    <div className="text-sm font-medium text-blue-700 mb-1">Codice Partner</div>
+                    <div className="text-blue-900 font-bold font-mono">{assignedPartner.referralCode}</div>
+                  </div>
+                </div>
+                
+                <div className="bg-blue-100/50 rounded-lg p-4">
+                  <div className="flex items-start space-x-3">
+                    <svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <h5 className="text-blue-900 font-semibold text-sm mb-1">Informazioni Importanti</h5>
+                      <p className="text-blue-800 text-sm">
+                        Tutte le tue future iscrizioni saranno automaticamente associate a questo partner. 
+                        Per qualsiasi domanda o supporto, contattalo direttamente.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>

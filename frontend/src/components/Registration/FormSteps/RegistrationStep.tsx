@@ -609,58 +609,140 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
 
   if (submitStatus === 'success') {
     return (
-      <div className="text-center py-12">
-        <div className="w-20 h-20 bg-gradient-to-br from-green-400 to-green-600 rounded-full mx-auto mb-6 flex items-center justify-center">
-          <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-          </svg>
-        </div>
-        <h3 className="text-2xl font-bold text-gray-900 mb-4">🎉 Iscrizione Completata!</h3>
-        <p className="text-gray-600 text-lg mb-6">
-          La tua iscrizione è stata inviata con successo. Riceverai una conferma via email a breve.
-        </p>
-        
-        {/* CTA per area riservata - mostra per utenti loggati, con token o verificati via email */}
-        {(user || accessToken || (emailVerified === 'true' && verifiedEmail)) && (
-          <div className="mb-8">
-            <a
-              href={user ? "/dashboard" : "/login"}
-              className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg shadow-lg hover:from-blue-700 hover:to-purple-700 transform hover:scale-105 transition-all duration-200"
-            >
-              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
-              </svg>
-              {user ? 'Vai alla tua Area Riservata' : 'Accedi alla tua Area Riservata'}
-            </a>
-            {/* Messaggio informativo per utenti verificati via email */}
-            {!user && emailVerified === 'true' && (
-              <p className="text-sm text-gray-600 mt-2 text-center">
-                💡 Effettua il login per accedere alla tua area personale e monitorare lo stato dell'iscrizione
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-blue-50 to-indigo-100 p-4">
+        <div className="max-w-2xl w-full">
+          {/* Success Animation */}
+          <div className="text-center mb-8">
+            <div className="relative">
+              {/* Animated background circle */}
+              <div className="w-32 h-32 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full mx-auto mb-6 flex items-center justify-center relative overflow-hidden shadow-2xl">
+                <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent rounded-full"></div>
+                <svg className="w-16 h-16 text-white animate-pulse" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+              
+              {/* Floating particles */}
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-4">
+                <div className="flex space-x-1 opacity-70">
+                  <div className="w-2 h-2 bg-yellow-400 rounded-full animate-bounce" style={{animationDelay: '0s'}}></div>
+                  <div className="w-2 h-2 bg-pink-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Main heading with celebration */}
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-600 via-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
+              🎉 Iscrizione Completata!
+            </h1>
+            <p className="text-xl text-gray-700 mb-8 font-medium">
+              La tua iscrizione è stata inviata con successo
+            </p>
+          </div>
+          
+          {/* Main success card */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-2xl p-8 mb-6 border border-white/20">
+            {/* Welcome message */}
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-100 to-indigo-200 rounded-2xl mb-4">
+                <svg className="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                  <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Benvenuto in Diamante!</h2>
+              <p className="text-gray-600">
+                Il tuo percorso formativo sta per iniziare
               </p>
+            </div>
+            
+            {/* Action buttons */}
+            <div className="flex flex-col sm:flex-row gap-4 mb-8">
+              {(user || accessToken || (emailVerified === 'true' && verifiedEmail)) && (
+                <a
+                  href={user ? "/dashboard" : "/login"}
+                  className="flex-1 group relative overflow-hidden bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-4 px-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-700 to-purple-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  <div className="relative flex items-center justify-center">
+                    <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+                    </svg>
+                    {user ? 'Vai alla tua Area Riservata' : 'Accedi alla tua Area Riservata'}
+                  </div>
+                </a>
+              )}
+              
+              <button
+                onClick={() => window.location.href = '/'}
+                className="flex-1 bg-white/50 backdrop-blur-sm border border-gray-200 text-gray-700 font-medium py-4 px-6 rounded-2xl hover:bg-white/80 hover:shadow-md transition-all duration-300 flex items-center justify-center"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                Torna alla Home
+              </button>
+            </div>
+            
+            {/* Info message for verified users */}
+            {!user && emailVerified === 'true' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-8">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-blue-800 text-sm font-medium">
+                      💡 Effettua il login per accedere alla tua area personale e monitorare lo stato dell'iscrizione
+                    </p>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
-        )}
-        
-        <div className="bg-green-50 border border-green-200 rounded-lg p-6 mx-auto max-w-md mb-6">
-          <p className="text-green-800 text-sm">
-            Benvenuto nella piattaforma Diamante! Il nostro team ti contatterà presto per i prossimi passi.
-          </p>
-        </div>
-        
-        {/* Informazioni aggiuntive */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mx-auto max-w-lg">
-          <h4 className="text-blue-900 font-semibold mb-3">📧 Email di Conferma Inviata</h4>
-          <p className="text-blue-800 text-sm mb-3">
-            Abbiamo inviato una email di conferma con tutti i dettagli della tua iscrizione.
-          </p>
-          <div className="text-blue-700 text-sm">
-            <p className="mb-2"><strong>Prossimi passi:</strong></p>
-            <ul className="text-left space-y-1">
-              <li>• Controlla la tua casella email (anche lo spam)</li>
-              <li>• {user ? 'Accedi alla tua area riservata per monitorare lo stato' : 'Effettua il login per accedere alla tua area riservata'}</li>
-              <li>• Il tuo partner di riferimento ti contatterà a breve</li>
-              <li>• Conserva l'email di conferma per i tuoi archivi</li>
-            </ul>
+          
+          {/* Next steps card */}
+          <div className="bg-white/60 backdrop-blur-sm rounded-3xl shadow-xl p-6 border border-white/20">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-emerald-200 rounded-2xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              </div>
+              <div className="ml-4 flex-1">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Prossimi Passi</h3>
+                <div className="space-y-2 text-sm text-gray-600">
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-3"></div>
+                    <span>Riceverai una email di conferma con tutti i dettagli</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
+                    <span>Il tuo partner di riferimento ti contatterà a breve</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full mr-3"></div>
+                    <span>Controlla la tua casella email (anche lo spam)</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-indigo-500 rounded-full mr-3"></div>
+                    <span>{user ? 'Monitora il tuo progresso nell\'area riservata' : 'Effettua il login per accedere alla tua area riservata'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Footer note */}
+          <div className="text-center mt-6">
+            <p className="text-gray-500 text-sm">
+              Conserva l'email di conferma per i tuoi archivi
+            </p>
           </div>
         </div>
       </div>

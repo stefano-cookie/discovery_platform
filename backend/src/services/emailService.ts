@@ -68,129 +68,80 @@ class EmailService {
 
   private getVerificationEmailTemplate(verificationLink: string): string {
     return `
-    <!DOCTYPE html>
-    <html lang="it">
-    <head>
-        <meta charset="UTF-8">
+      <!DOCTYPE html>
+      <html lang="it">
+      <head>
+        <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Verifica Email - Piattaforma Diamante</title>
         <style>
-            body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                max-width: 600px;
-                margin: 0 auto;
-                padding: 20px;
-                background-color: #f8fafc;
-            }
-            .container {
-                background-color: white;
-                border-radius: 12px;
-                padding: 40px;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            }
-            .header {
-                text-align: center;
-                margin-bottom: 30px;
-            }
-            .logo {
-                font-size: 28px;
-                font-weight: bold;
-                color: #3b82f6;
-                margin-bottom: 10px;
-            }
-            .title {
-                font-size: 24px;
-                font-weight: bold;
-                color: #1f2937;
-                margin-bottom: 20px;
-            }
-            .content {
-                margin-bottom: 30px;
-                color: #4b5563;
-            }
-            .verification-button {
-                display: inline-block;
-                background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-                color: white;
-                text-decoration: none;
-                padding: 15px 30px;
-                border-radius: 8px;
-                font-weight: bold;
-                font-size: 16px;
-                text-align: center;
-                margin: 20px 0;
-            }
-            .verification-button:hover {
-                background: linear-gradient(135deg, #2563eb, #7c3aed);
-            }
-            .link-fallback {
-                margin-top: 20px;
-                padding: 15px;
-                background-color: #f3f4f6;
-                border-radius: 8px;
-                word-break: break-all;
-                font-size: 14px;
-                color: #6b7280;
-            }
-            .footer {
-                margin-top: 30px;
-                padding-top: 20px;
-                border-top: 1px solid #e5e7eb;
-                text-align: center;
-                color: #6b7280;
-                font-size: 14px;
-            }
-            .warning {
-                background-color: #fef3c7;
-                border: 1px solid #f59e0b;
-                border-radius: 8px;
-                padding: 15px;
-                margin: 20px 0;
-                color: #92400e;
-                font-size: 14px;
-            }
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #0066cc 0%, #004499 100%); color: white; padding: 40px 30px; text-align: center; }
+          .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+          .content { padding: 30px; }
+          .verification-button { 
+            background-color: #0066cc; 
+            color: white; 
+            padding: 15px 30px; 
+            text-decoration: none; 
+            border-radius: 6px; 
+            font-weight: 600; 
+            display: inline-block; 
+            margin: 20px 0;
+            text-align: center;
+          }
+          .info-box { background-color: #e8f4fd; border: 1px solid #b8daff; border-radius: 8px; padding: 20px; margin: 20px 0; }
+          .link-fallback { background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 15px; margin: 20px 0; word-break: break-all; font-size: 14px; }
+          .footer { background-color: #f8fafc; padding: 25px 30px; text-align: center; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; }
         </style>
-    </head>
-    <body>
+      </head>
+      <body>
         <div class="container">
-            <div class="header">
-                <div class="logo">💎 Piattaforma Diamante</div>
-                <h1 class="title">Verifica il tuo indirizzo email</h1>
+          <div class="header">
+            <div class="logo">PIATTAFORMA DIAMANTE</div>
+            <div style="font-size: 16px; margin-top: 10px; opacity: 0.9;">Formazione Professionale</div>
+            <h1 style="margin: 25px 0 0 0; font-size: 24px;">Verifica il tuo indirizzo email</h1>
+          </div>
+          
+          <div class="content">
+            <p>Gentile utente,</p>
+            
+            <p>Grazie per aver iniziato la registrazione sulla <strong>Piattaforma Diamante</strong>.</p>
+            
+            <p>Per completare la sua registrazione e accedere a tutti i nostri servizi formativi, è necessario verificare il suo indirizzo email cliccando sul pulsante qui sotto:</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${verificationLink}" class="verification-button">
+                ✓ Verifica Email
+              </a>
             </div>
             
-            <div class="content">
-                <p>Ciao,</p>
-                <p>Grazie per aver iniziato la registrazione sulla <strong>Piattaforma Diamante</strong>!</p>
-                <p>Per completare la tua registrazione e accedere a tutti i nostri servizi, devi verificare il tuo indirizzo email cliccando sul pulsante qui sotto:</p>
-                
-                <div style="text-align: center;">
-                    <a href="${verificationLink}" class="verification-button">
-                        ✓ Verifica la mia email
-                    </a>
-                </div>
-                
-                <div class="warning">
-                    <strong>⚠️ Importante:</strong> Questo link è valido per 24 ore. Dopo la scadenza dovrai richiedere un nuovo link di verifica.
-                </div>
-                
-                <p>Se il pulsante non funziona, puoi copiare e incollare il seguente link nel tuo browser:</p>
-                <div class="link-fallback">
-                    ${verificationLink}
-                </div>
-                
-                <p>Se non hai richiesto questa verifica, puoi ignorare questa email in sicurezza.</p>
+            <div class="info-box">
+              <h4 style="margin-top: 0; color: #0066cc;">⏱️ Importante:</h4>
+              <p style="margin-bottom: 0;">Questo link è valido per <strong>24 ore</strong>. Dopo la scadenza dovrà richiedere un nuovo link di verifica.</p>
             </div>
             
-            <div class="footer">
-                <p><strong>Piattaforma Diamante</strong></p>
-                <p>Questa è una email automatica, non rispondere a questo messaggio.</p>
-                <p>Per assistenza, contatta il supporto.</p>
+            <p>Se il pulsante non dovesse funzionare, può copiare e incollare il seguente link nel suo browser:</p>
+            
+            <div class="link-fallback">
+              ${verificationLink}
             </div>
+            
+            <p style="font-size: 14px; color: #666;">Se non ha richiesto questa verifica, può ignorare questa email in sicurezza.</p>
+          </div>
+          
+          <div class="footer">
+            <p><strong>Piattaforma Diamante</strong><br>
+            Formazione Professionale di Qualità</p>
+            <p style="font-size: 12px; margin-top: 15px;">
+              Questo messaggio è stato inviato automaticamente. Per favore non rispondere a questa email.<br>
+              Per assistenza, contatti il nostro supporto.
+            </p>
+          </div>
         </div>
-    </body>
-    </html>
+      </body>
+      </html>
     `;
   }
 
@@ -264,85 +215,177 @@ class EmailService {
 
   private getDocumentApprovedTemplate(userName: string, documentType: string): string {
     return `
-    <!DOCTYPE html>
-    <html lang="it">
-    <head>
-        <meta charset="UTF-8">
-        <title>Documento Approvato</title>
+      <!DOCTYPE html>
+      <html lang="it">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Documento Approvato - Piattaforma Diamante</title>
         <style>
-            body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
-            .container { background: white; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-            .header { text-align: center; margin-bottom: 30px; }
-            .success { color: #10b981; font-size: 48px; }
-            .title { font-size: 24px; font-weight: bold; margin: 20px 0; }
-            .button { display: inline-block; padding: 12px 24px; background: #3b82f6; color: white; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 40px 30px; text-align: center; }
+          .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+          .content { padding: 30px; }
+          .success-icon { font-size: 48px; color: #059669; margin-bottom: 20px; text-align: center; }
+          .document-info { background-color: #d1fae5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
+          .dashboard-button { 
+            background-color: #0066cc; 
+            color: white; 
+            padding: 12px 24px; 
+            text-decoration: none; 
+            border-radius: 6px; 
+            font-weight: 600; 
+            display: inline-block; 
+            margin: 20px 0;
+          }
+          .footer { background-color: #f8fafc; padding: 25px 30px; text-align: center; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; }
         </style>
-    </head>
-    <body>
+      </head>
+      <body>
         <div class="container">
-            <div class="header">
-                <div class="success">✓</div>
-                <div class="title">Documento Approvato</div>
+          <div class="header">
+            <div class="logo">PIATTAFORMA DIAMANTE</div>
+            <div style="font-size: 16px; margin-top: 10px; opacity: 0.9;">Formazione Professionale</div>
+          </div>
+          
+          <div class="content">
+            <div class="success-icon">✅</div>
+            
+            <h2 style="color: #059669; text-align: center; margin-bottom: 25px;">Documento Approvato!</h2>
+            
+            <p>Gentile <strong>${userName}</strong>,</p>
+            
+            <div class="document-info">
+              <h4 style="margin-top: 0; color: #047857;">📄 Documento verificato con successo</h4>
+              <p style="margin-bottom: 0; font-weight: 600; color: #065f46;">${documentType}</p>
             </div>
-            <p>Gentile ${userName},</p>
-            <p>Il tuo documento <strong>"${documentType}"</strong> è stato approvato con successo.</p>
-            <p>Puoi visualizzare lo stato di tutti i tuoi documenti nella tua area personale.</p>
-            <a href="${process.env.FRONTEND_URL}/dashboard" class="button">Vai all'Area Personale</a>
-            <p>Cordiali saluti,<br>Il team di Piattaforma Diamante</p>
+            
+            <p>Il documento è stato verificato dal nostro team e <strong>approvato</strong> secondo i criteri richiesti.</p>
+            
+            <p>Può visualizzare lo stato di tutti i suoi documenti e procedere con i prossimi passi accedendo alla sua area personale.</p>
+            
+            <div style="text-align: center;">
+              <a href="${process.env.FRONTEND_URL}/dashboard" class="dashboard-button">
+                🏠 Accedi all'Area Personale
+              </a>
+            </div>
+            
+            <p style="color: #666; font-size: 14px;">La ringraziamo per la collaborazione nel processo di verifica.</p>
+          </div>
+          
+          <div class="footer">
+            <p><strong>Piattaforma Diamante</strong><br>
+            Formazione Professionale di Qualità</p>
+            <p style="font-size: 12px; margin-top: 15px;">
+              Questo messaggio è stato inviato automaticamente. Per favore non rispondere a questa email.
+            </p>
+          </div>
         </div>
-    </body>
-    </html>
+      </body>
+      </html>
     `;
   }
 
   private getDocumentRejectedTemplate(userName: string, documentType: string, reason: string, details?: string): string {
     return `
-    <!DOCTYPE html>
-    <html lang="it">
-    <head>
-        <meta charset="UTF-8">
-        <title>Documento Non Conforme</title>
+      <!DOCTYPE html>
+      <html lang="it">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Documento Non Conforme - Piattaforma Diamante</title>
         <style>
-            body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
-            .container { background: white; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-            .header { text-align: center; margin-bottom: 30px; }
-            .warning { color: #ef4444; font-size: 48px; }
-            .title { font-size: 24px; font-weight: bold; margin: 20px 0; color: #ef4444; }
-            .reason-box { background: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; }
-            .steps { background: #f3f4f6; padding: 20px; border-radius: 6px; margin: 20px 0; }
-            .button { display: inline-block; padding: 12px 24px; background: #3b82f6; color: white; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); color: white; padding: 40px 30px; text-align: center; }
+          .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+          .content { padding: 30px; }
+          .warning-icon { font-size: 48px; color: #dc2626; margin-bottom: 20px; text-align: center; }
+          .document-info { background-color: #fee2e2; border: 1px solid #fecaca; border-radius: 8px; padding: 20px; margin: 20px 0; }
+          .reason-box { background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 20px; margin: 20px 0; border-radius: 0 6px 6px 0; }
+          .steps-box { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 20px 0; }
+          .requirements { background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 20px; margin: 20px 0; }
+          .dashboard-button { 
+            background-color: #0066cc; 
+            color: white; 
+            padding: 12px 24px; 
+            text-decoration: none; 
+            border-radius: 6px; 
+            font-weight: 600; 
+            display: inline-block; 
+            margin: 20px 0;
+          }
+          .footer { background-color: #f8fafc; padding: 25px 30px; text-align: center; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; }
         </style>
-    </head>
-    <body>
+      </head>
+      <body>
         <div class="container">
-            <div class="header">
-                <div class="warning">⚠</div>
-                <div class="title">Documento Non Conforme</div>
+          <div class="header">
+            <div class="logo">PIATTAFORMA DIAMANTE</div>
+            <div style="font-size: 16px; margin-top: 10px; opacity: 0.9;">Formazione Professionale</div>
+          </div>
+          
+          <div class="content">
+            <div class="warning-icon">⚠️</div>
+            
+            <h2 style="color: #dc2626; text-align: center; margin-bottom: 25px;">Documento Non Conforme</h2>
+            
+            <p>Gentile <strong>${userName}</strong>,</p>
+            
+            <div class="document-info">
+              <h4 style="margin-top: 0; color: #dc2626;">📄 Documento soggetto a revisione</h4>
+              <p style="margin-bottom: 0; font-weight: 600; color: #991b1b;">${documentType}</p>
             </div>
-            <p>Gentile ${userName},</p>
-            <p>Il documento <strong>"${documentType}"</strong> che hai caricato non è conforme e richiede una tua azione.</p>
+            
+            <p>Il documento che ha caricato non è conforme ai requisiti richiesti e necessita di una sua azione per procedere.</p>
             
             <div class="reason-box">
-                <strong>Motivo del rifiuto:</strong><br>
-                ${reason}
-                ${details ? `<br><br><strong>Dettagli aggiuntivi:</strong><br>${details}` : ''}
+              <h4 style="margin-top: 0; color: #dc2626;">🚨 Motivo del rifiuto:</h4>
+              <p style="font-weight: 600; margin-bottom: ${details ? '10px' : '0'};">${reason}</p>
+              ${details ? `<p style="margin-bottom: 0;"><em>Note aggiuntive:</em> ${details}</p>` : ''}
             </div>
             
-            <div class="steps">
-                <strong>Per procedere con la tua iscrizione:</strong>
-                <ol>
-                    <li>Accedi alla tua area personale</li>
-                    <li>Carica nuovamente il documento corretto</li>
-                    <li>Attendi la verifica del partner</li>
-                </ol>
+            <div class="steps-box">
+              <h4 style="margin-top: 0; color: #374151;">🔄 Per procedere con la sua iscrizione:</h4>
+              <ol style="margin: 10px 0; padding-left: 20px;">
+                <li>Acceda alla sua area personale</li>
+                <li>Carichi nuovamente il documento corretto</li>
+                <li>Attenda la nuova verifica del partner</li>
+              </ol>
             </div>
             
-            <a href="${process.env.FRONTEND_URL}/dashboard" class="button">Vai all'Area Personale</a>
+            <div class="requirements">
+              <h4 style="margin-top: 0; color: #0369a1;">📋 Requisiti documenti:</h4>
+              <ul style="margin: 10px 0; padding-left: 20px;">
+                <li>Formato: PDF, JPG o PNG</li>
+                <li>Dimensione massima: 10MB</li>
+                <li>Documento leggibile e completo</li>
+                <li>Non acquisito da fotocopia</li>
+                <li>Immagine nitida e ben illuminata</li>
+              </ul>
+            </div>
             
-            <p>Cordiali saluti,<br>Il team di Piattaforma Diamante</p>
+            <div style="text-align: center;">
+              <a href="${process.env.FRONTEND_URL}/dashboard" class="dashboard-button">
+                🏠 Accedi all'Area Personale
+              </a>
+            </div>
+            
+            <p style="color: #666; font-size: 14px;">La ringraziamo per la collaborazione e ci scusiamo per l'inconveniente.</p>
+          </div>
+          
+          <div class="footer">
+            <p><strong>Piattaforma Diamante</strong><br>
+            Formazione Professionale di Qualità</p>
+            <p style="font-size: 12px; margin-top: 15px;">
+              Questo messaggio è stato inviato automaticamente. Per favore non rispondere a questa email.<br>
+              Per assistenza, contatti il nostro supporto.
+            </p>
+          </div>
         </div>
-    </body>
-    </html>
+      </body>
+      </html>
     `;
   }
 
@@ -385,158 +428,91 @@ class EmailService {
 
   private getRegistrationConfirmationTemplate(registrationData: any): string {
     return `
-    <!DOCTYPE html>
-    <html lang="it">
-    <head>
-        <meta charset="UTF-8">
+      <!DOCTYPE html>
+      <html lang="it">
+      <head>
+        <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Registrazione Completata - Piattaforma Diamante</title>
         <style>
-            body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                max-width: 600px;
-                margin: 0 auto;
-                padding: 20px;
-                background-color: #f8fafc;
-            }
-            .container {
-                background-color: white;
-                border-radius: 12px;
-                padding: 40px;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            }
-            .header {
-                text-align: center;
-                margin-bottom: 30px;
-            }
-            .logo {
-                font-size: 28px;
-                font-weight: bold;
-                color: #10b981;
-                margin-bottom: 10px;
-            }
-            .title {
-                font-size: 24px;
-                font-weight: bold;
-                color: #1f2937;
-                margin-bottom: 20px;
-            }
-            .success-icon {
-                font-size: 48px;
-                margin-bottom: 20px;
-            }
-            .content {
-                margin-bottom: 30px;
-                color: #4b5563;
-            }
-            .info-box {
-                background-color: #f0fdf4;
-                border: 1px solid #16a34a;
-                border-radius: 8px;
-                padding: 20px;
-                margin: 20px 0;
-            }
-            .info-box h3 {
-                color: #15803d;
-                margin-top: 0;
-                margin-bottom: 15px;
-            }
-            .info-row {
-                display: flex;
-                justify-content: space-between;
-                margin-bottom: 8px;
-                padding-bottom: 8px;
-                border-bottom: 1px solid #dcfce7;
-            }
-            .info-row:last-child {
-                border-bottom: none;
-                margin-bottom: 0;
-                padding-bottom: 0;
-            }
-            .info-label {
-                font-weight: bold;
-                color: #15803d;
-            }
-            .info-value {
-                color: #166534;
-            }
-            .footer {
-                margin-top: 30px;
-                padding-top: 20px;
-                border-top: 1px solid #e5e7eb;
-                text-align: center;
-                color: #6b7280;
-                font-size: 14px;
-            }
-            .next-steps {
-                background-color: #fef3c7;
-                border: 1px solid #f59e0b;
-                border-radius: 8px;
-                padding: 20px;
-                margin: 20px 0;
-                color: #92400e;
-            }
-            .next-steps h3 {
-                color: #92400e;
-                margin-top: 0;
-            }
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 40px 30px; text-align: center; }
+          .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+          .content { padding: 30px; }
+          .success-icon { font-size: 48px; margin-bottom: 20px; text-align: center; }
+          .registration-info { background-color: #d1fae5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 20px; margin: 25px 0; }
+          .info-row { display: flex; justify-content: space-between; margin: 10px 0; padding: 8px 0; border-bottom: 1px solid #bbf7d0; }
+          .info-row:last-child { border-bottom: none; }
+          .info-label { font-weight: 600; color: #047857; }
+          .info-value { color: #065f46; }
+          .next-steps { background-color: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; padding: 20px; margin: 25px 0; }
+          .footer { background-color: #f8fafc; padding: 25px 30px; text-align: center; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; }
         </style>
-    </head>
-    <body>
+      </head>
+      <body>
         <div class="container">
-            <div class="header">
-                <div class="logo">💎 Piattaforma Diamante</div>
-                <div class="success-icon">🎉</div>
-                <h1 class="title">Registrazione Completata!</h1>
+          <div class="header">
+            <div class="logo">PIATTAFORMA DIAMANTE</div>
+            <div style="font-size: 16px; margin-top: 10px; opacity: 0.9;">Formazione Professionale</div>
+            <h1 style="margin: 25px 0 0 0; font-size: 24px;">Registrazione Completata!</h1>
+          </div>
+          
+          <div class="content">
+            <div class="success-icon">🎉</div>
+            
+            <p>Gentile <strong>${registrationData.nome}</strong>,</p>
+            
+            <p>La sua registrazione alla <strong>Piattaforma Diamante</strong> è stata completata con successo!</p>
+            
+            <div class="registration-info">
+              <h4 style="margin-top: 0; color: #047857;">📋 Dettagli della registrazione:</h4>
+              <div class="info-row">
+                <span class="info-label">Nome Completo:</span>
+                <span class="info-value">${registrationData.nome} ${registrationData.cognome}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Email:</span>
+                <span class="info-value">${registrationData.email}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">ID Registrazione:</span>
+                <span class="info-value">${registrationData.registrationId}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Data Registrazione:</span>
+                <span class="info-value">${new Date().toLocaleDateString('it-IT')}</span>
+              </div>
             </div>
             
-            <div class="content">
-                <p>Ciao <strong>${registrationData.nome}</strong>,</p>
-                <p>La tua registrazione alla <strong>Piattaforma Diamante</strong> è stata completata con successo!</p>
-                
-                <div class="info-box">
-                    <h3>📋 Dettagli della tua registrazione:</h3>
-                    <div class="info-row">
-                        <span class="info-label">Nome Completo:</span>
-                        <span class="info-value">${registrationData.nome} ${registrationData.cognome}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Email:</span>
-                        <span class="info-value">${registrationData.email}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">ID Registrazione:</span>
-                        <span class="info-value">${registrationData.registrationId}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Data Registrazione:</span>
-                        <span class="info-value">${new Date().toLocaleDateString('it-IT')}</span>
-                    </div>
-                </div>
-                
-                <div class="next-steps">
-                    <h3>📞 Prossimi Passi:</h3>
-                    <ul>
-                        <li>Il nostro team ti contatterà entro 24-48 ore</li>
-                        <li>Riceverai informazioni dettagliate sul corso</li>
-                        <li>Ti guideremo attraverso il processo di iscrizione</li>
-                    </ul>
-                </div>
-                
-                <p>Conserva questa email per i tuoi archivi. Se hai domande, non esitare a contattarci.</p>
-                <p>Benvenuto nella famiglia Piattaforma Diamante! 🚀</p>
+            <div class="next-steps">
+              <h4 style="margin-top: 0; color: #92400e;">📞 Prossimi Passi:</h4>
+              <ul style="margin: 15px 0; padding-left: 20px;">
+                <li>Il nostro team la contatterà entro <strong>24-48 ore</strong></li>
+                <li>Riceverà informazioni dettagliate sul corso selezionato</li>
+                <li>Sarà guidata attraverso il processo di iscrizione completo</li>
+                <li>Potrà accedere alla sua area personale una volta attivata</li>
+              </ul>
             </div>
             
-            <div class="footer">
-                <p><strong>Piattaforma Diamante</strong></p>
-                <p>Questa è una email automatica, non rispondere a questo messaggio.</p>
-                <p>Per assistenza, contatta il nostro supporto.</p>
-            </div>
+            <p style="background-color: #f0f9ff; padding: 15px; border-radius: 6px; border-left: 4px solid #0ea5e9; margin: 25px 0;">
+              💡 <strong>Consiglio:</strong> Conservi questa email per i suoi archivi personali. Contiene informazioni importanti per il suo percorso formativo.
+            </p>
+            
+            <p style="text-align: center; font-size: 18px; color: #047857; font-weight: 600;">Benvenuto nella famiglia Piattaforma Diamante! 🚀</p>
+          </div>
+          
+          <div class="footer">
+            <p><strong>Piattaforma Diamante</strong><br>
+            Formazione Professionale di Qualità</p>
+            <p style="font-size: 12px; margin-top: 15px;">
+              Questo messaggio è stato inviato automaticamente. Per favore non rispondere a questa email.<br>
+              Per assistenza, contatti il nostro supporto clienti.
+            </p>
+          </div>
         </div>
-    </body>
-    </html>
+      </body>
+      </html>
     `;
   }
 
@@ -580,173 +556,111 @@ class EmailService {
 
   private getTemporaryCredentialsTemplate(credentials: { temporaryPassword: string, loginUrl: string }, userData: any): string {
     return `
-    <!DOCTYPE html>
-    <html lang="it">
-    <head>
-        <meta charset="UTF-8">
+      <!DOCTYPE html>
+      <html lang="it">
+      <head>
+        <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Credenziali di Accesso - Piattaforma Diamante</title>
         <style>
-            body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                max-width: 600px;
-                margin: 0 auto;
-                padding: 20px;
-                background-color: #f8fafc;
-            }
-            .container {
-                background-color: white;
-                border-radius: 12px;
-                padding: 40px;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            }
-            .header {
-                text-align: center;
-                margin-bottom: 30px;
-            }
-            .logo {
-                font-size: 28px;
-                font-weight: bold;
-                color: #3b82f6;
-                margin-bottom: 10px;
-            }
-            .title {
-                font-size: 24px;
-                font-weight: bold;
-                color: #1f2937;
-                margin-bottom: 20px;
-            }
-            .content {
-                margin-bottom: 30px;
-                color: #4b5563;
-            }
-            .credentials-box {
-                background-color: #fef3c7;
-                border: 2px solid #f59e0b;
-                border-radius: 8px;
-                padding: 20px;
-                margin: 20px 0;
-                text-align: center;
-            }
-            .credentials-box h3 {
-                color: #92400e;
-                margin-top: 0;
-                margin-bottom: 15px;
-            }
-            .credential-item {
-                margin: 15px 0;
-                padding: 10px;
-                background-color: white;
-                border-radius: 4px;
-                border: 1px solid #fbbf24;
-            }
-            .credential-label {
-                font-weight: bold;
-                color: #92400e;
-                display: block;
-                margin-bottom: 5px;
-            }
-            .credential-value {
-                font-family: 'Courier New', monospace;
-                font-size: 16px;
-                color: #1f2937;
-                background-color: #f3f4f6;
-                padding: 8px;
-                border-radius: 4px;
-                word-break: break-all;
-            }
-            .login-button {
-                display: inline-block;
-                background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-                color: white;
-                text-decoration: none;
-                padding: 15px 30px;
-                border-radius: 8px;
-                font-weight: bold;
-                font-size: 16px;
-                text-align: center;
-                margin: 20px 0;
-            }
-            .security-warning {
-                background-color: #fef2f2;
-                border: 2px solid #ef4444;
-                border-radius: 8px;
-                padding: 20px;
-                margin: 20px 0;
-                color: #dc2626;
-            }
-            .security-warning h3 {
-                color: #dc2626;
-                margin-top: 0;
-            }
-            .footer {
-                margin-top: 30px;
-                padding-top: 20px;
-                border-top: 1px solid #e5e7eb;
-                text-align: center;
-                color: #6b7280;
-                font-size: 14px;
-            }
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #0066cc 0%, #004499 100%); color: white; padding: 40px 30px; text-align: center; }
+          .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+          .content { padding: 30px; }
+          .welcome-icon { font-size: 48px; margin: 20px 0; text-align: center; }
+          .credentials-box { background-color: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 25px; margin: 25px 0; text-align: center; }
+          .credential-item { margin: 15px 0; padding: 15px; background-color: white; border-radius: 6px; border: 1px solid #fbbf24; }
+          .credential-label { font-weight: 600; color: #92400e; display: block; margin-bottom: 8px; }
+          .credential-value { font-family: 'Courier New', monospace; font-size: 16px; color: #1f2937; background-color: #f8f9fa; padding: 10px; border-radius: 4px; word-break: break-all; border: 1px solid #dee2e6; }
+          .login-button { 
+            background-color: #0066cc; 
+            color: white; 
+            padding: 15px 30px; 
+            text-decoration: none; 
+            border-radius: 6px; 
+            font-weight: 600; 
+            display: inline-block; 
+            margin: 25px 0;
+            font-size: 16px;
+          }
+          .security-warning { background-color: #fef2f2; border: 2px solid #dc2626; border-radius: 8px; padding: 25px; margin: 25px 0; }
+          .features-box { background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 20px; margin: 25px 0; }
+          .footer { background-color: #f8fafc; padding: 25px 30px; text-align: center; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; }
         </style>
-    </head>
-    <body>
+      </head>
+      <body>
         <div class="container">
-            <div class="header">
-                <div class="logo">💎 Piattaforma Diamante</div>
-                <h1 class="title">🎉 Benvenuto nella piattaforma!</h1>
+          <div class="header">
+            <div class="logo">PIATTAFORMA DIAMANTE</div>
+            <div style="font-size: 16px; margin-top: 10px; opacity: 0.9;">Formazione Professionale</div>
+            <h1 style="margin: 25px 0 0 0; font-size: 24px;">Benvenuto nella piattaforma!</h1>
+          </div>
+          
+          <div class="content">
+            <div class="welcome-icon">🎉</div>
+            
+            <p>Gentile <strong>${userData.nome}</strong>,</p>
+            
+            <p>La sua registrazione è stata completata con successo! Ora può accedere alla sua area personale utilizzando le credenziali qui di seguito.</p>
+            
+            <div class="credentials-box">
+              <h4 style="margin-top: 0; color: #92400e;">🔐 Le sue credenziali di accesso:</h4>
+              <div class="credential-item">
+                <span class="credential-label">Email di accesso:</span>
+                <div class="credential-value">${userData.email}</div>
+              </div>
+              <div class="credential-item">
+                <span class="credential-label">Password temporanea:</span>
+                <div class="credential-value">${credentials.temporaryPassword}</div>
+              </div>
             </div>
             
-            <div class="content">
-                <p>Ciao <strong>${userData.nome}</strong>,</p>
-                <p>La tua registrazione è stata completata con successo! Ora puoi accedere alla tua area personale.</p>
-                
-                <div class="credentials-box">
-                    <h3>🔐 Le tue credenziali di accesso:</h3>
-                    <div class="credential-item">
-                        <span class="credential-label">Email:</span>
-                        <div class="credential-value">${userData.email}</div>
-                    </div>
-                    <div class="credential-item">
-                        <span class="credential-label">Password temporanea:</span>
-                        <div class="credential-value">${credentials.temporaryPassword}</div>
-                    </div>
-                </div>
-                
-                <div style="text-align: center;">
-                    <a href="${credentials.loginUrl}" class="login-button">
-                        🚀 Accedi alla Piattaforma
-                    </a>
-                </div>
-                
-                <div class="security-warning">
-                    <h3>⚠️ Importante - Sicurezza</h3>
-                    <ul>
-                        <li><strong>Devi cambiare la password al primo accesso</strong></li>
-                        <li>La password temporanea è valida solo per il primo login</li>
-                        <li>Conserva queste credenziali in luogo sicuro</li>
-                        <li>Non condividere mai le tue credenziali</li>
-                    </ul>
-                </div>
-                
-                <p>Nella tua area personale potrai:</p>
-                <ul>
-                    <li>📝 Visualizzare le tue iscrizioni</li>
-                    <li>📄 Gestire i tuoi documenti</li>
-                    <li>🎓 Accedere a nuovi corsi disponibili</li>
-                    <li>💬 Comunicare con il tuo partner di riferimento</li>
-                </ul>
+            <div style="text-align: center;">
+              <a href="${credentials.loginUrl}" class="login-button">
+                🚀 Accedi alla Piattaforma
+              </a>
             </div>
             
-            <div class="footer">
-                <p><strong>Piattaforma Diamante</strong></p>
-                <p>Per assistenza tecnica, contatta il nostro supporto.</p>
-                <p>Questo messaggio contiene informazioni riservate.</p>
+            <div class="security-warning">
+              <h4 style="margin-top: 0; color: #dc2626;">⚠️ Importante - Sicurezza</h4>
+              <ul style="margin: 15px 0; padding-left: 20px; color: #dc2626;">
+                <li><strong>Deve cambiare la password al primo accesso</strong></li>
+                <li>La password temporanea è valida solo per il primo login</li>
+                <li>Conservi queste credenziali in luogo sicuro</li>
+                <li>Non condivida mai le sue credenziali con terzi</li>
+                <li>In caso di problemi, contatti immediatamente il supporto</li>
+              </ul>
             </div>
+            
+            <div class="features-box">
+              <h4 style="margin-top: 0; color: #0369a1;">🎯 Nella sua area personale potrà:</h4>
+              <ul style="margin: 15px 0; padding-left: 20px;">
+                <li>📝 Visualizzare le sue iscrizioni e il loro stato</li>
+                <li>📄 Gestire i suoi documenti e certificazioni</li>
+                <li>🎓 Accedere ai corsi disponibili e ai materiali formativi</li>
+                <li>💬 Comunicare direttamente con il suo partner di riferimento</li>
+                <li>📊 Monitorare i suoi progressi formativi</li>
+                <li>🔔 Ricevere notifiche importanti sui suoi corsi</li>
+              </ul>
+            </div>
+            
+            <p style="color: #666; font-size: 14px; background-color: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #0066cc;">
+              💡 <strong>Suggerimento:</strong> Dopo il primo accesso, personalizzi la sua password scegliendo una combinazione sicura che ricorderà facilmente.
+            </p>
+          </div>
+          
+          <div class="footer">
+            <p><strong>Piattaforma Diamante</strong><br>
+            Formazione Professionale di Qualità</p>
+            <p style="font-size: 12px; margin-top: 15px;">
+              Questo messaggio contiene informazioni riservate e personali.<br>
+              Per assistenza tecnica, contatti il nostro supporto clienti.
+            </p>
+          </div>
         </div>
-    </body>
-    </html>
+      </body>
+      </html>
     `;
   }
 
@@ -781,122 +695,86 @@ class EmailService {
 
   private getPasswordChangeConfirmationTemplate(userData: { nome: string, timestamp: string }): string {
     return `
-    <!DOCTYPE html>
-    <html lang="it">
-    <head>
-        <meta charset="UTF-8">
+      <!DOCTYPE html>
+      <html lang="it">
+      <head>
+        <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Password Modificata - Piattaforma Diamante</title>
         <style>
-            body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                max-width: 600px;
-                margin: 0 auto;
-                padding: 20px;
-                background-color: #f8f9fa;
-            }
-            .container {
-                background-color: white;
-                padding: 40px;
-                border-radius: 10px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            }
-            .header {
-                text-align: center;
-                margin-bottom: 30px;
-                border-bottom: 2px solid #0066cc;
-                padding-bottom: 20px;
-            }
-            .logo {
-                font-size: 28px;
-                font-weight: bold;
-                color: #0066cc;
-                margin-bottom: 10px;
-            }
-            .success-icon {
-                font-size: 48px;
-                color: #28a745;
-                margin-bottom: 20px;
-            }
-            .content {
-                text-align: center;
-                margin-bottom: 30px;
-            }
-            .info-box {
-                background-color: #e8f4fd;
-                border: 1px solid #b8daff;
-                border-radius: 8px;
-                padding: 20px;
-                margin: 20px 0;
-            }
-            .timestamp {
-                font-weight: bold;
-                color: #0066cc;
-            }
-            .security-notice {
-                background-color: #fff3cd;
-                border: 1px solid #ffeaa7;
-                border-radius: 8px;
-                padding: 15px;
-                margin: 20px 0;
-            }
-            .footer {
-                text-align: center;
-                margin-top: 30px;
-                padding-top: 20px;
-                border-top: 1px solid #eee;
-                font-size: 14px;
-                color: #666;
-            }
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 40px 30px; text-align: center; }
+          .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+          .content { padding: 30px; }
+          .success-icon { font-size: 48px; color: #059669; margin-bottom: 20px; text-align: center; }
+          .change-info { background-color: #d1fae5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 20px; margin: 25px 0; text-align: center; }
+          .timestamp { font-weight: 600; color: #047857; font-size: 16px; }
+          .security-notice { background-color: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; padding: 20px; margin: 25px 0; }
+          .login-button { 
+            background-color: #0066cc; 
+            color: white; 
+            padding: 12px 30px; 
+            text-decoration: none; 
+            border-radius: 6px; 
+            font-weight: 600; 
+            display: inline-block; 
+            margin: 20px 0;
+          }
+          .footer { background-color: #f8fafc; padding: 25px 30px; text-align: center; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; }
         </style>
-    </head>
-    <body>
+      </head>
+      <body>
         <div class="container">
-            <div class="header">
-                <div class="logo">PIATTAFORMA DIAMANTE</div>
-                <div style="font-size: 16px; color: #666;">Formazione Professionale</div>
+          <div class="header">
+            <div class="logo">PIATTAFORMA DIAMANTE</div>
+            <div style="font-size: 16px; margin-top: 10px; opacity: 0.9;">Formazione Professionale</div>
+            <h1 style="margin: 25px 0 0 0; font-size: 24px;">Password Modificata</h1>
+          </div>
+          
+          <div class="content">
+            <div class="success-icon">🔒</div>
+            
+            <h2 style="color: #059669; text-align: center; margin-bottom: 25px;">Modifica Completata con Successo!</h2>
+            
+            <p>Gentile <strong>${userData.nome}</strong>,</p>
+            
+            <p>Le confermiamo che la sua password è stata modificata con successo sulla Piattaforma Diamante.</p>
+            
+            <div class="change-info">
+              <h4 style="margin-top: 0; color: #047857;">📅 Dettagli della modifica:</h4>
+              <div class="timestamp">${userData.timestamp}</div>
             </div>
             
-            <div class="content">
-                <div class="success-icon">✓</div>
-                <h2 style="color: #28a745; margin-bottom: 20px;">Password Modificata con Successo!</h2>
-                
-                <p>Ciao <strong>${userData.nome}</strong>,</p>
-                
-                <p>Ti confermiamo che la tua password è stata modificata con successo sulla Piattaforma Diamante.</p>
-                
-                <div class="info-box">
-                    <h3 style="margin-top: 0; color: #0066cc;">Dettagli Modifica:</h3>
-                    <p class="timestamp">Data e ora: ${userData.timestamp}</p>
-                </div>
-                
-                <div class="security-notice">
-                    <h4 style="margin-top: 0; color: #856404;">Importante per la Sicurezza:</h4>
-                    <p style="margin-bottom: 0;">Se <strong>NON</strong> hai effettuato tu questa modifica, contattaci immediatamente per mettere in sicurezza il tuo account.</p>
-                </div>
-                
-                <p>La tua password è ora aggiornata e potrai utilizzarla per i prossimi accessi alla piattaforma.</p>
-                
-                <div style="margin: 30px 0;">
-                    <a href="${process.env.FRONTEND_URL}/login" 
-                       style="background-color: #0066cc; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
-                        Accedi alla Piattaforma
-                    </a>
-                </div>
+            <div class="security-notice">
+              <h4 style="margin-top: 0; color: #92400e;">⚠️ Importante per la sicurezza:</h4>
+              <p style="margin-bottom: 0;">Se <strong>NON</strong> ha effettuato lei questa modifica, la preghiamo di contattarci <strong>immediatamente</strong> per mettere in sicurezza il suo account.</p>
             </div>
             
-            <div class="footer">
-                <p><strong>Piattaforma Diamante</strong><br>
-                Formazione Professionale di Qualità</p>
-                <p style="font-size: 12px; margin-top: 15px;">
-                    Questo messaggio è stato inviato automaticamente. Per favore non rispondere a questa email.
-                </p>
+            <p>La sua nuova password è ora attiva e potrà utilizzarla per i prossimi accessi alla piattaforma.</p>
+            
+            <p style="background-color: #f0f9ff; padding: 15px; border-radius: 6px; border-left: 4px solid #0ea5e9; margin: 25px 0;">
+              💡 <strong>Consiglio:</strong> Per mantenere il suo account sicuro, utilizzi sempre password uniche e complesse per ogni servizio online.
+            </p>
+            
+            <div style="text-align: center;">
+              <a href="${process.env.FRONTEND_URL}/login" class="login-button">
+                🚀 Accedi alla Piattaforma
+              </a>
             </div>
+          </div>
+          
+          <div class="footer">
+            <p><strong>Piattaforma Diamante</strong><br>
+            Formazione Professionale di Qualità</p>
+            <p style="font-size: 12px; margin-top: 15px;">
+              Questo messaggio è stato inviato automaticamente. Per favore non rispondere a questa email.<br>
+              Per assistenza sulla sicurezza, contatti immediatamente il nostro supporto.
+            </p>
+          </div>
         </div>
-    </body>
-    </html>
+      </body>
+      </html>
     `;
   }
 
@@ -939,176 +817,111 @@ class EmailService {
 
   private getEnrollmentConfirmationTemplate(enrollmentData: any): string {
     return `
-    <!DOCTYPE html>
-    <html lang="it">
-    <head>
-        <meta charset="UTF-8">
+      <!DOCTYPE html>
+      <html lang="it">
+      <head>
+        <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Iscrizione Completata - Piattaforma Diamante</title>
         <style>
-            body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                max-width: 600px;
-                margin: 0 auto;
-                padding: 20px;
-                background-color: #f8fafc;
-            }
-            .container {
-                background-color: white;
-                border-radius: 12px;
-                padding: 40px;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            }
-            .header {
-                text-align: center;
-                margin-bottom: 30px;
-            }
-            .logo {
-                font-size: 28px;
-                font-weight: bold;
-                color: #10b981;
-                margin-bottom: 10px;
-            }
-            .title {
-                font-size: 24px;
-                font-weight: bold;
-                color: #1f2937;
-                margin-bottom: 20px;
-            }
-            .success-icon {
-                font-size: 48px;
-                margin-bottom: 20px;
-            }
-            .content {
-                margin-bottom: 30px;
-                color: #4b5563;
-            }
-            .course-info {
-                background-color: #f0f9ff;
-                border: 1px solid #0ea5e9;
-                border-radius: 8px;
-                padding: 20px;
-                margin: 20px 0;
-            }
-            .course-info h3 {
-                color: #0c4a6e;
-                margin-top: 0;
-                margin-bottom: 15px;
-            }
-            .info-row {
-                display: flex;
-                justify-content: space-between;
-                margin-bottom: 8px;
-                padding-bottom: 8px;
-                border-bottom: 1px solid #e0f2fe;
-            }
-            .info-row:last-child {
-                border-bottom: none;
-                margin-bottom: 0;
-                padding-bottom: 0;
-            }
-            .info-label {
-                font-weight: bold;
-                color: #0c4a6e;
-            }
-            .info-value {
-                color: #075985;
-            }
-            .dashboard-button {
-                display: inline-block;
-                background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-                color: white;
-                text-decoration: none;
-                padding: 15px 30px;
-                border-radius: 8px;
-                font-weight: bold;
-                font-size: 16px;
-                text-align: center;
-                margin: 20px 0;
-            }
-            .footer {
-                margin-top: 30px;
-                padding-top: 20px;
-                border-top: 1px solid #e5e7eb;
-                text-align: center;
-                color: #6b7280;
-                font-size: 14px;
-            }
-            .next-steps {
-                background-color: #f0fdf4;
-                border: 1px solid #16a34a;
-                border-radius: 8px;
-                padding: 20px;
-                margin: 20px 0;
-                color: #15803d;
-            }
-            .next-steps h3 {
-                color: #15803d;
-                margin-top: 0;
-            }
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 40px 30px; text-align: center; }
+          .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+          .content { padding: 30px; }
+          .success-icon { font-size: 48px; margin-bottom: 20px; text-align: center; }
+          .course-info { background-color: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px; padding: 25px; margin: 25px 0; }
+          .info-row { display: flex; justify-content: space-between; margin: 12px 0; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
+          .info-row:last-child { border-bottom: none; }
+          .info-label { font-weight: 600; color: #374151; }
+          .info-value { color: #111827; }
+          .dashboard-button { 
+            background-color: #0066cc; 
+            color: white; 
+            padding: 15px 30px; 
+            text-decoration: none; 
+            border-radius: 6px; 
+            font-weight: 600; 
+            display: inline-block; 
+            margin: 25px 0;
+            font-size: 16px;
+          }
+          .next-steps { background-color: #f0fdf4; border: 1px solid #a7f3d0; border-radius: 8px; padding: 25px; margin: 25px 0; }
+          .footer { background-color: #f8fafc; padding: 25px 30px; text-align: center; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; }
         </style>
-    </head>
-    <body>
+      </head>
+      <body>
         <div class="container">
-            <div class="header">
-                <div class="logo">💎 Piattaforma Diamante</div>
-                <div class="success-icon">🎓</div>
-                <h1 class="title">Iscrizione Completata!</h1>
+          <div class="header">
+            <div class="logo">PIATTAFORMA DIAMANTE</div>
+            <div style="font-size: 16px; margin-top: 10px; opacity: 0.9;">Formazione Professionale</div>
+            <h1 style="margin: 25px 0 0 0; font-size: 24px;">Iscrizione Completata!</h1>
+          </div>
+          
+          <div class="content">
+            <div class="success-icon">🎓</div>
+            
+            <h2 style="color: #8b5cf6; text-align: center; margin-bottom: 25px;">Benvenuto nel corso!</h2>
+            
+            <p>Gentile <strong>${enrollmentData.nome}</strong>,</p>
+            
+            <p>La sua iscrizione è stata completata con successo! È ufficialmente iscritto al corso ed è pronto per iniziare il suo percorso formativo.</p>
+            
+            <div class="course-info">
+              <h4 style="margin-top: 0; color: #374151;">📚 Dettagli del suo corso:</h4>
+              <div class="info-row">
+                <span class="info-label">Corso:</span>
+                <span class="info-value">${enrollmentData.courseName}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">ID Iscrizione:</span>
+                <span class="info-value">${enrollmentData.registrationId}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Partner di riferimento:</span>
+                <span class="info-value">${enrollmentData.partnerName}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Data iscrizione:</span>
+                <span class="info-value">${new Date().toLocaleDateString('it-IT')}</span>
+              </div>
             </div>
             
-            <div class="content">
-                <p>Ciao <strong>${enrollmentData.nome}</strong>,</p>
-                <p>La tua iscrizione è stata completata con successo! Benvenuto nel corso.</p>
-                
-                <div class="course-info">
-                    <h3>📚 Dettagli del tuo corso:</h3>
-                    <div class="info-row">
-                        <span class="info-label">Corso:</span>
-                        <span class="info-value">${enrollmentData.courseName}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">ID Iscrizione:</span>
-                        <span class="info-value">${enrollmentData.registrationId}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Partner di riferimento:</span>
-                        <span class="info-value">${enrollmentData.partnerName}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Data iscrizione:</span>
-                        <span class="info-value">${new Date().toLocaleDateString('it-IT')}</span>
-                    </div>
-                </div>
-                
-                <div style="text-align: center;">
-                    <a href="${process.env.FRONTEND_URL}/dashboard" class="dashboard-button">
-                        🏠 Accedi alla tua Area Riservata
-                    </a>
-                </div>
-                
-                <div class="next-steps">
-                    <h3>📋 Prossimi Passi:</h3>
-                    <ul>
-                        <li>Accedi alla tua area riservata per visualizzare i dettagli completi</li>
-                        <li>Il tuo partner di riferimento ti contatterà per i prossimi step</li>
-                        <li>Puoi caricare eventuali documenti aggiuntivi dall'area riservata</li>
-                        <li>Monitora lo stato della tua iscrizione e i pagamenti</li>
-                    </ul>
-                </div>
-                
-                <p>Conserva questa email per i tuoi archivi. La tua avventura formativa inizia ora!</p>
+            <div style="text-align: center;">
+              <a href="${process.env.FRONTEND_URL}/dashboard" class="dashboard-button">
+                🏠 Accedi alla sua Area Riservata
+              </a>
             </div>
             
-            <div class="footer">
-                <p><strong>Piattaforma Diamante</strong></p>
-                <p>Questa è una email automatica, non rispondere a questo messaggio.</p>
-                <p>Per assistenza, accedi alla tua area riservata o contatta il tuo partner.</p>
+            <div class="next-steps">
+              <h4 style="margin-top: 0; color: #059669;">📋 Prossimi Passi:</h4>
+              <ul style="margin: 15px 0; padding-left: 20px;">
+                <li>Acceda alla sua area riservata per visualizzare tutti i dettagli del corso</li>
+                <li>Il suo partner di riferimento la contatterà per guidarla nei prossimi step</li>
+                <li>Potrà caricare eventuali documenti aggiuntivi direttamente dall'area riservata</li>
+                <li>Monitori costantemente lo stato della sua iscrizione e i pagamenti</li>
+                <li>Riceverà notifiche importanti via email per ogni aggiornamento</li>
+              </ul>
             </div>
+            
+            <p style="background-color: #fef3c7; padding: 15px; border-radius: 6px; border-left: 4px solid #f59e0b; margin: 25px 0;">
+              📎 <strong>Importante:</strong> Conservi questa email per i suoi archivi personali. Contiene informazioni essenziali per il suo percorso formativo.
+            </p>
+            
+            <p style="text-align: center; font-size: 18px; color: #8b5cf6; font-weight: 600;">La sua avventura formativa inizia ora! 🚀</p>
+          </div>
+          
+          <div class="footer">
+            <p><strong>Piattaforma Diamante</strong><br>
+            Formazione Professionale di Qualità</p>
+            <p style="font-size: 12px; margin-top: 15px;">
+              Questo messaggio è stato inviato automaticamente. Per favore non rispondere a questa email.<br>
+              Per assistenza, acceda alla sua area riservata o contatti il suo partner di riferimento.
+            </p>
+          </div>
         </div>
-    </body>
-    </html>
+      </body>
+      </html>
     `;
   }
 
@@ -1207,67 +1020,98 @@ class EmailService {
 
     const html = `
       <!DOCTYPE html>
-      <html>
+      <html lang="it">
       <head>
         <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Documento Non Conforme - Piattaforma Diamante</title>
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #dc3545; color: white; padding: 15px; border-radius: 5px 5px 0 0; }
-          .content { background: #f8f9fa; padding: 20px; border-radius: 0 0 5px 5px; }
-          .button { 
-            display: inline-block; 
-            background: #007bff; 
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); color: white; padding: 40px 30px; text-align: center; }
+          .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+          .content { padding: 30px; }
+          .warning-icon { font-size: 48px; color: #dc2626; margin-bottom: 20px; text-align: center; }
+          .document-info { background-color: #fee2e2; border: 1px solid #fecaca; border-radius: 8px; padding: 20px; margin: 20px 0; }
+          .reason-box { background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 20px; margin: 20px 0; border-radius: 0 6px 6px 0; }
+          .steps-box { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 20px 0; }
+          .requirements { background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 20px; margin: 20px 0; }
+          .dashboard-button { 
+            background-color: #0066cc; 
             color: white; 
-            padding: 10px 20px; 
+            padding: 12px 24px; 
             text-decoration: none; 
-            border-radius: 5px; 
-            margin: 10px 0;
+            border-radius: 6px; 
+            font-weight: 600; 
+            display: inline-block; 
+            margin: 20px 0;
           }
-          .details { background: #fff3cd; border: 1px solid #ffeaa7; padding: 10px; border-radius: 3px; margin: 10px 0; }
-          .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
+          .footer { background-color: #f8fafc; padding: 25px 30px; text-align: center; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <h2>🚨 Documento non conforme</h2>
+            <div class="logo">PIATTAFORMA DIAMANTE</div>
+            <div style="font-size: 16px; margin-top: 10px; opacity: 0.9;">Formazione Professionale</div>
           </div>
           
           <div class="content">
+            <div class="warning-icon">⚠️</div>
+            
+            <h2 style="color: #dc2626; text-align: center; margin-bottom: 25px;">Documento Non Conforme</h2>
+            
             <p>Gentile <strong>${userName}</strong>,</p>
             
-            <p>Il documento "<strong>${documentTypeName}</strong>" non è conforme ai requisiti richiesti.</p>
-            
-            <div class="details">
-              <h4>📋 Motivo del rifiuto:</h4>
-              <p><strong>${reason}</strong></p>
-              ${details ? `<p><em>Note aggiuntive:</em> ${details}</p>` : ''}
+            <div class="document-info">
+              <h4 style="margin-top: 0; color: #dc2626;">📄 Documento soggetto a revisione</h4>
+              <p style="margin-bottom: 0; font-weight: 600; color: #991b1b;">${documentTypeName}</p>
             </div>
             
-            <p>Per procedere con la sua iscrizione, la preghiamo di:</p>
-            <ol>
-              <li>Accedere alla sua area personale</li>
-              <li>Caricare nuovamente il documento corretto</li>
-              <li>Attendere la verifica del partner</li>
-            </ol>
+            <p>Il documento che ha caricato non è conforme ai requisiti richiesti e necessita di una sua azione per procedere.</p>
+            
+            <div class="reason-box">
+              <h4 style="margin-top: 0; color: #dc2626;">🚨 Motivo del rifiuto:</h4>
+              <p style="font-weight: 600; margin-bottom: ${details ? '10px' : '0'};">${reason}</p>
+              ${details ? `<p style="margin-bottom: 0;"><em>Note aggiuntive:</em> ${details}</p>` : ''}
+            </div>
+            
+            <div class="steps-box">
+              <h4 style="margin-top: 0; color: #374151;">🔄 Per procedere con la sua iscrizione:</h4>
+              <ol style="margin: 10px 0; padding-left: 20px;">
+                <li>Acceda alla sua area personale</li>
+                <li>Carichi nuovamente il documento corretto</li>
+                <li>Attenda la nuova verifica del partner</li>
+              </ol>
+            </div>
+            
+            <div class="requirements">
+              <h4 style="margin-top: 0; color: #0369a1;">📋 Requisiti documenti:</h4>
+              <ul style="margin: 10px 0; padding-left: 20px;">
+                <li>Formato: PDF, JPG o PNG</li>
+                <li>Dimensione massima: 10MB</li>
+                <li>Documento leggibile e completo</li>
+                <li>Non acquisito da fotocopia</li>
+                <li>Immagine nitida e ben illuminata</li>
+              </ul>
+            </div>
             
             <div style="text-align: center;">
-              <a href="${dashboardUrl}" class="button">🔗 Accedi all'Area Personale</a>
+              <a href="${dashboardUrl}" class="dashboard-button">
+                🏠 Accedi all'Area Personale
+              </a>
             </div>
             
-            <p><strong>Documenti richiesti:</strong></p>
-            <ul>
-              <li>Formato: PDF, JPG o PNG</li>
-              <li>Dimensione massima: 10MB</li>
-              <li>Documento leggibile e completo</li>
-              <li>Non scannerizzato da fotocopia</li>
-            </ul>
+            <p style="color: #666; font-size: 14px;">La ringraziamo per la collaborazione e ci scusiamo per l'inconveniente.</p>
           </div>
           
           <div class="footer">
-            <p>Questa è una email automatica. Non rispondere a questo messaggio.</p>
-            <p><strong>Team Diamante</strong><br>Piattaforma TFA e Certificazioni</p>
+            <p><strong>Piattaforma Diamante</strong><br>
+            Formazione Professionale di Qualità</p>
+            <p style="font-size: 12px; margin-top: 15px;">
+              Questo messaggio è stato inviato automaticamente. Per favore non rispondere a questa email.<br>
+              Per assistenza, contatti il nostro supporto.
+            </p>
           </div>
         </div>
       </body>
@@ -1295,8 +1139,10 @@ Requisiti documenti:
 - Formato: PDF, JPG o PNG
 - Dimensione massima: 10MB
 - Documento leggibile e completo
+- Non acquisito da fotocopia
+- Immagine nitida e ben illuminata
 
-Team Diamante
+Team Diamante - Piattaforma Diamante
     `;
 
     return { subject, html, text };
@@ -1327,47 +1173,70 @@ Team Diamante
 
     const html = `
       <!DOCTYPE html>
-      <html>
+      <html lang="it">
       <head>
         <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Documento Approvato - Piattaforma Diamante</title>
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #28a745; color: white; padding: 15px; border-radius: 5px 5px 0 0; }
-          .content { background: #f8f9fa; padding: 20px; border-radius: 0 0 5px 5px; }
-          .button { 
-            display: inline-block; 
-            background: #007bff; 
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 40px 30px; text-align: center; }
+          .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+          .content { padding: 30px; }
+          .success-icon { font-size: 48px; color: #059669; margin-bottom: 20px; text-align: center; }
+          .document-info { background-color: #d1fae5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
+          .dashboard-button { 
+            background-color: #0066cc; 
             color: white; 
-            padding: 10px 20px; 
+            padding: 12px 24px; 
             text-decoration: none; 
-            border-radius: 5px; 
-            margin: 10px 0;
+            border-radius: 6px; 
+            font-weight: 600; 
+            display: inline-block; 
+            margin: 20px 0;
           }
-          .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
+          .footer { background-color: #f8fafc; padding: 25px 30px; text-align: center; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <h2>✅ Documento Approvato</h2>
+            <div class="logo">PIATTAFORMA DIAMANTE</div>
+            <div style="font-size: 16px; margin-top: 10px; opacity: 0.9;">Formazione Professionale</div>
           </div>
           
           <div class="content">
+            <div class="success-icon">✅</div>
+            
+            <h2 style="color: #059669; text-align: center; margin-bottom: 25px;">Documento Approvato!</h2>
+            
             <p>Gentile <strong>${userName}</strong>,</p>
             
-            <p>Il suo documento "<strong>${documentTypeName}</strong>" è stato verificato e <strong>approvato</strong> dal nostro team.</p>
+            <div class="document-info">
+              <h4 style="margin-top: 0; color: #047857;">📄 Documento verificato con successo</h4>
+              <p style="margin-bottom: 0; font-weight: 600; color: #065f46;">${documentTypeName}</p>
+            </div>
             
-            <p>Può procedere con il completamento della sua iscrizione accedendo alla sua area personale.</p>
+            <p>Il documento è stato verificato dal nostro team e <strong>approvato</strong> secondo i criteri richiesti.</p>
+            
+            <p>Può procedere con il completamento della sua iscrizione e continuare con i prossimi passi del suo percorso formativo accedendo alla sua area personale.</p>
             
             <div style="text-align: center;">
-              <a href="${dashboardUrl}" class="button">🔗 Accedi all'Area Personale</a>
+              <a href="${dashboardUrl}" class="dashboard-button">
+                🏠 Accedi all'Area Personale
+              </a>
             </div>
+            
+            <p style="color: #666; font-size: 14px;">La ringraziamo per la collaborazione nel processo di verifica.</p>
           </div>
           
           <div class="footer">
-            <p>Grazie per aver scelto la Piattaforma Diamante.</p>
-            <p><strong>Team Diamante</strong><br>Piattaforma TFA e Certificazioni</p>
+            <p><strong>Piattaforma Diamante</strong><br>
+            Formazione Professionale di Qualità</p>
+            <p style="font-size: 12px; margin-top: 15px;">
+              Questo messaggio è stato inviato automaticamente. Per favore non rispondere a questa email.
+            </p>
           </div>
         </div>
       </body>
@@ -1385,7 +1254,7 @@ Può procedere con il completamento della sua iscrizione.
 
 Link area personale: ${dashboardUrl}
 
-Team Diamante
+Team Diamante - Piattaforma Diamante
     `;
 
     return { subject, html, text };

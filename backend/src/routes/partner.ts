@@ -3126,4 +3126,136 @@ router.get('/registrations/:registrationId/tfa-steps', authenticate, requireRole
   }
 });
 
+// Get partner analytics data for charts
+router.get('/analytics', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Get monthly revenue for the last 6 months
+    const now = new Date();
+    const monthsData = [];
+    
+    for (let i = 5; i >= 0; i--) {
+      const startDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const endDate = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+      
+      const monthlyRevenue = await prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: {
+          registration: { partnerId },
+          paymentDate: {
+            gte: startDate,
+            lte: endDate
+          }
+        }
+      });
+
+      const monthName = startDate.toLocaleDateString('it-IT', { month: 'short' });
+      monthsData.push({
+        month: monthName,
+        revenue: Number(monthlyRevenue._sum.amount || 0),
+        target: 2800 // Could be made configurable per partner
+      });
+    }
+
+    // Get registration status distribution
+    const statusCounts = await prisma.registration.groupBy({
+      by: ['status'],
+      where: { partnerId },
+      _count: true
+    });
+
+    const statusData = statusCounts.map(item => ({
+      status: item.status,
+      count: item._count
+    }));
+
+    // Get user growth over time (registrations per month)
+    const growthData = [];
+    for (let i = 5; i >= 0; i--) {
+      const startDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const endDate = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+      
+      const monthlyUsers = await prisma.registration.count({
+        where: {
+          partnerId,
+          createdAt: {
+            gte: startDate,
+            lte: endDate
+          }
+        }
+      });
+
+      const monthName = startDate.toLocaleDateString('it-IT', { month: 'short' });
+      growthData.push({
+        month: monthName,
+        users: monthlyUsers
+      });
+    }
+
+    // Calculate conversion metrics
+    const totalRegistrations = await prisma.registration.count({
+      where: { partnerId }
+    });
+
+    const completedRegistrations = await prisma.registration.count({
+      where: { 
+        partnerId,
+        status: 'COMPLETED'
+      }
+    });
+
+    const conversionRate = totalRegistrations > 0 ? 
+      Math.round((completedRegistrations / totalRegistrations) * 100) : 0;
+
+    // Get pending actions count (users waiting for document verification)
+    const documentsUpload = await prisma.registration.count({
+      where: { 
+        partnerId,
+        status: 'PENDING'
+      }
+    });
+
+    const contractGenerated = await prisma.registration.count({
+      where: { 
+        partnerId,
+        status: 'CONTRACT_GENERATED'
+      }
+    });
+
+    const contractSigned = await prisma.registration.count({
+      where: { 
+        partnerId,
+        status: 'CONTRACT_SIGNED'
+      }
+    });
+
+    res.json({
+      revenueChart: monthsData,
+      statusDistribution: statusData,
+      userGrowth: growthData,
+      metrics: {
+        conversionRate,
+        avgRevenuePerUser: totalRegistrations > 0 ? 
+          Math.round((monthsData.reduce((sum, m) => sum + m.revenue, 0) / totalRegistrations)) : 0,
+        growthRate: growthData.length > 1 ? 
+          Math.round(((growthData[growthData.length - 1].users - growthData[0].users) / Math.max(growthData[0].users, 1)) * 100) : 0
+      },
+      pendingActions: {
+        documentsToApprove: documentsUpload,
+        contractsToSign: contractGenerated,
+        paymentsInProgress: contractSigned,
+        completedEnrollments: completedRegistrations
+      }
+    });
+  } catch (error) {
+    console.error('Get partner analytics error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
 export default router;

@@ -75,4 +75,12 @@ export const partnerService = {
       url: '/partners/recent-enrollments',
     });
   },
+
+  // Get analytics data for charts
+  async getAnalytics(): Promise<any> {
+    return apiRequest<any>({
+      method: 'GET',
+      url: '/partners/analytics',
+    });
+  },
 };

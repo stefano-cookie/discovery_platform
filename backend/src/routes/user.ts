@@ -352,9 +352,9 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
     });
     
     const formattedRegistrations = registrations.map(reg => {
-      // Calculate total paid amount
-      const totalPaid = reg.payments.reduce((sum, payment) => 
-        payment.isConfirmed ? sum + Number(payment.amount) : sum, 0
+      // Calculate total paid amount from payment deadlines
+      const totalPaid = reg.deadlines.reduce((sum, deadline) => 
+        deadline.isPaid ? sum + Number(deadline.amount) : sum, 0
       );
       
       // Calculate remaining amount

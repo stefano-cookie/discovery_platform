@@ -214,7 +214,7 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
                     </p>
                   )}
                 </div>
-                {!deadline.isPaid && deadline.id !== nextDeadline?.id && (
+                {!deadline.isPaid && (
                   <button
                     onClick={() => handleMarkAsPaid(deadline.id)}
                     disabled={markingPaid === deadline.id}

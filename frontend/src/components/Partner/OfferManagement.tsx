@@ -138,7 +138,7 @@ const OfferManagement: React.FC = () => {
 
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
-    setTimeout(() => setNotification(null), 3000);
+    setTimeout(() => setNotification(null), 1500); // Ridotto da 3000 a 1500ms
   };
 
   const copyReferralLink = (offer: PartnerOffer) => {
@@ -329,96 +329,208 @@ const OfferManagement: React.FC = () => {
     <div className="w-full h-fit space-y-6">
       {/* Notification */}
       {notification && (
-        <div className={`fixed top-4 right-4 p-4 rounded-md shadow-lg z-50 ${
-          notification.type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'
-        }`}>
-          <div className="flex items-center">
-            <span className="mr-2">
-              {notification.type === 'success' ? '✓' : '✗'}
-            </span>
-            {notification.message}
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-50 backdrop-blur-sm pointer-events-none animate-in fade-in-0 duration-200"
+          onClick={() => setNotification(null)}
+        >
+          <div 
+            className={`pointer-events-auto transform transition-all duration-300 scale-100 animate-in fade-in-0 zoom-in-95 duration-200 p-6 rounded-2xl shadow-2xl max-w-md mx-4 cursor-pointer hover:scale-105 ${
+              notification.type === 'success' 
+                ? 'bg-gradient-to-r from-emerald-50 to-green-50 text-emerald-800 border-2 border-emerald-200 hover:from-emerald-100 hover:to-green-100' 
+                : 'bg-gradient-to-r from-red-50 to-rose-50 text-red-800 border-2 border-red-200 hover:from-red-100 hover:to-rose-100'
+            }`}
+            onClick={() => setNotification(null)}
+          >
+            <div className="flex items-center justify-center">
+              <div className={`flex items-center justify-center w-12 h-12 rounded-full mr-4 ${
+                notification.type === 'success' 
+                  ? 'bg-emerald-100 text-emerald-600' 
+                  : 'bg-red-100 text-red-600'
+              }`}>
+                {notification.type === 'success' ? (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                )}
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-lg mb-1">
+                  {notification.type === 'success' ? 'Perfetto!' : 'Errore'}
+                </h3>
+                <p className="text-sm opacity-90">
+                  {notification.message}
+                </p>
+              </div>
+              <div className="ml-2 text-xs opacity-60">
+                Clicca per chiudere
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       <div className="w-full flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Gestione Offerte</h2>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Gestione Offerte</h2>
+          <p className="text-gray-600 mt-1">Crea e gestisci le tue offerte personalizzate</p>
+        </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+          className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl flex items-center group"
         >
+          <svg className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
           Crea Nuova Offerta
         </button>
       </div>
 
-      {/* Offers List */}
-      <div className="w-full flex flex-wrap gap-4">
-        {offers.map((offer) => (
-          <div key={offer.id} className="flex-1 min-w-[300px] max-w-[400px] bg-white p-6 rounded-lg shadow">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="font-semibold text-lg">{offer.name}</h3>
-                <p className="text-sm text-gray-500">
-                  {offer.offerType === 'TFA_ROMANIA' ? 'TFA Romania' : 'Certificazione'}
-                </p>
+      {/* Offers Grid */}
+      {offers.length === 0 ? (
+        <div className="text-center py-12">
+          <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+            <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Nessuna offerta creata</h3>
+          <p className="text-gray-600 mb-6">Inizia creando la tua prima offerta personalizzata per iniziare a raccogliere iscrizioni.</p>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl inline-flex items-center"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            Crea la tua prima offerta
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {offers.map((offer) => (
+          <div 
+            key={offer.id} 
+            className="bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 border border-gray-100 hover:border-blue-200 overflow-hidden group"
+          >
+            {/* Card Header */}
+            <div className="p-6 pb-4">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-lg text-gray-900 truncate group-hover:text-blue-600 transition-colors">
+                    {offer.name}
+                  </h3>
+                  <div className="flex items-center mt-1">
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                      offer.offerType === 'TFA_ROMANIA' 
+                        ? 'bg-purple-100 text-purple-800' 
+                        : 'bg-blue-100 text-blue-800'
+                    }`}>
+                      {offer.offerType === 'TFA_ROMANIA' ? '🎓 TFA Romania' : '📜 Certificazione'}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col items-end">
+                  <span className={`inline-flex items-center px-2.5 py-1.5 rounded-full text-xs font-semibold shadow-sm ${
+                    offer.isActive 
+                      ? 'bg-green-100 text-green-700 border border-green-200' 
+                      : 'bg-red-100 text-red-700 border border-red-200'
+                  }`}>
+                    <div className={`w-2 h-2 rounded-full mr-1.5 ${
+                      offer.isActive ? 'bg-green-500' : 'bg-red-500'
+                    }`}></div>
+                    {offer.isActive ? 'Attiva' : 'Inattiva'}
+                  </span>
+                </div>
               </div>
-              <span className={`px-2 py-1 text-xs rounded-full ${
-                offer.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-              }`}>
-                {offer.isActive ? 'Attiva' : 'Inattiva'}
-              </span>
             </div>
 
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Importo totale:</span>
-                <span className="font-medium">€{Number(offer.totalAmount).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Rate:</span>
-                <span className="font-medium">{offer.installments}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Iscrizioni:</span>
-                <span className="font-medium">{offer._count?.registrations || 0}</span>
+            {/* Stats Cards */}
+            <div className="px-6 pb-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-gray-50 rounded-lg p-3 text-center">
+                  <div className="text-xl font-bold text-gray-900">
+                    €{Number(offer.totalAmount).toLocaleString('it-IT')}
+                  </div>
+                  <div className="text-xs text-gray-600 font-medium">Importo</div>
+                </div>
+                
+                <div className="bg-blue-50 rounded-lg p-3 text-center">
+                  <div className="text-xl font-bold text-blue-700">
+                    {offer.installments}
+                  </div>
+                  <div className="text-xs text-blue-600 font-medium">Rate</div>
+                </div>
+                
+                <div className="bg-green-50 rounded-lg p-3 text-center">
+                  <div className="text-xl font-bold text-green-700">
+                    {offer._count?.registrations || 0}
+                  </div>
+                  <div className="text-xs text-green-600 font-medium">Iscritti</div>
+                </div>
               </div>
             </div>
 
-            <div className="mt-4 pt-4 border-t space-y-2">
-              <button
-                onClick={() => copyReferralLink(offer)}
-                className="w-full text-center text-sm text-blue-600 hover:text-blue-800"
-              >
-                Copia Link Referral
-              </button>
-              <div className="flex space-x-2">
+            {/* Action Buttons */}
+            <div className="px-6 pb-6">
+              <div className="space-y-2">
+                {/* Copy Referral Link Button */}
                 <button
-                  onClick={() => handleEditOffer(offer)}
-                  className="flex-1 text-center text-sm text-green-600 hover:text-green-800 py-1"
+                  onClick={() => copyReferralLink(offer)}
+                  className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-3 rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow-md flex items-center justify-center group"
                 >
-                  Modifica
+                  <svg className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.102m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  Copia Link Referral
                 </button>
-                <button
-                  onClick={() => handleDeleteOffer(offer)}
-                  className="flex-1 text-center text-sm text-red-600 hover:text-red-800 py-1"
-                  disabled={(offer._count?.registrations || 0) > 0}
-                  title={(offer._count?.registrations || 0) > 0 ? 'Non è possibile eliminare offerte con iscrizioni' : ''}
-                >
-                  Elimina
-                </button>
+                
+                {/* Edit and Delete Buttons */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => handleEditOffer(offer)}
+                    className="bg-white border border-green-200 text-green-700 px-4 py-2.5 rounded-lg hover:bg-green-50 hover:border-green-300 transition-all duration-200 font-medium text-sm flex items-center justify-center group"
+                  >
+                    <svg className="w-4 h-4 mr-1.5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Modifica
+                  </button>
+                  
+                  <button
+                    onClick={() => handleDeleteOffer(offer)}
+                    disabled={(offer._count?.registrations || 0) > 0}
+                    className={`px-4 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center transition-all duration-200 ${
+                      (offer._count?.registrations || 0) > 0
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 group'
+                    }`}
+                    title={(offer._count?.registrations || 0) > 0 ? 'Non è possibile eliminare offerte con iscrizioni' : 'Elimina offerta'}
+                  >
+                    <svg className={`w-4 h-4 mr-1.5 transition-transform ${(offer._count?.registrations || 0) === 0 ? 'group-hover:scale-110' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Elimina
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         ))}
-      </div>
+        </div>
+      )}
 
       {/* Create Offer Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto m-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[95vh] overflow-y-auto shadow-2xl transform transition-all duration-300 scale-100 mx-auto my-auto relative animate-in fade-in-0 zoom-in-95 duration-300">
             
             {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 rounded-t-xl">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 rounded-t-2xl">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl font-bold text-white">
@@ -691,9 +803,26 @@ const OfferManagement: React.FC = () => {
 
       {/* Edit Offer Modal */}
       {showEditModal && selectedOffer && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-semibold mb-4">Modifica Offerta</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl transform transition-all duration-300 scale-100 mx-auto my-auto relative animate-in fade-in-0 zoom-in-95 duration-300">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 p-6 rounded-t-2xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-white">Modifica Offerta</h3>
+                  <p className="text-emerald-100 mt-1">Aggiorna i parametri della tua offerta</p>
+                </div>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="text-white hover:text-emerald-200 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            
+            {/* Content */}
+            <div className="p-6">
 
             <div className="mb-4 p-4 bg-gray-50 rounded-lg">
               <h4 className="font-medium text-gray-900">{selectedOffer.name}</h4>
@@ -847,15 +976,33 @@ const OfferManagement: React.FC = () => {
                 Salva Modifiche
               </button>
             </div>
+            </div> {/* Close content div */}
           </div>
         </div>
       )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && selectedOffer && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold mb-4">Conferma Eliminazione</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl transform transition-all duration-300 scale-100 mx-auto my-auto relative animate-in fade-in-0 zoom-in-95 duration-300">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-600 to-red-700 p-6 rounded-t-2xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-white">Conferma Eliminazione</h3>
+                  <p className="text-red-100 mt-1">Questa azione non può essere annullata</p>
+                </div>
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="text-white hover:text-red-200 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            
+            {/* Content */}
+            <div className="p-6">
             
             <p className="text-gray-600 mb-4">
               Sei sicuro di voler eliminare l'offerta "{selectedOffer.name}"?
@@ -887,6 +1034,7 @@ const OfferManagement: React.FC = () => {
                 Elimina
               </button>
             </div>
+            </div> {/* Close content div */}
           </div>
         </div>
       )}

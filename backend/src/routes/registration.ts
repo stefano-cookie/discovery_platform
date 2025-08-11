@@ -561,20 +561,18 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
     }
     
     const result = await prisma.$transaction(async (tx) => {
-      // Check for recent duplicate registrations (within 5 seconds) to prevent double submissions
-      const recentRegistration = await tx.registration.findFirst({
+      // Check for duplicate registrations with same user and offer (more strict check)
+      const existingRegistration = await tx.registration.findFirst({
         where: {
           userId: userId,
           partnerOfferId: partnerOfferId,
-          createdAt: {
-            gte: new Date(Date.now() - 5000) // Within last 5 seconds
-          }
+          status: 'PENDING' // Only check pending registrations
         }
       });
       
-      if (recentRegistration) {
-        console.log(`⚠️ Duplicate registration attempt detected for user ${userId}, returning existing registration ${recentRegistration.id}`);
-        return recentRegistration; // Return the existing registration instead of creating a duplicate
+      if (existingRegistration) {
+        console.log(`⚠️ Duplicate registration attempt detected for user ${userId}, returning existing registration ${existingRegistration.id}`);
+        return existingRegistration; // Return the existing registration instead of creating a duplicate
       }
       
       // Determine default amounts based on offer type
@@ -592,6 +590,7 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
           offerType: isCertification ? 'CERTIFICATION' : 'TFA_ROMANIA',
           originalAmount: paymentPlan.originalAmount || offerAmount,
           finalAmount: paymentPlan.finalAmount || offerAmount,
+          remainingAmount: paymentPlan.finalAmount || offerAmount, // Initialize with final amount
           installments: paymentPlan.installments || offer?.installments || 1,
           status: 'PENDING',
           // Course-specific data from courseData object
@@ -1000,20 +999,18 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
     }
     
     const result = await prisma.$transaction(async (tx) => {
-      // Check for recent duplicate registrations (within 5 seconds) to prevent double submissions
-      const recentRegistration = await tx.registration.findFirst({
+      // Check for duplicate registrations with same user and offer (more strict check)
+      const existingRegistration = await tx.registration.findFirst({
         where: {
           userId: user.id,
           partnerOfferId: partnerOfferId,
-          createdAt: {
-            gte: new Date(Date.now() - 5000) // Within last 5 seconds
-          }
+          status: 'PENDING' // Only check pending registrations
         }
       });
       
-      if (recentRegistration) {
-        console.log(`⚠️ Duplicate registration attempt detected for verified user ${user.id}, returning existing registration ${recentRegistration.id}`);
-        return recentRegistration; // Return the existing registration instead of creating a duplicate
+      if (existingRegistration) {
+        console.log(`⚠️ Duplicate registration attempt detected for verified user ${user.id}, returning existing registration ${existingRegistration.id}`);
+        return existingRegistration; // Return the existing registration instead of creating a duplicate
       }
       
       // Determine default amounts based on offer type
@@ -1031,6 +1028,7 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
           offerType: isCertification ? 'CERTIFICATION' : 'TFA_ROMANIA',
           originalAmount: paymentPlan.originalAmount || offerAmount,
           finalAmount: paymentPlan.finalAmount || offerAmount,
+          remainingAmount: paymentPlan.finalAmount || offerAmount, // Initialize with final amount
           installments: paymentPlan.installments || offer?.installments || 1,
           status: 'PENDING',
           // Course-specific data

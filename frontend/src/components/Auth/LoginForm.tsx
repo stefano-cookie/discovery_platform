@@ -47,41 +47,64 @@ const LoginForm: React.FC = () => {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      <div>
-        <Input
-          label="Email"
-          type="email"
-          {...register('email')}
-          error={errors.email?.message}
-        />
-      </div>
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+      <div className="space-y-4">
+        <div>
+          <Input
+            label="Indirizzo Email"
+            type="email"
+            placeholder="nome@email.com"
+            {...register('email')}
+            error={errors.email?.message}
+          />
+        </div>
 
-      <div>
-        <Input
-          label="Password"
-          type="password"
-          {...register('password')}
-          error={errors.password?.message}
-        />
+        <div>
+          <Input
+            label="Password"
+            type="password"
+            placeholder="Inserisci la tua password"
+            {...register('password')}
+            error={errors.password?.message}
+          />
+        </div>
       </div>
 
       {error && (
-        <ErrorMessage 
-          message={error.message} 
-          type={error.type}
-          onClose={() => setError(null)}
-        />
+        <div className="mt-4">
+          <ErrorMessage 
+            message={error.message} 
+            type={error.type}
+            onClose={() => setError(null)}
+          />
+        </div>
       )}
 
-      <Button
-        type="submit"
-        className="w-full"
-        isLoading={isLoading}
-        disabled={isLoading}
-      >
-        Accedi
-      </Button>
+      <div className="pt-2">
+        <Button
+          type="submit"
+          className="w-full py-3 text-base font-medium"
+          size="lg"
+          isLoading={isLoading}
+          disabled={isLoading}
+        >
+          {isLoading ? 'Accesso in corso...' : 'Accedi alla piattaforma'}
+        </Button>
+      </div>
+
+      <div className="text-center">
+        <button
+          type="button"
+          className="text-sm text-blue-600 hover:text-blue-500 font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1"
+          onClick={() => {
+            // TODO: Implement forgot password functionality
+            alert('Funzionalità di recupero password in sviluppo');
+          }}
+          aria-label="Recupera la tua password dimenticata"
+        >
+          Hai dimenticato la password?
+        </button>
+      </div>
     </form>
   );
 };
