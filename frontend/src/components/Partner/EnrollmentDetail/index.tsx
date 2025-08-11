@@ -6,7 +6,22 @@ import EnrollmentFlow from './EnrollmentFlow';
 import EnhancedDocumentsSection from './EnhancedDocumentsSection';
 import OffersSection from './OffersSection';
 import PaymentSection from './PaymentSection';
+import TfaStepsManagement from './TfaStepsManagement';
 import { getPartnerStatusDisplay } from '../../../utils/statusTranslations';
+
+const getStatusDisplayText = (status: string) => {
+  switch (status) {
+    case 'PENDING': return 'In Attesa';
+    case 'CONTRACT_GENERATED': return 'Contratto Generato';
+    case 'CONTRACT_SIGNED': return 'Contratto Firmato';
+    case 'ENROLLED': return 'Attivo';
+    case 'CNRED_RELEASED': return 'CNRED Rilasciato';
+    case 'FINAL_EXAM': return 'Esame Finale';
+    case 'RECOGNITION_REQUEST': return 'Richiesta Riconoscimento';
+    case 'COMPLETED': return 'Completato';
+    default: return getPartnerStatusDisplay(status);
+  }
+};
 
 interface EnrollmentDetailProps {
   registrationId: string;
@@ -113,15 +128,13 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
                 user.status === 'CONTRACT_GENERATED' ? 'bg-purple-100 text-purple-800' :
                 user.status === 'CONTRACT_SIGNED' ? 'bg-indigo-100 text-indigo-800' :
                 user.status === 'ENROLLED' ? 'bg-green-100 text-green-800' :
+                user.status === 'CNRED_RELEASED' ? 'bg-cyan-100 text-cyan-800' :
+                user.status === 'FINAL_EXAM' ? 'bg-orange-100 text-orange-800' :
+                user.status === 'RECOGNITION_REQUEST' ? 'bg-pink-100 text-pink-800' :
                 user.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
                 'bg-gray-100 text-gray-800'
               }`}>
-                {user.status === 'PENDING' && 'In Attesa'}
-                {user.status === 'CONTRACT_GENERATED' && 'Contratto Generato'}
-                {user.status === 'CONTRACT_SIGNED' && 'Contratto Firmato'}
-                {user.status === 'ENROLLED' && 'Attivo'}
-                {user.status === 'COMPLETED' && 'Completato'}
-                {!['PENDING', 'CONTRACT_GENERATED', 'CONTRACT_SIGNED', 'ENROLLED', 'COMPLETED'].includes(user.status) && getPartnerStatusDisplay(user.status)}
+                {getStatusDisplayText(user.status)}
               </div>
             </div>
           </div>
@@ -152,6 +165,17 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
                 finalAmount={user.finalAmount}
               />
               <EnhancedDocumentsSection user={user} />
+              
+              {/* TFA Steps Management */}
+              {user.offerType === 'TFA_ROMANIA' && (
+                <div className="bg-white rounded-xl shadow-sm border p-6">
+                  <TfaStepsManagement 
+                    registrationId={registrationId}
+                    registration={user}
+                    onUpdate={fetchUserDetails}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Right Column - Offers Management */}

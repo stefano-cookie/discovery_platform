@@ -231,7 +231,20 @@ model Registration {
   adverintiaUrl          String?
   adverintiaUploadedAt   DateTime?
   
-  // Certificazioni - data esame
+  // TFA Post-enrollment steps tracking
+  cnredReleasedAt        DateTime? // Data rilascio CNRED
+  cnredReleasedBy        String?   // Partner che registra rilascio
+  
+  finalExamDate          DateTime? // Data esame finale
+  finalExamRegisteredBy  String?   // Partner che registra esame
+  finalExamPassed        Boolean?  // Esito esame
+  
+  recognitionRequestDate     DateTime? // Data richiesta riconoscimento  
+  recognitionRequestBy       String?   // Partner che invia richiesta
+  recognitionDocumentUrl     String?   // URL documento riconoscimento
+  recognitionApprovalDate    DateTime? // Data approvazione riconoscimento
+  
+  // Certificazioni - data esame (legacy, mantenuto per compatibilità)
   examDate               DateTime? // Per workflow certificazioni
   examRegisteredBy       String?   // Partner che registra data
   
@@ -278,6 +291,12 @@ enum RegistrationStatus {
   CONTRACT_GENERATED
   CONTRACT_SIGNED
   ENROLLED
+  
+  // TFA Post-enrollment steps
+  CNRED_RELEASED       // Step 1: CNRED rilasciato
+  FINAL_EXAM           // Step 2: Esame finale sostenuto
+  RECOGNITION_REQUEST  // Step 3: Richiesta riconoscimento inviata
+  
   COMPLETED
 }
 

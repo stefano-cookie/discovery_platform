@@ -1391,6 +1391,380 @@ Team Diamante
     return { subject, html, text };
   }
 
+  // TFA Step notifications
+  async sendTfaCnredReleasedNotification(email: string, userName: string, courseName: string): Promise<void> {
+    const template = this.getTfaCnredReleasedTemplate(userName, courseName);
+    
+    const mailOptions = {
+      from: this.fromEmail,
+      to: email,
+      subject: template.subject,
+      html: template.html,
+      text: template.text
+    };
+
+    await this.transporter.sendMail(mailOptions);
+  }
+
+  async sendTfaFinalExamNotification(email: string, userName: string, courseName: string, passed: boolean, examDate: string): Promise<void> {
+    const template = this.getTfaFinalExamTemplate(userName, courseName, passed, examDate);
+    
+    const mailOptions = {
+      from: this.fromEmail,
+      to: email,
+      subject: template.subject,
+      html: template.html,
+      text: template.text
+    };
+
+    await this.transporter.sendMail(mailOptions);
+  }
+
+  async sendTfaRecognitionRequestNotification(email: string, userName: string, courseName: string): Promise<void> {
+    const template = this.getTfaRecognitionRequestTemplate(userName, courseName);
+    
+    const mailOptions = {
+      from: this.fromEmail,
+      to: email,
+      subject: template.subject,
+      html: template.html,
+      text: template.text
+    };
+
+    await this.transporter.sendMail(mailOptions);
+  }
+
+  async sendTfaCompletedNotification(email: string, userName: string, courseName: string): Promise<void> {
+    const template = this.getTfaCompletedTemplate(userName, courseName);
+    
+    const mailOptions = {
+      from: this.fromEmail,
+      to: email,
+      subject: template.subject,
+      html: template.html,
+      text: template.text
+    };
+
+    await this.transporter.sendMail(mailOptions);
+  }
+
+  private getTfaCnredReleasedTemplate(userName: string, courseName: string): { subject: string; html: string; text: string } {
+    const subject = 'CNRED Rilasciato - Corso TFA';
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%); color: white; padding: 30px; text-align: center; }
+          .content { padding: 30px; }
+          .step-badge { background-color: #e0f2fe; color: #0369a1; padding: 8px 16px; border-radius: 20px; font-weight: 600; display: inline-block; margin-bottom: 20px; }
+          .button { background-color: #0ea5e9; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block; }
+          .footer { background-color: #f8fafc; padding: 20px; text-align: center; color: #64748b; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🎓 CNRED Rilasciato</h1>
+            <p>Il tuo percorso TFA continua!</p>
+          </div>
+          
+          <div class="content">
+            <div class="step-badge">🏆 Step 1 Completato</div>
+            
+            <p>Caro <strong>${userName}</strong>,</p>
+            
+            <p>Siamo lieti di informarti che il <strong>CNRED</strong> (Codice Nazionale di Riconoscimento Europeo dei Diplomi) per il tuo corso <strong>${courseName}</strong> è stato <strong>rilasciato</strong>!</p>
+            
+            <p>Questo è un importante traguardo nel tuo percorso TFA. Il CNRED certifica il riconoscimento del tuo titolo di studio a livello europeo.</p>
+            
+            <h3>Prossimi step:</h3>
+            <ul>
+              <li>📝 Preparazione all'esame finale</li>
+              <li>🎯 Sostenimento esame finale</li>
+              <li>📋 Richiesta di riconoscimento</li>
+            </ul>
+            
+            <p>Il tuo partner di riferimento ti accompagnerà nei prossimi passi.</p>
+          </div>
+          
+          <div class="footer">
+            <p>Congratulazioni per questo importante traguardo!</p>
+            <p><strong>Team TFA Romania</strong><br>Piattaforma Diamante</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+CNRED Rilasciato - Corso TFA
+
+Caro ${userName},
+
+Il CNRED per il tuo corso ${courseName} è stato rilasciato!
+
+Questo certifica il riconoscimento del tuo titolo di studio a livello europeo.
+
+Prossimi step:
+- Preparazione all'esame finale
+- Sostenimento esame finale
+- Richiesta di riconoscimento
+
+Team TFA Romania
+    `;
+
+    return { subject, html, text };
+  }
+
+  private getTfaFinalExamTemplate(userName: string, courseName: string, passed: boolean, examDate: string): { subject: string; html: string; text: string } {
+    const subject = passed ? 'Esame Finale Superato - Corso TFA' : 'Esame Finale - Informazioni - Corso TFA';
+    
+    const resultColor = passed ? '#10b981' : '#ef4444';
+    const resultIcon = passed ? '✅' : '📝';
+    const resultText = passed ? 'SUPERATO' : 'COMPLETATO';
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 30px; text-align: center; }
+          .content { padding: 30px; }
+          .step-badge { background-color: #fef3c7; color: #d97706; padding: 8px 16px; border-radius: 20px; font-weight: 600; display: inline-block; margin-bottom: 20px; }
+          .result-badge { background-color: ${passed ? '#d1fae5' : '#fee2e2'}; color: ${resultColor}; padding: 12px 20px; border-radius: 8px; font-weight: 700; text-align: center; margin: 20px 0; }
+          .footer { background-color: #f8fafc; padding: 20px; text-align: center; color: #64748b; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>${resultIcon} Esame Finale</h1>
+            <p>Aggiornamento sul tuo percorso TFA</p>
+          </div>
+          
+          <div class="content">
+            <div class="step-badge">📝 Step 2 Completato</div>
+            
+            <p>Caro <strong>${userName}</strong>,</p>
+            
+            <div class="result-badge">
+              Esame finale del ${examDate}: ${resultText}
+            </div>
+            
+            <p>L'esame finale per il tuo corso <strong>${courseName}</strong> è stato registrato in data <strong>${examDate}</strong>.</p>
+            
+            ${passed ? `
+              <p>🎉 <strong>Complimenti!</strong> Hai superato con successo l'esame finale. Questo è un traguardo molto importante nel tuo percorso TFA.</p>
+              
+              <h3>Prossimo step:</h3>
+              <ul>
+                <li>📋 Il tuo partner preparerà la richiesta di riconoscimento</li>
+                <li>🎓 Completamento finale del percorso</li>
+              </ul>
+            ` : `
+              <p>Il tuo esame finale è stato registrato e sarà valutato secondo le procedure standard del corso TFA.</p>
+              
+              <p>Il tuo partner di riferimento ti fornirà ulteriori informazioni sui prossimi passi.</p>
+            `}
+          </div>
+          
+          <div class="footer">
+            <p>${passed ? 'Congratulazioni per il traguardo raggiunto!' : 'Ti terremo aggiornato sui prossimi sviluppi.'}</p>
+            <p><strong>Team TFA Romania</strong><br>Piattaforma Diamante</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+${subject}
+
+Caro ${userName},
+
+Esame finale del ${examDate}: ${resultText}
+
+L'esame finale per il tuo corso ${courseName} è stato registrato.
+
+${passed ? 'Congratulazioni! Hai superato con successo l\'esame finale.' : 'Il tuo esame è stato registrato e sarà valutato secondo le procedure standard.'}
+
+Team TFA Romania
+    `;
+
+    return { subject, html, text };
+  }
+
+  private getTfaRecognitionRequestTemplate(userName: string, courseName: string): { subject: string; html: string; text: string } {
+    const subject = 'Richiesta di Riconoscimento Inviata - Corso TFA';
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #ec4899 0%, #be185d 100%); color: white; padding: 30px; text-align: center; }
+          .content { padding: 30px; }
+          .step-badge { background-color: #fdf2f8; color: #be185d; padding: 8px 16px; border-radius: 20px; font-weight: 600; display: inline-block; margin-bottom: 20px; }
+          .footer { background-color: #f8fafc; padding: 20px; text-align: center; color: #64748b; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>📋 Richiesta di Riconoscimento</h1>
+            <p>Siamo quasi al traguardo!</p>
+          </div>
+          
+          <div class="content">
+            <div class="step-badge">📄 Step 3 Completato</div>
+            
+            <p>Caro <strong>${userName}</strong>,</p>
+            
+            <p>È stata <strong>inviata la richiesta di riconoscimento</strong> per il tuo corso <strong>${courseName}</strong>!</p>
+            
+            <p>Questo è il penultimo passo del tuo percorso TFA. La richiesta è ora in fase di elaborazione presso gli enti competenti.</p>
+            
+            <h3>Cosa succede ora:</h3>
+            <ul>
+              <li>⏳ La richiesta verrà processata dagli enti competenti</li>
+              <li>📞 Potresti essere contattato per eventuali chiarimenti</li>
+              <li>🎓 Una volta approvata, il tuo percorso sarà completato</li>
+            </ul>
+            
+            <p>Ti terremo aggiornato su tutti gli sviluppi. Il completamento finale è ormai vicino!</p>
+          </div>
+          
+          <div class="footer">
+            <p>Siamo orgogliosi del tuo percorso fino a questo punto!</p>
+            <p><strong>Team TFA Romania</strong><br>Piattaforma Diamante</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Richiesta di Riconoscimento Inviata - Corso TFA
+
+Caro ${userName},
+
+È stata inviata la richiesta di riconoscimento per il tuo corso ${courseName}!
+
+Questo è il penultimo passo del tuo percorso TFA.
+
+Cosa succede ora:
+- La richiesta verrà processata dagli enti competenti
+- Potresti essere contattato per eventuali chiarimenti
+- Una volta approvata, il tuo percorso sarà completato
+
+Ti terremo aggiornato su tutti gli sviluppi.
+
+Team TFA Romania
+    `;
+
+    return { subject, html, text };
+  }
+
+  private getTfaCompletedTemplate(userName: string, courseName: string): { subject: string; html: string; text: string } {
+    const subject = '🎓 Corso TFA Completato - Congratulazioni!';
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 40px; text-align: center; }
+          .content { padding: 30px; }
+          .completion-badge { background-color: #d1fae5; color: #047857; padding: 15px 25px; border-radius: 8px; font-weight: 700; text-align: center; margin: 25px 0; font-size: 18px; }
+          .steps-completed { background-color: #f0fdf4; border: 2px solid #bbf7d0; border-radius: 8px; padding: 20px; margin: 20px 0; }
+          .footer { background-color: #f8fafc; padding: 25px; text-align: center; color: #64748b; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🎓 CORSO COMPLETATO!</h1>
+            <p style="font-size: 18px; margin-top: 15px;">Hai raggiunto il traguardo finale</p>
+          </div>
+          
+          <div class="content">
+            <div class="completion-badge">
+              ✅ PERCORSO TFA COMPLETATO CON SUCCESSO
+            </div>
+            
+            <p style="font-size: 18px;">Caro <strong>${userName}</strong>,</p>
+            
+            <p><strong>Complimenti!</strong> Hai completato con successo il tuo corso <strong>${courseName}</strong>!</p>
+            
+            <p>Il riconoscimento è stato approvato e il tuo percorso TFA è ora <strong>ufficialmente concluso</strong>. Questo è un traguardo straordinario che testimonia il tuo impegno e la tua dedizione.</p>
+            
+            <div class="steps-completed">
+              <h3 style="margin-top: 0; color: #047857;">🏁 Tutti i passaggi completati:</h3>
+              <ul style="margin: 10px 0;">
+                <li>✅ <strong>CNRED rilasciato</strong> - Riconoscimento europeo ottenuto</li>
+                <li>✅ <strong>Esame finale superato</strong> - Competenze certificate</li>
+                <li>✅ <strong>Richiesta di riconoscimento approvata</strong> - Titolo ufficialmente riconosciuto</li>
+                <li>✅ <strong>Percorso completato</strong> - Obiettivo raggiunto!</li>
+              </ul>
+            </div>
+            
+            <p>Ora sei ufficialmente qualificato e puoi procedere con fiducia nel tuo percorso professionale nell'ambito dell'insegnamento.</p>
+            
+            <p><strong>Grazie</strong> per aver scelto la nostra piattaforma e per la fiducia che ci hai accordato durante tutto il percorso.</p>
+          </div>
+          
+          <div class="footer">
+            <p style="font-size: 16px; font-weight: 600; color: #059669;">🎉 Congratulazioni per questo straordinario traguardo! 🎉</p>
+            <p><strong>Team TFA Romania</strong><br>Piattaforma Diamante</p>
+            <p style="font-style: italic;">Siamo orgogliosi di aver fatto parte del tuo successo!</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+🎓 CORSO TFA COMPLETATO - Congratulazioni!
+
+Caro ${userName},
+
+Complimenti! Hai completato con successo il tuo corso ${courseName}!
+
+Il riconoscimento è stato approvato e il tuo percorso TFA è ora ufficialmente concluso.
+
+Tutti i passaggi completati:
+✅ CNRED rilasciato
+✅ Esame finale superato  
+✅ Richiesta di riconoscimento approvata
+✅ Percorso completato
+
+Ora sei ufficialmente qualificato per l'insegnamento.
+
+Grazie per aver scelto la nostra piattaforma!
+
+🎉 Congratulazioni per questo straordinario traguardo! 🎉
+
+Team TFA Romania
+Piattaforma Diamante
+    `;
+
+    return { subject, html, text };
+  }
+
   async testConnection(): Promise<boolean> {
     try {
       await this.transporter.verify();

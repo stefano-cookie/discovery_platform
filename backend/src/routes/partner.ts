@@ -5,6 +5,7 @@ import { ContractService } from '../services/contractService';
 import { DocumentService, upload as documentUpload } from '../services/documentService';
 import UnifiedDocumentService from '../services/unifiedDocumentService';
 import multer from 'multer';
+import emailService from '../services/emailService';
 import * as path from 'path';
 import ExcelJS from 'exceljs';
 
@@ -2725,6 +2726,397 @@ router.get('/export/registrations', authenticate, requireRole(['PARTNER']), asyn
   } catch (error) {
     console.error('Error generating Partner Excel export:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ==================== TFA POST-ENROLLMENT STEPS ====================
+
+// Step 1: Register CNRED release
+router.post('/registrations/:registrationId/cnred-release', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const { registrationId } = req.params;
+    const partnerId = req.partner?.id;
+
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    const registration = await prisma.registration.findFirst({
+      where: { id: registrationId, partnerId },
+      include: { 
+        offer: true,
+        user: {
+          include: {
+            profile: true
+          }
+        }
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    if (registration.offer?.offerType !== 'TFA_ROMANIA') {
+      return res.status(400).json({ error: 'Step disponibile solo per corsi TFA' });
+    }
+
+    // Update registration with CNRED release
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        status: 'CNRED_RELEASED',
+        cnredReleasedAt: new Date(),
+        cnredReleasedBy: partnerId
+      }
+    });
+
+    // Send email notification
+    try {
+      const userName = registration.user.profile?.nome && registration.user.profile?.cognome
+        ? `${registration.user.profile.nome} ${registration.user.profile.cognome}`
+        : registration.user.email;
+      
+      const courseName = await prisma.course.findUnique({
+        where: { id: registration.offer?.courseId || '' },
+        select: { name: true }
+      });
+
+      await emailService.sendTfaCnredReleasedNotification(
+        registration.user.email,
+        userName,
+        courseName?.name || 'Corso TFA'
+      );
+    } catch (emailError) {
+      console.error('Error sending CNRED released email:', emailError);
+      // Don't fail the request if email fails
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Rilascio CNRED registrato con successo',
+      status: 'CNRED_RELEASED'
+    });
+
+  } catch (error) {
+    console.error('CNRED release registration error:', error);
+    res.status(500).json({ error: 'Errore nella registrazione rilascio CNRED' });
+  }
+});
+
+// Step 2: Register final exam
+router.post('/registrations/:registrationId/final-exam', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const { registrationId } = req.params;
+    const { examDate, passed } = req.body;
+    const partnerId = req.partner?.id;
+
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    if (!examDate || passed === undefined) {
+      return res.status(400).json({ error: 'Data esame e esito sono obbligatori' });
+    }
+
+    const registration = await prisma.registration.findFirst({
+      where: { id: registrationId, partnerId },
+      include: { 
+        offer: true,
+        user: {
+          include: {
+            profile: true
+          }
+        }
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    if (registration.offer?.offerType !== 'TFA_ROMANIA') {
+      return res.status(400).json({ error: 'Step disponibile solo per corsi TFA' });
+    }
+
+    // Update registration with final exam info
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        status: 'FINAL_EXAM',
+        finalExamDate: new Date(examDate),
+        finalExamRegisteredBy: partnerId,
+        finalExamPassed: Boolean(passed)
+      }
+    });
+
+    // Send email notification
+    try {
+      const userName = registration.user.profile?.nome && registration.user.profile?.cognome
+        ? `${registration.user.profile.nome} ${registration.user.profile.cognome}`
+        : registration.user.email;
+      
+      const courseName = await prisma.course.findUnique({
+        where: { id: registration.offer?.courseId || '' },
+        select: { name: true }
+      });
+
+      await emailService.sendTfaFinalExamNotification(
+        registration.user.email,
+        userName,
+        courseName?.name || 'Corso TFA',
+        Boolean(passed),
+        new Date(examDate).toLocaleDateString('it-IT')
+      );
+    } catch (emailError) {
+      console.error('Error sending final exam email:', emailError);
+      // Don't fail the request if email fails
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Esame finale registrato con successo',
+      status: 'FINAL_EXAM',
+      passed: Boolean(passed)
+    });
+
+  } catch (error) {
+    console.error('Final exam registration error:', error);
+    res.status(500).json({ error: 'Errore nella registrazione esame finale' });
+  }
+});
+
+// Step 3: Register recognition request
+router.post('/registrations/:registrationId/recognition-request', authenticate, requireRole(['PARTNER', 'ADMIN']), documentUpload.single('document'), async (req: AuthRequest, res) => {
+  try {
+    const { registrationId } = req.params;
+    const partnerId = req.partner?.id;
+
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    const registration = await prisma.registration.findFirst({
+      where: { id: registrationId, partnerId },
+      include: { 
+        offer: true,
+        user: {
+          include: {
+            profile: true
+          }
+        }
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    if (registration.offer?.offerType !== 'TFA_ROMANIA') {
+      return res.status(400).json({ error: 'Step disponibile solo per corsi TFA' });
+    }
+
+    let recognitionDocumentUrl = null;
+    if (req.file) {
+      recognitionDocumentUrl = `/uploads/documents/${req.file.filename}`;
+    }
+
+    // Update registration with recognition request
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        status: 'RECOGNITION_REQUEST',
+        recognitionRequestDate: new Date(),
+        recognitionRequestBy: partnerId,
+        recognitionDocumentUrl
+      }
+    });
+
+    // Send email notification
+    try {
+      const userName = registration.user.profile?.nome && registration.user.profile?.cognome
+        ? `${registration.user.profile.nome} ${registration.user.profile.cognome}`
+        : registration.user.email;
+      
+      const courseName = await prisma.course.findUnique({
+        where: { id: registration.offer?.courseId || '' },
+        select: { name: true }
+      });
+
+      await emailService.sendTfaRecognitionRequestNotification(
+        registration.user.email,
+        userName,
+        courseName?.name || 'Corso TFA'
+      );
+    } catch (emailError) {
+      console.error('Error sending recognition request email:', emailError);
+      // Don't fail the request if email fails
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Richiesta riconoscimento registrata con successo',
+      status: 'RECOGNITION_REQUEST',
+      documentUrl: recognitionDocumentUrl
+    });
+
+  } catch (error) {
+    console.error('Recognition request error:', error);
+    res.status(500).json({ error: 'Errore nella registrazione richiesta riconoscimento' });
+  }
+});
+
+// Approve recognition (final step to COMPLETED)
+router.post('/registrations/:registrationId/recognition-approval', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const { registrationId } = req.params;
+    const partnerId = req.partner?.id;
+
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    const registration = await prisma.registration.findFirst({
+      where: { id: registrationId, partnerId },
+      include: { 
+        offer: true,
+        user: {
+          include: {
+            profile: true
+          }
+        }
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    if (registration.status !== 'RECOGNITION_REQUEST') {
+      return res.status(400).json({ error: 'La richiesta di riconoscimento deve essere già inviata' });
+    }
+
+    // Update registration to completed
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        status: 'COMPLETED',
+        recognitionApprovalDate: new Date()
+      }
+    });
+
+    // Send completion email notification
+    try {
+      const userName = registration.user.profile?.nome && registration.user.profile?.cognome
+        ? `${registration.user.profile.nome} ${registration.user.profile.cognome}`
+        : registration.user.email;
+      
+      const courseName = await prisma.course.findUnique({
+        where: { id: registration.offer?.courseId || '' },
+        select: { name: true }
+      });
+
+      await emailService.sendTfaCompletedNotification(
+        registration.user.email,
+        userName,
+        courseName?.name || 'Corso TFA'
+      );
+    } catch (emailError) {
+      console.error('Error sending TFA completed email:', emailError);
+      // Don't fail the request if email fails
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Riconoscimento approvato - corso completato',
+      status: 'COMPLETED'
+    });
+
+  } catch (error) {
+    console.error('Recognition approval error:', error);
+    res.status(500).json({ error: 'Errore nell\'approvazione riconoscimento' });
+  }
+});
+
+// GET /api/partner/registrations/:registrationId/tfa-steps - Get TFA steps for partner's registration
+router.get('/registrations/:registrationId/tfa-steps', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const { registrationId } = req.params;
+    const partnerId = req.partner?.id;
+
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    const registration = await prisma.registration.findFirst({
+      where: { 
+        id: registrationId, 
+        partnerId 
+      },
+      include: {
+        offer: true
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    if (registration.offer?.offerType !== 'TFA_ROMANIA') {
+      return res.status(400).json({ error: 'Steps disponibili solo per corsi TFA' });
+    }
+
+    // Build steps progress object
+    const steps = {
+      cnredRelease: {
+        step: 1,
+        title: 'Rilascio CNRED',
+        description: 'Il CNRED (Codice Nazionale di Riconoscimento Europeo dei Diplomi) è stato rilasciato',
+        completed: !!registration.cnredReleasedAt,
+        completedAt: registration.cnredReleasedAt,
+        status: registration.status === 'CNRED_RELEASED' ? 'current' : 
+                (!!registration.cnredReleasedAt ? 'completed' : 
+                  (['CONTRACT_SIGNED', 'ENROLLED'].includes(registration.status) ? 'current' : 'pending'))
+      },
+      finalExam: {
+        step: 2,
+        title: 'Esame Finale',
+        description: 'Sostenimento dell\'esame finale del corso TFA',
+        completed: !!registration.finalExamDate,
+        completedAt: registration.finalExamDate,
+        passed: registration.finalExamPassed,
+        status: registration.status === 'FINAL_EXAM' ? 'current' : 
+                (!!registration.finalExamDate ? 'completed' : 'pending')
+      },
+      recognitionRequest: {
+        step: 3,
+        title: 'Richiesta Riconoscimento',
+        description: 'Invio richiesta di riconoscimento del titolo conseguito',
+        completed: !!registration.recognitionRequestDate,
+        completedAt: registration.recognitionRequestDate,
+        documentUrl: registration.recognitionDocumentUrl,
+        status: registration.status === 'RECOGNITION_REQUEST' ? 'current' : 
+                (!!registration.recognitionRequestDate ? 'completed' : 'pending')
+      },
+      finalCompletion: {
+        step: 4,
+        title: 'Corso Completato',
+        description: 'Riconoscimento approvato - corso TFA completamente terminato',
+        completed: registration.status === 'COMPLETED',
+        completedAt: registration.recognitionApprovalDate,
+        status: registration.status === 'COMPLETED' ? 'completed' : 'pending'
+      }
+    };
+
+    res.json({
+      registrationId: registration.id,
+      currentStatus: registration.status,
+      steps
+    });
+
+  } catch (error) {
+    console.error('Partner TFA steps error:', error);
+    res.status(500).json({ error: 'Errore nel recupero steps TFA' });
   }
 });
 

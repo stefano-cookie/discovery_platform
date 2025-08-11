@@ -1478,4 +1478,81 @@ router.get('/documents/:documentId/download', authenticate, async (req: AuthRequ
   }
 });
 
+// GET /api/user/tfa-steps/:registrationId - Get TFA post-enrollment steps progress
+router.get('/tfa-steps/:registrationId', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { registrationId } = req.params;
+
+    const registration = await prisma.registration.findFirst({
+      where: {
+        id: registrationId,
+        userId: userId
+      },
+      include: {
+        offer: true
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    if (registration.offer?.offerType !== 'TFA_ROMANIA') {
+      return res.status(400).json({ error: 'Steps disponibili solo per corsi TFA' });
+    }
+
+    // Build steps progress object
+    const steps = {
+      cnredRelease: {
+        step: 1,
+        title: 'Rilascio CNRED',
+        description: 'Il CNRED (Codice Nazionale di Riconoscimento Europeo dei Diplomi) è stato rilasciato',
+        completed: !!registration.cnredReleasedAt,
+        completedAt: registration.cnredReleasedAt,
+        status: registration.status === 'CNRED_RELEASED' ? 'current' : 
+                (!!registration.cnredReleasedAt ? 'completed' : 'pending')
+      },
+      finalExam: {
+        step: 2,
+        title: 'Esame Finale',
+        description: 'Sostenimento dell\'esame finale del corso TFA',
+        completed: !!registration.finalExamDate,
+        completedAt: registration.finalExamDate,
+        passed: registration.finalExamPassed,
+        status: registration.status === 'FINAL_EXAM' ? 'current' : 
+                (!!registration.finalExamDate ? 'completed' : 'pending')
+      },
+      recognitionRequest: {
+        step: 3,
+        title: 'Richiesta Riconoscimento',
+        description: 'Invio richiesta di riconoscimento del titolo conseguito',
+        completed: !!registration.recognitionRequestDate,
+        completedAt: registration.recognitionRequestDate,
+        documentUrl: registration.recognitionDocumentUrl,
+        status: registration.status === 'RECOGNITION_REQUEST' ? 'current' : 
+                (!!registration.recognitionRequestDate ? 'completed' : 'pending')
+      },
+      finalCompletion: {
+        step: 4,
+        title: 'Corso Completato',
+        description: 'Riconoscimento approvato - corso TFA completamente terminato',
+        completed: registration.status === 'COMPLETED',
+        completedAt: registration.recognitionApprovalDate,
+        status: registration.status === 'COMPLETED' ? 'completed' : 'pending'
+      }
+    };
+
+    res.json({
+      registrationId: registration.id,
+      currentStatus: registration.status,
+      steps
+    });
+
+  } catch (error) {
+    console.error('Error getting TFA steps:', error);
+    res.status(500).json({ error: 'Errore nel recupero steps TFA' });
+  }
+});
+
 export default router;
