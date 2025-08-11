@@ -561,6 +561,22 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
     }
     
     const result = await prisma.$transaction(async (tx) => {
+      // Check for recent duplicate registrations (within 5 seconds) to prevent double submissions
+      const recentRegistration = await tx.registration.findFirst({
+        where: {
+          userId: userId,
+          partnerOfferId: partnerOfferId,
+          createdAt: {
+            gte: new Date(Date.now() - 5000) // Within last 5 seconds
+          }
+        }
+      });
+      
+      if (recentRegistration) {
+        console.log(`⚠️ Duplicate registration attempt detected for user ${userId}, returning existing registration ${recentRegistration.id}`);
+        return recentRegistration; // Return the existing registration instead of creating a duplicate
+      }
+      
       // Determine default amounts based on offer type
       const isCertification = offer?.course?.templateType === 'CERTIFICATION';
       const defaultAmount = isCertification ? 1500 : 4500;
@@ -981,6 +997,22 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
     }
     
     const result = await prisma.$transaction(async (tx) => {
+      // Check for recent duplicate registrations (within 5 seconds) to prevent double submissions
+      const recentRegistration = await tx.registration.findFirst({
+        where: {
+          userId: user.id,
+          partnerOfferId: partnerOfferId,
+          createdAt: {
+            gte: new Date(Date.now() - 5000) // Within last 5 seconds
+          }
+        }
+      });
+      
+      if (recentRegistration) {
+        console.log(`⚠️ Duplicate registration attempt detected for verified user ${user.id}, returning existing registration ${recentRegistration.id}`);
+        return recentRegistration; // Return the existing registration instead of creating a duplicate
+      }
+      
       // Determine default amounts based on offer type
       const isCertification = offer?.course?.templateType === 'CERTIFICATION';
       const defaultAmount = isCertification ? 1500 : 4500;
@@ -1365,6 +1397,12 @@ router.post('/token-enrollment', async (req: Request, res: Response) => {
     
     // Update the existing registration with enrollment data
     const result = await prisma.$transaction(async (tx) => {
+      // Check if registration was already completed (not in PENDING state anymore)
+      if (existingRegistration.status !== 'PENDING') {
+        console.log(`⚠️ Duplicate token enrollment attempt detected for registration ${existingRegistration.id}, already in ${existingRegistration.status} state`);
+        return existingRegistration; // Return the existing registration instead of updating again
+      }
+      
       // Update registration with enrollment details
       const updatedRegistration = await tx.registration.update({
         where: { id: existingRegistration.id },

@@ -408,6 +408,7 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
       
       if (response.success) {
         setSubmitStatus('success');
+        setIsSubmitting(false); // Reset submitting state on success
         
         // Clear all registration-related localStorage items
         localStorage.removeItem('registrationForm');
@@ -425,6 +426,7 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
       }
     } catch (error) {
       console.error('❌ Errore durante submission:', error);
+      setIsSubmitting(false); // Reset submitting state on error
       
       // Handle specific error types
       let userFriendlyMessage = 'Si è verificato un errore durante la registrazione. Riprova tra qualche minuto.';
