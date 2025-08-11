@@ -67,13 +67,14 @@ const UserManagement: React.FC = () => {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [transfers, setTransfers] = useState<UserTransfer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'users' | 'transfers'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'transfers' | 'export'>('users');
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [transferForm, setTransferForm] = useState({
     toPartnerId: '',
     reason: ''
   });
+  const [exportLoading, setExportLoading] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -131,6 +132,47 @@ const UserManagement: React.FC = () => {
     }
   };
 
+  const handleExportRegistrations = async () => {
+    setExportLoading(true);
+    try {
+      const response = await fetch('/api/admin/export/registrations', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const filename = contentDisposition
+        ? contentDisposition.split('filename=')[1].replace(/"/g, '')
+        : `registrazioni_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      // Create blob and download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      alert('Export Excel completato con successo!');
+    } catch (error) {
+      console.error('Error exporting registrations:', error);
+      alert('Errore durante l\'export. Riprova più tardi.');
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   const getRoleBadge = (role: string) => {
     const roleConfig = {
       ADMIN: { label: 'Admin', color: 'bg-red-100 text-red-800' },
@@ -165,7 +207,8 @@ const UserManagement: React.FC = () => {
         <nav className="-mb-px flex space-x-8">
           {[
             { id: 'users', label: 'Utenti' },
-            { id: 'transfers', label: 'Trasferimenti' }
+            { id: 'transfers', label: 'Trasferimenti' },
+            { id: 'export', label: 'Export' }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -285,6 +328,61 @@ const UserManagement: React.FC = () => {
               <p className="text-gray-500">Nessun trasferimento effettuato.</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Export Tab */}
+      {activeTab === 'export' && (
+        <div className="bg-white shadow rounded-lg p-6">
+          <div className="max-w-2xl">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Export Dati Registrazioni
+            </h3>
+            <p className="text-sm text-gray-600 mb-6">
+              Scarica un file Excel contenente tutte le registrazioni con dati anagrafici completi,
+              dettagli dei corsi, stato dei pagamenti e informazioni sui partner.
+            </p>
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-6">
+              <h4 className="text-sm font-medium text-blue-800 mb-2">
+                Il file Excel include:
+              </h4>
+              <ul className="text-sm text-blue-700 space-y-1">
+                <li>• Dati anagrafici completi (nome, cognome, codice fiscale, residenza)</li>
+                <li>• Informazioni corso e offerta selezionata</li>
+                <li>• Stato pagamenti con importi e scadenze</li>
+                <li>• Dettagli partner assegnato</li>
+                <li>• Stato registrazione e date</li>
+              </ul>
+            </div>
+
+            <button
+              onClick={handleExportRegistrations}
+              disabled={exportLoading}
+              className="bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+            >
+              {exportLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>Generando Excel...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>Scarica Excel Registrazioni</span>
+                </>
+              )}
+            </button>
+
+            <div className="mt-6 text-xs text-gray-500">
+              <p>
+                <strong>Nota:</strong> Il download potrebbe richiedere alcuni secondi a seconda
+                del numero di registrazioni presenti nel sistema.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 

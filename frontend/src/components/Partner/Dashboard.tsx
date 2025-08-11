@@ -11,6 +11,7 @@ const PartnerDashboard: React.FC = () => {
   const [usersLoading, setUsersLoading] = useState(true);
   const [usersError, setUsersError] = useState<string | null>(null);
   const [currentFilter, setCurrentFilter] = useState<'all' | 'direct' | 'children'>('all');
+  const [exportLoading, setExportLoading] = useState(false);
 
   const fetchUsers = async (filter: 'all' | 'direct' | 'children' = 'all') => {
     try {
@@ -38,6 +39,61 @@ const PartnerDashboard: React.FC = () => {
       style: 'currency',
       currency: 'EUR'
     }).format(amount);
+  };
+
+  const handleExportToExcel = async () => {
+    console.log('🎯 NUOVO PULSANTE CLICCATO!!');
+    setExportLoading(true);
+    
+    try {
+      console.log('🔧 Inizio richiesta API...');
+      const token = localStorage.getItem('token');
+      console.log('🔑 Token disponibile:', !!token);
+      
+      const response = await fetch('/api/partners/export/registrations', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('📊 Status risposta:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Errore API:', errorText);
+        alert(`Errore ${response.status}: ${errorText}`);
+        return;
+      }
+
+      // Get filename and download
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const filename = contentDisposition
+        ? contentDisposition.split('filename=')[1].replace(/"/g, '')
+        : `registrazioni_partner_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      const blob = await response.blob();
+      console.log('📁 File generato, dimensione:', blob.size, 'bytes');
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      console.log('✅ Download completato!', filename);
+      alert('Export Excel completato! Il file è stato scaricato.');
+      
+    } catch (error: any) {
+      console.error('❌ Errore durante export:', error);
+      alert('Errore durante l\'export: ' + error.message);
+    } finally {
+      setExportLoading(false);
+    }
   };
 
   if (statsError || usersError) {
@@ -135,36 +191,41 @@ const PartnerDashboard: React.FC = () => {
             </svg>
             Azioni Rapide
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <button className="group relative overflow-hidden bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 rounded-xl font-medium shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-              <div className="relative flex items-center justify-center">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                <span>Nuovo Utente</span>
-              </div>
+          <div className="max-w-md">
+            <button 
+              type="button"
+              onClick={handleExportToExcel}
+              disabled={exportLoading}
+              className={`
+                w-full inline-flex items-center justify-center px-6 py-3 
+                border border-transparent text-base font-medium rounded-lg
+                text-white bg-green-600 hover:bg-green-700 
+                focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500
+                disabled:opacity-50 disabled:cursor-not-allowed
+                transition-colors duration-200
+                ${exportLoading ? 'bg-green-400' : ''}
+              `}
+            >
+              {exportLoading ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Esportando Excel...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Esporta Registrazioni Excel
+                </>
+              )}
             </button>
-            
-            <button className="group relative overflow-hidden bg-white border border-gray-200 text-gray-700 px-6 py-4 rounded-xl font-medium shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 hover:border-gray-300">
-              <div className="absolute inset-0 bg-gray-50 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-              <div className="relative flex items-center justify-center">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4M8 7v4a2 2 0 002 2h4a2 2 0 002-2V7M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-2" />
-                </svg>
-                <span>Esporta Dati</span>
-              </div>
-            </button>
-            
-            <button className="group relative overflow-hidden bg-white border border-gray-200 text-gray-700 px-6 py-4 rounded-xl font-medium shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 hover:border-gray-300">
-              <div className="absolute inset-0 bg-gray-50 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-              <div className="relative flex items-center justify-center">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <span>Genera Report</span>
-              </div>
-            </button>
+            <p className="mt-2 text-sm text-gray-500">
+              Scarica tutti i tuoi clienti e pagamenti in formato Excel
+            </p>
           </div>
         </div>
 
