@@ -467,7 +467,8 @@ router.post('/submit', handleAuthOrVerifiedEmail, upload.fields([
             registrationId: registration.id,
             amount: downPayment,
             dueDate: downPaymentDate,
-            paymentNumber: 0
+            paymentNumber: 0,
+            description: 'Acconto'
           }
         });
         paymentDeadlines.push(downPaymentDeadline);
@@ -491,7 +492,8 @@ router.post('/submit', handleAuthOrVerifiedEmail, upload.fields([
             registrationId: registration.id,
             amount: amountPerInstallment,
             dueDate,
-            paymentNumber: i + 1
+            paymentNumber: i + 1,
+            description: `Rata ${i + 1} di ${installments}`
           }
         });
         paymentDeadlines.push(deadline);

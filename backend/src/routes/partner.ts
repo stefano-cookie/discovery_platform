@@ -1482,6 +1482,153 @@ router.get('/documents/pending', authenticate, requireRole(['PARTNER', 'ADMIN'])
   }
 });
 
+// Get payment deadlines for a registration
+router.get('/registrations/:registrationId/deadlines', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { registrationId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify registration belongs to partner
+    const registration = await prisma.registration.findFirst({
+      where: {
+        id: registrationId,
+        partnerId
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Registrazione non trovata' });
+    }
+
+    // Get all payment deadlines
+    const deadlines = await prisma.paymentDeadline.findMany({
+      where: { registrationId },
+      orderBy: { dueDate: 'asc' }
+    });
+
+    const formattedDeadlines = deadlines.map(d => ({
+      id: d.id,
+      amount: Number(d.amount),
+      dueDate: d.dueDate,
+      description: d.description,
+      isPaid: d.isPaid,
+      paidAt: d.paidAt,
+      notes: d.notes
+    }));
+
+    res.json({
+      deadlines: formattedDeadlines,
+      remainingAmount: registration.remainingAmount ? Number(registration.remainingAmount) : Number(registration.finalAmount)
+    });
+  } catch (error) {
+    console.error('Get payment deadlines error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Mark payment deadline as paid and update remaining amount
+router.post('/registrations/:registrationId/payments/:deadlineId/mark-paid', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { registrationId, deadlineId } = req.params;
+    const { notes } = req.body;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify registration belongs to partner
+    const registration = await prisma.registration.findFirst({
+      where: {
+        id: registrationId,
+        partnerId
+      },
+      include: {
+        deadlines: {
+          orderBy: { dueDate: 'asc' }
+        }
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Registrazione non trovata' });
+    }
+
+    // Find the specific deadline
+    const deadline = await prisma.paymentDeadline.findFirst({
+      where: {
+        id: deadlineId,
+        registrationId
+      }
+    });
+
+    if (!deadline) {
+      return res.status(404).json({ error: 'Scadenza non trovata' });
+    }
+
+    if (deadline.isPaid) {
+      return res.status(400).json({ error: 'Pagamento già marcato come pagato' });
+    }
+
+    // Mark deadline as paid
+    await prisma.paymentDeadline.update({
+      where: { id: deadlineId },
+      data: {
+        isPaid: true,
+        paidAt: new Date(),
+        notes
+      }
+    });
+
+    // Calculate remaining amount
+    const paidDeadlines = await prisma.paymentDeadline.findMany({
+      where: {
+        registrationId,
+        isPaid: true
+      }
+    });
+
+    const totalPaid = paidDeadlines.reduce((sum, d) => sum + Number(d.amount), 0);
+    const remainingAmount = Number(registration.finalAmount) - totalPaid;
+
+    // Update registration with remaining amount
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        remainingAmount: remainingAmount
+      }
+    });
+
+    // Get next unpaid deadline
+    const nextDeadline = await prisma.paymentDeadline.findFirst({
+      where: {
+        registrationId,
+        isPaid: false
+      },
+      orderBy: { dueDate: 'asc' }
+    });
+
+    res.json({
+      success: true,
+      remainingAmount,
+      totalPaid,
+      nextDeadline: nextDeadline ? {
+        id: nextDeadline.id,
+        amount: Number(nextDeadline.amount),
+        dueDate: nextDeadline.dueDate,
+        description: nextDeadline.description
+      } : null
+    });
+  } catch (error) {
+    console.error('Mark payment as paid error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
 // Notify partner about document upload
 router.post('/documents/:documentId/notify', authenticate, requireRole(['USER']), async (req: AuthRequest, res) => {
   try {

@@ -5,6 +5,7 @@ import UserInfo from './UserInfo';
 import EnrollmentFlow from './EnrollmentFlow';
 import EnhancedDocumentsSection from './EnhancedDocumentsSection';
 import OffersSection from './OffersSection';
+import PaymentSection from './PaymentSection';
 import { getPartnerStatusDisplay } from '../../../utils/statusTranslations';
 
 interface EnrollmentDetailProps {
@@ -145,6 +146,11 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
             {/* Left Column - User Info & Documents */}
             <div className="lg:col-span-2 space-y-6">
               <UserInfo user={user} />
+              <PaymentSection 
+                registrationId={registrationId}
+                courseName={user.course}
+                finalAmount={user.finalAmount}
+              />
               <EnhancedDocumentsSection user={user} />
             </div>
 

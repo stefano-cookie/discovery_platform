@@ -415,7 +415,7 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
           paidInstallments: paidDeadlines,
           unpaidInstallments: unpaidDeadlines,
           totalInstallments: reg.deadlines.length,
-          percentagePaid: reg.finalAmount > 0 ? Math.round((totalPaid / Number(reg.finalAmount)) * 100) : 0
+          percentagePaid: Number(reg.finalAmount) > 0 ? Math.round((totalPaid / Number(reg.finalAmount)) * 100) : 0
         }
       };
     });

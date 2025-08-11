@@ -17,84 +17,9 @@ const UserInfo: React.FC<UserInfoProps> = ({ user }) => {
     return new Date(dateString).toLocaleDateString('it-IT');
   };
 
-  const calculatePaymentDeadlines = (enrollmentDate: string, installments: number) => {
-    const enrollment = new Date(enrollmentDate);
-    const deadlines = [];
+  // Payment deadlines calculation moved to PaymentSection component
 
-    if (installments === 1) {
-      // Pagamento unico: 7 giorni da iscrizione
-      const deadline = new Date(enrollment);
-      deadline.setDate(deadline.getDate() + 7);
-      deadlines.push({
-        type: 'Pagamento Unico',
-        date: deadline,
-        amount: user.finalAmount
-      });
-    } else {
-      // Determina se è TFA o Certificazione
-      const isTFA = user.offerType === 'TFA_ROMANIA';
-      
-      let remainingAmount = user.finalAmount;
-      let installmentAmount = 0;
-      let baseDate = new Date(enrollment);
-      baseDate.setDate(baseDate.getDate() + 7);
-      
-      if (isTFA) {
-        // Solo TFA ha l'acconto di €1500
-        const downPaymentAmount = 1500;
-        deadlines.push({
-          type: 'Acconto',
-          date: new Date(baseDate),
-          amount: downPaymentAmount
-        });
-        
-        remainingAmount = user.finalAmount - downPaymentAmount;
-        installmentAmount = Math.round(remainingAmount / installments);
-        
-        // Per TFA, le rate iniziano 30 giorni dopo l'acconto
-        baseDate.setDate(baseDate.getDate() + 30);
-      } else {
-        // Per certificazioni e altri: nessun acconto, solo rate uguali
-        installmentAmount = Math.round(user.finalAmount / installments);
-      }
-      
-      // Genera le rate
-      for (let i = 1; i <= installments; i++) {
-        const rateDate = new Date(baseDate);
-        if (i > 1) {
-          rateDate.setMonth(rateDate.getMonth() + (i - 1));
-          rateDate.setDate(30);
-          
-          // Se il 30 non esiste in quel mese, usa l'ultimo giorno del mese
-          if (rateDate.getMonth() !== baseDate.getMonth() + (i - 1)) {
-            rateDate.setDate(0); // Ultimo giorno del mese precedente
-          }
-        }
-        
-        const isLast = i === installments;
-        let amount = installmentAmount;
-        
-        // Per l'ultima rata, aggiusta per eventuali arrotondamenti
-        if (isLast) {
-          if (isTFA) {
-            amount = remainingAmount - (installmentAmount * (installments - 1));
-          } else {
-            amount = user.finalAmount - (installmentAmount * (installments - 1));
-          }
-        }
-        
-        deadlines.push({
-          type: i === 1 ? 'Prima Rata' : `${i}° Rata`,
-          date: rateDate,
-          amount: amount
-        });
-      }
-    }
-
-    return deadlines;
-  };
-
-  const paymentDeadlines = calculatePaymentDeadlines(user.enrollmentDate, user.installments);
+  // Payment deadlines are now handled by PaymentSection component
 
   return (
     <div className="space-y-6">
@@ -222,66 +147,7 @@ const UserInfo: React.FC<UserInfoProps> = ({ user }) => {
           </div>
         )}
 
-        {/* Scadenze Pagamenti */}
-        <div className="mt-6 border-t pt-4">
-          <h4 className="text-sm font-medium text-gray-900 mb-3">Scadenze Pagamenti</h4>
-          <div className="space-y-3">
-            {paymentDeadlines.map((deadline, index) => {
-              const isOverdue = new Date(deadline.date) < new Date() && user.status !== 'COMPLETED';
-              const isCurrent = new Date(deadline.date) >= new Date() && new Date(deadline.date) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-              
-              return (
-                <div
-                  key={index}
-                  className={`flex items-center justify-between p-3 rounded-lg border ${
-                    isOverdue 
-                      ? 'bg-red-50 border-red-200' 
-                      : isCurrent 
-                        ? 'bg-yellow-50 border-yellow-200' 
-                        : 'bg-gray-50 border-gray-200'
-                  }`}
-                >
-                  <div className="flex items-center">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 ${
-                      isOverdue 
-                        ? 'bg-red-100 text-red-600' 
-                        : isCurrent 
-                          ? 'bg-yellow-100 text-yellow-600' 
-                          : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {index + 1}
-                    </div>
-                    <div>
-                      <p className={`text-sm font-medium ${
-                        isOverdue ? 'text-red-900' : isCurrent ? 'text-yellow-900' : 'text-gray-900'
-                      }`}>
-                        {deadline.type}
-                      </p>
-                      <p className={`text-xs ${
-                        isOverdue ? 'text-red-600' : isCurrent ? 'text-yellow-600' : 'text-gray-600'
-                      }`}>
-                        Scadenza: {formatDate(deadline.date.toISOString())}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className={`text-sm font-semibold ${
-                      isOverdue ? 'text-red-900' : isCurrent ? 'text-yellow-900' : 'text-gray-900'
-                    }`}>
-                      {formatCurrency(deadline.amount)}
-                    </p>
-                    {isOverdue && (
-                      <p className="text-xs text-red-600 font-medium">In ritardo</p>
-                    )}
-                    {isCurrent && (
-                      <p className="text-xs text-yellow-600 font-medium">In scadenza</p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        {/* Payment deadlines section moved to PaymentSection component */}
       </div>
     </div>
   );

@@ -215,6 +215,7 @@ model Registration {
   originalAmount  Decimal
   finalAmount     Decimal
   installments    Int
+  remainingAmount Decimal?  // Importo residuo da pagare
   
   status          RegistrationStatus @default(PENDING)
   
@@ -425,6 +426,7 @@ model Payment {
   isConfirmed     Boolean  @default(false)
   confirmedBy     String?
   confirmedAt     DateTime?
+  notes           String?  // Note sul pagamento
   createdBy       String
   createdAt       DateTime @default(now())
   
@@ -437,7 +439,10 @@ model PaymentDeadline {
   amount          Decimal
   dueDate         DateTime
   paymentNumber   Int
+  description     String?  // Descrizione pagamento
   isPaid          Boolean  @default(false)
+  paidAt          DateTime? // Data effettivo pagamento
+  notes           String?   // Note sul pagamento
   
   registration    Registration @relation(fields: [registrationId], references: [id])
 }

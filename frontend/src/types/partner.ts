@@ -18,6 +18,7 @@ export interface PartnerUser {
   } | null;
   status: string;
   course: string;
+  courseName?: string;  // Nome del corso
   courseId: string;
   offerType: string;
   isDirectUser: boolean;

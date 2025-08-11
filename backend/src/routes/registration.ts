@@ -750,6 +750,7 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
                 amount: downPayment,
                 dueDate: downPaymentDate,
                 paymentNumber: 0,
+                description: 'Acconto',
                 isPaid: false
               }
             });
@@ -775,6 +776,7 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
                 amount: amountPerInstallment,
                 dueDate: dueDate,
                 paymentNumber: i + 1,
+                description: `Rata ${i + 1} di ${installments}`,
                 isPaid: false
               }
             });
@@ -789,6 +791,7 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
               amount: finalAmount,
               dueDate: dueDate,
               paymentNumber: 1,
+              description: 'Pagamento unico',
               isPaid: false
             }
           });
@@ -1159,6 +1162,7 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
                 amount: downPayment,
                 dueDate: downPaymentDate,
                 paymentNumber: 0,
+                description: 'Acconto',
                 isPaid: false
               }
             });
@@ -1202,6 +1206,7 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
               amount: finalAmount,
               dueDate: dueDate,
               paymentNumber: 1,
+              description: 'Pagamento unico',
               isPaid: false
             }
           });
