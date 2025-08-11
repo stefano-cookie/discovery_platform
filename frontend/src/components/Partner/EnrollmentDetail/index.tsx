@@ -7,21 +7,8 @@ import EnhancedDocumentsSection from './EnhancedDocumentsSection';
 import OffersSection from './OffersSection';
 import PaymentSection from './PaymentSection';
 import TfaStepsManagement from './TfaStepsManagement';
-import { getPartnerStatusDisplay } from '../../../utils/statusTranslations';
+import { getPartnerStatusDisplay, getStatusTranslation } from '../../../utils/statusTranslations';
 
-const getStatusDisplayText = (status: string) => {
-  switch (status) {
-    case 'PENDING': return 'In Attesa';
-    case 'CONTRACT_GENERATED': return 'Contratto Generato';
-    case 'CONTRACT_SIGNED': return 'Contratto Firmato';
-    case 'ENROLLED': return 'Attivo';
-    case 'CNRED_RELEASED': return 'CNRED Rilasciato';
-    case 'FINAL_EXAM': return 'Esame Finale';
-    case 'RECOGNITION_REQUEST': return 'Richiesta Riconoscimento';
-    case 'COMPLETED': return 'Completato';
-    default: return getPartnerStatusDisplay(status);
-  }
-};
 
 interface EnrollmentDetailProps {
   registrationId: string;
@@ -123,18 +110,8 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
               </div>
             </div>
             <div className="flex items-center space-x-3">
-              <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                user.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                user.status === 'CONTRACT_GENERATED' ? 'bg-purple-100 text-purple-800' :
-                user.status === 'CONTRACT_SIGNED' ? 'bg-indigo-100 text-indigo-800' :
-                user.status === 'ENROLLED' ? 'bg-green-100 text-green-800' :
-                user.status === 'CNRED_RELEASED' ? 'bg-cyan-100 text-cyan-800' :
-                user.status === 'FINAL_EXAM' ? 'bg-orange-100 text-orange-800' :
-                user.status === 'RECOGNITION_REQUEST' ? 'bg-pink-100 text-pink-800' :
-                user.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
-                'bg-gray-100 text-gray-800'
-              }`}>
-                {getStatusDisplayText(user.status)}
+              <div className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusTranslation(user.status).color}`}>
+                {getPartnerStatusDisplay(user.status)}
               </div>
             </div>
           </div>

@@ -153,8 +153,8 @@ router.get('/users', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req
       createdAt: reg.user.createdAt, // Data registrazione utente
       enrollmentDate: reg.createdAt,  // Data iscrizione al corso
       // Dati pagamento
-      originalAmount: reg.originalAmount,
-      finalAmount: reg.finalAmount,
+      originalAmount: Number(reg.originalAmount),
+      finalAmount: Number(reg.finalAmount),
       installments: reg.installments,
       // Lista offerte aggiuntive disponibili (sarà implementata dopo)
     }));
@@ -1516,15 +1516,21 @@ router.get('/registrations/:registrationId/deadlines', authenticate, requireRole
       id: d.id,
       amount: Number(d.amount),
       dueDate: d.dueDate,
-      description: d.description,
+      description: d.description || `Pagamento ${d.paymentNumber}`,
       isPaid: d.isPaid,
       paidAt: d.paidAt,
       notes: d.notes
     }));
 
+    // Calculate remaining amount properly
+    const totalPaid = deadlines
+      .filter(d => d.isPaid)
+      .reduce((sum, d) => sum + Number(d.amount), 0);
+    const calculatedRemainingAmount = Number(registration.finalAmount) - totalPaid;
+
     res.json({
       deadlines: formattedDeadlines,
-      remainingAmount: registration.remainingAmount ? Number(registration.remainingAmount) : Number(registration.finalAmount)
+      remainingAmount: calculatedRemainingAmount
     });
   } catch (error) {
     console.error('Get payment deadlines error:', error);

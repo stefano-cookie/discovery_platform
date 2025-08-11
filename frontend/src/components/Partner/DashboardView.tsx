@@ -3,7 +3,7 @@ import { usePartnerStats } from '../../hooks/usePartnerStats';
 import { partnerService } from '../../services/partner';
 import { PartnerUser } from '../../types/partner';
 import StatsCard from './StatsCard';
-import { getPartnerStatusDisplay } from '../../utils/statusTranslations';
+import { getPartnerStatusDisplay, getStatusTranslation } from '../../utils/statusTranslations';
 
 interface DashboardViewProps {
   onNavigateToUsers?: () => void;
@@ -242,20 +242,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                     </p>
                   </div>
                   <div className="flex flex-col items-end">
-                    <div className={`text-xs px-2 py-1 rounded-full font-medium ${
-                      user.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                      user.status === 'CONTRACT_GENERATED' ? 'bg-purple-100 text-purple-800' :
-                      user.status === 'CONTRACT_SIGNED' ? 'bg-indigo-100 text-indigo-800' :
-                      user.status === 'ENROLLED' ? 'bg-green-100 text-green-800' :
-                      user.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {user.status === 'PENDING' && 'In Attesa'}
-                      {user.status === 'CONTRACT_GENERATED' && 'Contratto Generato'}
-                      {user.status === 'CONTRACT_SIGNED' && 'Contratto Firmato'}
-                      {user.status === 'ENROLLED' && 'Attivo'}
-                      {user.status === 'COMPLETED' && 'Completato'}
-                      {!['PENDING', 'CONTRACT_GENERATED', 'CONTRACT_SIGNED', 'ENROLLED', 'COMPLETED'].includes(user.status) && getPartnerStatusDisplay(user.status)}
+                    <div className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusTranslation(user.status).color}`}>
+                      {getPartnerStatusDisplay(user.status)}
                     </div>
                     <svg className="w-4 h-4 text-gray-400 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

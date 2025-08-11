@@ -37,11 +37,29 @@ export const statusTranslations: Record<string, StatusConfig> = {
     bg: 'bg-green-100',
     text: 'text-green-800'
   },
+  CNRED_RELEASED: { 
+    label: 'CNRED Rilasciato', 
+    color: 'bg-cyan-100 text-cyan-800',
+    bg: 'bg-cyan-100',
+    text: 'text-cyan-800'
+  },
+  FINAL_EXAM: { 
+    label: 'Esame Finale', 
+    color: 'bg-orange-100 text-orange-800',
+    bg: 'bg-orange-100',
+    text: 'text-orange-800'
+  },
+  RECOGNITION_REQUEST: { 
+    label: 'Richiesta Riconoscimento', 
+    color: 'bg-pink-100 text-pink-800',
+    bg: 'bg-pink-100',
+    text: 'text-pink-800'
+  },
   COMPLETED: { 
     label: 'Completato', 
-    color: 'bg-gray-100 text-gray-800',
-    bg: 'bg-gray-100',
-    text: 'text-gray-800'
+    color: 'bg-blue-100 text-blue-800',
+    bg: 'bg-blue-100',
+    text: 'text-blue-800'
   },
   ACTIVE: { 
     label: 'Attivo', 
@@ -88,6 +106,12 @@ export const getPartnerStatusDisplay = (status: string): string => {
       return 'Contratto Firmato';
     case 'ENROLLED':
       return 'Attivo';
+    case 'CNRED_RELEASED':
+      return 'CNRED Rilasciato';
+    case 'FINAL_EXAM':
+      return 'Esame Finale';
+    case 'RECOGNITION_REQUEST':
+      return 'Richiesta Riconoscimento';
     case 'COMPLETED':
       return 'Completato';
     default:
@@ -109,6 +133,12 @@ export const getUserStatusDisplay = (status: string): string => {
       return 'Contratto Firmato';
     case 'ENROLLED':
       return 'Iscritto';
+    case 'CNRED_RELEASED':
+      return 'CNRED Rilasciato';
+    case 'FINAL_EXAM':
+      return 'Esame Finale';
+    case 'RECOGNITION_REQUEST':
+      return 'Richiesta Riconoscimento';
     case 'COMPLETED':
       return 'Completato';
     // Aggiungiamo anche stati comuni dell'enrollment
