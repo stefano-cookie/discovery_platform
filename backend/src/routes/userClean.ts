@@ -3,7 +3,11 @@ import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import emailService from '../services/emailService';
 import SecureTokenService from '../services/secureTokenService';
+import { ContractService } from '../services/contractService';
+import path from 'path';
+import fs from 'fs';
 
+const contractService = new ContractService();
 const router = Router();
 const prisma = new PrismaClient();
 
@@ -722,6 +726,163 @@ router.post('/send-verification', authenticate, async (req: AuthRequest, res: Re
     res.json({ message: 'Email di verifica inviata con successo' });
   } catch (error) {
     console.error('Error sending verification email:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// GET /api/user/download-contract-template/:registrationId - Download precompiled contract
+router.get('/download-contract-template/:registrationId', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { registrationId } = req.params;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Utente non autenticato' });
+    }
+    
+    const registration = await prisma.registration.findFirst({
+      where: { 
+        id: registrationId,
+        userId 
+      },
+      include: {
+        offer: {
+          include: {
+            course: true
+          }
+        }
+      }
+    });
+    
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+    
+    // Only allow download if contract is signed (partner has uploaded signed contract)
+    if (!['CONTRACT_SIGNED', 'ENROLLED', 'COMPLETED'].includes(registration.status)) {
+      return res.status(403).json({ error: 'Contratto non ancora disponibile per il download' });
+    }
+    
+    // If contract doesn't exist, generate it
+    if (!registration.contractTemplateUrl) {
+      console.log('[USER_CONTRACT_DOWNLOAD] Generating contract for user...');
+      
+      try {
+        const pdfBuffer = await contractService.generateContract(registrationId);
+        const contractUrl = await contractService.saveContract(registrationId, pdfBuffer);
+        
+        // Update registration with contract URL
+        await prisma.registration.update({
+          where: { id: registrationId },
+          data: {
+            contractTemplateUrl: contractUrl,
+            contractGeneratedAt: new Date()
+          }
+        });
+        
+        // Send the generated PDF
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="contratto_precompilato_${registrationId}.pdf"`);
+        return res.send(pdfBuffer);
+      } catch (generateError) {
+        console.error('[USER_CONTRACT_DOWNLOAD] Error generating contract:', generateError);
+        return res.status(500).json({ error: 'Errore nella generazione del contratto' });
+      }
+    }
+    
+    // Try different path resolutions
+    let filePath = path.resolve(__dirname, '../..', registration.contractTemplateUrl.substring(1));
+    
+    if (!fs.existsSync(filePath)) {
+      // Try with process.cwd()
+      filePath = path.join(process.cwd(), registration.contractTemplateUrl);
+      
+      if (!fs.existsSync(filePath)) {
+        // Try without leading slash
+        filePath = path.join(process.cwd(), registration.contractTemplateUrl.substring(1));
+        
+        if (!fs.existsSync(filePath)) {
+          console.error(`[USER_CONTRACT_DOWNLOAD] File not found at: ${filePath}`);
+          return res.status(404).json({ error: 'File contratto non trovato nel sistema' });
+        }
+      }
+    }
+    
+    console.log(`[USER_CONTRACT_DOWNLOAD] Serving contract from: ${filePath}`);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="contratto_precompilato_${registrationId}.pdf"`);
+    
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+  } catch (error) {
+    console.error('[USER_CONTRACT_DOWNLOAD] Error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// GET /api/user/download-contract-signed/:registrationId - Download signed contract
+router.get('/download-contract-signed/:registrationId', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { registrationId } = req.params;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Utente non autenticato' });
+    }
+    
+    const registration = await prisma.registration.findFirst({
+      where: { 
+        id: registrationId,
+        userId 
+      }
+    });
+    
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+    
+    // Only allow download if contract is signed
+    if (!['CONTRACT_SIGNED', 'ENROLLED', 'COMPLETED'].includes(registration.status)) {
+      return res.status(403).json({ error: 'Contratto firmato non ancora disponibile' });
+    }
+    
+    if (!registration.contractSignedUrl) {
+      return res.status(404).json({ error: 'Contratto firmato non ancora caricato dal partner' });
+    }
+    
+    // Build the file path - remove leading slash if present
+    const relativePath = registration.contractSignedUrl.startsWith('/') 
+      ? registration.contractSignedUrl.substring(1) 
+      : registration.contractSignedUrl;
+    
+    // The file should be relative to the backend directory
+    const filePath = path.join(process.cwd(), relativePath);
+    
+    console.log(`[USER_SIGNED_CONTRACT_DOWNLOAD] Looking for file at: ${filePath}`);
+    console.log(`[USER_SIGNED_CONTRACT_DOWNLOAD] Current working directory: ${process.cwd()}`);
+    console.log(`[USER_SIGNED_CONTRACT_DOWNLOAD] Contract URL from DB: ${registration.contractSignedUrl}`);
+    
+    if (!fs.existsSync(filePath)) {
+      console.error(`[USER_SIGNED_CONTRACT_DOWNLOAD] File not found at: ${filePath}`);
+      
+      // Try to list what files are actually in the directory
+      const contractsDir = path.join(process.cwd(), 'uploads', 'contracts');
+      if (fs.existsSync(contractsDir)) {
+        const files = fs.readdirSync(contractsDir);
+        console.error(`[USER_SIGNED_CONTRACT_DOWNLOAD] Files in contracts directory: ${files.join(', ')}`);
+      }
+      
+      return res.status(404).json({ error: 'File contratto firmato non trovato nel sistema' });
+    }
+    
+    console.log(`[USER_SIGNED_CONTRACT_DOWNLOAD] Serving signed contract from: ${filePath}`);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="contratto_firmato_${registrationId}.pdf"`);
+    
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+  } catch (error) {
+    console.error('[USER_SIGNED_CONTRACT_DOWNLOAD] Error:', error);
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });

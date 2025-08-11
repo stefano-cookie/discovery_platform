@@ -14,13 +14,16 @@ interface UserContractSectionProps {
 const UserContractSection: React.FC<UserContractSectionProps> = ({ registration }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Get the backend URL from environment or use default
+  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001';
 
   const handleDownloadTemplate = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/user/download-contract-template/${registration.id}`, {
+      const response = await fetch(`${BACKEND_URL}/api/user/download-contract-template/${registration.id}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
@@ -51,7 +54,7 @@ const UserContractSection: React.FC<UserContractSectionProps> = ({ registration 
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/user/download-contract-signed/${registration.id}`, {
+      const response = await fetch(`${BACKEND_URL}/api/user/download-contract-signed/${registration.id}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
