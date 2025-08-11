@@ -60,7 +60,7 @@ const educationBaseSchema = z.object({
   diplomaCitta: z.string().min(1, 'Città conseguimento diploma richiesta'),
   diplomaProvincia: z.string().min(1, 'Provincia conseguimento diploma richiesta'),
   diplomaIstituto: z.string().min(1, 'Istituto conseguimento diploma richiesto'),
-  diplomaVoto: z.string().min(1, 'Voto diploma richiesto'),
+  diplomaVoto: z.string().optional(), // Voto diploma opzionale
 });
 
 // Step 3: Education - with validation

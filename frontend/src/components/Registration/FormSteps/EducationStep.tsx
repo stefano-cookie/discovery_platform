@@ -270,7 +270,7 @@ const EducationStep: React.FC<EducationStepProps> = ({ data, onNext, onChange })
           
           <div>
             <Input
-              label="Voto Diploma *"
+              label="Voto Diploma (opzionale)"
               type="text"
               {...register('diplomaVoto')}
               error={errors.diplomaVoto?.message}
