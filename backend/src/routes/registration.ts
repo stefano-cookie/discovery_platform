@@ -1461,6 +1461,47 @@ router.post('/token-enrollment', async (req: Request, res: Response) => {
     
     console.log(`✅ Token-based enrollment completed for user ${user.id}, registration ${result.id}`);
     
+    // Send enrollment confirmation email
+    try {
+      // Get user profile
+      const userProfile = await prisma.userProfile.findUnique({
+        where: { userId: user.id }
+      });
+      
+      // Get course info
+      const courseInfo = await prisma.course.findUnique({
+        where: { id: courseId }
+      });
+      
+      // Get offer and partner info
+      const offer = await prisma.partnerOffer.findUnique({
+        where: { id: partnerOfferId },
+        include: {
+          partner: {
+            include: {
+              user: { select: { email: true } }
+            }
+          }
+        }
+      });
+      
+      if (userProfile) {
+        await emailService.sendEnrollmentConfirmation(user.email, {
+          nome: userProfile.nome,
+          cognome: userProfile.cognome,
+          email: user.email,
+          registrationId: result.id,
+          courseName: courseInfo?.name || 'Corso selezionato',
+          offerType: offer?.offerType || 'TFA_ROMANIA',
+          partnerName: offer?.partner?.user?.email || 'Partner di riferimento'
+        });
+        console.log('✉️ Enrollment confirmation email sent to:', user.email);
+      }
+    } catch (emailError) {
+      console.error('Failed to send enrollment confirmation email:', emailError);
+      // Don't fail the registration if email fails
+    }
+    
     res.json({
       success: true,
       registrationId: result.id,
