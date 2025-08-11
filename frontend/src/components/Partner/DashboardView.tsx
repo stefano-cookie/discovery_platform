@@ -47,13 +47,10 @@ const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   const handleExportToExcel = async () => {
-    console.log('🎯 EXPORT BUTTON CLICKED from DashboardView!');
     setExportLoading(true);
     
     try {
-      console.log('🔧 Making API request...');
       const token = localStorage.getItem('token');
-      console.log('🔑 Token available:', !!token);
       
       const response = await fetch('/api/partners/export/registrations', {
         method: 'GET',
@@ -63,11 +60,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({
         }
       });
 
-      console.log('📊 Response status:', response.status);
-      
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ API Error:', errorText);
         alert(`Errore ${response.status}: ${errorText}`);
         return;
       }
@@ -79,7 +73,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({
         : `registrazioni_partner_${new Date().toISOString().split('T')[0]}.xlsx`;
 
       const blob = await response.blob();
-      console.log('📁 File generated, size:', blob.size, 'bytes');
       
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -90,11 +83,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      console.log('✅ Download completed!', filename);
       alert('Export Excel completato! Il file è stato scaricato.');
       
     } catch (error: any) {
-      console.error('❌ Error during export:', error);
       alert('Errore durante l\'export: ' + error.message);
     } finally {
       setExportLoading(false);

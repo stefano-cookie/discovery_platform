@@ -258,8 +258,6 @@ router.post('/transfer-user', authenticate, requireAdmin, async (req: AuthReques
 // GET /api/admin/export/registrations - Export registrations to Excel
 router.get('/export/registrations', authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    console.log('Starting Excel export generation...');
-
     // Fetch all registrations with comprehensive data
     const registrations = await prisma.registration.findMany({
       include: {
@@ -293,7 +291,6 @@ router.get('/export/registrations', authenticate, requireAdmin, async (req: Auth
       }
     });
 
-    console.log(`Found ${registrations.length} registrations to export`);
 
     // Create workbook and worksheet
     const workbook = new ExcelJS.Workbook();
@@ -393,7 +390,6 @@ router.get('/export/registrations', authenticate, requireAdmin, async (req: Auth
     const dateString = now.toISOString().split('T')[0];
     const filename = `registrazioni_export_${dateString}.xlsx`;
 
-    console.log(`Generated Excel file: ${filename}`);
 
     // Set response headers for file download
     res.setHeader(

@@ -42,13 +42,10 @@ const PartnerDashboard: React.FC = () => {
   };
 
   const handleExportToExcel = async () => {
-    console.log('🎯 NUOVO PULSANTE CLICCATO!!');
     setExportLoading(true);
     
     try {
-      console.log('🔧 Inizio richiesta API...');
       const token = localStorage.getItem('token');
-      console.log('🔑 Token disponibile:', !!token);
       
       const response = await fetch('/api/partners/export/registrations', {
         method: 'GET',
@@ -58,11 +55,8 @@ const PartnerDashboard: React.FC = () => {
         }
       });
 
-      console.log('📊 Status risposta:', response.status);
-      
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Errore API:', errorText);
         alert(`Errore ${response.status}: ${errorText}`);
         return;
       }
@@ -74,7 +68,6 @@ const PartnerDashboard: React.FC = () => {
         : `registrazioni_partner_${new Date().toISOString().split('T')[0]}.xlsx`;
 
       const blob = await response.blob();
-      console.log('📁 File generato, dimensione:', blob.size, 'bytes');
       
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -85,11 +78,9 @@ const PartnerDashboard: React.FC = () => {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      console.log('✅ Download completato!', filename);
       alert('Export Excel completato! Il file è stato scaricato.');
       
     } catch (error: any) {
-      console.error('❌ Errore durante export:', error);
       alert('Errore durante l\'export: ' + error.message);
     } finally {
       setExportLoading(false);
