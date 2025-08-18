@@ -31,6 +31,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
   const [offerError, setOfferError] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Gestisce utenti verificati via token sicuro
   const urlParams = new URLSearchParams(location.search);
@@ -223,6 +224,14 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
   };
 
   const handleFinalSubmit = () => {
+    // Prevent double submission
+    if (isSubmitting) {
+      console.log('Already submitting, preventing duplicate submission');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
     if ((window as any).submitEnrollmentForm) {
       (window as any).submitEnrollmentForm();
     } else {
@@ -231,6 +240,11 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
         form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
       }
     }
+    
+    // Reset after a timeout in case of error
+    setTimeout(() => {
+      setIsSubmitting(false);
+    }, 10000); // Reset after 10 seconds
   };
   
   const handleEnrollmentSuccess = () => {
@@ -655,7 +669,10 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
           <RegistrationStep
             data={formData}
             formData={formData}
-            onNext={handleEnrollmentSuccess}
+            onNext={(data) => {
+              setIsSubmitting(false);
+              handleEnrollmentSuccess();
+            }}
             onChange={updateFormData}
             offerInfo={offerInfo}
             userProfile={userProfile}
@@ -902,10 +919,10 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
                     handleNextStep();
                   }
                 }}
-                disabled={!isStepValid(currentStep)}
+                disabled={!isStepValid(currentStep) || isSubmitting}
                 className={`
                   w-full sm:w-auto px-4 sm:px-6 py-3 rounded-lg font-medium transition-all duration-200 text-sm sm:text-base
-                  ${!isStepValid(currentStep)
+                  ${!isStepValid(currentStep) || isSubmitting
                     ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
                     : dynamicIsLastStep 
                       ? 'bg-green-600 text-white hover:bg-green-700 hover:shadow-lg' 
@@ -913,7 +930,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
                   }
                 `}
               >
-                {dynamicIsLastStep ? 'Completa Iscrizione' : 'Continua →'}
+                {isSubmitting ? 'Invio in corso...' : dynamicIsLastStep ? 'Completa Iscrizione' : 'Continua →'}
               </button>
             </div>
           </div>

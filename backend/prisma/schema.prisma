@@ -266,6 +266,9 @@ model Registration {
   payments        Payment[]
   deadlines       PaymentDeadline[]
   couponUses      CouponUse[]
+  
+  // Prevent duplicate registrations for same user, course and partner
+  @@unique([userId, courseId, partnerId, status])
 }
 
 // Gestione accesso utenti alle offerte aggiuntive del partner

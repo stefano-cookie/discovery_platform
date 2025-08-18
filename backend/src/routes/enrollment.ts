@@ -200,6 +200,31 @@ router.post('/submit', handleAuthOrVerifiedEmail, upload.fields([
 
     // Create registration in a transaction
     const result = await prisma.$transaction(async (tx) => {
+      // Check for duplicate registrations
+      const existingRegistration = await tx.registration.findFirst({
+        where: {
+          userId,
+          courseId: courseInfo!.id,
+          partnerId: partnerId!,
+          status: 'PENDING'
+        }
+      });
+      
+      if (existingRegistration) {
+        console.log(`⚠️ Duplicate enrollment submission detected for user ${userId}, returning existing registration ${existingRegistration.id}`);
+        // Return existing registration with its documents and deadlines
+        const existingResult = {
+          registration: existingRegistration,
+          documents: await tx.userDocument.findMany({
+            where: { registrationId: existingRegistration.id }
+          }),
+          paymentDeadlines: await tx.paymentDeadline.findMany({
+            where: { registrationId: existingRegistration.id }
+          })
+        };
+        return existingResult;
+      }
+      
       // Create the registration
       const registration = await tx.registration.create({
         data: {

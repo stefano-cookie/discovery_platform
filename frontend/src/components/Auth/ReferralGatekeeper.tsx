@@ -135,56 +135,84 @@ const ReferralGatekeeper: React.FC<ReferralGatekeeperProps> = ({
   // Se mostra il modal di successo, mostra solo quello
   if (showSuccessModal) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8 text-center">
-          <div className="text-green-500 text-6xl mb-4">📧</div>
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">
-            Registrazione Completata!
-          </h1>
-          <p className="text-gray-600 mb-6">
-            <strong>Controlla la tua casella email</strong> per completare la verifica del tuo account.
-          </p>
-          
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <p className="text-blue-800 text-sm">
-              📨 Abbiamo inviato un'email di verifica al tuo indirizzo. 
-              Clicca sul link nell'email per attivare il tuo account.
-            </p>
-          </div>
-          
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-            <p className="text-yellow-800 text-sm">
-              ⚠️ <strong>Importante:</strong> Se non trovi l'email, controlla la cartella spam o posta indesiderata.
-            </p>
-          </div>
-          
-          <p className="text-gray-600 mb-6">
-            Dopo aver verificato la tua email, potrai accedere a questo corso tramite il link che ti ha fornito il tuo partner.
-          </p>
-          
-          <div className="space-y-3">
-            <button
-              onClick={() => window.location.href = '/login'}
-              className="w-full bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 font-medium"
-            >
-              Vai al Login (dopo aver verificato l'email)
-            </button>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="max-w-lg w-full mx-4">
+          <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+            {/* Success Icon */}
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
             
-            <button
-              onClick={() => {
-                // Salva il referral per dopo la verifica
-                localStorage.setItem('pendingReferralAfterVerification', referralCode);
-                window.location.href = '/';
-              }}
-              className="w-full border border-gray-300 text-gray-700 px-6 py-3 rounded-md hover:bg-gray-50"
-            >
-              Torna alla Home
-            </button>
+            {/* Main Content */}
+            <h1 className="text-3xl font-bold text-gray-900 mb-3">
+              Registrazione Completata! 🎉
+            </h1>
+            
+            <p className="text-lg text-gray-600 mb-8">
+              Controlla la tua casella email per completare la verifica
+            </p>
+            
+            {/* Email Instructions Card */}
+            <div className="bg-blue-50 rounded-xl p-6 mb-6 text-left">
+              <div className="flex items-start space-x-4">
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                  <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                    <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-blue-900 font-medium mb-2">
+                    Abbiamo inviato un'email di verifica al tuo indirizzo
+                  </p>
+                  <p className="text-blue-700 text-sm">
+                    Clicca sul link nell'email per attivare il tuo account
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Warning Card */}
+            <div className="bg-amber-50 rounded-xl p-4 mb-8 text-left">
+              <div className="flex items-start space-x-3">
+                <div className="w-6 h-6 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg className="w-3 h-3 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <p className="text-amber-800 text-sm">
+                  Se non trovi l'email, controlla la cartella <strong>spam</strong> o <strong>posta indesiderata</strong>
+                </p>
+              </div>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="space-y-4">
+              <button
+                onClick={() => window.location.href = '/login'}
+                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 rounded-xl hover:from-blue-700 hover:to-blue-800 font-medium transition-all duration-200 shadow-lg hover:shadow-xl"
+              >
+                Vai al Login
+              </button>
+              
+              <button
+                onClick={() => {
+                  localStorage.setItem('pendingReferralAfterVerification', referralCode);
+                  window.location.href = '/';
+                }}
+                className="w-full border border-gray-200 text-gray-600 px-6 py-3 rounded-xl hover:bg-gray-50 font-medium transition-colors duration-200"
+              >
+                Torna alla Home
+              </button>
+            </div>
+            
+            {/* Footer Note */}
+            <p className="text-sm text-gray-500 mt-8">
+              Dopo aver verificato la tua email, torna al link del corso per procedere con l'iscrizione
+            </p>
           </div>
-          
-          <p className="text-xs text-gray-500 mt-4">
-            Puoi chiudere questa pagina. Dopo la verifica email, torna al link del corso per procedere con l'iscrizione.
-          </p>
         </div>
       </div>
     );

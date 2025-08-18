@@ -10,6 +10,54 @@ import fs from 'fs';
 const router = Router();
 const prisma = new PrismaClient();
 
+// Helper function to process documents for a registration
+async function processDocumentsForRegistration(tx: any, registrationId: string, userId: string, documents: any[]) {
+  const documentTypeMap: Record<string, string> = {
+    'cartaIdentita': 'IDENTITY_CARD',
+    'certificatoTriennale': 'BACHELOR_DEGREE',
+    'certificatoMagistrale': 'MASTER_DEGREE',
+    'pianoStudioTriennale': 'TRANSCRIPT',
+    'pianoStudioMagistrale': 'TRANSCRIPT',
+    'certificatoMedico': 'MEDICAL_CERT',
+    'certificatoNascita': 'BIRTH_CERT',
+    'diplomoLaurea': 'BACHELOR_DEGREE',
+    'pergamenaLaurea': 'MASTER_DEGREE',
+    'diplomaMaturita': 'DIPLOMA'
+  };
+
+  for (const doc of documents) {
+    const documentType = documentTypeMap[doc.type] || 'OTHER';
+    
+    // Check if document already exists
+    const existingDoc = await tx.userDocument.findFirst({
+      where: {
+        userId,
+        registrationId,
+        type: documentType
+      }
+    });
+    
+    if (!existingDoc) {
+      // Create new document record
+      await tx.userDocument.create({
+        data: {
+          userId,
+          registrationId,
+          type: documentType,
+          originalName: doc.originalFileName || doc.fileName,
+          url: doc.url || doc.filePath,
+          size: doc.fileSize || 0,
+          mimeType: doc.mimeType || 'application/octet-stream',
+          status: 'PENDING',
+          uploadSource: 'ENROLLMENT',
+          uploadedBy: userId,
+          uploadedByRole: 'USER'
+        }
+      });
+    }
+  }
+}
+
 // Multer configuration for enrollment document uploads
 const enrollmentStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -561,11 +609,13 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
     }
     
     const result = await prisma.$transaction(async (tx) => {
-      // Check for duplicate registrations with same user and offer (more strict check)
+      // Check for duplicate registrations with same user and course
+      // Include both cases: with and without partnerOfferId
       const existingRegistration = await tx.registration.findFirst({
         where: {
           userId: userId,
-          partnerOfferId: partnerOfferId,
+          courseId: courseId,
+          partnerId: partnerId,
           status: 'PENDING' // Only check pending registrations
         }
       });
@@ -999,18 +1049,193 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
     }
     
     const result = await prisma.$transaction(async (tx) => {
-      // Check for duplicate registrations with same user and offer (more strict check)
+      // Check for existing registrations - more comprehensive check
+      // Check by multiple criteria to catch registrations created by token service
       const existingRegistration = await tx.registration.findFirst({
         where: {
           userId: user.id,
-          partnerOfferId: partnerOfferId,
-          status: 'PENDING' // Only check pending registrations
+          status: 'PENDING',
+          OR: [
+            // Check by course and partner
+            {
+              courseId: courseId,
+              partnerId: partnerId
+            },
+            // Check by partnerOfferId if provided
+            ...(partnerOfferId ? [{
+              partnerOfferId: partnerOfferId
+            }] : [])
+          ]
         }
       });
       
       if (existingRegistration) {
-        console.log(`⚠️ Duplicate registration attempt detected for verified user ${user.id}, returning existing registration ${existingRegistration.id}`);
-        return existingRegistration; // Return the existing registration instead of creating a duplicate
+        console.log(`✓ Found existing registration ${existingRegistration.id} for verified user ${user.id}, updating it instead of creating duplicate`);
+        
+        // Update the existing registration with enrollment data
+        const updatedRegistration = await tx.registration.update({
+          where: { id: existingRegistration.id },
+          data: {
+            // Update amounts if provided
+            originalAmount: paymentPlan.originalAmount || existingRegistration.originalAmount,
+            finalAmount: paymentPlan.finalAmount || existingRegistration.finalAmount,
+            remainingAmount: paymentPlan.finalAmount || existingRegistration.remainingAmount,
+            installments: paymentPlan.installments || existingRegistration.installments,
+            // Course-specific data
+            tipoLaurea: courseData.tipoLaurea || existingRegistration.tipoLaurea,
+            laureaConseguita: courseData.laureaConseguita || existingRegistration.laureaConseguita,
+            laureaUniversita: courseData.laureaUniversita || existingRegistration.laureaUniversita,
+            laureaData: courseData.laureaData ? new Date(courseData.laureaData) : existingRegistration.laureaData,
+            // Diploma data
+            diplomaData: courseData.diplomaData ? new Date(courseData.diplomaData) : existingRegistration.diplomaData,
+            diplomaCitta: courseData.diplomaCitta || existingRegistration.diplomaCitta,
+            diplomaProvincia: courseData.diplomaProvincia || existingRegistration.diplomaProvincia,
+            diplomaIstituto: courseData.diplomaIstituto || existingRegistration.diplomaIstituto,
+            diplomaVoto: courseData.diplomaVoto || existingRegistration.diplomaVoto,
+            tipoLaureaTriennale: courseData.tipoLaureaTriennale || existingRegistration.tipoLaureaTriennale,
+            laureaConseguitaTriennale: courseData.laureaConseguitaTriennale || existingRegistration.laureaConseguitaTriennale,
+            laureaUniversitaTriennale: courseData.laureaUniversitaTriennale || existingRegistration.laureaUniversitaTriennale,
+            laureaDataTriennale: courseData.laureaDataTriennale ? new Date(courseData.laureaDataTriennale) : existingRegistration.laureaDataTriennale,
+            tipoProfessione: courseData.tipoProfessione || existingRegistration.tipoProfessione,
+            scuolaDenominazione: courseData.scuolaDenominazione || existingRegistration.scuolaDenominazione,
+            scuolaCitta: courseData.scuolaCitta || existingRegistration.scuolaCitta,
+            scuolaProvincia: courseData.scuolaProvincia || existingRegistration.scuolaProvincia,
+            // Clear token since we're completing the enrollment
+            accessToken: null,
+            tokenExpiresAt: null
+          }
+        });
+        
+        // Check if payment deadlines already exist
+        const existingDeadlines = await tx.paymentDeadline.findMany({
+          where: { registrationId: existingRegistration.id }
+        });
+        
+        // Only create payment deadlines if they don't exist
+        if (existingDeadlines.length === 0) {
+          // Create payment deadlines (continue with existing logic)
+          const installments = paymentPlan.installments || updatedRegistration.installments || 1;
+          let finalAmount = Number(paymentPlan.finalAmount) || Number(updatedRegistration.finalAmount);
+          const registrationOfferType = offer?.course?.templateType === 'CERTIFICATION' ? 'CERTIFICATION' : 'TFA_ROMANIA';
+          
+          console.log(`Creating payment deadlines for existing registration ${updatedRegistration.id}`);
+          
+          // Check if offer has custom payment plan
+          if (offer?.customPaymentPlan && typeof offer.customPaymentPlan === 'object' && 'payments' in offer.customPaymentPlan) {
+            const customPayments = (offer.customPaymentPlan as any).payments;
+            
+            // FOR TFA ROMANIA: Add €1500 down payment before custom installments
+            if (registrationOfferType === 'TFA_ROMANIA' && customPayments.length > 1) {
+              const downPaymentDate = new Date();
+              downPaymentDate.setDate(downPaymentDate.getDate() + 7);
+              
+              await tx.paymentDeadline.create({
+                data: {
+                  registrationId: updatedRegistration.id,
+                  amount: 1500,
+                  dueDate: downPaymentDate,
+                  paymentNumber: 0,
+                  isPaid: false,
+                  description: 'Acconto'
+                }
+              });
+              
+              const remainingAmount = finalAmount - 1500;
+              const installmentAmount = remainingAmount / customPayments.length;
+              
+              for (let i = 0; i < customPayments.length; i++) {
+                const payment = customPayments[i];
+                await tx.paymentDeadline.create({
+                  data: {
+                    registrationId: updatedRegistration.id,
+                    amount: installmentAmount,
+                    dueDate: new Date(payment.dueDate),
+                    paymentNumber: i + 1,
+                    isPaid: false,
+                    description: `Rata ${i + 1} di ${customPayments.length}`
+                  }
+                });
+              }
+            } else if (customPayments.length > 0) {
+              // For certifications or single payment, use custom plan directly
+              for (let i = 0; i < customPayments.length; i++) {
+                const payment = customPayments[i];
+                await tx.paymentDeadline.create({
+                  data: {
+                    registrationId: updatedRegistration.id,
+                    amount: payment.amount,
+                    dueDate: new Date(payment.dueDate),
+                    paymentNumber: i + 1,
+                    isPaid: false,
+                    description: payment.description || `Pagamento ${i + 1}`
+                  }
+                });
+              }
+            }
+          } else {
+            // Standard payment plan logic
+            if (registrationOfferType === 'TFA_ROMANIA' && installments > 1) {
+              // Create down payment
+              const downPaymentDate = new Date();
+              downPaymentDate.setDate(downPaymentDate.getDate() + 7);
+              
+              await tx.paymentDeadline.create({
+                data: {
+                  registrationId: updatedRegistration.id,
+                  amount: 1500,
+                  dueDate: downPaymentDate,
+                  paymentNumber: 0,
+                  isPaid: false,
+                  description: 'Acconto'
+                }
+              });
+              
+              // Create installments
+              const remainingAmount = finalAmount - 1500;
+              const installmentAmount = remainingAmount / installments;
+              const baseDate = new Date();
+              baseDate.setDate(baseDate.getDate() + 37); // 7 days for down payment + 30 days
+              
+              for (let i = 0; i < installments; i++) {
+                const dueDate = new Date(baseDate);
+                dueDate.setMonth(dueDate.getMonth() + i);
+                
+                await tx.paymentDeadline.create({
+                  data: {
+                    registrationId: updatedRegistration.id,
+                    amount: installmentAmount,
+                    dueDate,
+                    paymentNumber: i + 1,
+                    isPaid: false,
+                    description: `Rata ${i + 1} di ${installments}`
+                  }
+                });
+              }
+            } else {
+              // Single payment or certification
+              const dueDate = new Date();
+              dueDate.setDate(dueDate.getDate() + 7);
+              
+              await tx.paymentDeadline.create({
+                data: {
+                  registrationId: updatedRegistration.id,
+                  amount: finalAmount,
+                  dueDate,
+                  paymentNumber: 1,
+                  isPaid: false,
+                  description: installments > 1 ? `Rata 1 di ${installments}` : 'Pagamento unico'
+                }
+              });
+            }
+          }
+        }
+        
+        // Process documents if provided
+        if (documentsToProcess && documentsToProcess.length > 0) {
+          await processDocumentsForRegistration(tx, updatedRegistration.id, user.id, documentsToProcess);
+        }
+        
+        return updatedRegistration;
       }
       
       // Determine default amounts based on offer type

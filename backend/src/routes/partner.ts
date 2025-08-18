@@ -1315,12 +1315,120 @@ router.post('/upload-signed-contract', authenticate, requireRole(['PARTNER', 'AD
     // Update registration with signed contract info
     const contractSignedUrl = `/uploads/signed-contracts/${newFilename}`;
     
-    await prisma.registration.update({
-      where: { id: registrationId },
-      data: {
-        contractSignedUrl,
-        contractUploadedAt: new Date(),
-        status: 'CONTRACT_SIGNED' // Update status to next step
+    // Use transaction to update registration and create payment deadlines
+    await prisma.$transaction(async (tx) => {
+      // Update registration status
+      const updatedRegistration = await tx.registration.update({
+        where: { id: registrationId },
+        data: {
+          contractSignedUrl,
+          contractUploadedAt: new Date(),
+          status: 'CONTRACT_SIGNED' // Update status to next step
+        }
+      });
+
+      // Check if payment deadlines already exist
+      const existingDeadlines = await tx.paymentDeadline.findMany({
+        where: { registrationId }
+      });
+
+      // Only create payment deadlines if they don't exist yet
+      if (existingDeadlines.length === 0) {
+        const finalAmount = Number(updatedRegistration.finalAmount);
+        const installments = updatedRegistration.installments;
+        const offerType = updatedRegistration.offerType;
+
+        console.log(`Creating payment deadlines for registration ${registrationId}:`, {
+          finalAmount,
+          installments,
+          offerType
+        });
+
+        // Determine payment structure based on offer type
+        if (offerType === 'TFA_ROMANIA' && installments > 1) {
+          // TFA with installments: down payment + monthly installments
+          const downPayment = 1500;
+          const installmentAmount = (finalAmount - downPayment) / installments;
+          
+          // Create down payment deadline (7 days from now)
+          const downPaymentDate = new Date();
+          downPaymentDate.setDate(downPaymentDate.getDate() + 7);
+          
+          await tx.paymentDeadline.create({
+            data: {
+              registrationId,
+              amount: downPayment,
+              dueDate: downPaymentDate,
+              paymentNumber: 0,
+              description: 'Acconto',
+              isPaid: false
+            }
+          });
+
+          // Create monthly installment deadlines
+          const baseDate = new Date();
+          baseDate.setDate(baseDate.getDate() + 37); // First installment 30 days after down payment
+          
+          for (let i = 0; i < installments; i++) {
+            const dueDate = new Date(baseDate);
+            dueDate.setMonth(dueDate.getMonth() + i);
+            
+            await tx.paymentDeadline.create({
+              data: {
+                registrationId,
+                amount: installmentAmount,
+                dueDate,
+                paymentNumber: i + 1,
+                description: `Rata ${i + 1} di ${installments}`,
+                isPaid: false
+              }
+            });
+          }
+          
+          console.log(`Created ${installments + 1} payment deadlines for TFA enrollment`);
+        } else if (installments > 1) {
+          // Certification with installments: divide equally
+          const installmentAmount = finalAmount / installments;
+          const baseDate = new Date();
+          baseDate.setDate(baseDate.getDate() + 7); // First payment 7 days from now
+          
+          for (let i = 0; i < installments; i++) {
+            const dueDate = new Date(baseDate);
+            dueDate.setMonth(dueDate.getMonth() + i);
+            
+            await tx.paymentDeadline.create({
+              data: {
+                registrationId,
+                amount: installmentAmount,
+                dueDate,
+                paymentNumber: i + 1,
+                description: `Rata ${i + 1} di ${installments}`,
+                isPaid: false
+              }
+            });
+          }
+          
+          console.log(`Created ${installments} payment deadlines for certification enrollment`);
+        } else {
+          // Single payment
+          const dueDate = new Date();
+          dueDate.setDate(dueDate.getDate() + 7);
+          
+          await tx.paymentDeadline.create({
+            data: {
+              registrationId,
+              amount: finalAmount,
+              dueDate,
+              paymentNumber: 1,
+              description: 'Pagamento unico',
+              isPaid: false
+            }
+          });
+          
+          console.log('Created single payment deadline');
+        }
+      } else {
+        console.log(`Payment deadlines already exist for registration ${registrationId}, skipping creation`);
       }
     });
 
@@ -3158,7 +3266,7 @@ router.get('/analytics', authenticate, requireRole(['PARTNER', 'ADMIN']), async 
       monthsData.push({
         month: monthName,
         revenue: Number(monthlyRevenue._sum.amount || 0),
-        target: 2800 // Could be made configurable per partner
+        target: 1000 // Could be made configurable per partner
       });
     }
 

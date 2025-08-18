@@ -284,7 +284,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
         {activeTab === 'overview' && (
           <div className="space-y-6">
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
@@ -314,24 +314,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                     <p className="text-sm font-medium text-slate-600">Iscrizioni Attive</p>
                     <p className="text-2xl font-bold text-slate-900">
                       {registrations.filter(r => ['ENROLLED', 'CONTRACT_SIGNED'].includes(r.status)).length}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
-                      <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-slate-600">Importo Totale</p>
-                    <p className="text-2xl font-bold text-slate-900">
-                      {formatCurrency(registrations.reduce((sum, r) => sum + (r.finalAmount || 0), 0))}
                     </p>
                   </div>
                 </div>

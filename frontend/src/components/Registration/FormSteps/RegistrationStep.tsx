@@ -168,18 +168,21 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
 
   const onSubmit = useCallback(async (finalData: RegistrationForm) => {
     
-    // Prevent double submission
+    // Prevent double submission - immediately return if already submitting
     if (isSubmitting) {
+      console.log('⚠️ Submission already in progress, ignoring duplicate request');
       return;
     }
+    
+    // Set submitting state IMMEDIATELY to prevent race conditions
+    setIsSubmitting(true);
     
     // Check privacy acceptance
     if (!acceptedPrivacy) {
       setPrivacyError('Devi accettare l\'informativa sulla privacy per procedere');
+      setIsSubmitting(false); // Reset on error
       return;
     }
-    
-    setIsSubmitting(true);
     setPrivacyError(''); // Reset privacy error
     setSubmitStatus('submitting');
     setErrorMessage(''); // Reset error message
@@ -1200,39 +1203,122 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
           </h4>
           
           {/* Offer specific information */}
-          {offerInfo && (
-            <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
-              <div className="flex items-start">
-                <div className="flex-shrink-0">
-                  {offerInfo.offerType === 'CERTIFICATION' ? (
-                    <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3z" />
-                    </svg>
-                  )}
-                </div>
-                <div className="ml-3">
-                  <h5 className="text-sm font-semibold text-blue-900">{offerInfo.name}</h5>
-                  <p className="text-xs text-blue-700 mt-1">{offerInfo.course.description || 'Corso selezionato'}</p>
-                  <div className="flex items-center space-x-4 mt-2 text-xs">
-                    <span className="text-blue-600">
-                      <strong>Totale: €{offerInfo.totalAmount}</strong>
-                    </span>
-                    <span className="text-blue-600">
-                      {offerInfo.offerType === 'TFA_ROMANIA' && Number(offerInfo.totalAmount) > 1500 && offerInfo.installments > 1 ? (
-                        <>Acconto: €1.500 + {offerInfo.installments} rate da €{((Number(offerInfo.totalAmount) - 1500) / offerInfo.installments).toFixed(2)}</>
-                      ) : (
-                        <>{offerInfo.installments} rate da €{(Number(offerInfo.totalAmount) / offerInfo.installments).toFixed(2)}</>
-                      )}
-                    </span>
+          {offerInfo && (() => {
+            // Calculate payment info to get the discounted amounts
+            const calculatePaymentInfo = () => {
+              const baseAmount = Number(offerInfo.totalAmount);
+              let finalAmount = baseAmount;
+              let installments = 1;
+              let downPayment = 0;
+              let installmentAmount = baseAmount;
+
+              // Per TFA Romania: acconto fisso di 1500€
+              const isTfaRomania = offerInfo.course?.templateType === 'TFA';
+              
+              if (isTfaRomania) {
+                downPayment = 1500;
+              }
+
+              // Apply coupon discount if available
+              if (couponValidation?.isValid && couponValidation.discount) {
+                const discount = couponValidation.discount;
+                if (discount.type === 'PERCENTAGE') {
+                  finalAmount = baseAmount * (1 - discount.amount / 100);
+                } else if (discount.type === 'FIXED') {
+                  finalAmount = Math.max(0, baseAmount - discount.amount);
+                }
+              }
+
+              // Handle different payment plans
+              if (formData.paymentPlan === 'single') {
+                installments = 1;
+              } else if (formData.paymentPlan === 'biannual') {
+                installments = 2;
+              } else if (formData.paymentPlan === 'quarterly') {
+                installments = 4;
+              } else if (formData.paymentPlan === 'monthly') {
+                installments = 12;
+              } else if (formData.paymentPlan === 'certification-plan') {
+                installments = offerInfo.installments;
+              } else {
+                // Default to offer installments if no specific plan is selected
+                installments = offerInfo.installments;
+              }
+
+              // Calcola l'importo delle rate usando finalAmount (con sconto applicato)
+              if (installments > 1 && downPayment > 0) {
+                // Per TFA: (totale scontato - acconto fisso) / numero rate
+                const remainingAmount = finalAmount - downPayment;
+                installmentAmount = remainingAmount / installments;
+              } else if (installments > 1) {
+                // Per altri corsi: totale scontato / numero rate
+                installmentAmount = finalAmount / installments;
+              } else {
+                // Pagamento unico
+                installmentAmount = finalAmount;
+              }
+
+              return {
+                originalAmount: baseAmount,
+                finalAmount: finalAmount,
+                installments: installments,
+                downPayment: downPayment,
+                installmentAmount: Math.round(installmentAmount * 100) / 100
+              };
+            };
+            
+            const paymentInfo = calculatePaymentInfo();
+            
+            return (
+              <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    {offerInfo.offerType === 'CERTIFICATION' ? (
+                      <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3z" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="ml-3">
+                    <h5 className="text-sm font-semibold text-blue-900">{offerInfo.name}</h5>
+                    <p className="text-xs text-blue-700 mt-1">{offerInfo.course.description || 'Corso selezionato'}</p>
+                    
+                    {/* Show discount notice if applicable */}
+                    {paymentInfo.originalAmount !== paymentInfo.finalAmount && (
+                      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs">
+                        <span className="text-green-700 font-medium">
+                          🎉 Sconto applicato: €{(paymentInfo.originalAmount - paymentInfo.finalAmount).toFixed(2)}
+                        </span>
+                        <div className="text-green-600 mt-1">
+                          Da €{paymentInfo.originalAmount.toFixed(2)} a €{paymentInfo.finalAmount.toFixed(2)}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center space-x-4 mt-2 text-xs">
+                      <span className="text-blue-600">
+                        <strong>Totale: €{paymentInfo.finalAmount.toFixed(2)}</strong>
+                        {paymentInfo.originalAmount !== paymentInfo.finalAmount && (
+                          <span className="line-through text-gray-400 ml-2">€{paymentInfo.originalAmount.toFixed(2)}</span>
+                        )}
+                      </span>
+                      <span className="text-blue-600">
+                        {offerInfo.offerType === 'TFA_ROMANIA' && paymentInfo.finalAmount > 1500 && paymentInfo.installments > 1 ? (
+                          <>Acconto: €1.500 + {paymentInfo.installments} rate da €{paymentInfo.installmentAmount.toFixed(2)}</>
+                        ) : (
+                          <>{paymentInfo.installments} rate da €{paymentInfo.installmentAmount.toFixed(2)}</>
+                        )}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div>

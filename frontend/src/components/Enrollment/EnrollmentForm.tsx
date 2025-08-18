@@ -24,6 +24,7 @@ const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ partnerOfferId }) => {
   const [offerError, setOfferError] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Configuration for enrollment steps based on offer type
   const stepConfig = useMemo(() => {
@@ -179,6 +180,14 @@ const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ partnerOfferId }) => {
 
   // Handle form submission
   const handleSubmit = async () => {
+    // Prevent double submission
+    if (isSubmitting) {
+      console.log('⚠️ Enrollment submission already in progress, ignoring duplicate request');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
     try {
       const response = await apiRequest({
         method: 'POST',
@@ -204,6 +213,10 @@ const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ partnerOfferId }) => {
     } catch (error) {
       console.error('Error submitting enrollment:', error);
       // Handle error appropriately
+      setIsSubmitting(false);
+    } finally {
+      // Reset isSubmitting state after completion
+      // Note: not resetting on success since we redirect
     }
   };
 

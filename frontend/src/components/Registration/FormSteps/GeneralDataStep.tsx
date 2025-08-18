@@ -651,7 +651,7 @@ Rigenera automaticamente
               {padreStatus.shouldShow && (
                 <div className={isEnrollmentMode ? "flex-1" : ""}>
                   <Input
-                    label="Nome del Padre *"
+                    label="Nome del Padre * (solo nome senza il cognome)"
                     {...register('nomePadre')}
                     error={errors.nomePadre?.message}
                   />
@@ -661,7 +661,7 @@ Rigenera automaticamente
               {madreStatus.shouldShow && (
                 <div className={isEnrollmentMode ? "flex-1" : ""}>
                   <Input
-                    label="Nome della Madre *"
+                    label="Nome della Madre * (solo nome senza il cognome)"
                     {...register('nomeMadre')}
                     error={errors.nomeMadre?.message}
                   />

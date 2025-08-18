@@ -15,51 +15,64 @@ export class SecureTokenService {
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24); // Token valido 24 ore
 
-    // Verifica se esiste già una registrazione in corso per questo utente
+    // Find the offer from referral code to get basic info
+    const offer = await prisma.partnerOffer.findUnique({
+      where: { referralLink: referralCode },
+      include: { course: true, partner: true }
+    });
+
+    if (!offer) {
+      throw new Error('Offerta non trovata');
+    }
+
+    // Check if user exists and assign partner if needed
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw new Error('Utente non trovato');
+    }
+
+    // If user doesn't have an assigned partner, assign from offer
+    if (!user.assignedPartnerId) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { assignedPartnerId: offer.partnerId }
+      });
+    }
+
+    // Check if there's already a PENDING registration for this user and offer
+    // If yes, just update the token. If no, create a placeholder registration
     let registration = await prisma.registration.findFirst({
       where: {
         userId,
+        partnerOfferId: offer.id,
         status: 'PENDING'
       }
     });
 
     if (!registration) {
-      // Crea una nuova registrazione temporanea per il form
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        include: { assignedPartner: true }
-      });
-
-      if (!user || !user.assignedPartner) {
-        throw new Error('Utente non trovato o partner non assegnato');
-      }
-
-      // Trova l'offerta dal referral code
-      const offer = await prisma.partnerOffer.findUnique({
-        where: { referralLink: referralCode },
-        include: { course: true }
-      });
-
-      if (!offer) {
-        throw new Error('Offerta non trovata');
-      }
-
+      // Create a minimal registration that will be completed when user submits the form
       registration = await prisma.registration.create({
         data: {
           userId,
-          partnerId: user.assignedPartner.id,
+          partnerId: offer.partnerId,
           courseId: offer.courseId,
           partnerOfferId: offer.id,
           offerType: offer.offerType,
           originalAmount: offer.totalAmount,
           finalAmount: offer.totalAmount,
+          remainingAmount: offer.totalAmount,
           installments: offer.installments,
+          status: 'PENDING',
           accessToken: token,
           tokenExpiresAt: expiresAt
         }
       });
+      console.log(`Created placeholder registration ${registration.id} with token for user ${userId}`);
     } else {
-      // Aggiorna token esistente
+      // Update existing registration with new token
       registration = await prisma.registration.update({
         where: { id: registration.id },
         data: {
@@ -67,6 +80,7 @@ export class SecureTokenService {
           tokenExpiresAt: expiresAt
         }
       });
+      console.log(`Updated existing registration ${registration.id} with new token for user ${userId}`);
     }
 
     return token;
@@ -125,6 +139,7 @@ export class SecureTokenService {
       profile: registration.user.profile,
       registration: {
         id: registration.id,
+        status: registration.status,
         offerType: registration.offerType,
         originalAmount: registration.originalAmount,
         finalAmount: registration.finalAmount,
