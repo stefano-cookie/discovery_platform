@@ -345,6 +345,33 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
         .filter(d => !d.isPaid && new Date(d.dueDate) >= new Date())
         .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
       
+      // Calculate payment summary for frontend
+      const paidInstallments = reg.deadlines.filter(d => d.isPaid).length;
+      const totalInstallments = reg.deadlines.length;
+      const unpaidInstallments = totalInstallments - paidInstallments;
+      const percentagePaid = totalInstallments > 0 ? Math.round((paidInstallments / totalInstallments) * 100) : 0;
+      
+      const paymentSummary = nextDeadline ? {
+        nextDeadline: {
+          id: nextDeadline.id,
+          amount: Number(nextDeadline.amount),
+          dueDate: nextDeadline.dueDate.toISOString(),
+          paymentNumber: nextDeadline.paymentNumber,
+          daysUntilDue: Math.ceil((new Date(nextDeadline.dueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
+          isOverdue: new Date(nextDeadline.dueDate) < new Date()
+        },
+        paidInstallments,
+        unpaidInstallments,
+        totalInstallments,
+        percentagePaid
+      } : {
+        nextDeadline: null,
+        paidInstallments,
+        unpaidInstallments,
+        totalInstallments,
+        percentagePaid
+      };
+      
       return {
         id: reg.id,
         courseId: reg.offer?.course?.id || 'unknown',
@@ -357,6 +384,7 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
         offerType: reg.offer?.offerType || 'TFA_ROMANIA',
         totalPaid,
         remainingAmount: Number(reg.finalAmount) - totalPaid,
+        paymentSummary,
         nextDeadline: nextDeadline ? {
           amount: nextDeadline.amount,
           dueDate: nextDeadline.dueDate,
