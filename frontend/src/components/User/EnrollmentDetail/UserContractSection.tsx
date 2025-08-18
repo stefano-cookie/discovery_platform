@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import api from '../../../services/api';
 
 interface UserContractSectionProps {
   registration: {
@@ -14,26 +15,17 @@ interface UserContractSectionProps {
 const UserContractSection: React.FC<UserContractSectionProps> = ({ registration }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // Get the backend URL from environment or use default
-  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001';
 
   const handleDownloadTemplate = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`${BACKEND_URL}/api/user/download-contract-template/${registration.id}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
+      const response = await api.get(`/user/download-contract-template/${registration.id}`, {
+        responseType: 'blob'
       });
 
-      if (!response.ok) {
-        throw new Error('Errore durante il download del contratto');
-      }
-
-      const blob = await response.blob();
+      const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -43,7 +35,7 @@ const UserContractSection: React.FC<UserContractSectionProps> = ({ registration 
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error: any) {
-      setError('Errore durante il download: ' + error.message);
+      setError(error.response?.data?.error || error.message || 'Errore durante il download');
     } finally {
       setLoading(false);
     }
@@ -54,17 +46,11 @@ const UserContractSection: React.FC<UserContractSectionProps> = ({ registration 
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`${BACKEND_URL}/api/user/download-contract-signed/${registration.id}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
+      const response = await api.get(`/user/download-contract-signed/${registration.id}`, {
+        responseType: 'blob'
       });
 
-      if (!response.ok) {
-        throw new Error('Errore durante il download del contratto firmato');
-      }
-
-      const blob = await response.blob();
+      const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -74,7 +60,7 @@ const UserContractSection: React.FC<UserContractSectionProps> = ({ registration 
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error: any) {
-      setError('Errore durante il download: ' + error.message);
+      setError(error.response?.data?.error || error.message || 'Errore durante il download');
     } finally {
       setLoading(false);
     }
@@ -84,18 +70,11 @@ const UserContractSection: React.FC<UserContractSectionProps> = ({ registration 
     try {
       setError(null);
       
-      const response = await fetch(`${BACKEND_URL}/api/user/download-contract-template/${registration.id}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
+      const response = await api.get(`/user/download-contract-template/${registration.id}`, {
+        responseType: 'blob'
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Errore durante l\'apertura del contratto');
-      }
-
-      const blob = await response.blob();
+      const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       
       // Apri in una nuova scheda per l'anteprima
@@ -106,7 +85,7 @@ const UserContractSection: React.FC<UserContractSectionProps> = ({ registration 
         window.URL.revokeObjectURL(url);
       }, 1000);
     } catch (error: any) {
-      setError('Errore durante l\'anteprima: ' + error.message);
+      setError(error.response?.data?.error || error.message || 'Errore durante l\'anteprima');
     }
   };
 
@@ -114,18 +93,11 @@ const UserContractSection: React.FC<UserContractSectionProps> = ({ registration 
     try {
       setError(null);
       
-      const response = await fetch(`${BACKEND_URL}/api/user/download-contract-signed/${registration.id}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
+      const response = await api.get(`/user/download-contract-signed/${registration.id}`, {
+        responseType: 'blob'
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Errore durante l\'apertura del contratto firmato');
-      }
-
-      const blob = await response.blob();
+      const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       
       // Apri in una nuova scheda per l'anteprima
@@ -136,7 +108,7 @@ const UserContractSection: React.FC<UserContractSectionProps> = ({ registration 
         window.URL.revokeObjectURL(url);
       }, 1000);
     } catch (error: any) {
-      setError('Errore durante l\'anteprima: ' + error.message);
+      setError(error.response?.data?.error || error.message || 'Errore durante l\'anteprima');
     }
   };
 
