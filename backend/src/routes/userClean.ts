@@ -879,8 +879,29 @@ router.get('/download-contract-template/:registrationId', authenticate, async (r
         filePath = path.join(process.cwd(), registration.contractTemplateUrl.substring(1));
         
         if (!fs.existsSync(filePath)) {
-          console.error(`[USER_CONTRACT_DOWNLOAD] File not found at: ${filePath}`);
-          return res.status(404).json({ error: 'File contratto non trovato nel sistema' });
+          console.log(`[USER_CONTRACT_DOWNLOAD] File not found at: ${filePath}, regenerating contract...`);
+          
+          // Regenerate the contract if file doesn't exist
+          try {
+            const pdfBuffer = await contractService.generateContract(registrationId);
+            const contractUrl = await contractService.saveContract(registrationId, pdfBuffer);
+            
+            // Update registration with new contract URL
+            await prisma.registration.update({
+              where: { id: registrationId },
+              data: {
+                contractTemplateUrl: contractUrl,
+                contractGeneratedAt: new Date()
+              }
+            });
+            
+            // Update the file path with the new location
+            filePath = path.join(process.cwd(), contractUrl.substring(1));
+            console.log(`[USER_CONTRACT_DOWNLOAD] Contract regenerated at: ${filePath}`);
+          } catch (regenError) {
+            console.error('[USER_CONTRACT_DOWNLOAD] Error regenerating contract:', regenError);
+            return res.status(500).json({ error: 'Errore nella rigenerazione del contratto' });
+          }
         }
       }
     }
