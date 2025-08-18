@@ -33,7 +33,13 @@ interface UserRegistration {
     dueDate: string;
     paymentNumber: number;
     isPaid: boolean;
+    partialAmount?: number;
+    paymentStatus?: 'UNPAID' | 'PARTIAL' | 'PAID';
+    notes?: string;
   }>;
+  totalPaid?: number;
+  remainingAmount?: number;
+  delayedAmount?: number;
 }
 
 interface UserEnrollmentDetailProps {
@@ -205,6 +211,18 @@ const UserEnrollmentDetail: React.FC<UserEnrollmentDetailProps> = ({
                     <span className="text-gray-600">Importo totale:</span>
                     <span className="font-medium">{formatCurrency(Number(registration.finalAmount))}</span>
                   </div>
+                  {registration.totalPaid !== undefined && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Importo pagato:</span>
+                      <span className="font-medium text-green-600">{formatCurrency(registration.totalPaid)}</span>
+                    </div>
+                  )}
+                  {registration.delayedAmount !== undefined && registration.delayedAmount > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Importo in ritardo:</span>
+                      <span className="font-medium text-red-600">{formatCurrency(registration.delayedAmount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-gray-600">Numero rate:</span>
                     <span className="font-medium">{registration.installments}</span>
@@ -218,37 +236,104 @@ const UserEnrollmentDetail: React.FC<UserEnrollmentDetailProps> = ({
           {registration.deadlines.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm border p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Scadenze Pagamenti</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {registration.deadlines.map((deadline) => (
-                  <div key={deadline.id} className={`p-4 rounded-lg border ${
-                    deadline.isPaid 
-                      ? 'bg-green-50 border-green-200' 
-                      : new Date(deadline.dueDate) < new Date() 
-                        ? 'bg-red-50 border-red-200'
-                        : 'bg-yellow-50 border-yellow-200'
-                  }`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">
-                        {deadline.paymentNumber === 0 ? 'Acconto' : `Rata ${deadline.paymentNumber}`}
-                      </span>
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        deadline.isPaid 
-                          ? 'bg-green-100 text-green-800'
-                          : new Date(deadline.dueDate) < new Date()
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {deadline.isPaid ? 'Pagata' : new Date(deadline.dueDate) < new Date() ? 'Scaduta' : 'In attesa'}
-                      </span>
-                    </div>
-                    <div className="text-lg font-semibold mb-1">
-                      {formatCurrency(Number(deadline.amount))}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      Scadenza: {formatDate(deadline.dueDate)}
-                    </div>
+              
+              {/* Payment Summary */}
+              {(registration.totalPaid || registration.delayedAmount) && (
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <p className="text-sm text-green-600">Pagato</p>
+                    <p className="text-xl font-semibold text-green-900">
+                      {formatCurrency(registration.totalPaid || 0)}
+                    </p>
                   </div>
-                ))}
+                  <div className="bg-orange-50 p-4 rounded-lg">
+                    <p className="text-sm text-orange-600">Rimanente</p>
+                    <p className="text-xl font-semibold text-orange-900">
+                      {formatCurrency(registration.remainingAmount || 0)}
+                    </p>
+                  </div>
+                  <div className="bg-red-50 p-4 rounded-lg">
+                    <p className="text-sm text-red-600">Ritardi</p>
+                    <p className="text-xl font-semibold text-red-900">
+                      {formatCurrency(registration.delayedAmount || 0)}
+                    </p>
+                  </div>
+                </div>
+              )}
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {registration.deadlines.map((deadline) => {
+                  const isOverdue = !deadline.isPaid && deadline.paymentStatus !== 'PARTIAL' && new Date(deadline.dueDate) < new Date();
+                  return (
+                    <div key={deadline.id} className={`p-4 rounded-lg border ${
+                      deadline.isPaid 
+                        ? 'bg-green-50 border-green-200' 
+                        : deadline.paymentStatus === 'PARTIAL'
+                        ? 'bg-yellow-50 border-yellow-200'
+                        : isOverdue
+                          ? 'bg-red-50 border-red-200'
+                          : 'bg-gray-50 border-gray-200'
+                    }`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm font-medium">
+                            {deadline.paymentNumber === 0 ? 'Acconto' : `Rata ${deadline.paymentNumber}`}
+                          </span>
+                          {deadline.isPaid && (
+                            <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                          )}
+                          {deadline.paymentStatus === 'PARTIAL' && (
+                            <div className="w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center">
+                              <span className="text-white text-xs font-bold">½</span>
+                            </div>
+                          )}
+                        </div>
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          deadline.isPaid 
+                            ? 'bg-green-100 text-green-800'
+                            : deadline.paymentStatus === 'PARTIAL'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : isOverdue
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {deadline.isPaid ? 'Pagata' : deadline.paymentStatus === 'PARTIAL' ? 'Parziale' : isOverdue ? 'Scaduta' : 'In attesa'}
+                        </span>
+                      </div>
+                      
+                      {deadline.paymentStatus === 'PARTIAL' && deadline.partialAmount ? (
+                        <div>
+                          <div className="text-lg font-semibold mb-1 text-yellow-700">
+                            {formatCurrency(deadline.partialAmount)} / {formatCurrency(Number(deadline.amount))}
+                          </div>
+                          <div className="text-sm text-red-600 mb-1">
+                            Ritardo: {formatCurrency(Number(deadline.amount) - deadline.partialAmount)}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-lg font-semibold mb-1">
+                          {formatCurrency(Number(deadline.amount))}
+                        </div>
+                      )}
+                      
+                      <div className="text-xs text-gray-500">
+                        Scadenza: {formatDate(deadline.dueDate)}
+                        {deadline.isPaid && ' - Pagata'}
+                        {deadline.paymentStatus === 'PARTIAL' && ' - Pagamento Parziale'}
+                      </div>
+                      
+                      {deadline.notes && (
+                        <div className="text-xs text-gray-600 mt-2 p-2 bg-gray-100 rounded">
+                          Note: {deadline.notes}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Payment Instructions */}

@@ -352,23 +352,37 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
     });
     
     const formattedRegistrations = registrations.map(reg => {
-      // Calculate total paid amount from payment deadlines
-      const totalPaid = reg.deadlines.reduce((sum, deadline) => 
-        deadline.isPaid ? sum + Number(deadline.amount) : sum, 0
-      );
+      // Calculate total paid amount including partial payments
+      const totalPaid = reg.deadlines.reduce((sum, deadline) => {
+        if (deadline.isPaid) {
+          return sum + Number(deadline.amount);
+        } else if (deadline.paymentStatus === 'PARTIAL' && deadline.partialAmount) {
+          return sum + Number(deadline.partialAmount);
+        }
+        return sum;
+      }, 0);
       
       // Calculate remaining amount
       const remainingAmount = Number(reg.finalAmount) - totalPaid;
       
-      // Find next payment deadline (first unpaid deadline)
+      // Calculate total delayed amount from partial payments
+      const totalDelayedAmount = reg.deadlines.reduce((sum, deadline) => {
+        if (deadline.paymentStatus === 'PARTIAL' && deadline.partialAmount) {
+          return sum + (Number(deadline.amount) - Number(deadline.partialAmount));
+        }
+        return sum;
+      }, 0);
+      
+      // Find next payment deadline (first unpaid and non-partial deadline)
       const now = new Date();
       const nextDeadline = reg.deadlines
-        .filter(d => !d.isPaid)
+        .filter(d => !d.isPaid && d.paymentStatus !== 'PARTIAL')
         .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())[0];
       
-      // Count paid and unpaid deadlines
+      // Count paid, partial, and unpaid deadlines
       const paidDeadlines = reg.deadlines.filter(d => d.isPaid).length;
-      const unpaidDeadlines = reg.deadlines.filter(d => !d.isPaid).length;
+      const partialDeadlines = reg.deadlines.filter(d => d.paymentStatus === 'PARTIAL').length;
+      const unpaidDeadlines = reg.deadlines.filter(d => !d.isPaid && d.paymentStatus !== 'PARTIAL').length;
       
       return {
         id: reg.id,
@@ -382,6 +396,7 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
         createdAt: reg.createdAt.toISOString(),
         totalPaid,
         remainingAmount,
+        delayedAmount: totalDelayedAmount,
         partner: {
           referralCode: reg.partner?.referralCode || '',
           user: {
@@ -400,7 +415,10 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
           amount: Number(deadline.amount),
           dueDate: deadline.dueDate.toISOString(),
           paymentNumber: deadline.paymentNumber,
-          isPaid: deadline.isPaid
+          isPaid: deadline.isPaid,
+          partialAmount: deadline.partialAmount ? Number(deadline.partialAmount) : null,
+          paymentStatus: deadline.paymentStatus,
+          notes: deadline.notes
         })),
         // Payment summary info
         paymentSummary: {
@@ -413,6 +431,7 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
             isOverdue: nextDeadline.dueDate < now
           } : null,
           paidInstallments: paidDeadlines,
+          partialInstallments: partialDeadlines,
           unpaidInstallments: unpaidDeadlines,
           totalInstallments: reg.deadlines.length,
           percentagePaid: Number(reg.finalAmount) > 0 ? Math.round((totalPaid / Number(reg.finalAmount)) * 100) : 0

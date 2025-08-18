@@ -256,6 +256,25 @@ router.get('/registrations/:registrationId', authenticate, async (req: AuthReque
       status: registration.status
     });
     
+    // Calculate payment summary
+    const totalPaid = registration.deadlines.reduce((sum, deadline) => {
+      if (deadline.isPaid) {
+        return sum + Number(deadline.amount);
+      } else if (deadline.paymentStatus === 'PARTIAL' && deadline.partialAmount) {
+        return sum + Number(deadline.partialAmount);
+      }
+      return sum;
+    }, 0);
+    
+    const remainingAmount = Number(registration.finalAmount) - totalPaid;
+    
+    const totalDelayedAmount = registration.deadlines.reduce((sum, deadline) => {
+      if (deadline.paymentStatus === 'PARTIAL' && deadline.partialAmount) {
+        return sum + (Number(deadline.amount) - Number(deadline.partialAmount));
+      }
+      return sum;
+    }, 0);
+
     res.json({
       registration: {
         id: registration.id,
@@ -267,6 +286,9 @@ router.get('/registrations/:registrationId', authenticate, async (req: AuthReque
         installments: registration.installments,
         offerType: registration.offer?.offerType || 'TFA_ROMANIA',
         createdAt: registration.createdAt.toISOString(),
+        totalPaid,
+        remainingAmount,
+        delayedAmount: totalDelayedAmount,
         contractTemplateUrl: registration.contractTemplateUrl,
         contractSignedUrl: registration.contractSignedUrl,
         contractGeneratedAt: registration.contractGeneratedAt?.toISOString(),
@@ -282,7 +304,10 @@ router.get('/registrations/:registrationId', authenticate, async (req: AuthReque
           amount: Number(deadline.amount),
           dueDate: deadline.dueDate.toISOString(),
           paymentNumber: deadline.paymentNumber,
-          isPaid: deadline.isPaid
+          isPaid: deadline.isPaid,
+          partialAmount: deadline.partialAmount ? Number(deadline.partialAmount) : null,
+          paymentStatus: deadline.paymentStatus,
+          notes: deadline.notes
         }))
       }
     });
@@ -337,19 +362,36 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
     })));
     
     const formattedRegistrations = registrations.map(reg => {
-      const totalPaid = reg.deadlines
-        .filter(d => d.isPaid)
-        .reduce((sum, deadline) => sum + Number(deadline.amount), 0);
+      // Calculate total paid amount including partial payments
+      const totalPaid = reg.deadlines.reduce((sum, deadline) => {
+        if (deadline.isPaid) {
+          return sum + Number(deadline.amount);
+        } else if (deadline.paymentStatus === 'PARTIAL' && deadline.partialAmount) {
+          return sum + Number(deadline.partialAmount);
+        }
+        return sum;
+      }, 0);
       
+      // Find next payment deadline (first unpaid and non-partial deadline)
+      const now = new Date();
       const nextDeadline = reg.deadlines
-        .filter(d => !d.isPaid && new Date(d.dueDate) >= new Date())
+        .filter(d => !d.isPaid && d.paymentStatus !== 'PARTIAL')
         .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
+      
+      // Calculate total delayed amount from partial payments
+      const totalDelayedAmount = reg.deadlines.reduce((sum, deadline) => {
+        if (deadline.paymentStatus === 'PARTIAL' && deadline.partialAmount) {
+          return sum + (Number(deadline.amount) - Number(deadline.partialAmount));
+        }
+        return sum;
+      }, 0);
       
       // Calculate payment summary for frontend
       const paidInstallments = reg.deadlines.filter(d => d.isPaid).length;
+      const partialInstallments = reg.deadlines.filter(d => d.paymentStatus === 'PARTIAL').length;
       const totalInstallments = reg.deadlines.length;
-      const unpaidInstallments = totalInstallments - paidInstallments;
-      const percentagePaid = totalInstallments > 0 ? Math.round((paidInstallments / totalInstallments) * 100) : 0;
+      const unpaidInstallments = reg.deadlines.filter(d => !d.isPaid && d.paymentStatus !== 'PARTIAL').length;
+      const percentagePaid = Number(reg.finalAmount) > 0 ? Math.round((totalPaid / Number(reg.finalAmount)) * 100) : 0;
       
       const paymentSummary = nextDeadline ? {
         nextDeadline: {
@@ -357,16 +399,18 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
           amount: Number(nextDeadline.amount),
           dueDate: nextDeadline.dueDate.toISOString(),
           paymentNumber: nextDeadline.paymentNumber,
-          daysUntilDue: Math.ceil((new Date(nextDeadline.dueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
-          isOverdue: new Date(nextDeadline.dueDate) < new Date()
+          daysUntilDue: Math.ceil((new Date(nextDeadline.dueDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
+          isOverdue: new Date(nextDeadline.dueDate) < now
         },
         paidInstallments,
+        partialInstallments,
         unpaidInstallments,
         totalInstallments,
         percentagePaid
       } : {
         nextDeadline: null,
         paidInstallments,
+        partialInstallments,
         unpaidInstallments,
         totalInstallments,
         percentagePaid
@@ -384,6 +428,7 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
         offerType: reg.offer?.offerType || 'TFA_ROMANIA',
         totalPaid,
         remainingAmount: Number(reg.finalAmount) - totalPaid,
+        delayedAmount: totalDelayedAmount,
         paymentSummary,
         nextDeadline: nextDeadline ? {
           amount: nextDeadline.amount,
@@ -401,7 +446,10 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
           amount: Number(deadline.amount),
           dueDate: deadline.dueDate.toISOString(),
           paymentNumber: deadline.paymentNumber,
-          isPaid: deadline.isPaid
+          isPaid: deadline.isPaid,
+          partialAmount: deadline.partialAmount ? Number(deadline.partialAmount) : null,
+          paymentStatus: deadline.paymentStatus,
+          notes: deadline.notes
         })),
         payments: reg.payments.map(payment => ({
           id: payment.id,

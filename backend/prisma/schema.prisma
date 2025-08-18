@@ -216,6 +216,7 @@ model Registration {
   finalAmount     Decimal
   installments    Int
   remainingAmount Decimal?  // Importo residuo da pagare
+  delayedAmount   Decimal?  // Importo totale in ritardo per pagamenti parziali
   
   status          RegistrationStatus @default(PENDING)
   
@@ -466,7 +467,17 @@ model PaymentDeadline {
   paidAt          DateTime? // Data effettivo pagamento
   notes           String?   // Note sul pagamento
   
+  // Gestione pagamenti parziali
+  partialAmount   Decimal?  // Importo parziale pagato
+  paymentStatus   PaymentStatus @default(UNPAID)
+  
   registration    Registration @relation(fields: [registrationId], references: [id])
+}
+
+enum PaymentStatus {
+  UNPAID        // Non pagato
+  PARTIAL       // Pagato parzialmente  
+  PAID          // Pagato completamente
 }
 
 model CouponUse {

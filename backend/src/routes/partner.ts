@@ -1627,18 +1627,27 @@ router.get('/registrations/:registrationId/deadlines', authenticate, requireRole
       description: d.description || `Pagamento ${d.paymentNumber}`,
       isPaid: d.isPaid,
       paidAt: d.paidAt,
-      notes: d.notes
+      notes: d.notes,
+      partialAmount: d.partialAmount ? Number(d.partialAmount) : null,
+      paymentStatus: d.paymentStatus
     }));
 
-    // Calculate remaining amount properly
-    const totalPaid = deadlines
-      .filter(d => d.isPaid)
-      .reduce((sum, d) => sum + Number(d.amount), 0);
+    // Calculate remaining amount properly including partial payments
+    const totalPaid = deadlines.reduce((sum, d) => {
+      if (d.isPaid) {
+        return sum + Number(d.amount);
+      } else if (d.paymentStatus === 'PARTIAL' && d.partialAmount) {
+        return sum + Number(d.partialAmount);
+      }
+      return sum;
+    }, 0);
+    
     const calculatedRemainingAmount = Number(registration.finalAmount) - totalPaid;
 
     res.json({
       deadlines: formattedDeadlines,
-      remainingAmount: calculatedRemainingAmount
+      remainingAmount: calculatedRemainingAmount,
+      delayedAmount: Number(registration.delayedAmount || 0)
     });
   } catch (error) {
     console.error('Get payment deadlines error:', error);
@@ -1690,14 +1699,36 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-paid', aut
       return res.status(400).json({ error: 'Pagamento già marcato come pagato' });
     }
 
-    // Mark deadline as paid
-    await prisma.paymentDeadline.update({
-      where: { id: deadlineId },
-      data: {
-        isPaid: true,
-        paidAt: new Date(),
-        notes
-      }
+    // Mark deadline as paid and create payment record for revenue tracking
+    const paymentDate = new Date();
+    
+    await prisma.$transaction(async (tx) => {
+      // Mark deadline as paid
+      await tx.paymentDeadline.update({
+        where: { id: deadlineId },
+        data: {
+          isPaid: true,
+          paidAt: paymentDate,
+          paymentStatus: 'PAID',
+          notes
+        }
+      });
+
+      // Create payment record for revenue tracking
+      await tx.payment.create({
+        data: {
+          registrationId,
+          amount: deadline.amount,
+          paymentDate,
+          paymentNumber: deadline.paymentNumber,
+          isFirstPayment: deadline.paymentNumber === 0,
+          isConfirmed: true,
+          confirmedBy: req.user!.id,
+          confirmedAt: paymentDate,
+          notes,
+          createdBy: req.user!.id
+        }
+      });
     });
 
     // Calculate remaining amount
@@ -1741,6 +1772,177 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-paid', aut
     });
   } catch (error) {
     console.error('Mark payment as paid error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Mark payment deadline as partially paid
+router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-paid', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { registrationId, deadlineId } = req.params;
+    const { partialAmount, notes } = req.body;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    if (!partialAmount || partialAmount <= 0) {
+      return res.status(400).json({ error: 'Importo parziale non valido' });
+    }
+
+    // Verify registration belongs to partner
+    const registration = await prisma.registration.findFirst({
+      where: {
+        id: registrationId,
+        partnerId
+      },
+      include: {
+        deadlines: {
+          orderBy: { dueDate: 'asc' }
+        }
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Registrazione non trovata' });
+    }
+
+    // Find the specific deadline
+    const deadline = await prisma.paymentDeadline.findFirst({
+      where: {
+        id: deadlineId,
+        registrationId
+      }
+    });
+
+    if (!deadline) {
+      return res.status(404).json({ error: 'Scadenza non trovata' });
+    }
+
+    if (deadline.isPaid) {
+      return res.status(400).json({ error: 'Pagamento già marcato come pagato' });
+    }
+
+    const deadlineAmount = Number(deadline.amount);
+    const partialAmountNum = Number(partialAmount);
+
+    if (partialAmountNum >= deadlineAmount) {
+      return res.status(400).json({ error: 'Importo parziale non può essere maggiore o uguale all\'importo totale' });
+    }
+
+    // Mark deadline as partially paid and create payment record
+    const paymentDate = new Date();
+    const delayAmount = deadlineAmount - partialAmountNum;
+    
+    await prisma.$transaction(async (tx) => {
+      // Update deadline with partial payment
+      await tx.paymentDeadline.update({
+        where: { id: deadlineId },
+        data: {
+          partialAmount: partialAmountNum,
+          paymentStatus: 'PARTIAL',
+          paidAt: paymentDate,
+          notes
+        }
+      });
+
+      // Create payment record for the partial amount
+      await tx.payment.create({
+        data: {
+          registrationId,
+          amount: partialAmountNum,
+          paymentDate,
+          paymentNumber: deadline.paymentNumber,
+          isFirstPayment: deadline.paymentNumber === 0,
+          isConfirmed: true,
+          confirmedBy: req.user!.id,
+          confirmedAt: paymentDate,
+          notes: `Pagamento parziale: €${partialAmountNum} di €${deadlineAmount}. ${notes || ''}`.trim(),
+          createdBy: req.user!.id
+        }
+      });
+
+      // Calculate total delayed amount from all partial payments
+      const allPartialDeadlines = await tx.paymentDeadline.findMany({
+        where: {
+          registrationId,
+          paymentStatus: 'PARTIAL'
+        }
+      });
+      
+      const totalDelayedAmount = allPartialDeadlines.reduce((sum, d) => {
+        return sum + (Number(d.amount) - Number(d.partialAmount || 0));
+      }, 0);
+      
+      await tx.registration.update({
+        where: { id: registrationId },
+        data: {
+          delayedAmount: totalDelayedAmount
+        }
+      });
+    });
+
+    // Calculate remaining amount
+    const paidDeadlines = await prisma.paymentDeadline.findMany({
+      where: {
+        registrationId,
+        OR: [
+          { isPaid: true },
+          { paymentStatus: 'PARTIAL' }
+        ]
+      }
+    });
+
+    const totalPaid = paidDeadlines.reduce((sum, d) => {
+      if (d.isPaid) {
+        return sum + Number(d.amount);
+      } else if (d.paymentStatus === 'PARTIAL' && d.partialAmount) {
+        return sum + Number(d.partialAmount);
+      }
+      return sum;
+    }, 0);
+
+    const remainingAmount = Number(registration.finalAmount) - totalPaid;
+    const totalDelayedAmount = Number(registration.delayedAmount || 0) + delayAmount;
+
+    // Update registration with remaining amount
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        remainingAmount: remainingAmount
+      }
+    });
+
+    // Get next unpaid deadline
+    const nextDeadline = await prisma.paymentDeadline.findFirst({
+      where: {
+        registrationId,
+        isPaid: false,
+        paymentStatus: 'UNPAID'
+      },
+      orderBy: { dueDate: 'asc' }
+    });
+
+    res.json({
+      success: true,
+      remainingAmount,
+      totalPaid,
+      delayedAmount: totalDelayedAmount,
+      partialPayment: {
+        amount: partialAmountNum,
+        delayAmount,
+        deadlineId
+      },
+      nextDeadline: nextDeadline ? {
+        id: nextDeadline.id,
+        amount: Number(nextDeadline.amount),
+        dueDate: nextDeadline.dueDate,
+        description: nextDeadline.description
+      } : null
+    });
+  } catch (error) {
+    console.error('Mark partial payment error:', error);
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });

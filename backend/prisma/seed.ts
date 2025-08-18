@@ -60,17 +60,20 @@ async function main() {
     }
   });
 
-  // Create TFA Romania offer
+  // Create TFA Romania offer - 6500€ con 10 rate
   await prisma.partnerOffer.upsert({
     where: { id: 'tfa-romania-offer' },
-    update: {},
+    update: {
+      totalAmount: 6500,
+      installments: 10
+    },
     create: {
       id: 'tfa-romania-offer',
       partnerId: partner.id,
       courseId: tfaCourse.id,
       name: 'TFA Romania - Corso Completo',
       offerType: 'TFA_ROMANIA',
-      totalAmount: 5000,
+      totalAmount: 6500,
       installments: 10,
       installmentFrequency: 1,
       referralLink: 'MAIN001-TFA',
@@ -78,61 +81,36 @@ async function main() {
     }
   });
 
-  // Create Certification course (solo certificazioni generiche)
-  const certGeneric = await prisma.course.upsert({
-    where: { id: 'cert-generic' },
+  // Create C2 English Certification course
+  const c2EnglishCourse = await prisma.course.upsert({
+    where: { id: 'c2-english-cert' },
     update: {},
     create: {
-      id: 'cert-generic',
-      name: 'Certificazioni Professionali',
-      description: 'Certificazioni e corsi professionali vari',
+      id: 'c2-english-cert',
+      name: 'Certificazione C2 Inglese',
+      description: 'Certificazione C2 livello avanzato lingua inglese',
       templateType: 'CERTIFICATION',
       isActive: true
     }
   });
 
-  // Offerta con pagamento unico
+  // Offerta Certificazione C2 Inglese - 400€ rata unica
   await prisma.partnerOffer.upsert({
-    where: { id: 'certification-offer' },
+    where: { id: 'c2-english-offer' },
     update: {},
     create: {
-      id: 'certification-offer',
+      id: 'c2-english-offer',
       partnerId: partner.id,
-      courseId: certGeneric.id,
-      name: 'Certificazione Professionale - Pagamento Unico',
+      courseId: c2EnglishCourse.id,
+      name: 'Certificazione C2 Inglese - Pagamento Unico',
       offerType: 'CERTIFICATION',
-      totalAmount: 1500,
+      totalAmount: 400,
       installments: 1,
       installmentFrequency: 1,
-      referralLink: 'MAIN001-CERT',
+      referralLink: 'MAIN001-C2ENG',
       customPaymentPlan: {
         payments: [
-          { amount: 1500, dueDate: '2025-02-01' }
-        ]
-      },
-      isActive: true
-    }
-  });
-
-  // Offerta con 3 rate
-  await prisma.partnerOffer.upsert({
-    where: { id: 'certification-installments-offer' },
-    update: {},
-    create: {
-      id: 'certification-installments-offer',
-      partnerId: partner.id,
-      courseId: certGeneric.id,
-      name: 'Certificazione Professionale - 3 Rate',
-      offerType: 'CERTIFICATION',
-      totalAmount: 1500,
-      installments: 3,
-      installmentFrequency: 1,
-      referralLink: 'MAIN001-CERT3',
-      customPaymentPlan: {
-        payments: [
-          { amount: 500, dueDate: '2025-01-30' },
-          { amount: 500, dueDate: '2025-02-28' },
-          { amount: 500, dueDate: '2025-03-30' }
+          { amount: 400, dueDate: '2025-02-01' }
         ]
       },
       isActive: true

@@ -17,6 +17,7 @@ interface UserRegistration {
   createdAt: string;
   totalPaid?: number;
   remainingAmount?: number;
+  delayedAmount?: number;
   partner: {
     referralCode: string;
     user: {
@@ -36,6 +37,9 @@ interface UserRegistration {
     dueDate: string;
     paymentNumber: number;
     isPaid: boolean;
+    partialAmount?: number;
+    paymentStatus?: 'UNPAID' | 'PARTIAL' | 'PAID';
+    notes?: string;
   }>;
   paymentSummary?: {
     nextDeadline: {
@@ -47,6 +51,7 @@ interface UserRegistration {
       isOverdue: boolean;
     } | null;
     paidInstallments: number;
+    partialInstallments: number;
     unpaidInstallments: number;
     totalInstallments: number;
     percentagePaid: number;
@@ -185,7 +190,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
     }
     
     const unpaidDeadlines = registration.deadlines
-      .filter(d => !d.isPaid)
+      .filter(d => !d.isPaid && d.paymentStatus !== 'PARTIAL')
       .sort((a, b) => {
         // Priorità: acconto (paymentNumber 0) sempre per primo
         if (a.paymentNumber === 0 && b.paymentNumber !== 0) return -1;
@@ -494,14 +499,19 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                             />
                           </div>
                           <div className="flex justify-between text-xs text-gray-500 mt-1">
-                            <span>{registration.paymentSummary.paidInstallments} rate pagate</span>
-                            <span>{registration.paymentSummary.unpaidInstallments} rate rimanenti</span>
+                            <span>
+                              {registration.paymentSummary.paidInstallments} pagate
+                              {registration.paymentSummary.partialInstallments > 0 && 
+                                ` + ${registration.paymentSummary.partialInstallments} parziali`
+                              }
+                            </span>
+                            <span>{registration.paymentSummary.unpaidInstallments} rimanenti</span>
                           </div>
                         </div>
                       )}
 
                       {/* Payment Details Grid */}
-                      <div className="grid grid-cols-3 gap-3 mb-4">
+                      <div className="grid grid-cols-4 gap-3 mb-4">
                         <div className="bg-white rounded p-3">
                           <p className="text-xs text-gray-600">Pagato</p>
                           <p className="text-lg font-semibold text-green-600">
@@ -512,6 +522,12 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                           <p className="text-xs text-gray-600">Rimanente</p>
                           <p className="text-lg font-semibold text-orange-600">
                             {formatCurrency(registration.remainingAmount || 0)}
+                          </p>
+                        </div>
+                        <div className="bg-white rounded p-3">
+                          <p className="text-xs text-gray-600">Ritardi</p>
+                          <p className="text-lg font-semibold text-red-600">
+                            {formatCurrency(registration.delayedAmount || 0)}
                           </p>
                         </div>
                         <div className="bg-white rounded p-3">
@@ -596,8 +612,10 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                                     className={`flex items-center justify-between p-2 rounded-lg border ${
                                       deadline.isPaid 
                                         ? 'bg-green-50 border-green-200' 
+                                        : deadline.paymentStatus === 'PARTIAL'
+                                        ? 'bg-yellow-50 border-yellow-200'
                                         : isNext
-                                        ? 'bg-yellow-50 border-yellow-300 ring-2 ring-yellow-400'
+                                        ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-400'
                                         : isOverdue
                                         ? 'bg-red-50 border-red-200'
                                         : 'bg-white border-gray-200'
@@ -611,8 +629,12 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                             </svg>
                                           </div>
+                                        ) : deadline.paymentStatus === 'PARTIAL' ? (
+                                          <div className="w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center">
+                                            <span className="text-white text-xs font-bold">½</span>
+                                          </div>
                                         ) : isNext ? (
-                                          <div className="w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center animate-pulse">
+                                          <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center animate-pulse">
                                             <span className="text-white text-xs font-bold">!</span>
                                           </div>
                                         ) : (
@@ -625,36 +647,53 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                                         <p className={`text-sm font-medium ${
                                           deadline.isPaid 
                                             ? 'text-green-700' 
+                                            : deadline.paymentStatus === 'PARTIAL'
+                                            ? 'text-yellow-700'
                                             : isNext
-                                            ? 'text-yellow-900'
+                                            ? 'text-blue-900'
                                             : isOverdue
                                             ? 'text-red-700'
                                             : 'text-gray-700'
                                         }`}>
                                           {deadline.paymentNumber === 0 ? 'Acconto' : `Rata ${deadline.paymentNumber}`}
-                                          {isNext && <span className="ml-2 text-xs bg-yellow-200 px-2 py-1 rounded">PROSSIMA</span>}
+                                          {deadline.paymentStatus === 'PARTIAL' && <span className="ml-2 text-xs bg-yellow-200 px-2 py-1 rounded">PARZIALE</span>}
+                                          {isNext && <span className="ml-2 text-xs bg-blue-200 px-2 py-1 rounded">PROSSIMA</span>}
                                         </p>
                                         <p className={`text-xs ${
                                           deadline.isPaid 
                                             ? 'text-green-600' 
+                                            : deadline.paymentStatus === 'PARTIAL'
+                                            ? 'text-yellow-600'
                                             : 'text-gray-500'
                                         }`}>
                                           {formatDate(deadline.dueDate)}
                                           {deadline.isPaid && ' - Pagata'}
-                                          {!deadline.isPaid && isOverdue && ' - SCADUTA'}
+                                          {deadline.paymentStatus === 'PARTIAL' && ' - Pagamento Parziale'}
+                                          {!deadline.isPaid && deadline.paymentStatus !== 'PARTIAL' && isOverdue && ' - SCADUTA'}
                                         </p>
                                       </div>
                                     </div>
                                     <div className="text-right">
-                                      <p className={`font-semibold ${
-                                        deadline.isPaid 
-                                          ? 'text-green-700 line-through' 
-                                          : isNext
-                                          ? 'text-yellow-900 text-lg'
-                                          : 'text-gray-700'
-                                      }`}>
-                                        {formatCurrency(deadline.amount)}
-                                      </p>
+                                        {deadline.paymentStatus === 'PARTIAL' && deadline.partialAmount ? (
+                                          <div>
+                                            <p className="font-semibold text-yellow-700">
+                                              {formatCurrency(deadline.partialAmount)} / {formatCurrency(deadline.amount)}
+                                            </p>
+                                            <p className="text-xs text-red-600">
+                                              Ritardo: {formatCurrency(deadline.amount - deadline.partialAmount)}
+                                            </p>
+                                          </div>
+                                        ) : (
+                                          <p className={`font-semibold ${
+                                            deadline.isPaid 
+                                              ? 'text-green-700 line-through' 
+                                              : isNext
+                                              ? 'text-blue-900 text-lg'
+                                              : 'text-gray-700'
+                                          }`}>
+                                            {formatCurrency(deadline.amount)}
+                                          </p>
+                                        )}
                                     </div>
                                   </div>
                                 );
