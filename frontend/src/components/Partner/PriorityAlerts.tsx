@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PartnerStats } from '../../types/partner';
 import { PartnerAnalytics } from '../../hooks/usePartnerAnalytics';
 
@@ -8,6 +9,24 @@ interface PriorityAlertsProps {
 }
 
 const PriorityAlerts: React.FC<PriorityAlertsProps> = ({ analytics, stats }) => {
+  const navigate = useNavigate();
+  
+  const handleActionClick = (actionType: string) => {
+    switch (actionType) {
+      case 'Gestisci Documenti':
+        navigate('/dashboard/users');
+        break;
+      case 'Vedi Contratti':
+        navigate('/dashboard/users');
+        break;
+      case 'Vedi Dettagli':
+        // Per ora resta sulla dashboard principale
+        break;
+      default:
+        navigate('/dashboard/users');
+    }
+  };
+
   const getAlerts = () => {
     const alerts = [];
     
@@ -117,7 +136,10 @@ const PriorityAlerts: React.FC<PriorityAlertsProps> = ({ analytics, stats }) => 
                   <p className={`text-sm ${styles.text} opacity-80 mb-4`}>
                     {alert.message}
                   </p>
-                  <button className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${styles.button}`}>
+                  <button 
+                    onClick={() => handleActionClick(alert.action)}
+                    className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${styles.button}`}
+                  >
                     {alert.action}
                     <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
