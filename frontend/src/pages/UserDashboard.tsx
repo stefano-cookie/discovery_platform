@@ -578,8 +578,9 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                         </div>
                       )}
 
-                      {/* All Payment Deadlines */}
-                      {registration.deadlines && registration.deadlines.length > 0 && (
+                      {/* All Payment Deadlines - Show for CONTRACT_SIGNED, ENROLLED, COMPLETED */}
+                      {registration.deadlines && registration.deadlines.length > 0 && 
+                       ['CONTRACT_SIGNED', 'ENROLLED', 'COMPLETED'].includes(registration.status) && (
                         <div className="mt-4">
                           <h5 className="text-sm font-semibold text-gray-700 mb-2">📅 Scadenzario Completo</h5>
                           <div className="space-y-2 max-h-60 overflow-y-auto">

@@ -758,9 +758,10 @@ router.get('/download-contract-template/:registrationId', authenticate, async (r
       return res.status(404).json({ error: 'Iscrizione non trovata' });
     }
     
-    // Only allow download if contract is signed (partner has uploaded signed contract)
-    if (!['CONTRACT_SIGNED', 'ENROLLED', 'COMPLETED'].includes(registration.status)) {
-      return res.status(403).json({ error: 'Contratto non ancora disponibile per il download' });
+    // Allow download if registration is verified or contract already exists
+    // (contract can be generated on-demand for verification purposes)
+    if (registration.status === 'PENDING' && !registration.contractTemplateUrl) {
+      return res.status(403).json({ error: 'Contratto non ancora disponibile. Completa prima l\'iscrizione.' });
     }
     
     // If contract doesn't exist, generate it
