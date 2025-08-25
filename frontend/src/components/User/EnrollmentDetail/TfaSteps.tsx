@@ -16,6 +16,7 @@ interface TfaStepsData {
   registrationId: string;
   currentStatus: string;
   steps: {
+    admissionTest: TfaStep;
     cnredRelease: TfaStep;
     finalExam: TfaStep;
     recognitionRequest: TfaStep;

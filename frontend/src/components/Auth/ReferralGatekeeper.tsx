@@ -43,9 +43,10 @@ const ReferralGatekeeper: React.FC<ReferralGatekeeperProps> = ({
       const emailVerified = urlParams.get('emailVerified');
       const verificationCode = urlParams.get('code');
       const secureToken = urlParams.get('token');
+      const email = urlParams.get('email'); // Aggiunto per gestire redirect da verifica email
 
       // Determina se ci sono parametri speciali nell'URL
-      const hasParams = !!(secureToken || verificationCode || emailVerified === 'true');
+      const hasParams = !!(secureToken || verificationCode || emailVerified === 'true' || email);
       setHasSpecialParams(hasParams);
     } catch (error) {
       console.error('Errore validazione referral:', error);
@@ -121,6 +122,7 @@ const ReferralGatekeeper: React.FC<ReferralGatekeeperProps> = ({
   const emailVerified = urlParams.get('emailVerified');
   const secureToken = urlParams.get('token');
   const verificationCode = urlParams.get('code');
+  const email = urlParams.get('email');
   
   // Se arriva con parametri di verifica, consenti accesso immediato
   if (hasSpecialParams) {

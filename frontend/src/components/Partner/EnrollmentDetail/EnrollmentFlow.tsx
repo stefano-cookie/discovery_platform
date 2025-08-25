@@ -32,7 +32,7 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId,
   const handleContractDownload = async () => {
     try {
       // Use correct backend URL
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+      const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
       const response = await fetch(`${API_BASE_URL}/partners/download-contract/${registrationId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -73,7 +73,7 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId,
       setIsSettingExamDate(true);
       
       // Call API to update exam date
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+      const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
       const response = await fetch(`${API_BASE_URL}/partners/registrations/${registrationId}/exam-date`, {
         method: 'POST',
         headers: {
@@ -125,27 +125,53 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId,
       },
       {
         id: 'payment',
-        title: 'Pagamento Completato',
-        description: 'Pagamento ricevuto e confermato',
+        title: 'Pagamento',
+        description: 'In attesa del pagamento tramite bonifico',
         icon: (
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
           </svg>
         ),
         status: currentStatus === 'PENDING' ? 'current' : 
-               ['PAYMENT_COMPLETED', 'EXAM_REGISTERED', 'COMPLETED'].includes(currentStatus) ? 'completed' : 'pending'
+               ['ENROLLED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(currentStatus) ? 'completed' : 'pending'
+      },
+      {
+        id: 'documents_approved',
+        title: 'Documenti Approvati',
+        description: 'Carta d\'identità e tessera sanitaria verificate',
+        icon: (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        ),
+        status: currentStatus === 'ENROLLED' ? 'current' :
+               currentStatus === 'DOCUMENTS_APPROVED' ? 'completed' :
+               ['EXAM_REGISTERED', 'COMPLETED'].includes(currentStatus) ? 'completed' : 'pending'
       },
       {
         id: 'exam_registered',
         title: 'Iscritto all\'esame',
-        description: currentExamDate ? `Data esame: ${new Date(currentExamDate).toLocaleDateString('it-IT')}` : 'Partner deve inserire data esame',
+        description: currentExamDate ? `Data esame: ${new Date(currentExamDate).toLocaleDateString('it-IT')}` : 'Registra iscrizione all\'esame',
         icon: (
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a2 2 0 012-2h2a2 2 0 012 2v4m-6 0V6a2 2 0 012-2h4a2 2 0 012 2v1m-6 0h6m-2 4v2m0 0v2m0-2h2m-2 0H10" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
         ),
-        status: currentStatus === 'PAYMENT_COMPLETED' ? 'current' : 
-               ['EXAM_REGISTERED', 'COMPLETED'].includes(currentStatus) ? 'completed' : 'pending'
+        status: currentStatus === 'DOCUMENTS_APPROVED' ? 'current' : 
+               currentStatus === 'EXAM_REGISTERED' ? 'completed' :
+               currentStatus === 'COMPLETED' ? 'completed' : 'pending'
+      },
+      {
+        id: 'exam_completed',
+        title: 'Esame Sostenuto',
+        description: 'Esame completato con successo',
+        icon: (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+          </svg>
+        ),
+        status: currentStatus === 'EXAM_REGISTERED' ? 'current' :
+               currentStatus === 'COMPLETED' ? 'completed' : 'pending'
       }
     ];
 
@@ -301,8 +327,8 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId,
         })}
       </div>
 
-      {/* Contract Management Section - Show when status is PENDING or CONTRACT_GENERATED */}
-      {(currentStatus === 'PENDING' || currentStatus === 'CONTRACT_GENERATED') && (
+      {/* Contract Management Section - Show only for TFA when status is PENDING or CONTRACT_GENERATED */}
+      {offerType === 'TFA_ROMANIA' && (currentStatus === 'PENDING' || currentStatus === 'CONTRACT_GENERATED') && (
         <div className="mt-6 bg-white rounded-xl shadow-sm border p-6">
           <div className="mb-4">
             <h4 className="text-lg font-semibold text-gray-900 mb-2">Gestione Contratto</h4>

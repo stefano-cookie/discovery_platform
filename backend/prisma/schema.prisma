@@ -233,6 +233,10 @@ model Registration {
   adverintiaUploadedAt   DateTime?
   
   // TFA Post-enrollment steps tracking
+  admissionTestDate      DateTime? // Data test d'ingresso
+  admissionTestBy        String?   // Partner che registra test
+  admissionTestPassed    Boolean?  // Esito test d'ingresso
+  
   cnredReleasedAt        DateTime? // Data rilascio CNRED
   cnredReleasedBy        String?   // Partner che registra rilascio
   
@@ -245,9 +249,11 @@ model Registration {
   recognitionDocumentUrl     String?   // URL documento riconoscimento
   recognitionApprovalDate    DateTime? // Data approvazione riconoscimento
   
-  // Certificazioni - data esame (legacy, mantenuto per compatibilità)
-  examDate               DateTime? // Per workflow certificazioni
+  // Certificazioni - workflow 5 step
+  examDate               DateTime? // Per workflow certificazioni 
   examRegisteredBy       String?   // Partner che registra data
+  examCompletedDate      DateTime? // Data completamento esame
+  examCompletedBy        String?   // Partner che registra completamento
   
   // Date workflow
   dataVerifiedAt      DateTime?
@@ -300,6 +306,10 @@ enum RegistrationStatus {
   CNRED_RELEASED       // Step 1: CNRED rilasciato
   FINAL_EXAM           // Step 2: Esame finale sostenuto
   RECOGNITION_REQUEST  // Step 3: Richiesta riconoscimento inviata
+  
+  // Certificazioni - workflow 5 step
+  DOCUMENTS_APPROVED   // Step 3: Documenti approvati (carta identità + tessera sanitaria)
+  EXAM_REGISTERED      // Step 4: Iscritto all'esame
   
   COMPLETED
 }

@@ -47,10 +47,19 @@ const VerifyEmail: React.FC = () => {
         const referralCode = urlParams.get('referralCode');
         
         // Dopo 3 secondi redirect
-        setTimeout(() => {
+        setTimeout(async () => {
           if (referralCode && email) {
-            // Genera token sicuro per accesso al form
-            generateSecureAccess(email, referralCode);
+            // Attendi un attimo extra per assicurarsi che il database sia aggiornato
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            try {
+              // Prova a generare token sicuro per accesso al form
+              await generateSecureAccess(email, referralCode);
+            } catch (error) {
+              console.error('Fallback: unable to generate secure token, redirecting to registration directly');
+              // Fallback: redirect diretto al form di registrazione senza token sicuro
+              navigate(`/registration/${referralCode}?email=${encodeURIComponent(email)}`);
+            }
           } else {
             // Redirect normale al login
             navigate('/login');
@@ -157,13 +166,18 @@ const VerifyEmail: React.FC = () => {
               
               {/* Action button */}
               <button
-                onClick={() => {
+                onClick={async () => {
                   const urlParams = new URLSearchParams(location.search);
                   const referralCode = urlParams.get('referralCode');
                   const email = urlParams.get('email');
                   
                   if (referralCode && email) {
-                    generateSecureAccess(email, referralCode);
+                    try {
+                      await generateSecureAccess(email, referralCode);
+                    } catch (error) {
+                      console.error('Fallback: unable to generate secure token, redirecting to registration directly');
+                      navigate(`/registration/${referralCode}?email=${encodeURIComponent(email)}`);
+                    }
                   } else {
                     navigate('/login');
                   }

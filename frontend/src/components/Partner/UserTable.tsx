@@ -138,7 +138,11 @@ const UserTable: React.FC<UserTableProps> = ({
                 className={`hover:bg-blue-50/50 transition-colors duration-200 cursor-pointer ${
                   index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
                 }`}
-                onClick={() => {
+                onClick={(e) => {
+                  // Prevent navigation if clicking on checkbox
+                  if ((e.target as HTMLElement).closest('input[type="checkbox"]')) {
+                    return;
+                  }
                   if (onNavigateToEnrollmentDetail) {
                     onNavigateToEnrollmentDetail(user.registrationId);
                   }

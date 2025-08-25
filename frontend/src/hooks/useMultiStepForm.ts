@@ -85,6 +85,7 @@ export const useMultiStepForm = (options: UseMultiStepFormOptions = {}) => {
   const updateFormData = useCallback((stepData: Partial<RegistrationData> | ((prev: Partial<RegistrationData>) => Partial<RegistrationData>)) => {
     setFormData(prev => {
       const updated = typeof stepData === 'function' ? stepData(prev) : { ...prev, ...stepData };
+      console.log('updateFormData called with:', stepData, 'updated:', updated);
       
       
       // Separa i file dagli altri dati per il salvataggio

@@ -16,6 +16,7 @@ interface TfaStepsData {
   registrationId: string;
   currentStatus: string;
   steps: {
+    admissionTest: TfaStep;
     cnredRelease: TfaStep;
     finalExam: TfaStep;
     recognitionRequest: TfaStep;
@@ -40,6 +41,8 @@ const TfaStepsManagement: React.FC<TfaStepsManagementProps> = ({
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   
   // Form states for different steps
+  const [admissionTestDate, setAdmissionTestDate] = useState('');
+  const [admissionTestPassed, setAdmissionTestPassed] = useState<boolean>(true);
   const [examDate, setExamDate] = useState('');
   const [examPassed, setExamPassed] = useState<boolean>(true);
   const [recognitionFile, setRecognitionFile] = useState<File | null>(null);
@@ -63,6 +66,35 @@ const TfaStepsManagement: React.FC<TfaStepsManagementProps> = ({
       setError(err.response?.data?.error || 'Errore nel caricamento steps TFA');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAdmissionTest = async () => {
+    try {
+      if (!admissionTestDate) {
+        alert('Inserire la data del test');
+        return;
+      }
+
+      setActionLoading('admission');
+      
+      await apiRequest({
+        method: 'POST',
+        url: `/partners/registrations/${registrationId}/admission-test`,
+        data: {
+          testDate: admissionTestDate,
+          passed: admissionTestPassed
+        }
+      });
+
+      await fetchTfaSteps();
+      onUpdate?.();
+      setAdmissionTestDate('');
+      
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Errore nella registrazione test d\'ingresso');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -256,12 +288,40 @@ const TfaStepsManagement: React.FC<TfaStepsManagementProps> = ({
 
       {/* Simple document upload actions */}
       <div className="space-y-4">
+        {/* Step 0: Admission Test */}
+        {!tfaData.steps.admissionTest.completed && canManageSteps && (
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h4 className="font-medium text-purple-900">0. Test d'Ingresso</h4>
+                <p className="text-sm text-purple-700">Registra il test d'ingresso per l'ammissione al corso</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                type="date"
+                value={admissionTestDate}
+                onChange={(e) => setAdmissionTestDate(e.target.value)}
+                placeholder="Data test"
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+              <button
+                onClick={handleAdmissionTest}
+                disabled={actionLoading === 'admission' || !admissionTestDate}
+                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm"
+              >
+                {actionLoading === 'admission' ? 'Caricando...' : 'Registra Test'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Step 1: CNRED Release */}
-        {!tfaData.steps.cnredRelease.completed && canManageSteps && (
+        {tfaData.steps.admissionTest.completed && !tfaData.steps.cnredRelease.completed && canManageSteps && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="font-medium text-blue-900">1. Rilascio CNRED</h4>
+                <h4 className="font-medium text-blue-900">2. Rilascio CNRED</h4>
                 <p className="text-sm text-blue-700">Registra quando il CNRED è stato rilasciato</p>
               </div>
               <button
@@ -275,12 +335,12 @@ const TfaStepsManagement: React.FC<TfaStepsManagementProps> = ({
           </div>
         )}
 
-        {/* Step 2: Final Exam */}
+        {/* Step 3: Final Exam */}
         {tfaData.steps.cnredRelease.completed && !tfaData.steps.finalExam.completed && canManageSteps && (
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h4 className="font-medium text-orange-900">2. Esame Finale</h4>
+                <h4 className="font-medium text-orange-900">3. Esame Finale</h4>
                 <p className="text-sm text-orange-700">Registra l'esame finale</p>
               </div>
             </div>
@@ -303,12 +363,12 @@ const TfaStepsManagement: React.FC<TfaStepsManagementProps> = ({
           </div>
         )}
 
-        {/* Step 3: Recognition Request */}
+        {/* Step 4: Recognition Request */}
         {tfaData.steps.finalExam.completed && !tfaData.steps.recognitionRequest.completed && canManageSteps && (
           <div className="bg-pink-50 border border-pink-200 rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h4 className="font-medium text-pink-900">3. Richiesta Riconoscimento</h4>
+                <h4 className="font-medium text-pink-900">4. Richiesta Riconoscimento</h4>
                 <p className="text-sm text-pink-700">Carica documento per richiesta riconoscimento</p>
               </div>
             </div>
@@ -330,12 +390,12 @@ const TfaStepsManagement: React.FC<TfaStepsManagementProps> = ({
           </div>
         )}
 
-        {/* Step 4: Final Approval */}
+        {/* Step 5: Final Approval */}
         {tfaData.steps.recognitionRequest.completed && !tfaData.steps.finalCompletion.completed && canManageSteps && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="font-medium text-green-900">4. Approvazione Finale</h4>
+                <h4 className="font-medium text-green-900">5. Approvazione Finale</h4>
                 <p className="text-sm text-green-700">Completa il percorso TFA</p>
               </div>
               <button
@@ -349,21 +409,65 @@ const TfaStepsManagement: React.FC<TfaStepsManagementProps> = ({
           </div>
         )}
 
-        {/* Completed steps summary */}
-        <div className="space-y-2">
-          {steps.map((step) => step.completed && (
-            <div key={step.step} className="flex items-center space-x-3 text-sm text-green-700 bg-green-50 p-2 rounded">
-              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span><strong>{step.title}</strong> - Completato il {formatDate(step.completedAt!)}</span>
-              {step.step === 2 && step.passed !== undefined && (
-                <span className={`px-2 py-1 rounded text-xs ${step.passed ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
-                  {step.passed ? 'Superato' : 'Non superato'}
-                </span>
-              )}
-            </div>
-          ))}
+        {/* Complete steps overview - similar to user view */}
+        <div className="mt-6">
+          <h4 className="text-md font-semibold text-gray-900 mb-4">Panoramica Completa Steps</h4>
+          <div className="bg-white border border-gray-200 rounded-lg">
+            {steps.map((step, index) => (
+              <div key={step.step} className={`p-4 flex items-center ${index < steps.length - 1 ? 'border-b border-gray-200' : ''}`}>
+                <div className="flex-shrink-0 mr-4">
+                  {getStepIcon(step)}
+                </div>
+                
+                <div className="flex-1">
+                  <h4 className={`font-medium ${step.completed ? 'text-green-900' : step.status === 'current' ? 'text-blue-900' : 'text-gray-900'}`}>
+                    {step.title}
+                  </h4>
+                  <p className="text-sm text-gray-600">
+                    {step.description}
+                  </p>
+                  
+                  {step.completed && step.completedAt && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Completato il {formatDate(step.completedAt)}
+                    </p>
+                  )}
+                  
+                  {step.status === 'current' && !step.completed && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      In corso - pronto per l'azione del partner
+                    </p>
+                  )}
+                  
+                  {step.step === 2 && step.completed && step.passed !== undefined && (
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium mt-2 ${
+                      step.passed ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {step.passed ? '✓ Esame superato' : '○ Esame registrato'}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex-shrink-0">
+                  {step.completed && (
+                    <span className="text-green-600 font-medium text-sm">
+                      Completato
+                    </span>
+                  )}
+                  {step.status === 'current' && !step.completed && (
+                    <span className="text-blue-600 font-medium text-sm">
+                      In corso
+                    </span>
+                  )}
+                  {step.status === 'pending' && (
+                    <span className="text-gray-400 font-medium text-sm">
+                      In attesa
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

@@ -19,7 +19,7 @@ console.log('FRONTEND_URL:', process.env.FRONTEND_URL);
 console.log('PORT:', process.env.PORT);
 
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: process.env.FRONTEND_URL || '*', // Use wildcard in production if FRONTEND_URL not set
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

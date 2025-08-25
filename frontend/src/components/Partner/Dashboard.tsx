@@ -1,17 +1,24 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePartnerStats } from '../../hooks/usePartnerStats';
 import { partnerService } from '../../services/partner';
 import { PartnerUser } from '../../types/partner';
 import StatsCard from './StatsCard';
 import UserTable from './UserTable';
+import SuccessModal from '../UI/SuccessModal';
+import ErrorModal from '../UI/ErrorModal';
 
 const PartnerDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const { stats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = usePartnerStats();
   const [users, setUsers] = useState<PartnerUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [usersError, setUsersError] = useState<string | null>(null);
   const [currentFilter, setCurrentFilter] = useState<'all' | 'direct' | 'children'>('all');
   const [exportLoading, setExportLoading] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const fetchUsers = async (filter: 'all' | 'direct' | 'children' = 'all') => {
     try {
@@ -32,6 +39,10 @@ const PartnerDashboard: React.FC = () => {
 
   const handleFilterChange = (filter: 'all' | 'direct' | 'children') => {
     setCurrentFilter(filter);
+  };
+
+  const handleNavigateToEnrollmentDetail = (registrationId: string) => {
+    navigate(`/dashboard/users/${registrationId}`);
   };
 
   const formatCurrency = (amount: number) => {
@@ -57,7 +68,8 @@ const PartnerDashboard: React.FC = () => {
 
       if (!response.ok) {
         const errorText = await response.text();
-        alert(`Errore ${response.status}: ${errorText}`);
+        setErrorMessage(`Errore ${response.status}: ${errorText}`);
+        setShowErrorModal(true);
         return;
       }
 
@@ -78,10 +90,11 @@ const PartnerDashboard: React.FC = () => {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      alert('Export Excel completato! Il file è stato scaricato.');
+      setShowSuccessModal(true);
       
     } catch (error: any) {
-      alert('Errore durante l\'export: ' + error.message);
+      setErrorMessage('Errore durante l\'export: ' + error.message);
+      setShowErrorModal(true);
     } finally {
       setExportLoading(false);
     }
@@ -226,8 +239,25 @@ const PartnerDashboard: React.FC = () => {
           isLoading={usersLoading}
           onFilterChange={handleFilterChange}
           currentFilter={currentFilter}
+          onNavigateToEnrollmentDetail={handleNavigateToEnrollmentDetail}
         />
       </div>
+      
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        title="Export Completato!"
+        message="Il file Excel è stato scaricato con successo"
+      />
+
+      {/* Error Modal */}
+      <ErrorModal
+        isOpen={showErrorModal}
+        onClose={() => setShowErrorModal(false)}
+        title="Errore Export"
+        message={errorMessage}
+      />
     </div>
   );
 };

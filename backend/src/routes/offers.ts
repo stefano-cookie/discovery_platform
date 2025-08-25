@@ -251,7 +251,13 @@ router.get('/by-link/:referralLink', async (req, res) => {
       return res.status(404).json({ error: 'Offer not found' });
     }
 
-    res.json(offer);
+    // Include all fields needed by the frontend, including customPaymentPlan
+    const offerResponse = {
+      ...offer,
+      customPaymentPlan: offer.customPaymentPlan // Ensure this field is included
+    };
+
+    res.json(offerResponse);
   } catch (error) {
     console.error('Error fetching offer by link:', error);
     res.status(500).json({ error: 'Internal server error' });

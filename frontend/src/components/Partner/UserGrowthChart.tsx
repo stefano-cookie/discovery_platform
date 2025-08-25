@@ -16,7 +16,11 @@ const UserGrowthChart: React.FC<UserGrowthChartProps> = ({ analytics, loading })
       'PENDING': 'In Attesa', 
       'DOCUMENTS_UPLOAD': 'Caricamento Doc.',
       'CONTRACT_GENERATED': 'Contratto Generato',
-      'CONTRACT_SIGNED': 'Contratto Firmato'
+      'CONTRACT_SIGNED': 'Contratto Firmato',
+      'ENROLLED': 'Iscritti',
+      'CNRED_RELEASED': 'CNRED Rilasciato',
+      'DOCUMENTS_APPROVED': 'Documenti Approvati',
+      'EXAM_REGISTERED': 'Iscritti Esame'
     };
 
     return analytics.statusDistribution.map(item => ({
@@ -31,7 +35,11 @@ const UserGrowthChart: React.FC<UserGrowthChartProps> = ({ analytics, loading })
     'PENDING': '#f59e0b', 
     'DOCUMENTS_UPLOAD': '#3b82f6',
     'CONTRACT_GENERATED': '#8b5cf6',
-    'CONTRACT_SIGNED': '#06b6d4'
+    'CONTRACT_SIGNED': '#06b6d4',
+    'ENROLLED': '#16a34a',
+    'CNRED_RELEASED': '#0891b2',
+    'DOCUMENTS_APPROVED': '#2563eb',
+    'EXAM_REGISTERED': '#ea580c'
   };
 
   if (loading) {

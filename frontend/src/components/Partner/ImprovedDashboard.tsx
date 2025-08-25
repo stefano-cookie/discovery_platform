@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePartnerStats } from '../../hooks/usePartnerStats';
 import { usePartnerAnalytics } from '../../hooks/usePartnerAnalytics';
 import { partnerService } from '../../services/partner';
@@ -9,8 +10,11 @@ import RevenueChart from './RevenueChart';
 import UserGrowthChart from './UserGrowthChart';
 import QuickMetrics from './QuickMetrics';
 import PriorityAlerts from './PriorityAlerts';
+import SuccessModal from '../UI/SuccessModal';
+import ErrorModal from '../UI/ErrorModal';
 
 const ImprovedPartnerDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const { stats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = usePartnerStats();
   const { analytics, isLoading: analyticsLoading, error: analyticsError } = usePartnerAnalytics();
   const [users, setUsers] = useState<PartnerUser[]>([]);
@@ -18,6 +22,9 @@ const ImprovedPartnerDashboard: React.FC = () => {
   const [usersError, setUsersError] = useState<string | null>(null);
   const [currentFilter, setCurrentFilter] = useState<'all' | 'direct' | 'children'>('all');
   const [exportLoading, setExportLoading] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const fetchUsers = async (filter: 'all' | 'direct' | 'children' = 'all') => {
     try {
@@ -38,6 +45,10 @@ const ImprovedPartnerDashboard: React.FC = () => {
 
   const handleFilterChange = (filter: 'all' | 'direct' | 'children') => {
     setCurrentFilter(filter);
+  };
+
+  const handleNavigateToEnrollmentDetail = (registrationId: string) => {
+    navigate(`/dashboard/users/${registrationId}`);
   };
 
   const formatCurrency = (amount: number) => {
@@ -63,7 +74,8 @@ const ImprovedPartnerDashboard: React.FC = () => {
 
       if (!response.ok) {
         const errorText = await response.text();
-        alert(`Errore ${response.status}: ${errorText}`);
+        setErrorMessage(`Errore ${response.status}: ${errorText}`);
+        setShowErrorModal(true);
         return;
       }
 
@@ -83,10 +95,11 @@ const ImprovedPartnerDashboard: React.FC = () => {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      alert('Export Excel completato! Il file è stato scaricato.');
+      setShowSuccessModal(true);
       
     } catch (error: any) {
-      alert('Errore durante l\'export: ' + error.message);
+      setErrorMessage('Errore durante l\'export: ' + error.message);
+      setShowErrorModal(true);
     } finally {
       setExportLoading(false);
     }
@@ -231,12 +244,12 @@ const ImprovedPartnerDashboard: React.FC = () => {
                 </h2>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="w-full">
                 <button 
                   type="button"
                   onClick={handleExportToExcel}
                   disabled={exportLoading}
-                  className="group relative overflow-hidden bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-medium py-4 px-6 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
+                  className="group w-full relative overflow-hidden bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-medium py-4 px-6 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
                 >
                   <div className="flex items-center justify-center">
                     {exportLoading ? (
@@ -259,14 +272,6 @@ const ImprovedPartnerDashboard: React.FC = () => {
                   <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 -skew-x-12 translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000"></div>
                 </button>
                 
-                <button className="group bg-slate-50 hover:bg-slate-100 border-2 border-slate-200 hover:border-slate-300 text-slate-700 font-medium py-4 px-6 rounded-xl transition-all duration-200">
-                  <div className="flex items-center justify-center">
-                    <svg className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                    Report Avanzato
-                  </div>
-                </button>
               </div>
               
               <div className="mt-4 p-4 bg-slate-50 rounded-lg">
@@ -356,6 +361,23 @@ const ImprovedPartnerDashboard: React.FC = () => {
           isLoading={usersLoading}
           onFilterChange={handleFilterChange}
           currentFilter={currentFilter}
+          onNavigateToEnrollmentDetail={handleNavigateToEnrollmentDetail}
+        />
+
+        {/* Success Modal */}
+        <SuccessModal
+          isOpen={showSuccessModal}
+          onClose={() => setShowSuccessModal(false)}
+          title="Export Completato!"
+          message="Il file Excel è stato scaricato con successo"
+        />
+
+        {/* Error Modal */}
+        <ErrorModal
+          isOpen={showErrorModal}
+          onClose={() => setShowErrorModal(false)}
+          title="Errore Export"
+          message={errorMessage}
         />
       </div>
     </div>

@@ -41,11 +41,13 @@ interface PaymentPlan {
 }
 
 const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext, onChange, offerInfo }) => {
+  console.log('EnrollmentStep rendered with:', { data, formData, offerInfo });
   const {
     register,
     handleSubmit,
     watch,
     control,
+    setValue,
     formState: { errors },
   } = useForm<EnrollmentForm>({
     resolver: zodResolver(enrollmentSchema),
@@ -107,6 +109,8 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
 
   // Load courses from offer info
   useEffect(() => {
+    console.log('Loading courses with offerInfo:', offerInfo);
+    
     if (offerInfo) {
       // Use the specific course from the offer
       const courseFromOffer: Course = {
@@ -117,6 +121,7 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
         isActive: offerInfo.course.isActive,
       };
 
+      console.log('Setting courses from offer:', [courseFromOffer]);
       setCourses([courseFromOffer]);
       setLoading(false);
     } else {
@@ -131,6 +136,7 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
         },
       ];
 
+      console.log('Setting mock courses:', mockCourses);
       setCourses(mockCourses);
       setLoading(false);
     }
@@ -144,6 +150,7 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
         // IMPORTANTE: Ogni offerta DEVE avere un piano di pagamento definito dal partner
         // Non mostrare opzioni multiple - solo quella configurata nell'offerta
         if (offerInfo) {
+          console.log('Loading payment plans for offer:', offerInfo);
           const totalAmount = Number(offerInfo.totalAmount);
           
           // Determina se è TFA Romania basandosi sul template del corso
@@ -155,13 +162,17 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
           let numberOfPayments: number;
           let useCustomSchedule = false;
           
-          if (offerInfo.customPaymentPlan && offerInfo.customPaymentPlan.payments.length > 0) {
+          if (offerInfo.customPaymentPlan && offerInfo.customPaymentPlan.payments && offerInfo.customPaymentPlan.payments.length > 0) {
             // Usa il piano personalizzato
             numberOfPayments = offerInfo.customPaymentPlan.payments.length;
             useCustomSchedule = true;
-          } else {
-            // Usa il numero di rate dall'offerta (fallback per pagamento unico)
+          } else if (offerInfo.installments && offerInfo.installments > 0) {
+            // Usa il numero di rate dall'offerta
             numberOfPayments = offerInfo.installments;
+            useCustomSchedule = false;
+          } else {
+            // Default a pagamento unico se non specificato
+            numberOfPayments = 1;
             useCustomSchedule = false;
           }
           
@@ -201,6 +212,7 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
           };
 
           // SOLO il piano del partner - nessuna alternativa
+          console.log('Setting payment plans:', [partnerPlan]);
           setPaymentPlans([partnerPlan]);
         } else {
           // ERRORE: Nessuna informazione offerta disponibile
@@ -218,28 +230,48 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
       // Auto-select the course from the offer
       const courseId = offerInfo.course.id;
       if (!selectedCourse) {
-        // Set the course ID
-        const event = { target: { value: courseId } };
-        register('courseId').onChange(event);
+        console.log('Auto-selecting course:', courseId);
+        setValue('courseId', courseId, { shouldValidate: true, shouldTouch: true });
+        // Trigger onChange manually to update parent
+        if (onChange) {
+          onChange({ courseId });
+        }
       }
     }
-  }, [offerInfo, courses, selectedCourse, register]);
+  }, [offerInfo, courses, selectedCourse, setValue, onChange]);
 
   // Auto-select the ONLY payment plan available (partner-defined)
   useEffect(() => {
+    console.log('Payment plan auto-selection check:', { 
+      paymentPlansLength: paymentPlans.length, 
+      selectedPaymentPlan,
+      paymentPlans: paymentPlans.map(p => ({ id: p.id, name: p.name }))
+    });
+    
     if (paymentPlans.length > 0 && !selectedPaymentPlan) {
       // Auto-select the partner plan (only option available)
       const partnerPlan = paymentPlans.find(plan => plan.id === 'partner-plan');
       if (partnerPlan) {
-        const event = { target: { value: partnerPlan.id } };
-        register('paymentPlan').onChange(event);
+        console.log('Auto-selecting payment plan:', partnerPlan.id);
+        setValue('paymentPlan', partnerPlan.id, { shouldValidate: true, shouldTouch: true });
+        // Trigger onChange manually to update parent
+        if (onChange) {
+          onChange({ paymentPlan: partnerPlan.id });
+        }
+      } else {
+        console.log('Partner plan not found in payment plans:', paymentPlans);
       }
+    } else if (paymentPlans.length === 0) {
+      console.log('No payment plans available yet');
+    } else {
+      console.log('Payment plan already selected:', selectedPaymentPlan);
     }
-  }, [paymentPlans, selectedPaymentPlan, register]);
+  }, [paymentPlans, selectedPaymentPlan, setValue, onChange]);
 
   // Watch all form values and update parent in real-time
   useEffect(() => {
     const subscription = watch((value) => {
+      console.log('Form values changed:', value);
       if (onChange) {
         onChange(value as Partial<EnrollmentForm>);
       }
@@ -431,7 +463,7 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
       <div>
         <h3 className="text-lg font-medium text-gray-900 mb-4">Opzioni di Iscrizione</h3>
-        {offerInfo?.customPaymentPlan && offerInfo.customPaymentPlan.payments.length > 0 ? (
+        {offerInfo?.customPaymentPlan && offerInfo.customPaymentPlan.payments && offerInfo.customPaymentPlan.payments.length > 0 ? (
           <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-start">
               <svg className="w-5 h-5 text-blue-600 mt-0.5 mr-3" fill="currentColor" viewBox="0 0 20 20">
@@ -441,6 +473,20 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
                 <h4 className="text-blue-900 font-semibold mb-1">Piano di Pagamento Definito</h4>
                 <p className="text-blue-800 text-sm">
                   Il partner ha configurato per questa offerta "{offerInfo.name}" un piano di pagamento specifico con {offerInfo.customPaymentPlan.payments.length === 1 ? 'pagamento unico' : `${offerInfo.customPaymentPlan.payments.length} rate`}. Questo è l'unico piano disponibile per questa offerta.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : offerInfo?.installments && offerInfo.installments > 0 ? (
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <svg className="w-5 h-5 text-blue-600 mt-0.5 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              <div>
+                <h4 className="text-blue-900 font-semibold mb-1">Piano di Pagamento Standard</h4>
+                <p className="text-blue-800 text-sm">
+                  Il partner ha configurato per questa offerta "{offerInfo.name}" un piano di pagamento {offerInfo.installments === 1 ? 'con pagamento unico' : `in ${offerInfo.installments} rate`}.
                 </p>
               </div>
             </div>
@@ -460,7 +506,7 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
               </div>
             </div>
           </div>
-        ) : (
+        ) : offerInfo ? (
           <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
             <div className="flex items-start">
               <svg className="w-5 h-5 text-red-600 mt-0.5 mr-3" fill="currentColor" viewBox="0 0 20 20">
@@ -474,7 +520,7 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
               </div>
             </div>
           </div>
-        )}
+        ) : null}
 
         {/* Coupon applicato - Indicazione */}
         {formData?.couponCode && (() => {

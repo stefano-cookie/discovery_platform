@@ -614,6 +614,43 @@ router.get('/check-referral/:code', async (req, res) => {
   try {
     const { code } = req.params;
     
+    // First, try to find as a direct referralLink (offer)
+    const directOffer = await prisma.partnerOffer.findFirst({
+      where: {
+        referralLink: code,
+        isActive: true
+      },
+      include: {
+        course: true,
+        partner: {
+          include: {
+            user: {
+              select: {
+                email: true
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    if (directOffer) {
+      // Found as direct offer link
+      return res.json({
+        valid: true,
+        partnerEmail: directOffer.partner.user.email,
+        partnerId: directOffer.partner.id,
+        offer: {
+          id: directOffer.id,
+          name: directOffer.name,
+          offerType: directOffer.offerType,
+          totalAmount: directOffer.totalAmount,
+          course: directOffer.course
+        }
+      });
+    }
+    
+    // If not found as direct offer, try legacy partner code logic
     // Check if this is a partner offer link (format: PARTNERCODE-OFFERID)
     let partnerCode = code;
     let offerId: string | null = null;
@@ -639,51 +676,37 @@ router.get('/check-referral/:code', async (req, res) => {
       return res.status(404).json({ error: 'Codice referral non valido' });
     }
     
+    let partnerOffer = null;
+    
     // If offerId is provided, check if the offer exists and belongs to this partner
-    let offer = null;
     if (offerId) {
-      // First try to find by referralLink (in case the full link is provided)
-      offer = await prisma.partnerOffer.findFirst({
+      // Try by the offerId part with partner check
+      partnerOffer = await prisma.partnerOffer.findFirst({
         where: {
-          referralLink: code,
+          id: offerId,
+          partnerId: partner.id,
           isActive: true
         },
         include: {
-          course: true,
-          partner: true
+          course: true
         }
       });
       
-      // If not found by referralLink, try by the offerId part with partner check
-      if (!offer) {
-        offer = await prisma.partnerOffer.findFirst({
-          where: {
-            id: offerId,
-            partnerId: partner.id,
-            isActive: true
-          },
-          include: {
-            course: true
-          }
-        });
+      if (!partnerOffer) {
+        return res.status(404).json({ error: 'Offerta non trovata o non attiva' });
       }
-    }
-    
-    // If we expected an offer but didn't find one, return error
-    if (offerId && !offer) {
-      return res.status(404).json({ error: 'Offerta non trovata o non attiva' });
     }
     
     res.json({
       valid: true,
       partnerEmail: partner.user.email,
       partnerId: partner.id,
-      offer: offer ? {
-        id: offer.id,
-        name: offer.name,
-        offerType: offer.offerType,
-        totalAmount: offer.totalAmount,
-        course: offer.course
+      offer: partnerOffer ? {
+        id: partnerOffer.id,
+        name: partnerOffer.name,
+        offerType: partnerOffer.offerType,
+        totalAmount: partnerOffer.totalAmount,
+        course: partnerOffer.course
       } : null
     });
     

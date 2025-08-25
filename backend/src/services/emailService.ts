@@ -81,11 +81,12 @@ class EmailService {
           .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
           .content { padding: 30px; }
           .verification-button { 
-            background-color: #0066cc; 
-            color: white; 
+            background-color: white; 
+            color: black; 
             padding: 15px 30px; 
             text-decoration: none; 
             border-radius: 6px; 
+            border: 2px solid #0066cc;
             font-weight: 600; 
             display: inline-block; 
             margin: 20px 0;
@@ -230,11 +231,12 @@ class EmailService {
           .success-icon { font-size: 48px; color: #059669; margin-bottom: 20px; text-align: center; }
           .document-info { background-color: #d1fae5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
           .dashboard-button { 
-            background-color: #0066cc; 
-            color: white; 
+            background-color: white; 
+            color: black; 
             padding: 12px 24px; 
             text-decoration: none; 
             border-radius: 6px; 
+            border: 2px solid #059669;
             font-weight: 600; 
             display: inline-block; 
             margin: 20px 0;
@@ -307,11 +309,12 @@ class EmailService {
           .steps-box { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 20px 0; }
           .requirements { background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 20px; margin: 20px 0; }
           .dashboard-button { 
-            background-color: #0066cc; 
-            color: white; 
+            background-color: white; 
+            color: black; 
             padding: 12px 24px; 
             text-decoration: none; 
             border-radius: 6px; 
+            border: 2px solid #dc2626;
             font-weight: 600; 
             display: inline-block; 
             margin: 20px 0;
@@ -574,11 +577,12 @@ class EmailService {
           .credential-label { font-weight: 600; color: #92400e; display: block; margin-bottom: 8px; }
           .credential-value { font-family: 'Courier New', monospace; font-size: 16px; color: #1f2937; background-color: #f8f9fa; padding: 10px; border-radius: 4px; word-break: break-all; border: 1px solid #dee2e6; }
           .login-button { 
-            background-color: #0066cc; 
-            color: white; 
+            background-color: white; 
+            color: black; 
             padding: 15px 30px; 
             text-decoration: none; 
             border-radius: 6px; 
+            border: 2px solid #0066cc;
             font-weight: 600; 
             display: inline-block; 
             margin: 25px 0;
@@ -712,11 +716,12 @@ class EmailService {
           .timestamp { font-weight: 600; color: #047857; font-size: 16px; }
           .security-notice { background-color: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; padding: 20px; margin: 25px 0; }
           .login-button { 
-            background-color: #0066cc; 
-            color: white; 
+            background-color: white; 
+            color: black; 
             padding: 12px 30px; 
             text-decoration: none; 
             border-radius: 6px; 
+            border: 2px solid #059669;
             font-weight: 600; 
             display: inline-block; 
             margin: 20px 0;
@@ -836,11 +841,12 @@ class EmailService {
           .info-label { font-weight: 600; color: #374151; }
           .info-value { color: #111827; }
           .dashboard-button { 
-            background-color: #0066cc; 
-            color: white; 
+            background-color: white; 
+            color: black; 
             padding: 15px 30px; 
             text-decoration: none; 
             border-radius: 6px; 
+            border: 2px solid #8b5cf6;
             font-weight: 600; 
             display: inline-block; 
             margin: 25px 0;
@@ -1014,7 +1020,7 @@ class EmailService {
     };
 
     const documentTypeName = documentTypeMap[documentType] || documentType;
-    const dashboardUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard`;
+    const dashboardUrl = `${process.env.FRONTEND_URL || ''}/dashboard`;
 
     const subject = '🚨 Documento non conforme - Azione richiesta';
 
@@ -1037,11 +1043,12 @@ class EmailService {
           .steps-box { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 20px 0; }
           .requirements { background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 20px; margin: 20px 0; }
           .dashboard-button { 
-            background-color: #0066cc; 
-            color: white; 
+            background-color: white; 
+            color: black; 
             padding: 12px 24px; 
             text-decoration: none; 
             border-radius: 6px; 
+            border: 2px solid #dc2626;
             font-weight: 600; 
             display: inline-block; 
             margin: 20px 0;
@@ -1167,7 +1174,7 @@ Team Diamante - Piattaforma Diamante
     };
 
     const documentTypeName = documentTypeMap[documentType] || documentType;
-    const dashboardUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard`;
+    const dashboardUrl = `${process.env.FRONTEND_URL || ''}/dashboard`;
 
     const subject = '✅ Documento approvato';
 
@@ -1187,11 +1194,12 @@ Team Diamante - Piattaforma Diamante
           .success-icon { font-size: 48px; color: #059669; margin-bottom: 20px; text-align: center; }
           .document-info { background-color: #d1fae5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
           .dashboard-button { 
-            background-color: #0066cc; 
-            color: white; 
+            background-color: white; 
+            color: black; 
             padding: 12px 24px; 
             text-decoration: none; 
             border-radius: 6px; 
+            border: 2px solid #059669;
             font-weight: 600; 
             display: inline-block; 
             margin: 20px 0;

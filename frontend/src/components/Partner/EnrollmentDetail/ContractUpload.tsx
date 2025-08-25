@@ -84,7 +84,7 @@ const ContractUpload: React.FC<ContractUploadProps> = ({ registrationId, onUploa
       formData.append('registrationId', registrationId);
 
       // Use correct backend URL
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+      const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
       const response = await fetch(`${API_BASE_URL}/partners/upload-signed-contract`, {
         method: 'POST',
         headers: {

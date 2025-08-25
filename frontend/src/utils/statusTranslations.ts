@@ -37,6 +37,18 @@ export const statusTranslations: Record<string, StatusConfig> = {
     bg: 'bg-green-100',
     text: 'text-green-800'
   },
+  DOCUMENTS_APPROVED: { 
+    label: 'Documenti Approvati', 
+    color: 'bg-blue-100 text-blue-800',
+    bg: 'bg-blue-100',
+    text: 'text-blue-800'
+  },
+  EXAM_REGISTERED: { 
+    label: 'Iscritto all\'Esame', 
+    color: 'bg-orange-100 text-orange-800',
+    bg: 'bg-orange-100',
+    text: 'text-orange-800'
+  },
   CNRED_RELEASED: { 
     label: 'CNRED Rilasciato', 
     color: 'bg-cyan-100 text-cyan-800',
@@ -106,6 +118,10 @@ export const getPartnerStatusDisplay = (status: string): string => {
       return 'Contratto Firmato';
     case 'ENROLLED':
       return 'Attivo';
+    case 'DOCUMENTS_APPROVED':
+      return 'Documenti Approvati';
+    case 'EXAM_REGISTERED':
+      return 'Iscritto all\'Esame';
     case 'CNRED_RELEASED':
       return 'CNRED Rilasciato';
     case 'FINAL_EXAM':
@@ -133,6 +149,10 @@ export const getUserStatusDisplay = (status: string): string => {
       return 'Contratto Firmato';
     case 'ENROLLED':
       return 'Iscritto';
+    case 'DOCUMENTS_APPROVED':
+      return 'Documenti Approvati';
+    case 'EXAM_REGISTERED':
+      return 'Iscritto all\'Esame';
     case 'CNRED_RELEASED':
       return 'CNRED Rilasciato';
     case 'FINAL_EXAM':

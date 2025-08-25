@@ -166,116 +166,6 @@ router.get('/users', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req
   }
 });
 
-// GET /api/partners/registrations/:registrationId/documents/unified - Get unified documents for a registration (partner view)
-router.get('/registrations/:registrationId/documents/unified', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
-  try {
-    const { registrationId } = req.params;
-    const partnerId = req.partner?.id || req.user?.partnerId;
-
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
-    }
-
-    // Verify the registration belongs to this partner
-    const registration = await prisma.registration.findFirst({
-      where: {
-        id: registrationId,
-        partnerId: partnerId
-      },
-      include: {
-        user: true,
-        offer: {
-          include: {
-            course: true
-          }
-        }
-      }
-    });
-
-    if (!registration) {
-      return res.status(404).json({ error: 'Registrazione non trovata' });
-    }
-
-    // Get course template type
-    const courseTemplateType = registration.offer?.course?.templateType || 'TFA';
-
-    // Define document types based on course template
-    const allDocumentTypes = courseTemplateType === 'CERTIFICATION' ? [
-      { type: 'IDENTITY_CARD', name: 'Carta d\'Identità', description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità' },
-      { type: 'DIPLOMA', name: 'Diploma di Laurea', description: 'Diploma di laurea (cartaceo o digitale)' }
-    ] : [
-      // TFA documents (9 types)
-      { type: 'IDENTITY_CARD', name: 'Carta d\'Identità', description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità' },
-      { type: 'TESSERA_SANITARIA', name: 'Tessera Sanitaria / Codice Fiscale', description: 'Tessera sanitaria o documento che attesti il codice fiscale' },
-      { type: 'BACHELOR_DEGREE', name: 'Certificato Laurea Triennale', description: 'Certificato di laurea triennale o diploma universitario' },
-      { type: 'MASTER_DEGREE', name: 'Certificato Laurea Magistrale', description: 'Certificato di laurea magistrale, specialistica o vecchio ordinamento' },
-      { type: 'TRANSCRIPT', name: 'Piano di Studio', description: 'Piano di studio con lista esami sostenuti' },
-      { type: 'MEDICAL_CERT', name: 'Certificato Medico', description: 'Certificato medico attestante la sana e robusta costituzione fisica e psichica' },
-      { type: 'BIRTH_CERT', name: 'Certificato di Nascita', description: 'Certificato di nascita o estratto di nascita dal Comune' },
-      { type: 'DIPLOMA', name: 'Diploma di Laurea', description: 'Diploma di laurea (cartaceo o digitale)' },
-      { type: 'OTHER', name: 'Altri Documenti', description: 'Altri documenti rilevanti' }
-    ];
-
-    // Get ALL documents for this user - no filter by registrationId
-    // Partner can see all user documents to have complete view
-    const userDocuments = await prisma.userDocument.findMany({
-      where: {
-        userId: registration.userId,
-        // Filter only by valid document types for this course template
-        type: {
-          in: allDocumentTypes.map(dt => dt.type) as any
-        }
-      },
-      include: {
-        verifier: {
-          select: { id: true, email: true }
-        },
-        uploader: {
-          select: { id: true, email: true }
-        }
-      },
-      orderBy: { uploadedAt: 'desc' }
-    });
-
-    // Map to unified structure
-    const documents = allDocumentTypes.map(docType => {
-      const userDoc = userDocuments.find(doc => doc.type === docType.type);
-      
-      return {
-        id: userDoc?.id || `empty-${docType.type}`,
-        type: docType.type,
-        name: docType.name,
-        description: docType.description,
-        uploaded: !!userDoc,
-        fileName: userDoc?.originalName,
-        originalName: userDoc?.originalName,
-        mimeType: userDoc?.mimeType,
-        size: userDoc?.size,
-        uploadedAt: userDoc?.uploadedAt?.toISOString(),
-        documentId: userDoc?.id,
-        status: userDoc?.status,
-        rejectionReason: userDoc?.rejectionReason,
-        rejectionDetails: userDoc?.rejectionDetails,
-        verifiedBy: userDoc?.verifier?.email,
-        verifiedAt: userDoc?.verifiedAt?.toISOString(),
-        uploadSource: userDoc?.uploadSource,
-        isVerified: userDoc?.status === 'APPROVED'
-      };
-    });
-
-    const uploadedCount = documents.filter(doc => doc.uploaded).length;
-    const totalCount = documents.length;
-
-    res.json({ 
-      documents,
-      uploadedCount,
-      totalCount
-    });
-  } catch (error) {
-    console.error('Error getting unified documents for partner:', error);
-    res.status(500).json({ error: 'Errore nel recupero dei documenti' });
-  }
-});
 
 // Get documents for a specific registration
 router.get('/registrations/:registrationId/documents', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
@@ -1632,7 +1522,7 @@ router.get('/registrations/:registrationId/deadlines', authenticate, requireRole
       paymentStatus: d.paymentStatus
     }));
 
-    // Calculate remaining amount properly including partial payments
+    // Calculate remaining amount properly including custom payments
     const totalPaid = deadlines.reduce((sum, d) => {
       if (d.isPaid) {
         return sum + Number(d.amount);
@@ -1742,12 +1632,41 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-paid', aut
     const totalPaid = paidDeadlines.reduce((sum, d) => sum + Number(d.amount), 0);
     const remainingAmount = Number(registration.finalAmount) - totalPaid;
 
-    // Update registration with remaining amount
+    // Check if all payments are completed for status update
+    const allDeadlines = await prisma.paymentDeadline.findMany({
+      where: { registrationId }
+    });
+    const allDeadlinesPaid = allDeadlines.every(d => d.paymentStatus === 'PAID');
+    
+    // Update registration with remaining amount and status
+    const updateData: any = {
+      remainingAmount: remainingAmount
+    };
+    
+    // For certifications, automatically move to ENROLLED when all payments are completed
+    // We need to fetch offer info since it's not included in the registration
+    const registrationWithOffer = await prisma.registration.findUnique({
+      where: { id: registrationId },
+      include: { offer: true }
+    });
+    
+    // Debug logging
+    console.log('Payment completion check:', {
+      allDeadlinesPaid,
+      currentStatus: registration.status,
+      offerType: registrationWithOffer?.offer?.offerType,
+      registrationId
+    });
+    
+    if (allDeadlinesPaid && registration.status === 'PENDING' && registrationWithOffer?.offer?.offerType === 'CERTIFICATION') {
+      console.log('Updating registration status to ENROLLED for certification');
+      updateData.status = 'ENROLLED';
+      updateData.enrolledAt = new Date();
+    }
+    
     await prisma.registration.update({
       where: { id: registrationId },
-      data: {
-        remainingAmount: remainingAmount
-      }
+      data: updateData
     });
 
     // Get next unpaid deadline
@@ -1776,7 +1695,7 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-paid', aut
   }
 });
 
-// Mark payment deadline as partially paid
+// Mark payment deadline as custom paid
 router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-paid', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
   try {
     const partnerId = req.partner?.id;
@@ -1788,7 +1707,7 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-pa
     }
 
     if (!partialAmount || partialAmount <= 0) {
-      return res.status(400).json({ error: 'Importo parziale non valido' });
+      return res.status(400).json({ error: 'Importo personalizzato non valido' });
     }
 
     // Verify registration belongs to partner
@@ -1827,21 +1746,46 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-pa
     const deadlineAmount = Number(deadline.amount);
     const partialAmountNum = Number(partialAmount);
 
-    if (partialAmountNum >= deadlineAmount) {
-      return res.status(400).json({ error: 'Importo parziale non può essere maggiore o uguale all\'importo totale' });
+    // Calculate total delayed amount from all existing custom payments for this registration
+    const allPartialDeadlines = await prisma.paymentDeadline.findMany({
+      where: {
+        registrationId,
+        paymentStatus: 'PARTIAL'
+      }
+    });
+
+    const totalDelayedAmount = allPartialDeadlines.reduce((sum, d) => {
+      if (d.partialAmount) {
+        return sum + (Number(d.amount) - Number(d.partialAmount));
+      }
+      return sum;
+    }, 0);
+
+    // Maximum allowed is current deadline amount + total delayed amount
+    const maxAllowedAmount = deadlineAmount + totalDelayedAmount;
+
+    if (partialAmountNum > maxAllowedAmount) {
+      return res.status(400).json({ 
+        error: `Importo troppo alto. Massimo consentito: €${maxAllowedAmount.toFixed(2)} (Rata: €${deadlineAmount.toFixed(2)} + Ritardi: €${totalDelayedAmount.toFixed(2)})` 
+      });
     }
 
-    // Mark deadline as partially paid and create payment record
+    // Mark deadline as custom paid and create payment record
     const paymentDate = new Date();
-    const delayAmount = deadlineAmount - partialAmountNum;
+    
+    // Determine if this is a full payment, partial payment, or overpayment
+    const isFullPayment = partialAmountNum === deadlineAmount;
+    const isOverpayment = partialAmountNum > deadlineAmount;
+    const excessAmount = isOverpayment ? partialAmountNum - deadlineAmount : 0;
     
     await prisma.$transaction(async (tx) => {
-      // Update deadline with partial payment
+      // Update deadline with custom payment
       await tx.paymentDeadline.update({
         where: { id: deadlineId },
         data: {
-          partialAmount: partialAmountNum,
-          paymentStatus: 'PARTIAL',
+          partialAmount: isFullPayment ? null : partialAmountNum,
+          paymentStatus: isFullPayment ? 'PAID' : 'PARTIAL',
+          isPaid: isFullPayment,
           paidAt: paymentDate,
           notes
         }
@@ -1858,12 +1802,14 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-pa
           isConfirmed: true,
           confirmedBy: req.user!.id,
           confirmedAt: paymentDate,
-          notes: `Pagamento parziale: €${partialAmountNum} di €${deadlineAmount}. ${notes || ''}`.trim(),
+          notes: isOverpayment 
+            ? `Pagamento personalizzato: €${partialAmountNum} (Rata: €${deadlineAmount} + Riduzione ritardi: €${excessAmount.toFixed(2)}). ${notes || ''}`.trim()
+            : `Pagamento personalizzato: €${partialAmountNum} di €${deadlineAmount}. ${notes || ''}`.trim(),
           createdBy: req.user!.id
         }
       });
 
-      // Calculate total delayed amount from all partial payments
+      // Calculate total delayed amount from all custom payments
       const allPartialDeadlines = await tx.paymentDeadline.findMany({
         where: {
           registrationId,
@@ -1871,9 +1817,14 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-pa
         }
       });
       
-      const totalDelayedAmount = allPartialDeadlines.reduce((sum, d) => {
+      let totalDelayedAmount = allPartialDeadlines.reduce((sum, d) => {
         return sum + (Number(d.amount) - Number(d.partialAmount || 0));
       }, 0);
+      
+      // If there was an overpayment, reduce the total delayed amount
+      if (isOverpayment) {
+        totalDelayedAmount = Math.max(0, totalDelayedAmount - excessAmount);
+      }
       
       await tx.registration.update({
         where: { id: registrationId },
@@ -1904,14 +1855,44 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-pa
     }, 0);
 
     const remainingAmount = Number(registration.finalAmount) - totalPaid;
-    const totalDelayedAmount = Number(registration.delayedAmount || 0) + delayAmount;
 
-    // Update registration with remaining amount
+    // Get the updated delayed amount from the transaction
+    const updatedRegistration = await prisma.registration.findUnique({
+      where: { id: registrationId },
+      select: { delayedAmount: true }
+    });
+
+    // Check if all payments are completed for status update (for partial payments too)
+    const allDeadlines = await prisma.paymentDeadline.findMany({
+      where: { registrationId },
+      include: { registration: { include: { offer: true } } }
+    });
+    const allDeadlinesPaid = allDeadlines.every(d => d.paymentStatus === 'PAID');
+    const registrationWithOffer = allDeadlines[0]?.registration;
+    
+    // Update registration with remaining amount and potentially status
+    const updateData: any = {
+      remainingAmount: remainingAmount
+    };
+    
+    // Debug logging for partial payments
+    console.log('Partial payment completion check:', {
+      allDeadlinesPaid,
+      currentStatus: registrationWithOffer?.status,
+      offerType: registrationWithOffer?.offer?.offerType,
+      registrationId
+    });
+    
+    // For certifications, automatically move to ENROLLED when all payments are completed
+    if (allDeadlinesPaid && registrationWithOffer?.status === 'PENDING' && registrationWithOffer?.offer?.offerType === 'CERTIFICATION') {
+      console.log('Updating registration status to ENROLLED for certification (partial payments)');
+      updateData.status = 'ENROLLED';
+      updateData.enrolledAt = new Date();
+    }
+    
     await prisma.registration.update({
       where: { id: registrationId },
-      data: {
-        remainingAmount: remainingAmount
-      }
+      data: updateData
     });
 
     // Get next unpaid deadline
@@ -1928,10 +1909,10 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-pa
       success: true,
       remainingAmount,
       totalPaid,
-      delayedAmount: totalDelayedAmount,
+      delayedAmount: Number(updatedRegistration?.delayedAmount || 0),
       partialPayment: {
         amount: partialAmountNum,
-        delayAmount,
+        excessAmount: isOverpayment ? excessAmount : 0,
         deadlineId
       },
       nextDeadline: nextDeadline ? {
@@ -1942,7 +1923,7 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-pa
       } : null
     });
   } catch (error) {
-    console.error('Mark partial payment error:', error);
+    console.error('Mark custom payment error:', error);
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -2588,18 +2569,29 @@ router.get('/registrations/:registrationId/documents/unified', authenticate, req
       return res.status(404).json({ error: 'Iscrizione non trovata' });
     }
 
-    // Document types that exist in the database enum
-    const documentTypes = [
-      { type: 'IDENTITY_CARD', name: 'Carta d\'Identità', description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità' },
-      { type: 'TESSERA_SANITARIA', name: 'Tessera Sanitaria', description: 'Tessera sanitaria o documento che attesti il codice fiscale' },
-      { type: 'BACHELOR_DEGREE', name: 'Certificato Laurea Triennale', description: 'Certificato di laurea triennale o diploma universitario' },
-      { type: 'MASTER_DEGREE', name: 'Certificato Laurea Magistrale', description: 'Certificato di laurea magistrale, specialistica o vecchio ordinamento' },
-      { type: 'TRANSCRIPT', name: 'Piano di Studio', description: 'Piano di studio con lista esami sostenuti' },
-      { type: 'MEDICAL_CERT', name: 'Certificato Medico', description: 'Certificato medico attestante la sana e robusta costituzione fisica e psichica' },
-      { type: 'BIRTH_CERT', name: 'Certificato di Nascita', description: 'Certificato di nascita o estratto di nascita dal Comune' },
-      { type: 'DIPLOMA', name: 'Diploma di Laurea', description: 'Diploma di laurea (cartaceo o digitale)' },
-      { type: 'OTHER', name: 'Altri Documenti', description: 'Altri documenti rilevanti' }
-    ];
+    // Document types based on offer type
+    let documentTypes = [];
+    
+    if (registration.offer?.offerType === 'CERTIFICATION') {
+      // For certifications, only basic documents are required
+      documentTypes = [
+        { type: 'IDENTITY_CARD', name: 'Carta d\'Identità', description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità' },
+        { type: 'TESSERA_SANITARIA', name: 'Tessera Sanitaria', description: 'Tessera sanitaria o documento che attesti il codice fiscale' }
+      ];
+    } else {
+      // For TFA, all documents are required
+      documentTypes = [
+        { type: 'IDENTITY_CARD', name: 'Carta d\'Identità', description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità' },
+        { type: 'TESSERA_SANITARIA', name: 'Tessera Sanitaria', description: 'Tessera sanitaria o documento che attesti il codice fiscale' },
+        { type: 'BACHELOR_DEGREE', name: 'Certificato Laurea Triennale', description: 'Certificato di laurea triennale o diploma universitario' },
+        { type: 'MASTER_DEGREE', name: 'Certificato Laurea Magistrale', description: 'Certificato di laurea magistrale, specialistica o vecchio ordinamento' },
+        { type: 'TRANSCRIPT', name: 'Piano di Studio', description: 'Piano di studio con lista esami sostenuti' },
+        { type: 'MEDICAL_CERT', name: 'Certificato Medico', description: 'Certificato medico attestante la sana e robusta costituzione fisica e psichica' },
+        { type: 'BIRTH_CERT', name: 'Certificato di Nascita', description: 'Certificato di nascita o estratto di nascita dal Comune' },
+        { type: 'DIPLOMA', name: 'Diploma di Laurea', description: 'Diploma di laurea (cartaceo o digitale)' },
+        { type: 'OTHER', name: 'Altri Documenti', description: 'Altri documenti rilevanti' }
+      ];
+    }
 
     // Get all documents for this user (from all sources)
     const userDocuments = await prisma.userDocument.findMany({
@@ -2623,6 +2615,17 @@ router.get('/registrations/:registrationId/documents/unified', authenticate, req
         }
       },
       orderBy: { uploadedAt: 'desc' }
+    });
+
+    // Debug logging
+    console.log('Documents debug:', {
+      registrationId,
+      userId: registration.userId,
+      offerType: registration.offer?.offerType,
+      documentTypesCount: documentTypes.length,
+      documentTypes: documentTypes.map(dt => dt.type),
+      userDocumentsCount: userDocuments.length,
+      userDocuments: userDocuments.map(ud => ({ type: ud.type, name: ud.originalName, status: ud.status }))
     });
 
     // Create unified document structure
@@ -2724,6 +2727,44 @@ router.post('/documents/:documentId/approve', authenticate, requireRole(['PARTNE
         details: { notes: notes || 'Documento approvato' }
       }
     });
+
+    // Check if all required documents are now approved for CERTIFICATION registrations
+    for (const registration of document.user.registrations) {
+      if (registration.status === 'ENROLLED') {
+        // Get registration with offer details
+        const regWithOffer = await prisma.registration.findUnique({
+          where: { id: registration.id },
+          include: { offer: true }
+        });
+
+        if (regWithOffer?.offer?.offerType === 'CERTIFICATION') {
+          // For certification, check if both IDENTITY_CARD and TESSERA_SANITARIA are approved
+          const requiredDocs = await prisma.userDocument.findMany({
+            where: {
+              userId: document.user.id,
+              type: { in: ['IDENTITY_CARD', 'TESSERA_SANITARIA'] },
+              status: 'APPROVED'
+            }
+          });
+
+          console.log('Checking auto-approval for certification:', {
+            registrationId: registration.id,
+            approvedDocs: requiredDocs.length,
+            requiredDocsTypes: requiredDocs.map(d => d.type)
+          });
+
+          // If both documents are approved, automatically advance to DOCUMENTS_APPROVED
+          if (requiredDocs.length === 2) {
+            await prisma.registration.update({
+              where: { id: registration.id },
+              data: { status: 'DOCUMENTS_APPROVED' }
+            });
+            
+            console.log('Auto-advanced certification to DOCUMENTS_APPROVED:', registration.id);
+          }
+        }
+      }
+    }
 
     res.json({
       message: 'Documento approvato con successo',
@@ -3045,7 +3086,272 @@ router.get('/export/registrations', authenticate, requireRole(['PARTNER']), asyn
   }
 });
 
+// ==================== CERTIFICATION 5-STEP WORKFLOW ====================
+
+// Step 3: Mark documents as approved (carta identità + tessera sanitaria)
+router.post('/registrations/:registrationId/certification-docs-approved', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const { registrationId } = req.params;
+    const partnerId = req.partner?.id;
+
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    const registration = await prisma.registration.findFirst({
+      where: { id: registrationId, partnerId },
+      include: { offer: true }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    if (registration.offer?.offerType !== 'CERTIFICATION') {
+      return res.status(400).json({ error: 'Step disponibile solo per corsi di certificazione' });
+    }
+
+    // Update status to documents approved
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: { status: 'DOCUMENTS_APPROVED' }
+    });
+
+    res.json({ success: true, message: 'Documenti approvati per certificazione' });
+  } catch (error) {
+    console.error('Errore approvazione documenti certificazione:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Step 4: Register for exam
+router.post('/registrations/:registrationId/certification-exam-registered', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const { registrationId } = req.params;
+    const partnerId = req.partner?.id;
+    const { examDate } = req.body;
+
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    if (!examDate) {
+      return res.status(400).json({ error: 'Data esame richiesta' });
+    }
+
+    const registration = await prisma.registration.findFirst({
+      where: { id: registrationId, partnerId },
+      include: { offer: true }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    if (registration.offer?.offerType !== 'CERTIFICATION') {
+      return res.status(400).json({ error: 'Step disponibile solo per corsi di certificazione' });
+    }
+
+    // Update with exam date and status
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        examDate: new Date(examDate),
+        examRegisteredBy: partnerId,
+        status: 'EXAM_REGISTERED'
+      }
+    });
+
+    res.json({ success: true, message: 'Iscrizione all\'esame registrata' });
+  } catch (error) {
+    console.error('Errore registrazione esame certificazione:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Step 5: Mark exam as completed
+router.post('/registrations/:registrationId/certification-exam-completed', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const { registrationId } = req.params;
+    const partnerId = req.partner?.id;
+    const { completedDate } = req.body;
+
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    const registration = await prisma.registration.findFirst({
+      where: { id: registrationId, partnerId },
+      include: { offer: true }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    if (registration.offer?.offerType !== 'CERTIFICATION') {
+      return res.status(400).json({ error: 'Step disponibile solo per corsi di certificazione' });
+    }
+
+    // Update with completion date and final status
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        examCompletedDate: completedDate ? new Date(completedDate) : new Date(),
+        examCompletedBy: partnerId,
+        status: 'COMPLETED'
+      }
+    });
+
+    res.json({ success: true, message: 'Esame completato' });
+  } catch (error) {
+    console.error('Errore completamento esame certificazione:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Get certification steps progress  
+router.get('/registrations/:registrationId/certification-steps', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const { registrationId } = req.params;
+    const partnerId = req.partner?.id;
+
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    const registration = await prisma.registration.findFirst({
+      where: { id: registrationId, partnerId },
+      include: { 
+        offer: true,
+        deadlines: true
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    if (registration.offer?.offerType !== 'CERTIFICATION') {
+      return res.status(400).json({ error: 'Steps disponibili solo per corsi di certificazione' });
+    }
+
+    // Check if all payments are completed
+    const allDeadlinesPaid = registration.deadlines.every(d => d.paymentStatus === 'PAID');
+
+    // Build certification steps
+    const steps = {
+      enrollment: {
+        step: 1,
+        title: 'Iscrizione Completata',
+        description: 'Iscrizione al corso di certificazione completata',
+        completed: true,
+        completedAt: registration.createdAt,
+        status: 'completed'
+      },
+      payment: {
+        step: 2,
+        title: 'Pagamento Completato',
+        description: 'Tutti i pagamenti sono stati completati',
+        completed: allDeadlinesPaid,
+        completedAt: allDeadlinesPaid ? registration.deadlines.find(d => d.paymentStatus === 'PAID')?.paidAt : null,
+        status: allDeadlinesPaid ? 'completed' : 
+                (registration.status === 'ENROLLED' ? 'current' : 'pending')
+      },
+      documentsApproved: {
+        step: 3,
+        title: 'Documenti Approvati',
+        description: 'Carta d\'identità e tessera sanitaria approvate',
+        completed: registration.status === 'DOCUMENTS_APPROVED' || 
+                   ['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status),
+        completedAt: registration.status === 'DOCUMENTS_APPROVED' ? new Date() : null,
+        status: registration.status === 'DOCUMENTS_APPROVED' ? 'current' :
+                (['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 'completed' : 'pending')
+      },
+      examRegistered: {
+        step: 4,
+        title: 'Iscritto all\'Esame',
+        description: 'Iscrizione all\'esame di certificazione completata',
+        completed: !!registration.examDate,
+        completedAt: registration.examDate,
+        status: registration.status === 'EXAM_REGISTERED' ? 'current' :
+                (!!registration.examDate ? 'completed' : 'pending')
+      },
+      examCompleted: {
+        step: 5,
+        title: 'Esame Sostenuto',
+        description: 'Esame di certificazione completato con successo',
+        completed: !!registration.examCompletedDate,
+        completedAt: registration.examCompletedDate,
+        status: registration.status === 'COMPLETED' ? 'completed' : 'pending'
+      }
+    };
+
+    res.json({
+      registrationId: registration.id,
+      currentStatus: registration.status,
+      steps
+    });
+
+  } catch (error) {
+    console.error('Certification steps error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
 // ==================== TFA POST-ENROLLMENT STEPS ====================
+
+// Step 0: Register admission test
+router.post('/registrations/:registrationId/admission-test', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const { registrationId } = req.params;
+    const partnerId = req.partner?.id;
+    const { testDate, passed = true } = req.body;
+
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    if (!testDate) {
+      return res.status(400).json({ error: 'Data test richiesta' });
+    }
+
+    const registration = await prisma.registration.findFirst({
+      where: { id: registrationId, partnerId },
+      include: { 
+        offer: true,
+        user: {
+          include: {
+            profile: true
+          }
+        }
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    if (registration.offer?.offerType !== 'TFA_ROMANIA') {
+      return res.status(400).json({ error: 'Step disponibile solo per corsi TFA' });
+    }
+
+    // Update registration with admission test data
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        admissionTestDate: new Date(testDate),
+        admissionTestBy: partnerId,
+        admissionTestPassed: Boolean(passed)
+      }
+    });
+
+    res.json({ success: true, message: 'Test d\'ingresso registrato con successo' });
+  } catch (error) {
+    console.error('Errore registrazione test d\'ingresso:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
 
 // Step 1: Register CNRED release
 router.post('/registrations/:registrationId/cnred-release', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
@@ -3384,18 +3690,28 @@ router.get('/registrations/:registrationId/tfa-steps', authenticate, requireRole
 
     // Build steps progress object
     const steps = {
-      cnredRelease: {
+      admissionTest: {
         step: 1,
+        title: 'Test d\'Ingresso',
+        description: 'Test preliminare per l\'ammissione al corso TFA',
+        completed: !!registration.admissionTestDate,
+        completedAt: registration.admissionTestDate,
+        passed: registration.admissionTestPassed,
+        status: !!registration.admissionTestDate ? 'completed' : 
+                (['CONTRACT_SIGNED', 'ENROLLED'].includes(registration.status) ? 'current' : 'pending')
+      },
+      cnredRelease: {
+        step: 2,
         title: 'Rilascio CNRED',
         description: 'Il CNRED (Codice Nazionale di Riconoscimento Europeo dei Diplomi) è stato rilasciato',
         completed: !!registration.cnredReleasedAt,
         completedAt: registration.cnredReleasedAt,
         status: registration.status === 'CNRED_RELEASED' ? 'current' : 
                 (!!registration.cnredReleasedAt ? 'completed' : 
-                  (['CONTRACT_SIGNED', 'ENROLLED'].includes(registration.status) ? 'current' : 'pending'))
+                  (registration.admissionTestDate ? 'current' : 'pending'))
       },
       finalExam: {
-        step: 2,
+        step: 3,
         title: 'Esame Finale',
         description: 'Sostenimento dell\'esame finale del corso TFA',
         completed: !!registration.finalExamDate,
@@ -3405,7 +3721,7 @@ router.get('/registrations/:registrationId/tfa-steps', authenticate, requireRole
                 (!!registration.finalExamDate ? 'completed' : 'pending')
       },
       recognitionRequest: {
-        step: 3,
+        step: 4,
         title: 'Richiesta Riconoscimento',
         description: 'Invio richiesta di riconoscimento del titolo conseguito',
         completed: !!registration.recognitionRequestDate,
@@ -3415,7 +3731,7 @@ router.get('/registrations/:registrationId/tfa-steps', authenticate, requireRole
                 (!!registration.recognitionRequestDate ? 'completed' : 'pending')
       },
       finalCompletion: {
-        step: 4,
+        step: 5,
         title: 'Corso Completato',
         description: 'Riconoscimento approvato - corso TFA completamente terminato',
         completed: registration.status === 'COMPLETED',

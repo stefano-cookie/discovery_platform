@@ -5,6 +5,7 @@ import UserEnrollmentFlow from './UserEnrollmentFlow';
 import UserContractSection from './UserContractSection';
 import MyDocuments from '../Documents/MyDocuments';
 import TfaSteps from './TfaSteps';
+import CertificationSteps from './CertificationSteps';
 import { getUserStatusDisplay, getStatusTranslation } from '../../../utils/statusTranslations';
 
 interface UserRegistration {
@@ -301,7 +302,7 @@ const UserEnrollmentDetail: React.FC<UserEnrollmentDetailProps> = ({
                               ? 'bg-red-100 text-red-800'
                               : 'bg-gray-100 text-gray-800'
                         }`}>
-                          {deadline.isPaid ? 'Pagata' : deadline.paymentStatus === 'PARTIAL' ? 'Parziale' : isOverdue ? 'Scaduta' : 'In attesa'}
+                          {deadline.isPaid ? 'Pagata' : deadline.paymentStatus === 'PARTIAL' ? 'Personalizzato' : isOverdue ? 'Scaduta' : 'In attesa'}
                         </span>
                       </div>
                       
@@ -323,7 +324,7 @@ const UserEnrollmentDetail: React.FC<UserEnrollmentDetailProps> = ({
                       <div className="text-xs text-gray-500">
                         Scadenza: {formatDate(deadline.dueDate)}
                         {deadline.isPaid && ' - Pagata'}
-                        {deadline.paymentStatus === 'PARTIAL' && ' - Pagamento Parziale'}
+                        {deadline.paymentStatus === 'PARTIAL' && ' - Pagamento Personalizzato'}
                       </div>
                       
                       {deadline.notes && (
@@ -355,8 +356,10 @@ const UserEnrollmentDetail: React.FC<UserEnrollmentDetailProps> = ({
             </div>
           )}
 
-          {/* Contract Section */}
-          <UserContractSection registration={registration} />
+          {/* Contract Section - Only for TFA */}
+          {registration.offerType === 'TFA_ROMANIA' && (
+            <UserContractSection registration={registration} />
+          )}
 
           {/* TFA Post-enrollment Steps */}
           {registration.offerType === 'TFA_ROMANIA' && registration.status !== 'PENDING' && registration.status !== 'DATA_VERIFIED' && (
@@ -364,6 +367,13 @@ const UserEnrollmentDetail: React.FC<UserEnrollmentDetailProps> = ({
               <TfaSteps registrationId={registration.id} />
             </div>
           )}
+
+          {/* Certification Steps - Nascosto perché già mostrato in UserEnrollmentFlow */}
+          {/* {registration.offerType === 'CERTIFICATION' && registration.status !== 'PENDING' && (
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <CertificationSteps registrationId={registration.id} />
+            </div>
+          )} */}
 
           {/* Documents Section */}
           {user && (

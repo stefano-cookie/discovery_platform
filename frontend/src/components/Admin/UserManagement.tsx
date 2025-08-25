@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../services/api';
+import SuccessModal from '../UI/SuccessModal';
+import ErrorModal from '../UI/ErrorModal';
 
 interface User {
   id: string;
@@ -75,6 +77,9 @@ const UserManagement: React.FC = () => {
     reason: ''
   });
   const [exportLoading, setExportLoading] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     loadData();
@@ -164,10 +169,11 @@ const UserManagement: React.FC = () => {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      alert('Export Excel completato con successo!');
+      setShowSuccessModal(true);
     } catch (error) {
       console.error('Error exporting registrations:', error);
-      alert('Errore durante l\'export. Riprova più tardi.');
+      setErrorMessage('Errore durante l\'export. Riprova più tardi.');
+      setShowErrorModal(true);
     } finally {
       setExportLoading(false);
     }
@@ -385,6 +391,22 @@ const UserManagement: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        title="Export Completato!"
+        message="Il file Excel è stato scaricato con successo"
+      />
+
+      {/* Error Modal */}
+      <ErrorModal
+        isOpen={showErrorModal}
+        onClose={() => setShowErrorModal(false)}
+        title="Errore Export"
+        message={errorMessage}
+      />
 
       {/* Transfer Modal */}
       {showTransferModal && selectedUser && (

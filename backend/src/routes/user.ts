@@ -352,7 +352,7 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
     });
     
     const formattedRegistrations = registrations.map(reg => {
-      // Calculate total paid amount including partial payments
+      // Calculate total paid amount including custom payments
       const totalPaid = reg.deadlines.reduce((sum, deadline) => {
         if (deadline.isPaid) {
           return sum + Number(deadline.amount);
@@ -365,7 +365,7 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
       // Calculate remaining amount
       const remainingAmount = Number(reg.finalAmount) - totalPaid;
       
-      // Calculate total delayed amount from partial payments
+      // Calculate total delayed amount from custom payments
       const totalDelayedAmount = reg.deadlines.reduce((sum, deadline) => {
         if (deadline.paymentStatus === 'PARTIAL' && deadline.partialAmount) {
           return sum + (Number(deadline.amount) - Number(deadline.partialAmount));
@@ -382,6 +382,7 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
       // Count paid, partial, and unpaid deadlines
       const paidDeadlines = reg.deadlines.filter(d => d.isPaid).length;
       const partialDeadlines = reg.deadlines.filter(d => d.paymentStatus === 'PARTIAL').length;
+      const customDeadlines = reg.deadlines.filter(d => d.paymentStatus === 'PARTIAL').length;
       const unpaidDeadlines = reg.deadlines.filter(d => !d.isPaid && d.paymentStatus !== 'PARTIAL').length;
       
       return {
@@ -1571,6 +1572,101 @@ router.get('/tfa-steps/:registrationId', authenticate, async (req: AuthRequest, 
   } catch (error) {
     console.error('Error getting TFA steps:', error);
     res.status(500).json({ error: 'Errore nel recupero steps TFA' });
+  }
+});
+
+// Get certification steps for a registration
+router.get('/certification-steps/:registrationId', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { registrationId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Utente non autenticato' });
+    }
+
+    const registration = await prisma.registration.findFirst({
+      where: { 
+        id: registrationId, 
+        userId 
+      },
+      include: { 
+        offer: true,
+        deadlines: {
+          orderBy: { paymentNumber: 'asc' }
+        }
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    if (registration.offer?.offerType !== 'CERTIFICATION') {
+      return res.status(400).json({ error: 'Steps disponibili solo per corsi di certificazione' });
+    }
+
+    // Check if all payments are completed
+    const allDeadlinesPaid = registration.deadlines.every(d => d.paymentStatus === 'PAID');
+
+    // Build certification steps
+    const steps = {
+      enrollment: {
+        step: 1,
+        title: 'Iscrizione Completata',
+        description: 'La tua iscrizione al corso di certificazione è stata completata',
+        completed: true,
+        completedAt: registration.createdAt,
+        status: 'completed' as const
+      },
+      payment: {
+        step: 2,
+        title: 'Pagamento Completato',
+        description: 'Tutti i pagamenti devono essere completati',
+        completed: allDeadlinesPaid,
+        completedAt: allDeadlinesPaid ? registration.deadlines.find(d => d.paymentStatus === 'PAID')?.paidAt : null,
+        status: allDeadlinesPaid ? 'completed' as const : 
+                (registration.status === 'ENROLLED' ? 'current' as const : 'pending' as const)
+      },
+      documentsApproved: {
+        step: 3,
+        title: 'Documenti Approvati',
+        description: 'Carta d\'identità e tessera sanitaria verificate',
+        completed: registration.status === 'DOCUMENTS_APPROVED' || 
+                   ['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status),
+        completedAt: ['DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 
+                     registration.createdAt : null,
+        status: registration.status === 'DOCUMENTS_APPROVED' ? 'current' as const :
+                (['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 'completed' as const : 'pending' as const)
+      },
+      examRegistered: {
+        step: 4,
+        title: 'Iscritto all\'Esame',
+        description: 'Iscrizione all\'esame di certificazione confermata',
+        completed: !!registration.examDate,
+        completedAt: registration.examDate,
+        status: registration.status === 'EXAM_REGISTERED' ? 'current' as const :
+                (!!registration.examDate ? 'completed' as const : 'pending' as const)
+      },
+      examCompleted: {
+        step: 5,
+        title: 'Esame Sostenuto',
+        description: 'Esame di certificazione completato con successo',
+        completed: !!registration.examCompletedDate,
+        completedAt: registration.examCompletedDate,
+        status: registration.status === 'COMPLETED' ? 'completed' as const : 'pending' as const
+      }
+    };
+
+    res.json({
+      registrationId: registration.id,
+      currentStatus: registration.status,
+      steps
+    });
+
+  } catch (error) {
+    console.error('Error getting certification steps:', error);
+    res.status(500).json({ error: 'Errore nel recupero degli step di certificazione' });
   }
 });
 

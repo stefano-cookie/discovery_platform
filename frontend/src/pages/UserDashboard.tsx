@@ -668,7 +668,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                                         }`}>
                                           {formatDate(deadline.dueDate)}
                                           {deadline.isPaid && ' - Pagata'}
-                                          {deadline.paymentStatus === 'PARTIAL' && ' - Pagamento Parziale'}
+                                          {deadline.paymentStatus === 'PARTIAL' && ' - Pagamento Personalizzato'}
                                           {!deadline.isPaid && deadline.paymentStatus !== 'PARTIAL' && isOverdue && ' - SCADUTA'}
                                         </p>
                                       </div>

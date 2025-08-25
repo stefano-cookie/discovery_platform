@@ -68,6 +68,13 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
       });
       
       console.log('📋 Documents received:', response.documents?.length, 'total');
+      console.log('📋 All documents:', response.documents?.map(d => ({ 
+        type: d.type, 
+        name: d.name, 
+        uploaded: d.uploaded,
+        status: d.status,
+        fileName: d.fileName 
+      })));
       console.log('📋 Uploaded documents:', response.documents?.filter(d => d.uploaded).map(d => ({ type: d.type, name: d.name })));
       
       setDocuments(response.documents || []);
@@ -184,7 +191,7 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
         endpoint = `/user/documents/${doc.documentId}/download`;
       }
 
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+      const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -217,7 +224,7 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
         endpoint = `/user/documents/${doc.documentId}/download`;
       }
 
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+      const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -482,8 +489,14 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
               </svg>
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Documenti Richiesti per {templateType}</h3>
-              <p className="text-sm text-gray-500">Documenti specifici per questa tipologia di corso</p>
+              <h3 className="text-lg font-semibold text-gray-900">
+                {templateType === 'CERTIFICATION' ? 'Documenti Richiesti per Certificazione' : 'Documenti Richiesti per TFA'}
+              </h3>
+              <p className="text-sm text-gray-500">
+                {templateType === 'CERTIFICATION' 
+                  ? 'Documenti base richiesti per il corso di certificazione' 
+                  : 'Documenti specifici per questa tipologia di corso TFA'}
+              </p>
             </div>
           </div>
           <button

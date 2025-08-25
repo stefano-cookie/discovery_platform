@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import SuccessModal from '../../UI/SuccessModal';
+import ErrorModal from '../../UI/ErrorModal';
 
 interface PaymentDeadline {
   id: string;
@@ -49,26 +51,19 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
   const [selectedDeadlineId, setSelectedDeadlineId] = useState<string | null>(null);
   const [partialAmount, setPartialAmount] = useState<string>('');
   const [delayedAmount, setDelayedAmount] = useState<number>(0);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [successDetails, setSuccessDetails] = useState<string | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     fetchPaymentDeadlines();
   }, [registrationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (successMessage) {
-      const timer = setTimeout(() => {
-        setSuccessMessage(null);
-        setSuccessDetails(null);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [successMessage]);
 
   const showSuccessMessage = (title: string, details: string) => {
-    setSuccessMessage(title);
-    setSuccessDetails(details);
+    setSuccessMessage(details);
+    setShowSuccessModal(true);
   };
 
   const fetchPaymentDeadlines = async () => {
@@ -99,7 +94,7 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
     setNotes('');
   };
 
-  const handleMarkAsPartiallyPaid = (deadlineId: string) => {
+  const handleMarkAsCustomPaid = (deadlineId: string) => {
     setSelectedDeadlineId(deadlineId);
     setShowPartialModal(true);
     setPartialAmount('');
@@ -139,7 +134,8 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
       );
     } catch (error) {
       console.error('Error marking payment as paid:', error);
-      alert('Errore nel marcare il pagamento come pagato');
+      setErrorMessage('Errore nel marcare il pagamento come pagato');
+      setShowErrorModal(true);
     } finally {
       setMarkingPaid(null);
       setSelectedDeadlineId(null);
@@ -147,7 +143,7 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
     }
   };
 
-  const confirmMarkAsPartiallyPaid = async () => {
+  const confirmMarkAsCustomPaid = async () => {
     if (!selectedDeadlineId || !partialAmount) return;
     
     const amount = parseFloat(partialAmount);
@@ -177,19 +173,20 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
       const deadline = deadlines.find(d => d.id === selectedDeadlineId);
       const totalAmount = deadline ? (deadline.amount || 0).toFixed(2) : '0.00';
       const paidAmount = parseFloat(partialAmount).toFixed(2);
-      const remainingAmount = deadline ? (deadline.amount - parseFloat(partialAmount)).toFixed(2) : '0.00';
+      const totalDelayedAmount = (response.data.delayedAmount || 0).toFixed(2);
       const description = deadline ? 
         (deadline.paymentNumber === 0 ? 'Acconto' : 
          deadline.paymentNumber ? `Rata ${deadline.paymentNumber}` : 'Pagamento') : 
         'Pagamento';
       
       showSuccessMessage(
-        '💰 Pagamento Parziale Registrato!',
-        `${description}: €${paidAmount} di €${totalAmount} pagato. Rimangono €${remainingAmount} in ritardo.`
+        '💰 Pagamento Personalizzato Registrato!',
+        `${description}: €${paidAmount} di €${totalAmount} pagato. Rimangono €${totalDelayedAmount} in ritardo.`
       );
     } catch (error: any) {
-      console.error('Error marking payment as partially paid:', error);
-      alert('Errore nel marcare il pagamento come parzialmente pagato: ' + (error.response?.data?.error || error.message));
+      console.error('Error marking payment as custom:', error);
+      setErrorMessage('Errore nel marcare il pagamento come personalizzato: ' + (error.response?.data?.error || error.message));
+      setShowErrorModal(true);
     } finally {
       setMarkingPaid(null);
       setSelectedDeadlineId(null);
@@ -211,12 +208,12 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
   }
 
   const paidDeadlines = deadlines.filter(d => d.isPaid);
-  const partialDeadlines = deadlines.filter(d => d.paymentStatus === 'PARTIAL');
+  const customDeadlines = deadlines.filter(d => d.paymentStatus === 'PARTIAL');
   const unpaidDeadlines = deadlines.filter(d => !d.isPaid && d.paymentStatus !== 'PARTIAL');
   const nextDeadline = unpaidDeadlines[0];
   
   const totalPaid = paidDeadlines.reduce((sum, d) => sum + (d.amount || 0), 0) +
-                   partialDeadlines.reduce((sum, d) => sum + (d.partialAmount || 0), 0);
+                   customDeadlines.reduce((sum, d) => sum + (d.partialAmount || 0), 0);
 
   return (
     <>
@@ -276,11 +273,11 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
                   {markingPaid === nextDeadline.id ? 'Elaborazione...' : 'Pagato'}
                 </button>
                 <button
-                  onClick={() => handleMarkAsPartiallyPaid(nextDeadline.id)}
+                  onClick={() => handleMarkAsCustomPaid(nextDeadline.id)}
                   disabled={markingPaid === nextDeadline.id}
                   className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 disabled:opacity-50"
                 >
-                  Pagato Parzialmente
+                  Personalizzato
                 </button>
               </div>
             </div>
@@ -314,7 +311,7 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
                     )}
                     {deadline.paymentStatus === 'PARTIAL' && (
                       <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">
-                        Pagato Parzialmente
+                        Personalizzato
                       </span>
                     )}
                   </div>
@@ -356,11 +353,11 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
                       Pagato
                     </button>
                     <button
-                      onClick={() => handleMarkAsPartiallyPaid(deadline.id)}
+                      onClick={() => handleMarkAsCustomPaid(deadline.id)}
                       disabled={markingPaid === deadline.id}
                       className="text-yellow-600 hover:text-yellow-700 text-sm font-medium"
                     >
-                      Parziale
+                      Personalizzato
                     </button>
                   </div>
                 )}
@@ -417,7 +414,7 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
       {showPartialModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold mb-4">Pagamento Parziale</h3>
+            <h3 className="text-lg font-semibold mb-4">Pagamento Personalizzato</h3>
             <p className="text-gray-600 mb-4">
               Inserisci l'importo effettivamente pagato. La differenza verrà registrata come ritardo.
             </p>
@@ -462,62 +459,34 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
                 Annulla
               </button>
               <button
-                onClick={confirmMarkAsPartiallyPaid}
+                onClick={confirmMarkAsCustomPaid}
                 className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700"
               >
-                Conferma Pagamento Parziale
+                Conferma Pagamento Personalizzato
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Success Notification */}
-      {successMessage && (
-        <div className="fixed top-4 right-4 z-50 max-w-md">
-          <div className="bg-white rounded-lg shadow-lg border-l-4 border-green-500 p-4 mb-4 transform transition-all duration-300 ease-out animate-pulse" 
-               style={{animation: 'slideInRight 0.3s ease-out'}}>
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <svg className="w-5 h-5 text-green-500 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3 flex-1">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-gray-900">
-                    {successMessage}
-                  </h3>
-                  <button
-                    onClick={() => {
-                      setSuccessMessage(null);
-                      setSuccessDetails(null);
-                    }}
-                    className="ml-2 text-gray-400 hover:text-gray-600"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                {successDetails && (
-                  <p className="mt-1 text-sm text-gray-600">
-                    {successDetails}
-                  </p>
-                )}
-                <div className="mt-3">
-                  <div className="flex items-center text-xs text-green-700">
-                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    Il sistema è stato aggiornato automaticamente
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        title="Operazione Completata!"
+        message={successMessage}
+        autoClose={true}
+        autoCloseDelay={3000}
+      />
+
+      {/* Error Modal */}
+      <ErrorModal
+        isOpen={showErrorModal}
+        onClose={() => setShowErrorModal(false)}
+        title="Errore"
+        message={errorMessage}
+        autoClose={false}
+      />
     </>
   );
 };

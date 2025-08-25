@@ -12,12 +12,15 @@ const EnhancedDocumentsSection: React.FC<EnhancedDocumentsSectionProps> = ({ use
     console.log('Document changed for user:', user.id);
   };
 
+  // Determine template type based on offer type
+  const templateType = user.offerType === 'CERTIFICATION' ? 'CERTIFICATION' : 'TFA';
+
   return (
     <UnifiedDocumentManager
       userId={user.id}
       registrationId={user.registrationId}
       mode="partner"
-      templateType="TFA"
+      templateType={templateType}
       allowUpload={true}
       allowApproval={true}
       onDocumentChange={handleDocumentChange}

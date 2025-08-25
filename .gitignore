@@ -49,4 +49,5 @@ nginx*.conf
 start-production-local.sh
 DEPLOYMENT.md
 DEPLOY_GUIDE.md
+TESTING_GUIDE.md
 IONOS_CONFIG_GUIDE.md

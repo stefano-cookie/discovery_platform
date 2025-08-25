@@ -253,33 +253,35 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
 
   // Load offer information when referralCode changes
   useEffect(() => {
+    console.log('Loading offer info for referralCode:', referralCode);
+    
     const loadOfferInfo = async () => {
       if (!referralCode) {
+        console.log('No referralCode provided, setting offerInfo to null');
         setOfferInfo(null);
         return;
       }
 
-      if (referralCode.includes('-')) {
-        try {
-          setLoadingOffer(true);
-          setOfferError(null);
-          const info = await OfferService.getOfferByLink(referralCode);
-          setOfferInfo(info);
-          // Save partnerOfferId in formData when offer is loaded
-          if (info && info.id) {
-            updateFormData({ partnerOfferId: info.id });
-          }
-        } catch (error) {
-          console.error('Error loading offer info:', error);
-          const errorMessage = (error as any).response?.data?.message || 
-                              (error as any).message || 
-                              'Offerta non trovata o non valida';
-          setOfferError(errorMessage);
-        } finally {
-          setLoadingOffer(false);
+      try {
+        setLoadingOffer(true);
+        setOfferError(null);
+        console.log('Loading offer for referralCode:', referralCode);
+        const info = await OfferService.getOfferByLink(referralCode);
+        console.log('Offer loaded successfully:', info);
+        setOfferInfo(info);
+        // Save partnerOfferId in formData when offer is loaded
+        if (info && info.id) {
+          updateFormData({ partnerOfferId: info.id });
         }
-      } else {
+      } catch (error) {
+        console.error('Error loading offer info:', error);
+        const errorMessage = (error as any).response?.data?.message || 
+                            (error as any).message || 
+                            'Offerta non trovata o non valida';
+        setOfferError(errorMessage);
         setOfferInfo(null);
+      } finally {
+        setLoadingOffer(false);
       }
     };
 
@@ -385,11 +387,15 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
       }
 
       // Caso 2: Verifica tramite email (backward compatibility)
-      if (emailVerified === 'true' && emailFromUrl && !verifiedUser && !currentUser) {
-        setVerifiedUser({
-          email: emailFromUrl,
-          hasProfile: true // Assumiamo che abbia già un profilo se arriva da verifica email
-        });
+      if (emailFromUrl && !verifiedUser && !currentUser) {
+        // Aggiungi un piccolo delay per assicurarsi che il database sia aggiornato dopo la verifica
+        setTimeout(() => {
+          setVerifiedUser({
+            email: emailFromUrl,
+            hasProfile: true, // Assumiamo che abbia già un profilo se arriva da verifica email
+            isEmailVerified: true
+          });
+        }, 500);
         return;
       }
 
@@ -422,16 +428,38 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
         return;
       }
 
-      // Se l'utente arriva da verifica codice legacy, carica il profilo con email (deprecato)
-      if (verifiedUser && verifiedUser.hasProfile && !secureToken && emailFromUrl) {
+      // Se l'utente arriva da verifica codice legacy o da verifica email, carica il profilo con email
+      if (verifiedUser && verifiedUser.hasProfile && !secureToken) {
         try {
           setLoadingProfile(true);
           
-          const response = await apiRequest<{user: any; profile: any; assignedPartner: any}>({
-            method: 'POST',
-            url: '/user/profile-by-email',
-            data: { email: verifiedUser.email }
-          });
+          // Se l'utente è appena stato verificato, aggiungi un retry con delay
+          let response;
+          let retryCount = 0;
+          const maxRetries = 3;
+          
+          while (retryCount < maxRetries) {
+            try {
+              response = await apiRequest<{user: any; profile: any; assignedPartner: any}>({
+                method: 'POST',
+                url: '/user/profile-by-email',
+                data: { email: verifiedUser.email }
+              });
+              break; // Success, exit loop
+            } catch (error: any) {
+              retryCount++;
+              if (retryCount < maxRetries && error?.response?.status === 404) {
+                // Wait before retry if user not found (might be still updating in DB)
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              } else {
+                throw error;
+              }
+            }
+          }
+          
+          if (!response) {
+            throw new Error('Unable to load user profile after retries');
+          }
 
           setUserProfile(response);
           

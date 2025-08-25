@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { documentsSchema, DocumentsForm } from '../../../utils/validation';
+import { documentsSchema, DocumentsForm, CompleteRegistrationForm } from '../../../utils/validation';
 
 interface DocumentsStepProps {
-  data: Partial<DocumentsForm>;
+  data: Partial<CompleteRegistrationForm>;
   onNext: (data: DocumentsForm) => void;
   onChange?: (data: Partial<DocumentsForm>) => void;
   templateType?: 'TFA' | 'CERTIFICATION';
@@ -519,20 +519,23 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
                   Certificati di Laurea
                 </h4>
                 <div className="space-y-4">
-                  <FileUpload
-                    label="Triennale"
-                    description="Certificato di laurea triennale o diploma universitario"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    value={files.certificatoTriennale}
-                    onChange={(file) => handleFileChange('certificatoTriennale', file)}
-                    error={errors.certificatoTriennale?.message as string}
-                    documentType="certificatoTriennale"
-                    userId={userId}
-                    templateType={templateType}
-                  />
+                  {/* Certificato triennale - nascosto per vecchio ordinamento e ciclo unico */}
+                  {data.tipoLaurea === 'Magistrale' && (
+                    <FileUpload
+                      label="Triennale"
+                      description="Certificato di laurea triennale o diploma universitario"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      value={files.certificatoTriennale}
+                      onChange={(file) => handleFileChange('certificatoTriennale', file)}
+                      error={errors.certificatoTriennale?.message as string}
+                      documentType="certificatoTriennale"
+                      userId={userId}
+                      templateType={templateType}
+                    />
+                  )}
                   
                   <FileUpload
-                    label="Magistrale"
+                    label="Magistrale o Vecchio Ordinamento"
                     description="Certificato di laurea magistrale, specialistica o vecchio ordinamento"
                     accept=".pdf,.jpg,.jpeg,.png"
                     value={files.certificatoMagistrale}

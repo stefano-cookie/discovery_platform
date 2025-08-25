@@ -362,7 +362,7 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
     })));
     
     const formattedRegistrations = registrations.map(reg => {
-      // Calculate total paid amount including partial payments
+      // Calculate total paid amount including custom payments
       const totalPaid = reg.deadlines.reduce((sum, deadline) => {
         if (deadline.isPaid) {
           return sum + Number(deadline.amount);
@@ -378,7 +378,7 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
         .filter(d => !d.isPaid && d.paymentStatus !== 'PARTIAL')
         .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
       
-      // Calculate total delayed amount from partial payments
+      // Calculate total delayed amount from custom payments
       const totalDelayedAmount = reg.deadlines.reduce((sum, deadline) => {
         if (deadline.paymentStatus === 'PARTIAL' && deadline.partialAmount) {
           return sum + (Number(deadline.amount) - Number(deadline.partialAmount));
@@ -388,7 +388,7 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
       
       // Calculate payment summary for frontend
       const paidInstallments = reg.deadlines.filter(d => d.isPaid).length;
-      const partialInstallments = reg.deadlines.filter(d => d.paymentStatus === 'PARTIAL').length;
+      const customInstallments = reg.deadlines.filter(d => d.paymentStatus === 'PARTIAL').length;
       const totalInstallments = reg.deadlines.length;
       const unpaidInstallments = reg.deadlines.filter(d => !d.isPaid && d.paymentStatus !== 'PARTIAL').length;
       const percentagePaid = Number(reg.finalAmount) > 0 ? Math.round((totalPaid / Number(reg.finalAmount)) * 100) : 0;
@@ -403,14 +403,14 @@ router.get('/registrations', authenticate, async (req: AuthRequest, res: Respons
           isOverdue: new Date(nextDeadline.dueDate) < now
         },
         paidInstallments,
-        partialInstallments,
+        customInstallments,
         unpaidInstallments,
         totalInstallments,
         percentagePaid
       } : {
         nextDeadline: null,
         paidInstallments,
-        partialInstallments,
+        customInstallments,
         unpaidInstallments,
         totalInstallments,
         percentagePaid
@@ -1011,18 +1011,28 @@ router.get('/tfa-steps/:registrationId', authenticate, async (req: AuthRequest, 
 
     // Build steps progress object
     const steps = {
-      cnredRelease: {
+      admissionTest: {
         step: 1,
+        title: 'Test d\'Ingresso',
+        description: 'Test preliminare per l\'ammissione al corso TFA',
+        completed: !!registration.admissionTestDate,
+        completedAt: registration.admissionTestDate,
+        passed: registration.admissionTestPassed,
+        status: !!registration.admissionTestDate ? 'completed' : 
+                (['CONTRACT_SIGNED', 'ENROLLED'].includes(registration.status) ? 'current' : 'pending')
+      },
+      cnredRelease: {
+        step: 2,
         title: 'Rilascio CNRED',
         description: 'Il CNRED (Codice Nazionale di Riconoscimento Europeo dei Diplomi) è stato rilasciato',
         completed: !!registration.cnredReleasedAt,
         completedAt: registration.cnredReleasedAt,
         status: registration.status === 'CNRED_RELEASED' ? 'current' : 
                 (!!registration.cnredReleasedAt ? 'completed' : 
-                  (['CONTRACT_SIGNED', 'ENROLLED'].includes(registration.status) ? 'current' : 'pending'))
+                  (registration.admissionTestDate ? 'current' : 'pending'))
       },
       finalExam: {
-        step: 2,
+        step: 3,
         title: 'Esame Finale',
         description: 'Sostenimento dell\'esame finale del corso TFA',
         completed: !!registration.finalExamDate,
@@ -1032,7 +1042,7 @@ router.get('/tfa-steps/:registrationId', authenticate, async (req: AuthRequest, 
                 (!!registration.finalExamDate ? 'completed' : 'pending')
       },
       recognitionRequest: {
-        step: 3,
+        step: 4,
         title: 'Richiesta Riconoscimento',
         description: 'Invio richiesta di riconoscimento del titolo conseguito',
         completed: !!registration.recognitionRequestDate,
@@ -1042,7 +1052,7 @@ router.get('/tfa-steps/:registrationId', authenticate, async (req: AuthRequest, 
                 (!!registration.recognitionRequestDate ? 'completed' : 'pending')
       },
       finalCompletion: {
-        step: 4,
+        step: 5,
         title: 'Corso Completato',
         description: 'Riconoscimento approvato - corso TFA completamente terminato',
         completed: registration.status === 'COMPLETED',

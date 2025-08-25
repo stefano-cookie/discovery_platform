@@ -149,6 +149,10 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
       if (emailVerified === 'true' && verifiedEmail) {
         return verifiedEmail;
       }
+      // Fallback to authenticated user's email for any course type
+      if (user?.email) {
+        return user.email;
+      }
     }
     
     const result = formValue || profileValue || '';

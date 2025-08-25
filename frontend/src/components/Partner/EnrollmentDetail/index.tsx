@@ -7,6 +7,7 @@ import EnhancedDocumentsSection from './EnhancedDocumentsSection';
 import OffersSection from './OffersSection';
 import PaymentSection from './PaymentSection';
 import TfaStepsManagement from './TfaStepsManagement';
+import CertificationStepsManagement from './CertificationStepsManagement';
 import { getPartnerStatusDisplay, getStatusTranslation } from '../../../utils/statusTranslations';
 
 
@@ -143,10 +144,21 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
               />
               <EnhancedDocumentsSection user={user} />
               
-              {/* TFA Steps Management */}
+              {/* Steps Management */}
               {user.offerType === 'TFA_ROMANIA' && (
                 <div className="bg-white rounded-xl shadow-sm border p-6">
                   <TfaStepsManagement 
+                    registrationId={registrationId}
+                    registration={user}
+                    onUpdate={fetchUserDetails}
+                  />
+                </div>
+              )}
+              
+              {/* Certification Steps Management */}
+              {user.offerType === 'CERTIFICATION' && (
+                <div className="bg-white rounded-xl shadow-sm border p-6">
+                  <CertificationStepsManagement 
                     registrationId={registrationId}
                     registration={user}
                     onUpdate={fetchUserDetails}
