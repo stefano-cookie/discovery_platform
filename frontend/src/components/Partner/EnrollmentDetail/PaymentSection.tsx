@@ -214,6 +214,30 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
   
   const totalPaid = paidDeadlines.reduce((sum, d) => sum + (d.amount || 0), 0) +
                    customDeadlines.reduce((sum, d) => sum + (d.partialAmount || 0), 0);
+  
+  // Calcola il totale dei ritardi localmente considerando anche i surplus
+  let calculatedDelayedAmount = 0;
+  let accumulatedSurplus = 0;
+  
+  // Ordina le scadenze per data per calcolare correttamente i surplus cumulativi
+  const sortedCustomDeadlines = [...customDeadlines].sort((a, b) => 
+    new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+  );
+  
+  sortedCustomDeadlines.forEach(d => {
+    if (d.partialAmount) {
+      const diff = (d.amount || 0) - d.partialAmount;
+      if (diff > 0) {
+        // Pagamento insufficiente, aggiunge al ritardo
+        calculatedDelayedAmount += diff;
+      } else if (diff < 0) {
+        // Pagamento in eccesso, riduce i ritardi accumulati
+        const surplus = Math.abs(diff);
+        calculatedDelayedAmount = Math.max(0, calculatedDelayedAmount - surplus);
+        accumulatedSurplus += surplus;
+      }
+    }
+  });
 
   return (
     <>
@@ -246,7 +270,7 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
           <div className="bg-red-50 p-4 rounded-lg">
             <p className="text-sm text-red-600">Ritardi</p>
             <p className="text-xl font-semibold text-red-900">
-              € {(delayedAmount || 0).toFixed(2)}
+              € {(delayedAmount || calculatedDelayedAmount || 0).toFixed(2)}
             </p>
           </div>
         </div>
@@ -320,9 +344,15 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
                       {deadline.paymentStatus === 'PARTIAL' && deadline.partialAmount ? (
                         <>
                           Importo: € {deadline.partialAmount.toFixed(2)} / € {(deadline.amount || 0).toFixed(2)}
-                          <span className="text-red-600 ml-2">
-                            (Ritardo: € {((deadline.amount || 0) - deadline.partialAmount).toFixed(2)})
-                          </span>
+                          {deadline.partialAmount < (deadline.amount || 0) ? (
+                            <span className="text-orange-600 ml-2">
+                              (Da pagare: € {((deadline.amount || 0) - deadline.partialAmount).toFixed(2)})
+                            </span>
+                          ) : deadline.partialAmount > (deadline.amount || 0) ? (
+                            <span className="text-green-600 ml-2">
+                              (Surplus: € {(deadline.partialAmount - (deadline.amount || 0)).toFixed(2)})
+                            </span>
+                          ) : null}
                         </>
                       ) : (
                         `Importo: € ${(deadline.amount || 0).toFixed(2)}`

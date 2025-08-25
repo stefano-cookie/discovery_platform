@@ -156,6 +156,11 @@ router.get('/users', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req
       originalAmount: Number(reg.originalAmount),
       finalAmount: Number(reg.finalAmount),
       installments: reg.installments,
+      // Dati contratto
+      contractTemplateUrl: reg.contractTemplateUrl,
+      contractSignedUrl: reg.contractSignedUrl,
+      contractGeneratedAt: reg.contractGeneratedAt,
+      contractUploadedAt: reg.contractUploadedAt,
       // Lista offerte aggiuntive disponibili (sarà implementata dopo)
     }));
 
@@ -1331,6 +1336,59 @@ router.post('/upload-signed-contract', authenticate, requireRole(['PARTNER', 'AD
   } catch (error) {
     console.error('Upload signed contract error:', error);
     res.status(500).json({ error: 'Errore durante il caricamento del contratto' });
+  }
+});
+
+// Download signed contract endpoint
+router.get('/download-signed-contract/:registrationId', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { registrationId } = req.params;
+    
+    console.log(`[SIGNED_CONTRACT_DOWNLOAD] Starting download for registration: ${registrationId}, partner: ${partnerId}`);
+    
+    if (!partnerId) {
+      console.log('[SIGNED_CONTRACT_DOWNLOAD] Error: Partner not found');
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify registration belongs to this partner
+    const registration = await prisma.registration.findFirst({
+      where: { 
+        id: registrationId,
+        partnerId 
+      }
+    });
+
+    if (!registration) {
+      console.log(`[SIGNED_CONTRACT_DOWNLOAD] Error: Registration not found for ID: ${registrationId}`);
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    if (!registration.contractSignedUrl) {
+      console.log(`[SIGNED_CONTRACT_DOWNLOAD] Error: No signed contract for registration: ${registrationId}`);
+      return res.status(404).json({ error: 'Contratto firmato non disponibile' });
+    }
+
+    // Serve the signed contract file
+    const contractPath = path.resolve(__dirname, '../..', registration.contractSignedUrl.substring(1)); // Remove leading slash
+    console.log(`[SIGNED_CONTRACT_DOWNLOAD] Serving signed contract from: ${contractPath}`);
+    
+    if (!require('fs').existsSync(contractPath)) {
+      console.log(`[SIGNED_CONTRACT_DOWNLOAD] Error: Signed contract file not found at path: ${contractPath}`);
+      return res.status(404).json({ error: 'File contratto firmato non trovato' });
+    }
+    
+    // Set headers for download
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="contratto_firmato_${registrationId}.pdf"`);
+    
+    // Send file
+    res.sendFile(contractPath);
+    
+  } catch (error) {
+    console.error('[SIGNED_CONTRACT_DOWNLOAD] Error:', error);
+    res.status(500).json({ error: 'Errore durante il download del contratto firmato' });
   }
 });
 

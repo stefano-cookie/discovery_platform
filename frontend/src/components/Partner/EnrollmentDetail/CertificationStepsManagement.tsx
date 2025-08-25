@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../../services/api';
+import axios from 'axios';
 
 interface CertificationStep {
   step: number;
@@ -41,6 +42,95 @@ const CertificationStepsManagement: React.FC<CertificationStepsManagementProps> 
   // Form states
   const [examDate, setExamDate] = useState('');
   const [completedDate, setCompletedDate] = useState('');
+
+  // Function to handle contract preview with auth
+  const handlePreviewContract = async () => {
+    try {
+      const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
+      const response = await axios.get(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/partners/preview-contract/${registrationId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          responseType: 'blob'
+        }
+      );
+      
+      // Create blob URL and open in new window
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      
+      // Clean up after a delay
+      setTimeout(() => window.URL.revokeObjectURL(url), 10000);
+    } catch (error) {
+      console.error('Error previewing contract:', error);
+      alert('Errore nell\'anteprima del contratto');
+    }
+  };
+
+  // Function to handle contract download with auth
+  const handleDownloadContract = async () => {
+    try {
+      const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
+      const response = await axios.get(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/partners/download-contract/${registrationId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          responseType: 'blob'
+        }
+      );
+      
+      // Create download link
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `contratto-${registrationId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading contract:', error);
+      alert('Errore nel download del contratto');
+    }
+  };
+
+  // Function to handle signed contract download with auth
+  const handleDownloadSignedContract = async () => {
+    if (!registration.contractSignedUrl) return;
+    
+    try {
+      const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
+      const response = await axios.get(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/partners/download-signed-contract/${registrationId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          responseType: 'blob'
+        }
+      );
+      
+      // Create download link
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `contratto-firmato-${registrationId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading signed contract:', error);
+      alert('Errore nel download del contratto firmato');
+    }
+  };
 
   useEffect(() => {
     fetchCertificationSteps();
@@ -299,6 +389,92 @@ const CertificationStepsManagement: React.FC<CertificationStepsManagementProps> 
             </div>
           ))}
         </div>
+
+        {/* Sezione Contratti - Sempre visibile quando disponibili */}
+        {registration && (registration.contractTemplateUrl || registration.contractSignedUrl) && (
+          <div className="mt-6">
+            <h4 className="text-md font-semibold text-gray-900 mb-4">Documenti Contratto</h4>
+            <div className="bg-white border border-gray-200 rounded-lg p-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* Contratto Template */}
+                {registration.contractTemplateUrl && (
+                  <div className="border border-gray-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <h5 className="font-medium text-sm text-gray-900">Contratto Precompilato</h5>
+                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    {registration.contractGeneratedAt && (
+                      <p className="text-xs text-gray-500 mb-2">
+                        Generato: {formatDate(registration.contractGeneratedAt)}
+                      </p>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handlePreviewContract}
+                        className="inline-flex items-center justify-center flex-1 bg-blue-50 text-blue-700 px-2 py-2 rounded text-sm font-medium hover:bg-blue-100 transition-colors"
+                      >
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        Anteprima
+                      </button>
+                      <button
+                        onClick={handleDownloadContract}
+                        className="inline-flex items-center justify-center flex-1 bg-blue-600 text-white px-2 py-2 rounded text-sm font-medium hover:bg-blue-700 transition-colors"
+                      >
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Scarica
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Contratto Firmato */}
+                {registration.contractSignedUrl && (
+                  <div className="border border-green-200 rounded-lg p-3 bg-green-50">
+                    <div className="flex items-center justify-between mb-2">
+                      <h5 className="font-medium text-sm text-green-900">Contratto Firmato</h5>
+                      <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    {registration.contractUploadedAt && (
+                      <p className="text-xs text-green-700 mb-2">
+                        Firmato: {formatDate(registration.contractUploadedAt)}
+                      </p>
+                    )}
+                    <button
+                      onClick={handleDownloadSignedContract}
+                      className="inline-flex items-center justify-center w-full bg-green-600 text-white px-3 py-2 rounded text-sm font-medium hover:bg-green-700 transition-colors"
+                    >
+                      <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Scarica Firmato
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Status indicator */}
+              {registration.contractSignedUrl && (
+                <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-700">
+                  <div className="flex items-center">
+                    <svg className="w-4 h-4 mr-1.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Contratto firmato e archiviato correttamente</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {!canManageSteps && (

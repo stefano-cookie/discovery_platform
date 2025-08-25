@@ -311,9 +311,15 @@ const UserEnrollmentDetail: React.FC<UserEnrollmentDetailProps> = ({
                           <div className="text-lg font-semibold mb-1 text-yellow-700">
                             {formatCurrency(deadline.partialAmount)} / {formatCurrency(Number(deadline.amount))}
                           </div>
-                          <div className="text-sm text-red-600 mb-1">
-                            Ritardo: {formatCurrency(Number(deadline.amount) - deadline.partialAmount)}
-                          </div>
+                          {deadline.partialAmount < Number(deadline.amount) ? (
+                            <div className="text-sm text-orange-600 mb-1">
+                              Da pagare: {formatCurrency(Number(deadline.amount) - deadline.partialAmount)}
+                            </div>
+                          ) : deadline.partialAmount > Number(deadline.amount) ? (
+                            <div className="text-sm text-green-600 mb-1">
+                              Surplus: {formatCurrency(deadline.partialAmount - Number(deadline.amount))}
+                            </div>
+                          ) : null}
                         </div>
                       ) : (
                         <div className="text-lg font-semibold mb-1">
@@ -346,9 +352,7 @@ const UserEnrollmentDetail: React.FC<UserEnrollmentDetailProps> = ({
                   <div>
                     <h4 className="text-sm font-medium text-blue-900 mb-1">Come effettuare il pagamento</h4>
                     <p className="text-xs text-blue-700">
-                      Tutti i pagamenti devono essere effettuati tramite bonifico bancario. 
-                      I dettagli per il bonifico ti verranno forniti dal tuo partner di riferimento.
-                      Contatta {registration.partner.user.email} per ricevere le coordinate bancarie.
+                      I dettagli per effettuare il bonifico sono contenuti all’interno del contratto. Scarica il contratto e procedi con il pagamento
                     </p>
                   </div>
                 </div>

@@ -861,7 +861,7 @@ class EmailService {
           <div class="header">
             <div class="logo">PIATTAFORMA DIAMANTE</div>
             <div style="font-size: 16px; margin-top: 10px; opacity: 0.9;">Formazione Professionale</div>
-            <h1 style="margin: 25px 0 0 0; font-size: 24px;">Iscrizione Completata!</h1>
+            <h1 style="margin: 25px 0 0 0; font-size: 24px;">Richiesta di iscrizione</h1>
           </div>
           
           <div class="content">
@@ -871,7 +871,7 @@ class EmailService {
             
             <p>Gentile <strong>${enrollmentData.nome}</strong>,</p>
             
-            <p>La sua iscrizione è stata completata con successo! È ufficialmente iscritto al corso ed è pronto per iniziare il suo percorso formativo.</p>
+            <p>La sua richiesta di iscrizione al corso è stata completata con successo! Completi tutti i restanti steps della piattaforma accedendo alla sua area riservata</p>
             
             <div class="course-info">
               <h4 style="margin-top: 0; color: #374151;">📚 Dettagli del suo corso:</h4>
@@ -897,17 +897,6 @@ class EmailService {
               <a href="${process.env.FRONTEND_URL}/dashboard" class="dashboard-button">
                 🏠 Accedi alla sua Area Riservata
               </a>
-            </div>
-            
-            <div class="next-steps">
-              <h4 style="margin-top: 0; color: #059669;">📋 Prossimi Passi:</h4>
-              <ul style="margin: 15px 0; padding-left: 20px;">
-                <li>Acceda alla sua area riservata per visualizzare tutti i dettagli del corso</li>
-                <li>Il suo partner di riferimento la contatterà per guidarla nei prossimi step</li>
-                <li>Potrà caricare eventuali documenti aggiuntivi direttamente dall'area riservata</li>
-                <li>Monitori costantemente lo stato della sua iscrizione e i pagamenti</li>
-                <li>Riceverà notifiche importanti via email per ogni aggiornamento</li>
-              </ul>
             </div>
             
             <p style="background-color: #fef3c7; padding: 15px; border-radius: 6px; border-left: 4px solid #f59e0b; margin: 25px 0;">
