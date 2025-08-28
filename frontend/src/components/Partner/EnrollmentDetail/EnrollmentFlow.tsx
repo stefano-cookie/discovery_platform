@@ -22,6 +22,17 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId,
   const [currentExamDate, setCurrentExamDate] = useState(examDate);
   const [isSettingExamDate, setIsSettingExamDate] = useState(false);
   const [examDateInput, setExamDateInput] = useState('');
+  const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
+
+  // Update currentStatus when status prop changes
+  React.useEffect(() => {
+    setCurrentStatus(status);
+  }, [status]);
+
+  // Update currentExamDate when examDate prop changes
+  React.useEffect(() => {
+    setCurrentExamDate(examDate);
+  }, [examDate]);
 
   const handleContractUploadSuccess = () => {
     setCurrentStatus('CONTRACT_SIGNED');
@@ -99,6 +110,39 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId,
       setIsSettingExamDate(false);
     }
   };
+
+  const handleCompleteExam = async () => {
+    try {
+      setIsSettingExamDate(true);
+      
+      // Call API to complete exam
+      const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+      const response = await fetch(`${API_BASE_URL}/partners/registrations/${registrationId}/complete-exam`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Errore durante il completamento dell\'esame');
+      }
+
+      setCurrentStatus('COMPLETED');
+      setShowCompleteConfirm(false);
+      alert('Esame completato con successo! L\'utente ha ricevuto un\'email di congratulazioni.');
+      
+      // Optionally trigger a page refresh to reflect the changes
+      window.location.reload();
+      
+    } catch (error: any) {
+      console.error('Complete exam error:', error);
+      alert('Errore durante il completamento: ' + error.message);
+    } finally {
+      setIsSettingExamDate(false);
+    }
+  };
   // Definisco gli step del workflow
   const getFlowSteps = (): FlowStep[] => {
     // Workflow specifico per certificazioni
@@ -145,21 +189,19 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId,
           </svg>
         ),
         status: currentStatus === 'ENROLLED' ? 'current' :
-               currentStatus === 'DOCUMENTS_APPROVED' ? 'completed' :
-               ['EXAM_REGISTERED', 'COMPLETED'].includes(currentStatus) ? 'completed' : 'pending'
+               ['DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'EXAM_COMPLETED', 'COMPLETED'].includes(currentStatus) ? 'completed' : 'pending'
       },
       {
         id: 'exam_registered',
         title: 'Iscritto all\'esame',
-        description: currentExamDate ? `Data esame: ${new Date(currentExamDate).toLocaleDateString('it-IT')}` : 'Registra iscrizione all\'esame',
+        description: currentExamDate ? `Data esame: ${new Date(currentExamDate as string).toLocaleDateString('it-IT')}` : 'Registra iscrizione all\'esame',
         icon: (
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
         ),
         status: currentStatus === 'DOCUMENTS_APPROVED' ? 'current' : 
-               currentStatus === 'EXAM_REGISTERED' ? 'completed' :
-               currentStatus === 'COMPLETED' ? 'completed' : 'pending'
+               ['EXAM_REGISTERED', 'EXAM_COMPLETED', 'COMPLETED'].includes(currentStatus) ? 'completed' : 'pending'
       },
       {
         id: 'exam_completed',
@@ -171,6 +213,7 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId,
           </svg>
         ),
         status: currentStatus === 'EXAM_REGISTERED' ? 'current' :
+               currentStatus === 'EXAM_COMPLETED' ? 'current' :
                currentStatus === 'COMPLETED' ? 'completed' : 'pending'
       }
     ];
@@ -381,6 +424,9 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId,
               <p className="text-sm text-gray-600 mt-1">
                 {currentStatus === 'CONTRACT_SIGNED' && 'Contratto firmato caricato. In attesa del pagamento.'}
                 {currentStatus === 'ENROLLED' && 'Attendi il pagamento dell\'utente'}
+                {currentStatus === 'DOCUMENTS_APPROVED' && 'Documenti approvati. Iscrivi l\'utente all\'esame.'}
+                {currentStatus === 'EXAM_REGISTERED' && 'Utente iscritto all\'esame. Conferma quando l\'esame è stato sostenuto.'}
+                {currentStatus === 'EXAM_COMPLETED' && 'Esame sostenuto con successo. Processo quasi completato.'}
                 {currentStatus === 'COMPLETED' && 'Iscrizione completata con successo'}
               </p>
             </div>
@@ -397,8 +443,8 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId,
         </div>
       )}
 
-      {/* Exam Date Management for Certifications */}
-      {offerType === 'CERTIFICATION' && currentStatus === 'PAYMENT_COMPLETED' && (
+      {/* Exam Date Management for Certifications - DISABLED, handled by CertificationStepsManagement */}
+      {false && offerType === 'CERTIFICATION' && currentStatus === 'DOCUMENTS_APPROVED' && (
         <div className="mt-6 bg-white rounded-xl shadow-sm border p-6">
           <div className="mb-4">
             <h4 className="text-lg font-semibold text-gray-900 mb-2">Gestione Data Esame</h4>
@@ -448,11 +494,120 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId,
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span className="text-sm text-green-800 font-medium">
-                  Data esame confermata: {new Date(currentExamDate).toLocaleDateString('it-IT')}
+                  Data esame confermata: {currentExamDate ? new Date(currentExamDate as string).toLocaleDateString('it-IT') : 'N/A'}
                 </span>
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Mark Exam as Completed for Certifications - DISABLED, handled by CertificationStepsManagement */}
+      {false && offerType === 'CERTIFICATION' && currentStatus === 'EXAM_REGISTERED' && (
+        <div className="mt-6 bg-white rounded-xl shadow-sm border p-6">
+          <div className="mb-4">
+            <h4 className="text-lg font-semibold text-gray-900 mb-2">Completamento Esame</h4>
+            <p className="text-sm text-gray-600">
+              L'esame è stato registrato per il {currentExamDate ? new Date(currentExamDate as string).toLocaleDateString('it-IT') : 'data non specificata'}. 
+              Segna l'esame come completato per finalizzare la certificazione.
+            </p>
+          </div>
+
+          <button
+            onClick={() => setShowCompleteConfirm(true)}
+            disabled={isSettingExamDate}
+            className="px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Segna Esame Come Completato
+          </button>
+
+          <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+            <div className="flex items-start">
+              <svg className="w-5 h-5 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.884-.833-2.664 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <div>
+                <p className="text-sm font-medium text-yellow-900">
+                  Attenzione
+                </p>
+                <p className="text-xs text-yellow-700 mt-1">
+                  Questa azione segnerà la certificazione come completata e invierà un'email di congratulazioni all'utente. L'azione non è reversibile.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modale di conferma completamento esame */}
+      {showCompleteConfirm && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true" onClick={() => setShowCompleteConfirm(false)}>
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="sm:flex sm:items-start">
+                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-green-100 sm:mx-0 sm:h-10 sm:w-10">
+                    <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900">
+                      Conferma Completamento Esame
+                    </h3>
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-500">
+                        Sei sicuro di voler segnare l'esame come completato?
+                      </p>
+                      <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                        <p className="text-sm text-blue-800 font-medium mb-2">
+                          ✅ Questa azione:
+                        </p>
+                        <ul className="text-xs text-blue-700 space-y-1">
+                          <li>• Segnerà la certificazione come completata</li>
+                          <li>• Invierà un'email di congratulazioni all'utente</li>
+                          <li>• Finalizzerà definitivamente il percorso</li>
+                        </ul>
+                      </div>
+                      <p className="text-sm text-orange-600 mt-3 font-medium">
+                        ⚠️ Questa azione non potrà essere annullata.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                  onClick={handleCompleteExam}
+                  disabled={isSettingExamDate}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 disabled:opacity-50 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  {isSettingExamDate ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Completando...
+                    </>
+                  ) : (
+                    'Conferma Completamento'
+                  )}
+                </button>
+                <button
+                  onClick={() => setShowCompleteConfirm(false)}
+                  disabled={isSettingExamDate}
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Annulla
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

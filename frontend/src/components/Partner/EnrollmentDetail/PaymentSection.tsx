@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import SuccessModal from '../../UI/SuccessModal';
 import ErrorModal from '../../UI/ErrorModal';
+import { triggerCertificationStepsRefresh, triggerRegistrationsRefresh } from '../../../utils/refreshEvents';
 
 interface PaymentDeadline {
   id: string;
@@ -20,6 +21,8 @@ interface PaymentSectionProps {
   registrationId: string;
   courseName?: string;
   finalAmount?: number;
+  offerType?: string;
+  installments?: number;
 }
 
 // Helper function to format date
@@ -39,7 +42,9 @@ const formatDate = (dateString: string, format: 'long' | 'short' = 'short') => {
 const PaymentSection: React.FC<PaymentSectionProps> = ({ 
   registrationId, 
   courseName,
-  finalAmount 
+  finalAmount,
+  offerType,
+  installments = 1
 }) => {
   const [deadlines, setDeadlines] = useState<PaymentDeadline[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,6 +137,13 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
         '🎉 Pagamento Registrato!',
         `${description} di €${amount} è stato marcato come pagato con successo.`
       );
+
+      // Trigger refresh events after success modal has time to display
+      console.log('Payment registered, triggering refresh');
+      setTimeout(() => {
+        triggerCertificationStepsRefresh();
+        triggerRegistrationsRefresh();
+      }, 1500); // Wait for success modal to display
     } catch (error) {
       console.error('Error marking payment as paid:', error);
       setErrorMessage('Errore nel marcare il pagamento come pagato');
@@ -183,6 +195,13 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
         '💰 Pagamento Personalizzato Registrato!',
         `${description}: €${paidAmount} di €${totalAmount} pagato. Rimangono €${totalDelayedAmount} in ritardo.`
       );
+
+      // Trigger refresh events after success modal has time to display
+      console.log('Custom payment registered, triggering refresh');
+      setTimeout(() => {
+        triggerCertificationStepsRefresh();
+        triggerRegistrationsRefresh();
+      }, 1500); // Wait for success modal to display
     } catch (error: any) {
       console.error('Error marking payment as custom:', error);
       setErrorMessage('Errore nel marcare il pagamento come personalizzato: ' + (error.response?.data?.error || error.message));
@@ -211,6 +230,11 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
   const customDeadlines = deadlines.filter(d => d.paymentStatus === 'PARTIAL');
   const unpaidDeadlines = deadlines.filter(d => !d.isPaid && d.paymentStatus !== 'PARTIAL');
   const nextDeadline = unpaidDeadlines[0];
+  
+  // Determine if custom payments should be allowed
+  // For certifications with single payment (installments = 1), only allow full payment
+  const isSinglePaymentCertification = offerType === 'CERTIFICATION' && installments === 1;
+  const allowCustomPayments = !isSinglePaymentCertification;
   
   const totalPaid = paidDeadlines.reduce((sum, d) => sum + (d.amount || 0), 0) +
                    customDeadlines.reduce((sum, d) => sum + (d.partialAmount || 0), 0);
@@ -296,13 +320,28 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
                 >
                   {markingPaid === nextDeadline.id ? 'Elaborazione...' : 'Pagato'}
                 </button>
-                <button
-                  onClick={() => handleMarkAsCustomPaid(nextDeadline.id)}
-                  disabled={markingPaid === nextDeadline.id}
-                  className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 disabled:opacity-50"
-                >
-                  Personalizzato
-                </button>
+                {allowCustomPayments ? (
+                  <button
+                    onClick={() => handleMarkAsCustomPaid(nextDeadline.id)}
+                    disabled={markingPaid === nextDeadline.id}
+                    className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 disabled:opacity-50"
+                  >
+                    Personalizzato
+                  </button>
+                ) : (
+                  <div className="relative group">
+                    <button
+                      disabled
+                      className="bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed opacity-50"
+                    >
+                      Personalizzato
+                    </button>
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none z-10">
+                      Non disponibile per certificazioni con pagamento unico
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -382,13 +421,28 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
                     >
                       Pagato
                     </button>
-                    <button
-                      onClick={() => handleMarkAsCustomPaid(deadline.id)}
-                      disabled={markingPaid === deadline.id}
-                      className="text-yellow-600 hover:text-yellow-700 text-sm font-medium"
-                    >
-                      Personalizzato
-                    </button>
+                    {allowCustomPayments ? (
+                      <button
+                        onClick={() => handleMarkAsCustomPaid(deadline.id)}
+                        disabled={markingPaid === deadline.id}
+                        className="text-yellow-600 hover:text-yellow-700 text-sm font-medium"
+                      >
+                        Personalizzato
+                      </button>
+                    ) : (
+                      <div className="relative group">
+                        <button
+                          disabled
+                          className="text-gray-400 text-sm font-medium cursor-not-allowed"
+                        >
+                          Personalizzato
+                        </button>
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none z-10">
+                          Non disponibile per certificazioni con pagamento unico
+                          <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -406,7 +460,7 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
       {/* Notes Modal */}
       {showNotesModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-4">Conferma Pagamento</h3>
             <p className="text-gray-600 mb-4">
               Stai per marcare questo pagamento come completato. Puoi aggiungere delle note opzionali.
@@ -443,7 +497,7 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
       {/* Partial Payment Modal */}
       {showPartialModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-4">Pagamento Personalizzato</h3>
             <p className="text-gray-600 mb-4">
               Inserisci l'importo effettivamente pagato. La differenza verrà registrata come ritardo.
@@ -506,7 +560,7 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
         title="Operazione Completata!"
         message={successMessage}
         autoClose={true}
-        autoCloseDelay={3000}
+        autoCloseDelay={1200}
       />
 
       {/* Error Modal */}

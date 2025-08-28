@@ -49,28 +49,17 @@ export class DocumentService {
     });
   }
 
-  // Get user documents (repository)
+  // Get user documents (repository) - DEPRECATED: now documents are tied to registrations
   static async getUserDocuments(userId: string) {
-    return prisma.userDocument.findMany({
-      where: { 
-        userId,
-        registrationId: null // Only repository documents
-      },
-      include: {
-        verifier: {
-          select: { id: true, email: true }
-        }
-      },
-      orderBy: { uploadedAt: 'desc' }
-    });
+    // Return empty array as documents are now tied to specific registrations
+    return [];
   }
 
-  // Get enrollment documents (from registrations)
+  // Get enrollment documents (from registrations) - Use UnifiedDocumentService instead
   static async getEnrollmentDocuments(userId: string) {
     return prisma.userDocument.findMany({
       where: { 
-        userId,
-        registrationId: { not: null } // Only enrollment documents
+        userId
       },
       include: {
         registration: {
@@ -90,12 +79,12 @@ export class DocumentService {
     });
   }
 
-  // Upload document with unified system
+  // Upload document with unified system - registrationId is now required
   static async uploadDocument(
     userId: string, 
     file: Express.Multer.File, 
     type: DocumentType,
-    registrationId?: string,
+    registrationId: string,
     uploadSource: UploadSource = UploadSource.USER_DASHBOARD,
     userRole: UserRole = UserRole.USER
   ) {
@@ -320,57 +309,15 @@ export class DocumentService {
     }
   }
 
-  // Associate all user documents to a registration
+  // DEPRECATED: Associate all user documents to a registration (no longer needed)
   static async linkUserDocumentsToRegistration(userId: string, registrationId: string) {
     try {
-      console.log(`🔗 Linking user documents to registration: ${userId} -> ${registrationId}`);
-      
-      // Find all documents for this user that don't have a registrationId
-      const unlinkedDocs = await prisma.userDocument.findMany({
-        where: {
-          userId: userId,
-          registrationId: null // Only unlinked documents
-        }
-      });
-
-      if (unlinkedDocs.length === 0) {
-        console.log('No unlinked documents found for user');
-        return { linkedCount: 0 };
-      }
-
-      // Link all unlinked documents to the registration
-      const updateResult = await prisma.userDocument.updateMany({
-        where: {
-          userId: userId,
-          registrationId: null
-        },
-        data: {
-          registrationId: registrationId
-        }
-      });
-
-      console.log(`✅ Linked ${updateResult.count} documents to registration ${registrationId}`);
-      
-      // Log the linking action for audit
-      for (const doc of unlinkedDocs) {
-        await prisma.documentActionLog.create({
-          data: {
-            documentId: doc.id,
-            action: 'LINK_TO_REGISTRATION',
-            performedBy: userId,
-            performedRole: UserRole.USER,
-            details: {
-              registrationId,
-              previousRegistrationId: null
-            }
-          }
-        });
-      }
-
-      return { linkedCount: updateResult.count, documents: unlinkedDocs };
+      console.log(`🔗 DEPRECATED: linkUserDocumentsToRegistration called - no action taken`);
+      // Return empty result as all documents are now created with registrationId
+      return { linkedCount: 0 };
     } catch (error) {
-      console.error('Error linking documents to registration:', error);
-      throw error;
+      console.error('DEPRECATED: Error in linkUserDocumentsToRegistration:', error);
+      return { linkedCount: 0 };
     }
   }
 
@@ -433,56 +380,11 @@ export class DocumentService {
     });
   }
 
-  // Migrate enrollment documents to repository
+  // DEPRECATED: Migrate enrollment documents to repository (no longer needed)
   static async migrateEnrollmentDocuments(userId: string) {
-    const enrollmentDocs = await prisma.userDocument.findMany({
-      where: { 
-        userId,
-        registrationId: { not: null }
-      }
-    });
-
-    const migrations = [];
-    
-    for (const doc of enrollmentDocs) {
-      // Check if equivalent document already exists in repository
-      const existingRepo = await prisma.userDocument.findFirst({
-        where: { 
-          userId,
-          type: doc.type,
-          registrationId: null
-        }
-      });
-
-      if (!existingRepo) {
-        // Copy to repository
-        const repoDoc = await prisma.userDocument.create({
-          data: {
-            userId: doc.userId,
-            type: doc.type,
-            originalName: doc.originalName,
-            url: doc.url,
-            size: doc.size,
-            mimeType: doc.mimeType,
-            status: doc.status,
-            uploadSource: doc.uploadSource || 'ENROLLMENT',
-            uploadedBy: doc.uploadedBy || doc.userId,
-            uploadedByRole: doc.uploadedByRole || 'USER',
-            verifiedBy: doc.verifiedBy,
-            verifiedAt: doc.verifiedAt,
-            rejectionReason: doc.rejectionReason
-          }
-        });
-
-        migrations.push({
-          source: doc.id,
-          target: repoDoc.id,
-          type: doc.type
-        });
-      }
-    }
-
-    return migrations;
+    console.log(`🔗 DEPRECATED: migrateEnrollmentDocuments called - no action taken`);
+    // Return empty result as documents are now registration-specific
+    return [];
   }
 
   // Finalize enrollment documents from temporary uploads
@@ -606,43 +508,15 @@ export class DocumentService {
     });
   }
 
-  // Sync documents between enrollment and user dashboard
+  // DEPRECATED: Sync documents between enrollment and user dashboard (no longer needed)
   static async syncDocumentsForUser(userId: string) {
-    const enrollmentDocs = await this.getEnrollmentDocuments(userId);
-    const repositoryDocs = await this.getUserDocuments(userId);
-
-    const syncResult = {
+    console.log(`🔗 DEPRECATED: syncDocumentsForUser called - no action taken`);
+    // Return empty result as documents are now registration-specific
+    return {
       enrollmentToRepository: 0,
       repositoryToEnrollment: 0,
       conflicts: []
     };
-
-    // For each enrollment document, check if similar exists in repository
-    for (const enrollDoc of enrollmentDocs) {
-      const repoDoc = repositoryDocs.find(doc => doc.type === enrollDoc.type);
-      
-      if (!repoDoc) {
-        // Copy enrollment document to repository
-        await prisma.userDocument.create({
-          data: {
-            userId: enrollDoc.userId,
-            type: enrollDoc.type,
-            originalName: enrollDoc.originalName,
-            url: enrollDoc.url,
-            size: enrollDoc.size,
-            mimeType: enrollDoc.mimeType,
-            status: enrollDoc.status,
-            uploadSource: UploadSource.ENROLLMENT,
-            uploadedBy: enrollDoc.uploadedBy,
-            uploadedByRole: enrollDoc.uploadedByRole,
-            checksum: enrollDoc.checksum
-          }
-        });
-        syncResult.enrollmentToRepository++;
-      }
-    }
-
-    return syncResult;
   }
 
   // Helper function to get document type folder

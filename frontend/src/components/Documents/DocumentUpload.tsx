@@ -325,7 +325,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
 
       {/* File List */}
       {uploadedFiles.length > 0 && (
-        <div className="space-y-4">
+        <div>
           <h4 className="font-medium text-gray-900">
             File da caricare ({uploadedFiles.length})
           </h4>

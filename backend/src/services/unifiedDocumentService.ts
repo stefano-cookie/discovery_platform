@@ -18,19 +18,10 @@ export class UnifiedDocumentService {
       throw new Error('Registrazione non trovata');
     }
 
-    // Get all documents related to this registration
+    // Get all documents related to this specific registration only
     const documents = await prisma.userDocument.findMany({
       where: {
-        OR: [
-          // Documents uploaded during enrollment for this registration
-          { registrationId: registrationId },
-          // Documents uploaded by user that can be used for this registration
-          { 
-            userId: registration.userId,
-            registrationId: null,
-            uploadSource: 'USER_DASHBOARD'
-          }
-        ]
+        registrationId: registrationId
       },
       include: {
         verifier: {
@@ -67,7 +58,7 @@ export class UnifiedDocumentService {
     return documents;
   }
 
-  // Upload document (handles all sources)
+  // Upload document (handles all sources) - registrationId is now required
   static async uploadDocument(
     file: Express.Multer.File,
     userId: string,
@@ -75,15 +66,15 @@ export class UnifiedDocumentService {
     uploadSource: UploadSource,
     uploadedBy: string,
     uploadedByRole: UserRole,
-    registrationId?: string
+    registrationId: string
   ) {
     try {
-      // Check for existing document of same type
+      // Check for existing document of same type for this specific registration
       const existingDoc = await prisma.userDocument.findFirst({
         where: {
           userId,
           type,
-          registrationId: registrationId || null
+          registrationId: registrationId!
         }
       });
 
@@ -108,7 +99,7 @@ export class UnifiedDocumentService {
         uploadSource,
         uploadedBy,
         uploadedByRole,
-        registrationId: registrationId || null,
+        registrationId: registrationId!,
         uploadedAt: new Date()
       };
 
@@ -399,7 +390,7 @@ export class UnifiedDocumentService {
     } else if (offerType === 'CERTIFICATION') {
       return [
         { type: 'IDENTITY_CARD', name: "Carta d'Identità", required: true },
-        { type: 'CV', name: 'Codice Fiscale / Tessera Sanitaria', required: true }
+        { type: 'TESSERA_SANITARIA', name: 'Tessera Sanitaria / Codice Fiscale', required: true }
       ];
     }
     return [];

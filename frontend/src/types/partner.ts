@@ -27,6 +27,7 @@ export interface PartnerUser {
   // Date
   createdAt: string;        // Data registrazione utente
   enrollmentDate: string;   // Data iscrizione al corso
+  examDate?: string;        // Data esame (per certificazioni)
   // Pagamenti
   originalAmount: number;
   finalAmount: number;

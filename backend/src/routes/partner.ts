@@ -1,5 +1,6 @@
 import { Router, Response as ExpressResponse } from 'express';
 import { PrismaClient, DocumentStatus } from '@prisma/client';
+// Auto-progression fix for certification status
 import { authenticate, requireRole, AuthRequest } from '../middleware/auth';
 import { ContractService } from '../services/contractService';
 import { DocumentService, upload as documentUpload } from '../services/documentService';
@@ -138,8 +139,8 @@ router.get('/users', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req
     });
 
     const users = registrations.map((reg: any) => ({
-      id: reg.user.id,
-      registrationId: reg.id,
+        id: reg.user.id,
+        registrationId: reg.id,
       email: reg.user.email,
       profile: reg.user.profile,
       status: reg.status,
@@ -1716,7 +1717,8 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-paid', aut
       registrationId
     });
     
-    if (allDeadlinesPaid && registration.status === 'PENDING' && registrationWithOffer?.offer?.offerType === 'CERTIFICATION') {
+    // Move to ENROLLED when all payments are completed (from CONTRACT_SIGNED or PENDING)
+    if (allDeadlinesPaid && ['PENDING', 'CONTRACT_SIGNED'].includes(registration.status) && registrationWithOffer?.offer?.offerType === 'CERTIFICATION') {
       console.log('Updating registration status to ENROLLED for certification');
       updateData.status = 'ENROLLED';
       updateData.enrolledAt = new Date();
@@ -1941,8 +1943,8 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-pa
       registrationId
     });
     
-    // For certifications, automatically move to ENROLLED when all payments are completed
-    if (allDeadlinesPaid && registrationWithOffer?.status === 'PENDING' && registrationWithOffer?.offer?.offerType === 'CERTIFICATION') {
+    // Move to ENROLLED when all payments are completed (from CONTRACT_SIGNED or PENDING)
+    if (allDeadlinesPaid && ['PENDING', 'CONTRACT_SIGNED'].includes(registrationWithOffer?.status || '') && registrationWithOffer?.offer?.offerType === 'CERTIFICATION') {
       console.log('Updating registration status to ENROLLED for certification (partial payments)');
       updateData.status = 'ENROLLED';
       updateData.enrolledAt = new Date();
@@ -1978,7 +1980,8 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-pa
         amount: Number(nextDeadline.amount),
         dueDate: nextDeadline.dueDate,
         description: nextDeadline.description
-      } : null
+      } : null,
+      statusChanged: allDeadlinesPaid && ['PENDING', 'CONTRACT_SIGNED'].includes(registrationWithOffer?.status || '') && registrationWithOffer?.offer?.offerType === 'CERTIFICATION'
     });
   } catch (error) {
     console.error('Mark custom payment error:', error);
@@ -2300,6 +2303,59 @@ router.post('/documents/:documentId/verify', authenticate, requireRole(['PARTNER
       ? await UnifiedDocumentService.approveDocument(documentId, req.user!.id)
       : await UnifiedDocumentService.rejectDocument(documentId, req.user!.id, rejectionReason);
     
+    // Auto-progression logic for CERTIFICATION workflows (only when approving)
+    if (status === DocumentStatus.APPROVED) {
+      const document = await prisma.userDocument.findUnique({
+        where: { id: documentId },
+        include: {
+          user: {
+            include: {
+              registrations: {
+                where: { partnerId }
+              }
+            }
+          }
+        }
+      });
+
+      if (document) {
+        // Check if all required documents are now approved for CERTIFICATION registrations
+        for (const registration of document.user.registrations) {
+          if (registration.status === 'ENROLLED') {
+            // Get registration with offer details
+            const regWithOffer = await prisma.registration.findUnique({
+              where: { id: registration.id },
+              include: { offer: true }
+            });
+
+            if (regWithOffer?.offer?.offerType === 'CERTIFICATION') {
+              // For certification, check if both IDENTITY_CARD and TESSERA_SANITARIA are approved
+              const requiredDocs = await prisma.userDocument.findMany({
+                where: {
+                  userId: document.user.id,
+                  type: { in: ['IDENTITY_CARD', 'TESSERA_SANITARIA'] },
+                  status: 'APPROVED'
+                }
+              });
+
+              // If both documents are approved, automatically advance to DOCUMENTS_APPROVED only
+              if (requiredDocs.length === 2) {
+                if (registration.status === 'ENROLLED') {
+                  // Only transition: ENROLLED → DOCUMENTS_APPROVED (stop here)
+                  await prisma.registration.update({
+                    where: { id: registration.id },
+                    data: { status: 'DOCUMENTS_APPROVED' }
+                  });
+                  
+                  console.log('Auto-advanced certification to DOCUMENTS_APPROVED:', registration.id);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    
     res.json({ 
       message: `Documento ${status === DocumentStatus.APPROVED ? 'approvato' : 'rifiutato'} con successo`,
       document: {
@@ -2494,14 +2550,13 @@ router.post('/registrations/:registrationId/exam-date', authenticate, requireRol
       return res.status(404).json({ error: 'Iscrizione non trovata' });
     }
 
-    // For certification workflows, add exam date field to registration
+    // Update exam date and status for certification workflow
     await prisma.registration.update({
       where: { id: registrationId },
       data: {
-        // Add examDate and examRegisteredBy fields to the Registration model in the future
-        // For now, we'll use a generic approach
-        dataVerifiedAt: new Date(examDate), // Temporary field usage
-        status: 'ENROLLED' // Update status for certification workflow
+        examDate: new Date(examDate),
+        examRegisteredBy: partnerId,
+        status: 'EXAM_REGISTERED'
       }
     });
 
@@ -2512,6 +2567,73 @@ router.post('/registrations/:registrationId/exam-date', authenticate, requireRol
   } catch (error: any) {
     console.error('Set exam date error:', error);
     res.status(500).json({ error: 'Errore nella registrazione della data esame' });
+  }
+});
+
+// Mark exam as completed for certification workflow
+router.post('/registrations/:registrationId/complete-exam', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { registrationId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify registration belongs to this partner and is in EXAM_REGISTERED state
+    const registration = await prisma.registration.findFirst({
+      where: { 
+        id: registrationId, 
+        partnerId,
+        status: 'EXAM_REGISTERED' 
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata o non in stato corretto' });
+    }
+
+    // Update status to COMPLETED and record completion
+    const updatedRegistration = await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        status: 'COMPLETED',
+        examCompletedDate: new Date(),
+        examCompletedBy: partnerId
+      },
+      include: {
+        user: {
+          include: {
+            profile: true
+          }
+        }
+      }
+    });
+
+    // Send completion email to user
+    try {
+      const emailService = require('../services/emailService').default;
+      await emailService.sendCertificationExamCompletedNotification(
+        updatedRegistration.user.email,
+        updatedRegistration.user.profile?.nome || 'Utente',
+        'Certificazione'
+      );
+    } catch (emailError) {
+      console.error('Error sending completion email:', emailError);
+      // Don't fail the request if email fails
+    }
+
+    res.json({
+      message: 'Esame completato con successo',
+      registration: {
+        id: updatedRegistration.id,
+        status: updatedRegistration.status,
+        examCompletedDate: updatedRegistration.examCompletedDate
+      }
+    });
+  } catch (error: any) {
+    console.error('Complete exam error:', error);
+    res.status(500).json({ error: 'Errore nel completamento dell\'esame' });
   }
 });
 
@@ -2591,6 +2713,39 @@ router.post('/registrations/:registrationId/bulk-verify', authenticate, requireR
       }
     }
 
+    // Auto-progression logic for CERTIFICATION workflows (after bulk processing)
+    const regWithOffer = await prisma.registration.findUnique({
+      where: { id: registrationId },
+      include: { 
+        offer: true,
+        user: true
+      }
+    });
+
+    if (regWithOffer?.offer?.offerType === 'CERTIFICATION') {
+      // Check approved documents for this user
+      const approvedDocs = await prisma.userDocument.findMany({
+        where: {
+          userId: regWithOffer.userId,
+          type: { in: ['IDENTITY_CARD', 'TESSERA_SANITARIA'] },
+          status: 'APPROVED'
+        }
+      });
+
+      if (approvedDocs.length === 2) {
+        // If both documents are approved, automatically advance to DOCUMENTS_APPROVED only
+        if (regWithOffer.status === 'ENROLLED') {
+          // Only transition: ENROLLED → DOCUMENTS_APPROVED (stop here)
+          await prisma.registration.update({
+            where: { id: registrationId },
+            data: { status: 'DOCUMENTS_APPROVED' }
+          });
+          
+          console.log('Auto-advanced certification to DOCUMENTS_APPROVED (bulk):', registrationId);
+        }
+      }
+    }
+
     res.json({
       message: 'Verifica documenti completata',
       results
@@ -2651,18 +2806,10 @@ router.get('/registrations/:registrationId/documents/unified', authenticate, req
       ];
     }
 
-    // Get all documents for this user (from all sources)
+    // Get all documents for this specific registration only
     const userDocuments = await prisma.userDocument.findMany({
       where: { 
-        AND: [
-          { userId: registration.userId },
-          {
-            OR: [
-              { registrationId: registrationId },
-              { registrationId: null } // Include general documents
-            ]
-          }
-        ]
+        registrationId: registrationId
       },
       include: {
         verifier: {
@@ -2811,14 +2958,20 @@ router.post('/documents/:documentId/approve', authenticate, requireRole(['PARTNE
             requiredDocsTypes: requiredDocs.map(d => d.type)
           });
 
-          // If both documents are approved, automatically advance to DOCUMENTS_APPROVED
+          // If both documents are approved, automatically advance through the workflow
           if (requiredDocs.length === 2) {
-            await prisma.registration.update({
-              where: { id: registration.id },
-              data: { status: 'DOCUMENTS_APPROVED' }
-            });
+            if (registration.status === 'ENROLLED') {
+              // First transition: ENROLLED → DOCUMENTS_APPROVED
+              await prisma.registration.update({
+                where: { id: registration.id },
+                data: { status: 'DOCUMENTS_APPROVED' }
+              });
+              
+              console.log('Auto-advanced certification to DOCUMENTS_APPROVED:', registration.id);
+            }
             
-            console.log('Auto-advanced certification to DOCUMENTS_APPROVED:', registration.id);
+            // Auto-progression stops at DOCUMENTS_APPROVED
+            // The partner must manually advance to EXAM_REGISTERED
           }
         }
       }
@@ -3158,7 +3311,14 @@ router.post('/registrations/:registrationId/certification-docs-approved', authen
 
     const registration = await prisma.registration.findFirst({
       where: { id: registrationId, partnerId },
-      include: { offer: true }
+      include: { 
+        offer: true,
+        user: {
+          include: {
+            profile: true
+          }
+        }
+      }
     });
 
     if (!registration) {
@@ -3175,6 +3335,23 @@ router.post('/registrations/:registrationId/certification-docs-approved', authen
       data: { status: 'DOCUMENTS_APPROVED' }
     });
 
+    // Send email notification to user
+    if (registration.user?.email) {
+      const userName = registration.user.profile?.nome || 'Utente';
+      const courseName = registration.offer?.name || 'Corso di Certificazione';
+      
+      try {
+        await emailService.sendCertificationDocsApprovedNotification(
+          registration.user.email,
+          userName,
+          courseName
+        );
+      } catch (emailError) {
+        console.error('Error sending docs approved email:', emailError);
+        // Don't fail the request if email fails
+      }
+    }
+
     res.json({ success: true, message: 'Documenti approvati per certificazione' });
   } catch (error) {
     console.error('Errore approvazione documenti certificazione:', error);
@@ -3187,19 +3364,21 @@ router.post('/registrations/:registrationId/certification-exam-registered', auth
   try {
     const { registrationId } = req.params;
     const partnerId = req.partner?.id;
-    const { examDate } = req.body;
 
     if (!partnerId) {
       return res.status(400).json({ error: 'Partner non trovato' });
     }
 
-    if (!examDate) {
-      return res.status(400).json({ error: 'Data esame richiesta' });
-    }
-
     const registration = await prisma.registration.findFirst({
       where: { id: registrationId, partnerId },
-      include: { offer: true }
+      include: { 
+        offer: true,
+        user: {
+          include: {
+            profile: true
+          }
+        }
+      }
     });
 
     if (!registration) {
@@ -3210,15 +3389,31 @@ router.post('/registrations/:registrationId/certification-exam-registered', auth
       return res.status(400).json({ error: 'Step disponibile solo per corsi di certificazione' });
     }
 
-    // Update with exam date and status
+    // Update status without requiring date
     await prisma.registration.update({
       where: { id: registrationId },
       data: {
-        examDate: new Date(examDate),
         examRegisteredBy: partnerId,
         status: 'EXAM_REGISTERED'
       }
     });
+
+    // Send email notification to user
+    if (registration.user?.email) {
+      const userName = registration.user.profile?.nome || 'Utente';
+      const courseName = registration.offer?.name || 'Corso di Certificazione';
+      
+      try {
+        await emailService.sendCertificationExamRegisteredNotification(
+          registration.user.email,
+          userName,
+          courseName
+        );
+      } catch (emailError) {
+        console.error('Error sending exam registered email:', emailError);
+        // Don't fail the request if email fails
+      }
+    }
 
     res.json({ success: true, message: 'Iscrizione all\'esame registrata' });
   } catch (error) {
@@ -3232,7 +3427,6 @@ router.post('/registrations/:registrationId/certification-exam-completed', authe
   try {
     const { registrationId } = req.params;
     const partnerId = req.partner?.id;
-    const { completedDate } = req.body;
 
     if (!partnerId) {
       return res.status(400).json({ error: 'Partner non trovato' });
@@ -3240,7 +3434,14 @@ router.post('/registrations/:registrationId/certification-exam-completed', authe
 
     const registration = await prisma.registration.findFirst({
       where: { id: registrationId, partnerId },
-      include: { offer: true }
+      include: { 
+        offer: true,
+        user: {
+          include: {
+            profile: true
+          }
+        }
+      }
     });
 
     if (!registration) {
@@ -3255,11 +3456,28 @@ router.post('/registrations/:registrationId/certification-exam-completed', authe
     await prisma.registration.update({
       where: { id: registrationId },
       data: {
-        examCompletedDate: completedDate ? new Date(completedDate) : new Date(),
+        examCompletedDate: new Date(),
         examCompletedBy: partnerId,
         status: 'COMPLETED'
       }
     });
+
+    // Send email notification to user
+    if (registration.user?.email) {
+      const userName = registration.user.profile?.nome || 'Utente';
+      const courseName = registration.offer?.name || 'Corso di Certificazione';
+      
+      try {
+        await emailService.sendCertificationExamCompletedNotification(
+          registration.user.email,
+          userName,
+          courseName
+        );
+      } catch (emailError) {
+        console.error('Error sending exam completed email:', emailError);
+        // Don't fail the request if email fails
+      }
+    }
 
     res.json({ success: true, message: 'Esame completato' });
   } catch (error) {
@@ -3323,17 +3541,18 @@ router.get('/registrations/:registrationId/certification-steps', authenticate, r
         completed: registration.status === 'DOCUMENTS_APPROVED' || 
                    ['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status),
         completedAt: registration.status === 'DOCUMENTS_APPROVED' ? new Date() : null,
-        status: registration.status === 'DOCUMENTS_APPROVED' ? 'current' :
-                (['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 'completed' : 'pending')
+        status: registration.status === 'DOCUMENTS_APPROVED' ? 'completed' :
+                (['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 'completed' : 
+                (registration.status === 'ENROLLED' && allDeadlinesPaid ? 'current' : 'pending'))
       },
       examRegistered: {
         step: 4,
         title: 'Iscritto all\'Esame',
         description: 'Iscrizione all\'esame di certificazione completata',
-        completed: !!registration.examDate,
+        completed: !!registration.examDate || registration.status === 'COMPLETED',
         completedAt: registration.examDate,
         status: registration.status === 'EXAM_REGISTERED' ? 'current' :
-                (!!registration.examDate ? 'completed' : 'pending')
+                (registration.status === 'COMPLETED' || !!registration.examDate ? 'completed' : 'pending')
       },
       examCompleted: {
         step: 5,
@@ -3939,6 +4158,105 @@ router.get('/analytics', authenticate, requireRole(['PARTNER', 'ADMIN']), async 
   } catch (error) {
     console.error('Get partner analytics error:', error);
     res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// DELETE /api/partner/registrations/:registrationId - Delete a registration with all related data
+router.delete('/registrations/:registrationId', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const partnerId = req.partner?.id;
+    const { registrationId } = req.params;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    // Verify registration exists and belongs to this partner
+    const registration = await prisma.registration.findFirst({
+      where: {
+        id: registrationId,
+        partnerId
+      },
+      include: {
+        user: {
+          include: {
+            profile: true
+          }
+        },
+        offer: true,
+        deadlines: true,
+        payments: true,
+        userDocuments: true
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Registrazione non trovata o non autorizzata' });
+    }
+
+    // Log deletion for audit purposes
+    console.log(`🗑️ Deleting registration ${registrationId} for partner ${partnerId}`);
+    console.log(`- User: ${registration.user.email}`);
+    console.log(`- Offer: ${registration.offer?.name}`);
+    console.log(`- Status: ${registration.status}`);
+    console.log(`- Deadlines: ${registration.deadlines.length}`);
+    console.log(`- Payments: ${registration.payments.length}`);
+    console.log(`- Documents: ${registration.userDocuments.length}`);
+
+    // Use transaction to ensure atomic deletion and access disabling
+    await prisma.$transaction(async (tx) => {
+      // 1. Disable user access to the offer before deleting registration (if offerId exists)
+      if (registration.partnerOfferId) {
+        await tx.userOfferAccess.updateMany({
+          where: {
+            userId: registration.userId,
+            offerId: registration.partnerOfferId
+          },
+          data: {
+            enabled: false
+          }
+        });
+      }
+
+      // 2. Delete payment deadlines (thanks to CASCADE, this happens automatically)
+      await tx.paymentDeadline.deleteMany({
+        where: { registrationId }
+      });
+
+      // 3. Delete payments (thanks to CASCADE, this happens automatically)
+      await tx.payment.deleteMany({
+        where: { registrationId }
+      });
+
+      // 4. Delete coupon uses
+      await tx.couponUse.deleteMany({
+        where: { registrationId }
+      });
+
+      // 5. Delete the registration (CASCADE will handle UserDocuments)
+      await tx.registration.delete({
+        where: { id: registrationId }
+      });
+
+      console.log(`🚫 Disabled access for user ${registration.user.email} to offer ${registration.offer?.name}`);
+    });
+
+    console.log(`✅ Successfully deleted registration ${registrationId}`);
+
+    res.json({
+      success: true,
+      message: 'Registrazione eliminata con successo',
+      deletedRegistration: {
+        id: registrationId,
+        userEmail: registration.user.email,
+        offerName: registration.offer?.name,
+        status: registration.status
+      }
+    });
+
+  } catch (error) {
+    console.error('Delete registration error:', error);
+    res.status(500).json({ error: 'Errore durante l\'eliminazione della registrazione' });
   }
 });
 

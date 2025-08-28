@@ -831,7 +831,7 @@ const OfferManagement: React.FC = () => {
               </p>
             </div>
 
-            <div className="space-y-4">
+            <div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Nome Offerta

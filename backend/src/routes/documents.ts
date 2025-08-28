@@ -254,13 +254,7 @@ router.get('/registration/:registrationId', authenticate, async (req: AuthReques
     const documents = await prisma.userDocument.findMany({
       where: {
         userId: userId,
-        OR: [
-          { registrationId: registrationId }, // Documents specifically for this registration
-          { 
-            registrationId: null, // User dashboard uploads that can be used for any registration
-            uploadSource: 'USER_DASHBOARD'
-          }
-        ]
+        registrationId: registrationId // Only documents specifically for this registration
       },
       orderBy: { uploadedAt: 'desc' },
       include: {

@@ -52,8 +52,7 @@ const UserEnrollmentFlow: React.FC<UserEnrollmentFlowProps> = ({ status, registr
             </svg>
           ),
           status: status === 'ENROLLED' ? 'current' :
-                 status === 'DOCUMENTS_APPROVED' ? 'completed' :
-                 ['EXAM_REGISTERED', 'COMPLETED'].includes(status) ? 'completed' : 'pending'
+                 ['DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'EXAM_COMPLETED', 'COMPLETED'].includes(status) ? 'completed' : 'pending'
         },
         {
           id: 'exam_registered',
@@ -64,9 +63,8 @@ const UserEnrollmentFlow: React.FC<UserEnrollmentFlowProps> = ({ status, registr
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           ),
-          status: status === 'DOCUMENTS_APPROVED' ? 'current' : 
-                 status === 'EXAM_REGISTERED' ? 'completed' :
-                 status === 'COMPLETED' ? 'completed' : 'pending'
+          status: status === 'EXAM_REGISTERED' ? 'completed' :
+                 ['EXAM_COMPLETED', 'COMPLETED'].includes(status) ? 'completed' : 'pending'
         },
         {
           id: 'exam_completed',
@@ -78,6 +76,7 @@ const UserEnrollmentFlow: React.FC<UserEnrollmentFlowProps> = ({ status, registr
             </svg>
           ),
           status: status === 'EXAM_REGISTERED' ? 'current' :
+                 status === 'EXAM_COMPLETED' ? 'current' :
                  status === 'COMPLETED' ? 'completed' : 'pending'
         }
       ];
@@ -245,9 +244,12 @@ const UserEnrollmentFlow: React.FC<UserEnrollmentFlowProps> = ({ status, registr
               {status === 'PENDING' && 'La tua iscrizione è stata ricevuta. Il partner sta preparando i documenti.'}
               {status === 'CONTRACT_GENERATED' && 'Il partner sta preparando i contratti. Riceverai una notifica quando saranno pronti.'}
               {status === 'CONTRACT_SIGNED' && 'I contratti sono disponibili per la visualizzazione. Procedi con il pagamento quando sei pronto.'}
-              {status === 'ENROLLED' && 'Il pagamento è stato ricevuto. La tua iscrizione è ora attiva.'}
-              {status === 'COMPLETED' && 'La tua iscrizione è completata e attiva. Congratulazioni!'}
-              {!['PENDING', 'CONTRACT_GENERATED', 'CONTRACT_SIGNED', 'ENROLLED', 'COMPLETED'].includes(status) && `Stato: ${status}`}
+              {status === 'ENROLLED' && 'Il pagamento è stato ricevuto. I tuoi documenti sono in attesa di approvazione.'}
+              {status === 'DOCUMENTS_APPROVED' && 'I tuoi documenti sono stati approvati! Il partner procederà con l\'iscrizione all\'esame.'}
+              {status === 'EXAM_REGISTERED' && 'Sei stato iscritto all\'esame! Attendi la conferma del completamento.'}
+              {status === 'EXAM_COMPLETED' && 'Hai sostenuto l\'esame con successo! Il processo di certificazione è quasi completato.'}
+              {status === 'COMPLETED' && 'La tua certificazione è completata! Congratulazioni!'}
+              {!['PENDING', 'CONTRACT_GENERATED', 'CONTRACT_SIGNED', 'ENROLLED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'EXAM_COMPLETED', 'COMPLETED'].includes(status) && `Stato: ${status}`}
             </p>
           </div>
         </div>

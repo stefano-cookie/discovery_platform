@@ -998,7 +998,7 @@ const CouponManagement: React.FC = () => {
                   <p className="text-gray-500">Nessun utilizzo registrato</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div>
                   {selectedCouponUsage.usageLogs.map((log) => (
                     <div key={log.id} className="bg-gray-50 rounded-lg p-4 border">
                       <div className="flex justify-between items-start">

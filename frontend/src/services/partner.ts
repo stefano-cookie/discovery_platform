@@ -83,4 +83,12 @@ export const partnerService = {
       url: '/partners/analytics',
     });
   },
+
+  // Delete registration
+  async deleteRegistration(registrationId: string): Promise<{ success: boolean; message: string }> {
+    return apiRequest<{ success: boolean; message: string }>({
+      method: 'DELETE',
+      url: `/partners/registrations/${registrationId}`,
+    });
+  },
 };

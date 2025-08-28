@@ -28,25 +28,14 @@ router.get('/types', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// Get user's repository documents
+// Get user's repository documents - DEPRECATED: now documents are registration-specific
 router.get('/', authenticate, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const documents = await DocumentService.getUserDocuments(userId);
+    console.log(`DEPRECATED: getUserDocuments endpoint called for user ${userId} - returning empty array`);
     
-    const formattedDocs = documents.map(doc => ({
-      id: doc.id,
-      type: doc.type,
-      fileName: doc.originalName,
-      fileSize: doc.size,
-      mimeType: doc.mimeType,
-      status: doc.status,
-      isVerified: doc.status === 'APPROVED',
-      verifiedBy: doc.verifier?.email,
-      verifiedAt: doc.verifiedAt,
-      rejectionReason: doc.rejectionReason,
-      uploadedAt: doc.uploadedAt
-    }));
+    // Return empty array as documents are now registration-specific
+    const formattedDocs: any[] = [];
 
     res.json({ documents: formattedDocs });
   } catch (error: any) {
@@ -84,30 +73,15 @@ router.get('/enrollment-documents', authenticate, async (req: AuthRequest, res) 
   }
 });
 
-// Upload document to repository
+// Upload document to repository - DEPRECATED: now documents must be associated with a registration
 router.post('/', authenticate, upload.single('document'), async (req: AuthRequest, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'Nessun file caricato' });
-    }
-
-    const { type } = req.body;
-    if (!type || !Object.values(DocumentType).includes(type)) {
-      return res.status(400).json({ error: 'Tipo documento non valido' });
-    }
-
     const userId = req.user!.id;
-    const document = await DocumentService.uploadDocument(userId, req.file, type as DocumentType);
+    console.log(`DEPRECATED: document upload to repository endpoint called for user ${userId}`);
     
-    res.json({ 
-      message: 'Documento caricato con successo',
-      document: {
-        id: document.id,
-        type: document.type,
-        fileName: document.originalName,
-        status: document.status,
-        uploadedAt: document.uploadedAt
-      }
+    return res.status(400).json({ 
+      error: 'Upload documenti generico non più supportato', 
+      message: 'I documenti devono ora essere caricati tramite una specifica iscrizione'
     });
   } catch (error: any) {
     console.error('Error uploading document:', error);

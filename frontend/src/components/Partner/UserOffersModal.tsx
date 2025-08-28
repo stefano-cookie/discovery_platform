@@ -148,7 +148,7 @@ const UserOffersModal: React.FC<UserOffersModalProps> = ({
               <span className="text-gray-600">Caricamento offerte...</span>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                 <div className="flex items-start">
                   <svg className="w-5 h-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">

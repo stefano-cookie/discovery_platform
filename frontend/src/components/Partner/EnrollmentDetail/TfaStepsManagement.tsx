@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../../services/api';
 import axios from 'axios';
+import { getPartnerStatusDisplay } from '../../../utils/statusTranslations';
 
 interface TfaStep {
   step: number;
@@ -288,19 +289,6 @@ const TfaStepsManagement: React.FC<TfaStepsManagementProps> = ({
     year: 'numeric'
   });
 
-  const getStatusDisplayText = (status: string) => {
-    switch (status) {
-      case 'PENDING': return 'In Attesa';
-      case 'CONTRACT_GENERATED': return 'Contratto Generato';
-      case 'CONTRACT_SIGNED': return 'Contratto Firmato';
-      case 'ENROLLED': return 'Attivo';
-      case 'CNRED_RELEASED': return 'CNRED Rilasciato';
-      case 'FINAL_EXAM': return 'Esame Finale';
-      case 'RECOGNITION_REQUEST': return 'Richiesta Riconoscimento';
-      case 'COMPLETED': return 'Completato';
-      default: return status;
-    }
-  };
 
   const getStepIcon = (step: TfaStep) => {
     if (step.completed) {
@@ -368,7 +356,7 @@ const TfaStepsManagement: React.FC<TfaStepsManagementProps> = ({
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">Documenti Steps TFA</h3>
         <span className="text-sm px-3 py-1 bg-blue-100 text-blue-800 rounded-full">
-          Status: {getStatusDisplayText(tfaData.currentStatus)}
+          Stato: {getPartnerStatusDisplay(tfaData.currentStatus)}
         </span>
       </div>
       

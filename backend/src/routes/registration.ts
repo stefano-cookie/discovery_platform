@@ -248,15 +248,15 @@ router.post('/upload-temp-document', enrollmentUpload.single('document'), async 
 
 router.post('/upload-document', enrollmentUpload.single('document'), async (req: Request, res: Response) => {
   try {
-    const { userId, documentType, templateType } = req.body;
+    const { userId, documentType, templateType, registrationId } = req.body;
     const file = req.file;
     
     if (!file) {
       return res.status(400).json({ error: 'File non fornito' });
     }
     
-    if (!userId || !documentType) {
-      return res.status(400).json({ error: 'userId e documentType sono richiesti' });
+    if (!userId || !documentType || !registrationId) {
+      return res.status(400).json({ error: 'userId, documentType e registrationId sono richiesti' });
     }
     
     // Verify user exists
@@ -272,18 +272,19 @@ router.post('/upload-document', enrollmentUpload.single('document'), async (req:
     const dbDocumentType = mapDocumentType(documentType);
     
     // Check if document of this type already exists for this user (not linked to a registration yet)
+    // Check if document already exists for this specific registration
     const existingDoc = await prisma.userDocument.findFirst({
       where: {
         userId,
-        type: dbDocumentType as any,
-        registrationId: null // Only unlinked documents
+        registrationId,
+        type: dbDocumentType as any
       }
     });
     
     let document;
     
     if (existingDoc) {
-      // Update existing document
+      // Update existing document for this registration
       document = await prisma.userDocument.update({
         where: { id: existingDoc.id },
         data: {
@@ -309,6 +310,7 @@ router.post('/upload-document', enrollmentUpload.single('document'), async (req:
       document = await prisma.userDocument.create({
         data: {
           userId,
+          registrationId,
           type: dbDocumentType as any,
           originalName: file.originalname,
           url: file.path,
@@ -366,14 +368,8 @@ router.get('/user-documents/:userId', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Utente non trovato' });
     }
     
-    // Get documents not yet linked to any registration
-    const documents = await prisma.userDocument.findMany({
-      where: {
-        userId,
-        registrationId: null
-      },
-      orderBy: { uploadedAt: 'desc' }
-    });
+    // Get documents not yet linked to any registration - now returns empty as all documents are registration-specific
+    const documents: any[] = [];
     
     // Map database types back to frontend types
     const frontendTypeMapping: Record<string, string> = {
@@ -870,29 +866,9 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
         }
       }
 
-      // Link existing user documents to new registration
-      // Find all unlinked documents for this user and link them to the registration
-      const userDocuments = await tx.userDocument.findMany({
-        where: {
-          userId: userId,
-          registrationId: null // Only unlinked documents
-        }
-      });
-      
-      if (userDocuments.length > 0) {
-        // Link all unlinked documents to this registration
-        await tx.userDocument.updateMany({
-          where: {
-            userId: userId,
-            registrationId: null
-          },
-          data: {
-            registrationId: registration.id
-          }
-        });
-        
-        console.log(`🔗 Linked ${userDocuments.length} documents to registration ${registration.id}`);
-      }
+      // DEPRECATED: Link existing user documents to new registration (no longer needed)
+      // All documents are now created with registrationId directly
+      console.log(`📝 Registration ${registration.id} created - documents will be uploaded directly with registrationId`);
       
       return registration;
     });
@@ -1459,29 +1435,9 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
         }
       }
 
-      // Link existing user documents to new registration
-      // Find all unlinked documents for this user and link them to the registration
-      const userDocuments = await tx.userDocument.findMany({
-        where: {
-          userId: user.id,
-          registrationId: null // Only unlinked documents
-        }
-      });
-      
-      if (userDocuments.length > 0) {
-        // Link all unlinked documents to this registration
-        await tx.userDocument.updateMany({
-          where: {
-            userId: user.id,
-            registrationId: null
-          },
-          data: {
-            registrationId: registration.id
-          }
-        });
-        
-        console.log(`🔗 Linked ${userDocuments.length} documents to verified user registration ${registration.id}`);
-      }
+      // DEPRECATED: Link existing user documents to new registration (no longer needed)
+      // All documents are now created with registrationId directly
+      console.log(`📝 Verified user registration ${registration.id} created - documents will be uploaded directly with registrationId`);
       
       return registration;
     });

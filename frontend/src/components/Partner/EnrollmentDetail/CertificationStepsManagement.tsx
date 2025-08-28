@@ -1,6 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { apiRequest } from '../../../services/api';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { getPartnerStatusDisplay } from '../../../utils/statusTranslations';
+import { triggerCertificationStepsRefresh, triggerRegistrationsRefresh } from '../../../utils/refreshEvents';
+import SuccessModal from '../../UI/SuccessModal';
+import ErrorModal from '../../UI/ErrorModal';
+import ConfirmModal from '../../UI/ConfirmModal';
 
 interface CertificationStep {
   step: number;
@@ -32,16 +36,20 @@ interface CertificationStepsManagementProps {
 const CertificationStepsManagement: React.FC<CertificationStepsManagementProps> = ({ 
   registrationId, 
   registration,
-  onUpdate 
+  onUpdate
 }) => {
   const [certificationData, setCertificationData] = useState<CertificationStepsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  
-  // Form states
-  const [examDate, setExamDate] = useState('');
-  const [completedDate, setCompletedDate] = useState('');
+  const [showExamDateSuccess, setShowExamDateSuccess] = useState(false);
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [forceUpdate, setForceUpdate] = useState(0);
 
   // Function to handle contract preview with auth
   const handlePreviewContract = async () => {
@@ -66,7 +74,8 @@ const CertificationStepsManagement: React.FC<CertificationStepsManagementProps> 
       setTimeout(() => window.URL.revokeObjectURL(url), 10000);
     } catch (error) {
       console.error('Error previewing contract:', error);
-      alert('Errore nell\'anteprima del contratto');
+      setErrorMessage('Errore nell\'anteprima del contratto');
+      setShowErrorModal(true);
     }
   };
 
@@ -96,7 +105,8 @@ const CertificationStepsManagement: React.FC<CertificationStepsManagementProps> 
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error downloading contract:', error);
-      alert('Errore nel download del contratto');
+      setErrorMessage('Errore nel download del contratto');
+      setShowErrorModal(true);
     }
   };
 
@@ -128,46 +138,137 @@ const CertificationStepsManagement: React.FC<CertificationStepsManagementProps> 
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error downloading signed contract:', error);
-      alert('Errore nel download del contratto firmato');
+      setErrorMessage('Errore nel download del contratto firmato');
+      setShowErrorModal(true);
     }
   };
 
-  useEffect(() => {
-    fetchCertificationSteps();
+  // Define functions first before using them in effects
+  const fetchDocuments = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
+      const response = await axios.get(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/partners/registrations/${registrationId}/documents/unified`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+      
+      // Handle both possible response formats
+      const documents = response.data?.documents || response.data;
+      if (documents && Array.isArray(documents)) {
+        setDocuments(documents);
+      }
+    } catch (err) {
+      console.error('Error fetching documents:', err);
+    }
   }, [registrationId]);
-
-  const fetchCertificationSteps = async () => {
+  
+  const fetchCertificationSteps = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await apiRequest<CertificationStepsData>({
-        method: 'GET',
-        url: `/partners/registrations/${registrationId}/certification-steps`
-      });
+      const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
+      const response = await axios.get<CertificationStepsData>(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/partners/registrations/${registrationId}/certification-steps`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
       
-      setCertificationData(response);
+      setCertificationData(response.data);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Errore nel caricamento steps certificazione');
     } finally {
       setLoading(false);
     }
-  };
+  }, [registrationId]);
+
+  // Effects using the functions defined above
+  useEffect(() => {
+    fetchCertificationSteps();
+    fetchDocuments();
+  }, [fetchCertificationSteps, fetchDocuments]);
+  
+  // Force refresh when certification status changes
+  useEffect(() => {
+  }, [certificationData?.currentStatus, fetchDocuments]);
+  
+  // Listen for document updates from UnifiedDocumentManager
+  useEffect(() => {
+    const handleDocumentUpdate = () => {
+      fetchDocuments();
+    };
+    
+    const handleRefreshSteps = () => {
+      fetchCertificationSteps();
+      fetchDocuments();
+    };
+    
+    window.addEventListener('documentsUpdated', handleDocumentUpdate);
+    window.addEventListener('refreshCertificationSteps', handleRefreshSteps);
+    window.addEventListener('refreshRegistrations', handleRefreshSteps);
+    
+    return () => {
+      window.removeEventListener('documentsUpdated', handleDocumentUpdate);
+      window.removeEventListener('refreshCertificationSteps', handleRefreshSteps);
+      window.removeEventListener('refreshRegistrations', handleRefreshSteps);
+    };
+  }, [fetchCertificationSteps, fetchDocuments]);
 
   const handleApproveDocuments = async () => {
     try {
       setActionLoading('documents');
       
-      await apiRequest({
-        method: 'POST',
-        url: `/partners/registrations/${registrationId}/certification-docs-approved`
-      });
+      const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
+      
+      // If documents are already approved, we're transitioning to next step
+      // Otherwise, we're approving the documents
+      const endpoint = allDocumentsApproved 
+        ? `/partners/registrations/${registrationId}/certification-docs-approved`  // This should transition status
+        : `/partners/registrations/${registrationId}/certification-docs-approved`; // This approves and transitions
+      
+      await axios.post(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}${endpoint}`,
+        {},
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
 
+      // Aggiorna gli steps locali e documenti
       await fetchCertificationSteps();
-      onUpdate?.();
+      await fetchDocuments();
+      
+      // Trigger refresh events per aggiornare altri componenti
+      triggerCertificationStepsRefresh();
+      triggerRegistrationsRefresh();
+      
+      // Aspetta un attimo per dare tempo al backend di aggiornare i dati
+      setTimeout(async () => {
+        // Aggiorna i dati dell'utente nel componente padre
+        onUpdate?.();
+        
+        // Force refresh della parent page
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('userStatusUpdated'));
+        }
+        
+        // Refetch per assicurarsi che i dati siano aggiornati
+        await fetchCertificationSteps();
+        await fetchDocuments();
+      }, 1000);
       
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Errore nell\'approvazione documenti');
+      setErrorMessage(err.response?.data?.error || 'Errore nell\'approvazione documenti');
+      setShowErrorModal(true);
     } finally {
       setActionLoading(null);
     }
@@ -175,46 +276,124 @@ const CertificationStepsManagement: React.FC<CertificationStepsManagementProps> 
 
   const handleRegisterExam = async () => {
     try {
-      if (!examDate) {
-        alert('Inserire la data dell\'esame');
-        return;
-      }
-
       setActionLoading('exam');
       
-      await apiRequest({
-        method: 'POST',
-        url: `/partners/registrations/${registrationId}/certification-exam-registered`,
-        data: { examDate }
-      });
+      // Usa una data di default (oggi) per semplicità
+      const today = new Date().toISOString().split('T')[0];
+      
+      const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
+      await axios.post(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/partners/registrations/${registrationId}/exam-date`,
+        { examDate: today },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
 
-      await fetchCertificationSteps();
+      // Mostra popup di successo immediatamente
+      setShowExamDateSuccess(true);
+      setTimeout(() => setShowExamDateSuccess(false), 3000);
+      
+      // Trigger refresh events immediately
+      triggerCertificationStepsRefresh();
+      triggerRegistrationsRefresh();
+      
+      // Aggiorna i dati dell'utente nel componente padre
       onUpdate?.();
-      setExamDate('');
+      
+      // Force refresh della parent page
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('userStatusUpdated'));
+      }
+      
+      // Aggiorna gli steps locali e documenti
+      await fetchCertificationSteps();
+      await fetchDocuments();
+      
+      // Aspetta un attimo per dare tempo al backend di aggiornare i dati
+      setTimeout(async () => {
+        await fetchCertificationSteps();
+        await fetchDocuments();
+        
+        // Force component re-render
+        setForceUpdate(prev => prev + 1);
+        
+        // Additional refresh triggers
+        triggerCertificationStepsRefresh();
+        triggerRegistrationsRefresh();
+      }, 1500);
       
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Errore nella registrazione esame');
+      setErrorMessage(err.response?.data?.error || 'Errore nel passaggio a Iscritto all\'esame');
+      setShowErrorModal(true);
     } finally {
       setActionLoading(null);
     }
   };
 
-  const handleCompleteExam = async () => {
+  const handleCompleteExam = () => {
+    setShowConfirmModal(true);
+  };
+  
+  const confirmCompleteExam = async () => {
     try {
       setActionLoading('complete');
+      setShowConfirmModal(false); // Close the confirmation modal first
       
-      await apiRequest({
-        method: 'POST',
-        url: `/partners/registrations/${registrationId}/certification-exam-completed`,
-        data: { completedDate }
-      });
+      const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
+      await axios.post(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/partners/registrations/${registrationId}/complete-exam`,
+        {},
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
 
-      await fetchCertificationSteps();
+      // Show success modal immediately
+      setModalMessage('Esame completato con successo! L\'utente ha ricevuto un\'email di congratulazioni.');
+      setShowSuccessModal(true);
+      
+      // Trigger refresh events immediately
+      triggerCertificationStepsRefresh();
+      triggerRegistrationsRefresh();
+      
+      // Aggiorna i dati dell'utente nel componente padre
       onUpdate?.();
-      setCompletedDate('');
+      
+      // Force refresh della parent page
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('userStatusUpdated'));
+      }
+      
+      // Multiple refreshes to ensure UI updates
+      await fetchCertificationSteps();
+      await fetchDocuments();
+      
+      // Additional refresh after a delay to ensure backend has processed
+      setTimeout(async () => {
+        await fetchCertificationSteps();
+        await fetchDocuments();
+        
+        // Final refresh triggers
+        triggerCertificationStepsRefresh();
+        triggerRegistrationsRefresh();
+        
+        // Force component re-render by triggering a state update
+        if (onUpdate) {
+          onUpdate();
+        }
+        
+        // Force re-render of this component
+        setForceUpdate(prev => prev + 1);
+      }, 1500); // Increased delay to give more time for backend processing
       
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Errore nel completamento esame');
+      setErrorMessage(err.response?.data?.error || 'Errore nel completamento esame');
+      setShowErrorModal(true);
     } finally {
       setActionLoading(null);
     }
@@ -226,16 +405,6 @@ const CertificationStepsManagement: React.FC<CertificationStepsManagementProps> 
     year: 'numeric'
   });
 
-  const getStatusDisplayText = (status: string) => {
-    switch (status) {
-      case 'PENDING': return 'In Attesa';
-      case 'ENROLLED': return 'Iscritto';
-      case 'DOCUMENTS_APPROVED': return 'Documenti Approvati';
-      case 'EXAM_REGISTERED': return 'Iscritto all\'Esame';
-      case 'COMPLETED': return 'Completato';
-      default: return status;
-    }
-  };
 
   if (loading) {
     return (
@@ -270,38 +439,93 @@ const CertificationStepsManagement: React.FC<CertificationStepsManagementProps> 
   }
 
   const steps = Object.values(certificationData.steps);
-  const canManageSteps = registration?.offer?.offerType === 'CERTIFICATION';
+  const canManageSteps = registration?.offerType === 'CERTIFICATION';
+  const isCompleted = certificationData.currentStatus === 'COMPLETED';
+  const isExamRegistered = certificationData.currentStatus === 'EXAM_REGISTERED';
+  const isExamCompleted = certificationData.currentStatus === 'EXAM_COMPLETED';
+  
+  
+  // Check documents status for conditional approval - Fix: Use only document types, not required flag
+  const requiredDocuments = documents.filter(doc => ['IDENTITY_CARD', 'TESSERA_SANITARIA'].includes(doc.type));
+  const approvedDocuments = requiredDocuments.filter(doc => doc.status === 'APPROVED');
+  const hasAllRequiredDocuments = requiredDocuments.length >= 2; // Identity Card and Health Card
+  const allDocumentsApproved = requiredDocuments.length > 0 && approvedDocuments.length === requiredDocuments.length;
+  
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">Steps Certificazione</h3>
-        <span className="text-sm px-3 py-1 bg-blue-100 text-blue-800 rounded-full">
-          Status: {getStatusDisplayText(certificationData.currentStatus)}
-        </span>
+        <span 
+            key={`status-${certificationData.currentStatus}-${forceUpdate}`}
+            className="text-sm px-3 py-1 bg-blue-100 text-blue-800 rounded-full"
+          >
+            Stato Attuale: {getPartnerStatusDisplay(certificationData.currentStatus)}
+          </span>
       </div>
       
-      <p className="text-sm text-gray-600 mb-6">
-        Gestisci il workflow in 5 step per il corso di certificazione:
-      </p>
+      {!isCompleted && (
+        <p className="text-sm text-gray-600 mb-6">
+          Gestisci il workflow in 5 step per il corso di certificazione:
+        </p>
+      )}
 
-      <div className="space-y-4">
-        {/* Step 1 & 2: Auto-managed */}
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <h4 className="font-medium text-green-900 mb-2">1-2. Iscrizione e Pagamento</h4>
-          <p className="text-sm text-green-700 mb-2">
-            Gestiti automaticamente dal sistema
-          </p>
-          <div className="flex items-center text-sm text-green-600">
-            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-            {certificationData.steps.payment.completed ? 
-              'Iscrizione e pagamento completati' : 
-              'In attesa del completamento pagamento'
-            }
+      {/* Completion celebration message */}
+      {(isCompleted || isExamRegistered || isExamCompleted) && (
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-6 mb-6">
+          <div className="flex items-center mb-4">
+            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mr-4">
+              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+              </svg>
+            </div>
+            <div>
+              {isCompleted ? (
+                <>
+                  <h4 className="text-lg font-semibold text-green-900">🎉 Certificazione Completata!</h4>
+                  <p className="text-sm text-green-700 mt-1">
+                    Tutti gli step sono stati completati con successo. L'utente ha ricevuto la conferma finale.
+                  </p>
+                </>
+              ) : isExamCompleted ? (
+                <>
+                  <h4 className="text-lg font-semibold text-green-900">🎊 Esame Sostenuto con Successo!</h4>
+                  <p className="text-sm text-green-700 mt-1">
+                    L'utente ha completato l'esame. Il processo di certificazione è quasi terminato.
+                  </p>
+                </>
+              ) : isExamRegistered ? (
+                <>
+                  <h4 className="text-lg font-semibold text-green-900">✅ Iscritto all'Esame!</h4>
+                  <p className="text-sm text-green-700 mt-1">
+                    L'utente è stato iscritto all'esame. Usa il pulsante qui sotto per completare l'esame quando sostenuto.
+                  </p>
+                </>
+              ) : null}
+            </div>
           </div>
         </div>
+      )}
+
+      <div className="space-y-4">
+        {/* Step 1 & 2: Auto-managed - Hide if completed */}
+        {!isCompleted && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <h4 className="font-medium text-green-900 mb-2">1-2. Iscrizione e Pagamento</h4>
+            <p className="text-sm text-green-700 mb-2">
+              Gestiti automaticamente dal sistema
+            </p>
+            <div className="flex items-center text-sm text-green-600">
+              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              {certificationData.steps.payment.completed ? 
+                'Iscrizione e pagamento completati' : 
+                'In attesa del completamento pagamento'
+              }
+            </div>
+          </div>
+        )}
 
         {/* Step 3: Documents Approval */}
         {certificationData.steps.payment.completed && !certificationData.steps.documentsApproved.completed && canManageSteps && (
@@ -309,15 +533,45 @@ const CertificationStepsManagement: React.FC<CertificationStepsManagementProps> 
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="font-medium text-blue-900">3. Documenti Approvati</h4>
-                <p className="text-sm text-blue-700">Approva carta d'identità e tessera sanitaria</p>
+                <p className="text-sm text-blue-700">
+                  Approva i documenti dell'utente
+                </p>
               </div>
-              <button
-                onClick={handleApproveDocuments}
-                disabled={actionLoading === 'documents'}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm"
-              >
-                {actionLoading === 'documents' ? 'Approvando...' : 'Approva Documenti'}
-              </button>
+              <div className="flex items-center space-x-2">
+                {actionLoading === 'documents' ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                    <span className="text-sm text-blue-700">Approvando...</span>
+                  </>
+                ) : certificationData.currentStatus === 'ENROLLED' ? (
+                  allDocumentsApproved ? (
+                    <button
+                      onClick={handleApproveDocuments}
+                      disabled={actionLoading === 'documents'}
+                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
+                    >
+                      Conferma Documenti Approvati
+                    </button>
+                  ) : (
+                    <span className="text-sm text-orange-700 italic">
+                      {hasAllRequiredDocuments ? (
+                        <span>
+                          Documenti caricati - in attesa di approvazione
+                          <span className="block text-xs mt-1">
+                            Caricati: {requiredDocuments.map((doc: any) => `${doc.type === 'IDENTITY_CARD' ? 'Carta Identità' : 'Tessera Sanitaria'}: ${doc.status}`).join(', ')}
+                          </span>
+                        </span>
+                      ) : (
+                        `In attesa caricamento documenti utente (${requiredDocuments.length}/2 caricati)`
+                      )}
+                    </span>
+                  )
+                ) : (
+                  <span className="text-sm text-orange-700 italic">
+                    Completa prima il pagamento
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -325,55 +579,69 @@ const CertificationStepsManagement: React.FC<CertificationStepsManagementProps> 
         {/* Step 4: Exam Registration */}
         {certificationData.steps.documentsApproved.completed && !certificationData.steps.examRegistered.completed && canManageSteps && (
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between">
               <div>
                 <h4 className="font-medium text-orange-900">4. Iscrizione all'Esame</h4>
-                <p className="text-sm text-orange-700">Registra l'iscrizione all'esame</p>
+                <p className="text-sm text-orange-700">Conferma che l'utente è stato iscritto all'esame</p>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <input
-                type="date"
-                value={examDate}
-                onChange={(e) => setExamDate(e.target.value)}
-                placeholder="Data esame"
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              />
               <button
                 onClick={handleRegisterExam}
-                disabled={actionLoading === 'exam' || !examDate}
-                className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 disabled:opacity-50 text-sm"
+                disabled={actionLoading === 'exam'}
+                className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 disabled:opacity-50 text-sm flex items-center"
               >
-                {actionLoading === 'exam' ? 'Registrando...' : 'Registra Esame'}
+                {actionLoading === 'exam' ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Registrando...
+                  </>
+                ) : (
+                  'Conferma Iscrizione Esame'
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {/* Step 4.5: Exam Registered Confirmation - Show when exam is registered but not completed */}
+        {isExamRegistered && !isExamCompleted && !isCompleted && canManageSteps && (
+          <div className="bg-blue-50 border-l-4 border-blue-500 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center mb-2">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
+                  <h4 className="font-medium text-blue-900">5. Esame Sostenuto</h4>
+                  <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">STEP ATTUALE</span>
+                </div>
+                <p className="text-sm text-blue-700">L'utente è iscritto all'esame. Clicca "Esame Sostenuto" quando l'utente ha completato l'esame per avanzare al prossimo step.</p>
+              </div>
+              <button
+                onClick={handleCompleteExam}
+                disabled={actionLoading === 'complete'}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm"
+              >
+                {actionLoading === 'complete' ? 'Registrando...' : 'Esame Sostenuto'}
               </button>
             </div>
           </div>
         )}
 
-        {/* Step 5: Exam Completion */}
-        {certificationData.steps.examRegistered.completed && !certificationData.steps.examCompleted.completed && canManageSteps && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
+        {/* Step 5: Exam Completed - Show when exam is completed */}
+        {isExamCompleted && !isCompleted && canManageSteps && (
+          <div className="bg-green-50 border-l-4 border-green-500 border border-green-200 rounded-lg p-4">
+            <div className="flex items-center justify-between">
               <div>
-                <h4 className="font-medium text-green-900">5. Esame Sostenuto</h4>
-                <p className="text-sm text-green-700">Segna l'esame come completato</p>
+                <div className="flex items-center mb-2">
+                  <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                  <h4 className="font-medium text-green-900">✅ Esame Sostenuto</h4>
+                  <span className="ml-2 px-2 py-1 text-xs bg-green-100 text-green-800 rounded">COMPLETATO</span>
+                </div>
+                <p className="text-sm text-green-700">L'utente ha sostenuto l'esame con successo! Il processo di certificazione è quasi terminato.</p>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <input
-                type="date"
-                value={completedDate}
-                onChange={(e) => setCompletedDate(e.target.value)}
-                placeholder="Data completamento (opzionale)"
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              />
-              <button
-                onClick={handleCompleteExam}
-                disabled={actionLoading === 'complete'}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
-              >
-                {actionLoading === 'complete' ? 'Completando...' : 'Completa Esame'}
-              </button>
+              <div className="text-green-700">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
             </div>
           </div>
         )}
@@ -492,6 +760,83 @@ const CertificationStepsManagement: React.FC<CertificationStepsManagementProps> 
           </div>
         </div>
       )}
+
+      {/* Popup di successo registrazione data esame */}
+      {showExamDateSuccess && (
+        <div className="fixed top-4 right-4 z-50 animate-pulse">
+          <div className="bg-white rounded-lg shadow-xl border-l-4 border-green-500 p-4 max-w-sm">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+              </div>
+              <div className="ml-3 flex-1">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    ✅ Passaggio completato!
+                  </h3>
+                  <button
+                    onClick={() => setShowExamDateSuccess(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                
+                <div className="mt-2 text-sm text-gray-700">
+                  <p className="font-medium text-green-800">
+                    L'utente è ora "Iscritto all'esame".
+                  </p>
+                  <p className="text-gray-600 mt-1">
+                    Ora puoi procedere a "Esame Sostenuto".
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Progress bar per auto-dismiss */}
+            <div className="mt-3 w-full bg-gray-200 rounded-full h-1">
+              <div className="bg-green-500 h-1 rounded-full animate-pulse"></div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Confirm Modal for Exam Completion */}
+      <ConfirmModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={confirmCompleteExam}
+        title="Conferma Completamento Esame"
+        message="Sei sicuro di voler segnare l'esame come completato? Questa azione invierà un'email di congratulazioni all'utente e non potrà essere annullata."
+        confirmText="Completa Esame"
+        cancelText="Annulla"
+        variant="warning"
+      />
+      
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        title="Operazione Completata!"
+        message={modalMessage}
+        autoClose={true}
+        autoCloseDelay={3000}
+      />
+      
+      {/* Error Modal */}
+      <ErrorModal
+        isOpen={showErrorModal}
+        onClose={() => setShowErrorModal(false)}
+        title="Errore"
+        message={errorMessage}
+        autoClose={false}
+      />
     </div>
   );
 };

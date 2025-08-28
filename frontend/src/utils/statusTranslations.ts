@@ -49,6 +49,12 @@ export const statusTranslations: Record<string, StatusConfig> = {
     bg: 'bg-orange-100',
     text: 'text-orange-800'
   },
+  EXAM_COMPLETED: { 
+    label: 'Esame Sostenuto', 
+    color: 'bg-green-100 text-green-800',
+    bg: 'bg-green-100',
+    text: 'text-green-800'
+  },
   CNRED_RELEASED: { 
     label: 'CNRED Rilasciato', 
     color: 'bg-cyan-100 text-cyan-800',
@@ -68,10 +74,10 @@ export const statusTranslations: Record<string, StatusConfig> = {
     text: 'text-pink-800'
   },
   COMPLETED: { 
-    label: 'Completato', 
-    color: 'bg-blue-100 text-blue-800',
-    bg: 'bg-blue-100',
-    text: 'text-blue-800'
+    label: 'Certificazione Completata', 
+    color: 'bg-green-100 text-green-800',
+    bg: 'bg-green-100',
+    text: 'text-green-800'
   },
   ACTIVE: { 
     label: 'Attivo', 
@@ -107,6 +113,26 @@ export const getStatusBadge = (status: string) => {
   };
 };
 
+// Funzione specifica per le certificazioni
+export const getCertificationStatusDisplay = (status: string): string => {
+  switch (status) {
+    case 'PENDING':
+      return 'In Attesa';
+    case 'ENROLLED':
+      return 'Iscritto';
+    case 'DOCUMENTS_APPROVED':
+      return 'Documenti Approvati';
+    case 'EXAM_REGISTERED':
+      return 'Iscritto all\'Esame';
+    case 'EXAM_COMPLETED':
+      return 'Esame Sostenuto';
+    case 'COMPLETED':
+      return 'Certificazione Completata';
+    default:
+      return getPartnerStatusDisplay(status);
+  }
+};
+
 // Funzioni per display contestuali
 export const getPartnerStatusDisplay = (status: string): string => {
   switch (status) {
@@ -117,11 +143,13 @@ export const getPartnerStatusDisplay = (status: string): string => {
     case 'CONTRACT_SIGNED':
       return 'Contratto Firmato';
     case 'ENROLLED':
-      return 'Attivo';
+      return 'Approva i documenti dell\'utente';
     case 'DOCUMENTS_APPROVED':
-      return 'Documenti Approvati';
+      return 'Iscrivi l\'utente all\'esame';
     case 'EXAM_REGISTERED':
-      return 'Iscritto all\'Esame';
+      return 'Conferma che l\'utente ha sostenuto l\'esame';
+    case 'EXAM_COMPLETED':
+      return 'Esame Sostenuto - Completamento certificazione';
     case 'CNRED_RELEASED':
       return 'CNRED Rilasciato';
     case 'FINAL_EXAM':
@@ -129,7 +157,7 @@ export const getPartnerStatusDisplay = (status: string): string => {
     case 'RECOGNITION_REQUEST':
       return 'Richiesta Riconoscimento';
     case 'COMPLETED':
-      return 'Completato';
+      return 'Certificazione Completata';
     default:
       return status;
   }
@@ -153,6 +181,8 @@ export const getUserStatusDisplay = (status: string): string => {
       return 'Documenti Approvati';
     case 'EXAM_REGISTERED':
       return 'Iscritto all\'Esame';
+    case 'EXAM_COMPLETED':
+      return 'Esame Sostenuto';
     case 'CNRED_RELEASED':
       return 'CNRED Rilasciato';
     case 'FINAL_EXAM':
@@ -160,7 +190,7 @@ export const getUserStatusDisplay = (status: string): string => {
     case 'RECOGNITION_REQUEST':
       return 'Richiesta Riconoscimento';
     case 'COMPLETED':
-      return 'Completato';
+      return 'Certificazione Completata';
     // Aggiungiamo anche stati comuni dell'enrollment
     case 'ACTIVE':
       return 'Attivo';

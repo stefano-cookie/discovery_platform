@@ -482,7 +482,7 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
                   <p className="text-sm">Clicca "Aggiungi Rata" per iniziare</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div>
                   {customPayments.map((payment, index) => (
                     <div key={index} className="flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
                         <div className="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">

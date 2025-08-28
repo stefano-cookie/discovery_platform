@@ -84,7 +84,7 @@ const QuickMetrics: React.FC<QuickMetricsProps> = ({ stats, analytics, loading, 
         </div>
       </div>
       
-      <div className="space-y-4">
+      <div>
         {metrics.map((metric, index) => (
           <div key={index} className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 transition-colors">
             <div className="flex items-center">

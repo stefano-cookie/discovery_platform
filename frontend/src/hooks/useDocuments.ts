@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { UserDocument } from '../components/Documents';
+import { triggerCertificationStepsRefresh, triggerRegistrationsRefresh } from '../utils/refreshEvents';
 
 interface DocumentType {
   value: string;
@@ -169,6 +170,14 @@ export const useDocuments = ({
 
       if (response.ok) {
         await fetchDocuments();
+        
+        // Trigger refresh events for certification steps and registrations
+        console.log('Document approved, triggering refresh');
+        setTimeout(() => {
+          triggerCertificationStepsRefresh();
+          triggerRegistrationsRefresh();
+        }, 500); // Small delay to ensure API state is consistent
+        
         return true;
       }
       return false;
@@ -197,6 +206,14 @@ export const useDocuments = ({
 
       if (response.ok) {
         await fetchDocuments();
+        
+        // Trigger refresh events for certification steps and registrations
+        console.log('Document rejected, triggering refresh');
+        setTimeout(() => {
+          triggerCertificationStepsRefresh();
+          triggerRegistrationsRefresh();
+        }, 500); // Small delay to ensure API state is consistent
+        
         return true;
       }
       return false;

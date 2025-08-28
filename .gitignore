@@ -39,8 +39,14 @@ uploads/
 CLAUDE.md
 .claude/
 
+# MCP and Claude Code related files
+.clauderc
+MCP_SETUP.md
+.mcp/
+
 # Test files
 test_*.js
+test-*.js
 
 # Deployment files (keep only essentials)
 sync-db*.sh

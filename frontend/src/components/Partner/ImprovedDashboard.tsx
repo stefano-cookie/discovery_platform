@@ -43,6 +43,23 @@ const ImprovedPartnerDashboard: React.FC = () => {
     fetchUsers(currentFilter);
   }, [currentFilter]);
 
+  // Listen for refresh events from payment updates
+  useEffect(() => {
+    const handleRefresh = () => {
+      console.log('Dashboard received refresh event');
+      fetchUsers(currentFilter);
+      refetchStats();
+    };
+
+    window.addEventListener('refreshRegistrations', handleRefresh);
+    window.addEventListener('refreshCertificationSteps', handleRefresh);
+    
+    return () => {
+      window.removeEventListener('refreshRegistrations', handleRefresh);
+      window.removeEventListener('refreshCertificationSteps', handleRefresh);
+    };
+  }, [currentFilter, refetchStats]);
+
   const handleFilterChange = (filter: 'all' | 'direct' | 'children') => {
     setCurrentFilter(filter);
   };

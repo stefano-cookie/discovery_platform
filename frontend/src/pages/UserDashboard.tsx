@@ -3,7 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { apiRequest } from '../services/api';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import UserEnrollmentDetail from '../components/User/EnrollmentDetail';
-import { getUserStatusDisplay, getStatusColors } from '../utils/statusTranslations';
+import { getUserStatusDisplay, getStatusColors, getStatusBadge } from '../utils/statusTranslations';
 
 interface UserRegistration {
   id: string;
@@ -165,20 +165,11 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      PENDING: { label: 'In Attesa', color: 'bg-yellow-100 text-yellow-800' },
-      DATA_VERIFIED: { label: 'Dati Verificati', color: 'bg-blue-100 text-blue-800' },
-      CONTRACT_GENERATED: { label: 'Contratto Generato', color: 'bg-purple-100 text-purple-800' },
-      CONTRACT_SIGNED: { label: 'Contratto Firmato', color: 'bg-indigo-100 text-indigo-800' },
-      ENROLLED: { label: 'Iscritto', color: 'bg-green-100 text-green-800' },
-      COMPLETED: { label: 'Completato', color: 'bg-gray-100 text-gray-800' }
-    };
-
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.PENDING;
+  const renderStatusBadge = (status: string) => {
+    const badge = getStatusBadge(status);
     return (
-      <span className={`px-2 py-1 text-xs font-medium rounded-full ${config.color}`}>
-        {config.label}
+      <span className={badge.className}>
+        {badge.label}
       </span>
     );
   };
@@ -360,7 +351,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                               {registration.offerType === 'TFA_ROMANIA' ? 'TFA Romania' : 'Certificazione'}
                             </p>
                           </div>
-                          {getStatusBadge(registration.status)}
+                          {renderStatusBadge(registration.status)}
                         </div>
                         <div className="flex justify-between items-center text-sm text-slate-600">
                           <span>Iscritto il {formatDate(registration.createdAt)}</span>
@@ -881,7 +872,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                           </p>
                         </div>
                         <div className="ml-3 flex-shrink-0">
-                          {getStatusBadge(registration.status)}
+                          {renderStatusBadge(registration.status)}
                         </div>
                       </div>
 

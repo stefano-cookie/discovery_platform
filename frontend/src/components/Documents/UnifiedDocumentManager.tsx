@@ -20,6 +20,7 @@ interface UnifiedDocument {
   verifiedAt?: string;
   uploadSource?: 'ENROLLMENT' | 'USER_DASHBOARD' | 'PARTNER_PANEL';
   isVerified?: boolean;
+  registrationId?: string;
 }
 
 interface UnifiedDocumentManagerProps {
@@ -62,6 +63,7 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
       }
 
       console.log('📋 Fetching documents from:', endpoint);
+      console.log('📋 RegistrationId:', registrationId);
       const response = await apiRequest<{ documents: UnifiedDocument[], uploadedCount: number, totalCount: number }>({
         method: 'GET',
         url: endpoint
@@ -73,9 +75,15 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
         name: d.name, 
         uploaded: d.uploaded,
         status: d.status,
-        fileName: d.fileName 
+        fileName: d.fileName,
+        documentId: d.documentId,
+        registrationId: d.registrationId
       })));
-      console.log('📋 Uploaded documents:', response.documents?.filter(d => d.uploaded).map(d => ({ type: d.type, name: d.name })));
+      console.log('📋 Uploaded documents:', response.documents?.filter(d => d.uploaded).map(d => ({ 
+        type: d.type, 
+        name: d.name,
+        documentId: d.documentId
+      })));
       
       setDocuments(response.documents || []);
     } catch (err: any) {
@@ -146,6 +154,7 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
       }
 
       console.log('📤 Uploading document type:', documentType, 'to endpoint:', endpoint);
+      console.log('📤 FormData registrationId:', registrationId);
       
       const uploadResponse = await apiRequest({
         method: 'POST',
@@ -163,6 +172,12 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
       if (onDocumentChange) {
         onDocumentChange();
       }
+      
+      // Trigger global event for document approval
+      window.dispatchEvent(new Event('documentsUpdated'));
+      
+      // Trigger global event for document updates
+      window.dispatchEvent(new Event('documentsUpdated'));
       
       console.log('📤 Documents updated');
     } catch (err: any) {
@@ -259,6 +274,9 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
       if (onDocumentChange) {
         onDocumentChange();
       }
+      
+      // Trigger global event for document approval
+      window.dispatchEvent(new Event('documentsUpdated'));
     } catch (err: any) {
       setError('Errore nell\'approvazione del documento');
     }
@@ -278,6 +296,9 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
       if (onDocumentChange) {
         onDocumentChange();
       }
+      
+      // Trigger global event for document approval
+      window.dispatchEvent(new Event('documentsUpdated'));
     } catch (err: any) {
       setError('Errore nel rifiuto del documento');
     }

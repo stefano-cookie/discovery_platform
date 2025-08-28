@@ -31,6 +31,24 @@ const UsersView: React.FC<UsersViewProps> = ({ onNavigateToEnrollmentDetail }) =
     fetchUsers(currentFilter);
   }, [currentFilter]);
 
+  // Listen for refresh events from certification steps updates
+  useEffect(() => {
+    const handleRefresh = () => {
+      console.log('UsersView received refresh event, reloading users');
+      fetchUsers(currentFilter);
+    };
+
+    window.addEventListener('refreshRegistrations', handleRefresh);
+    window.addEventListener('refreshCertificationSteps', handleRefresh);
+    window.addEventListener('userStatusUpdated', handleRefresh);
+    
+    return () => {
+      window.removeEventListener('refreshRegistrations', handleRefresh);
+      window.removeEventListener('refreshCertificationSteps', handleRefresh);
+      window.removeEventListener('userStatusUpdated', handleRefresh);
+    };
+  }, [currentFilter]);
+
   const handleFilterChange = (filter: 'all' | 'direct' | 'children') => {
     setCurrentFilter(filter);
   };
@@ -218,6 +236,7 @@ const UsersView: React.FC<UsersViewProps> = ({ onNavigateToEnrollmentDetail }) =
         onFilterChange={handleFilterChange}
         currentFilter={currentFilter}
         onNavigateToEnrollmentDetail={onNavigateToEnrollmentDetail}
+        onRegistrationsUpdated={() => fetchUsers(currentFilter)}
       />
     </div>
   );

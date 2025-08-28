@@ -308,7 +308,7 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
                 </div>
 
                 {useCustomPlan && (
-                  <div className="space-y-4">
+                  <div>
                     {customPayments.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
                         <p>Nessuna rata personalizzata configurata</p>

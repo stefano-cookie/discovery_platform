@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../../services/api';
+import { getUserStatusDisplay } from '../../../utils/statusTranslations';
 
 interface CertificationStep {
   step: number;
@@ -30,14 +31,26 @@ const CertificationSteps: React.FC<CertificationStepsProps> = ({ registrationId 
   const [certificationData, setCertificationData] = useState<CertificationStepsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
 
   useEffect(() => {
     fetchCertificationSteps();
   }, [registrationId]);
 
-  const fetchCertificationSteps = async () => {
+  // Listen per refresh event da altre parti dell'app
+  useEffect(() => {
+    const handleRefresh = () => {
+      console.log('Refreshing certification steps due to external trigger');
+      fetchCertificationSteps();
+    };
+
+    window.addEventListener('refreshCertificationSteps', handleRefresh);
+    return () => window.removeEventListener('refreshCertificationSteps', handleRefresh);
+  }, [registrationId]);
+
+  const fetchCertificationSteps = async (silent: boolean = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
       
       const response = await apiRequest<CertificationStepsData>({
@@ -45,11 +58,22 @@ const CertificationSteps: React.FC<CertificationStepsProps> = ({ registrationId 
         url: `/user/certification-steps/${registrationId}`
       });
       
-      setCertificationData(response);
+      // Aggiorna solo se i dati sono cambiati
+      const dataChanged = !certificationData || 
+        JSON.stringify(response) !== JSON.stringify(certificationData);
+      
+      if (dataChanged) {
+        console.log('Certification steps data changed, updating state:', response);
+        setCertificationData(response);
+        setLastUpdate(Date.now());
+      } else if (silent) {
+        console.log('No changes detected in certification steps');
+      }
+      
     } catch (err: any) {
       setError(err.response?.data?.error || 'Errore nel caricamento steps certificazione');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -59,16 +83,6 @@ const CertificationSteps: React.FC<CertificationStepsProps> = ({ registrationId 
     year: 'numeric'
   });
 
-  const getStatusDisplayText = (status: string) => {
-    switch (status) {
-      case 'PENDING': return 'In Attesa';
-      case 'ENROLLED': return 'Iscritto';
-      case 'DOCUMENTS_APPROVED': return 'Documenti Approvati';
-      case 'EXAM_REGISTERED': return 'Iscritto all\'Esame';
-      case 'COMPLETED': return 'Completato';
-      default: return status;
-    }
-  };
 
   const getStepIcon = (step: CertificationStep) => {
     if (step.status === 'completed') {
@@ -134,7 +148,7 @@ const CertificationSteps: React.FC<CertificationStepsProps> = ({ registrationId 
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold text-gray-900">Steps Certificazione - Workflow Completo</h3>
         <span className="text-sm px-3 py-1 bg-blue-100 text-blue-800 rounded-full">
-          {getStatusDisplayText(certificationData.currentStatus)}
+          Stato Attuale: {getUserStatusDisplay(certificationData.currentStatus)}
         </span>
       </div>
 

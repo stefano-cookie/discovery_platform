@@ -59,6 +59,17 @@ const UserEnrollmentDetail: React.FC<UserEnrollmentDetailProps> = ({
 
   useEffect(() => {
     fetchRegistrationDetails();
+
+    // Listen for status updates from partner
+    const handleStatusUpdate = () => {
+      fetchRegistrationDetails();
+    };
+
+    window.addEventListener('userStatusUpdated', handleStatusUpdate);
+
+    return () => {
+      window.removeEventListener('userStatusUpdated', handleStatusUpdate);
+    };
   }, [registrationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchRegistrationDetails = async () => {
@@ -372,12 +383,12 @@ const UserEnrollmentDetail: React.FC<UserEnrollmentDetailProps> = ({
             </div>
           )}
 
-          {/* Certification Steps - Nascosto perché già mostrato in UserEnrollmentFlow */}
-          {/* {registration.offerType === 'CERTIFICATION' && registration.status !== 'PENDING' && (
+          {/* Certification Steps */}
+          {registration.offerType === 'CERTIFICATION' && registration.status !== 'PENDING' && (
             <div className="bg-white rounded-xl shadow-sm border p-6">
               <CertificationSteps registrationId={registration.id} />
             </div>
-          )} */}
+          )}
 
           {/* Documents Section */}
           {user && (

@@ -1368,14 +1368,30 @@ router.get('/documents/unified', authenticate, async (req: AuthRequest, res: Res
       });
       
       if (registration) {
-        courseTemplateType = registration.offer?.course?.templateType || 'TFA';
+        // Check registration's offerType directly (it's a field on Registration model)
+        console.log('📋 DEBUG Registration:', {
+          id: registration.id,
+          registrationOfferType: (registration as any).offerType,  // Direct field on Registration
+          offerOfferType: registration.offer?.offerType,  // Field on PartnerOffer
+          courseTemplateType: registration.offer?.course?.templateType,
+        });
+        
+        // Use the direct offerType field on Registration model
+        const registrationOfferType = (registration as any).offerType;
+        if (registrationOfferType === 'CERTIFICATION' || registration.offer?.offerType === 'CERTIFICATION') {
+          courseTemplateType = 'CERTIFICATION';
+        } else {
+          courseTemplateType = registration.offer?.course?.templateType || 'TFA';
+        }
+        
+        console.log('📋 DEBUG Determined type:', courseTemplateType);
       }
     }
     
     // Document types based on course template
     const documentTypes = courseTemplateType === 'CERTIFICATION' ? [
       { type: 'IDENTITY_CARD', name: 'Carta d\'Identità', description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità' },
-      { type: 'DIPLOMA', name: 'Diploma di Laurea', description: 'Diploma di laurea (cartaceo o digitale)' }
+      { type: 'TESSERA_SANITARIA', name: 'Tessera Sanitaria / Codice Fiscale', description: 'Tessera sanitaria o documento che attesti il codice fiscale' }
     ] : [
       // TFA documents (9 types)
       { type: 'IDENTITY_CARD', name: 'Carta d\'Identità', description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità' },
@@ -1389,16 +1405,24 @@ router.get('/documents/unified', authenticate, async (req: AuthRequest, res: Res
       { type: 'OTHER', name: 'Altri Documenti', description: 'Altri documenti rilevanti' }
     ];
     
-    // Get ALL user documents - no filter by registrationId
-    // This ensures user can see all their documents regardless of where they were uploaded
+    // Get documents for this specific registration only
+    // Documents should be isolated per registration to avoid cross-contamination
+    const whereClause: any = {
+      userId,
+      // Filter only by valid document types for this course template
+      type: {
+        in: documentTypes.map(dt => dt.type) as any
+      }
+    };
+    
+    // IMPORTANT: Only filter by registrationId if one is provided
+    // This ensures documents are isolated per registration
+    if (registrationId && typeof registrationId === 'string') {
+      whereClause.registrationId = registrationId;
+    }
+    
     const userDocuments = await prisma.userDocument.findMany({
-      where: { 
-        userId,
-        // Filter only by valid document types for this course template
-        type: {
-          in: documentTypes.map(dt => dt.type) as any
-        }
-      },
+      where: whereClause,
       include: {
         verifier: {
           select: { id: true, email: true }
@@ -1636,16 +1660,17 @@ router.get('/certification-steps/:registrationId', authenticate, async (req: Aut
                    ['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status),
         completedAt: ['DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 
                      registration.createdAt : null,
-        status: registration.status === 'DOCUMENTS_APPROVED' ? 'current' as const :
-                (['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 'completed' as const : 'pending' as const)
+        status: registration.status === 'DOCUMENTS_APPROVED' ? 'completed' as const :
+                (['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 'completed' as const : 
+                (registration.status === 'ENROLLED' && allDeadlinesPaid ? 'current' as const : 'pending' as const))
       },
       examRegistered: {
         step: 4,
         title: 'Iscritto all\'Esame',
         description: 'Iscrizione all\'esame di certificazione confermata',
-        completed: !!registration.examDate,
-        completedAt: registration.examDate,
-        status: registration.status === 'EXAM_REGISTERED' ? 'current' as const :
+        completed: registration.status === 'EXAM_REGISTERED' || !!registration.examDate,
+        completedAt: registration.status === 'EXAM_REGISTERED' ? registration.createdAt : registration.examDate,
+        status: registration.status === 'EXAM_REGISTERED' ? 'completed' as const :
                 (!!registration.examDate ? 'completed' as const : 'pending' as const)
       },
       examCompleted: {
@@ -1654,7 +1679,8 @@ router.get('/certification-steps/:registrationId', authenticate, async (req: Aut
         description: 'Esame di certificazione completato con successo',
         completed: !!registration.examCompletedDate,
         completedAt: registration.examCompletedDate,
-        status: registration.status === 'COMPLETED' ? 'completed' as const : 'pending' as const
+        status: registration.status === 'EXAM_REGISTERED' ? 'current' as const :
+                (registration.status === 'COMPLETED' ? 'completed' as const : 'pending' as const)
       }
     };
 

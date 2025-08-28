@@ -28,6 +28,24 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
     fetchUserDetails();
   }, [registrationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Listen for refresh events from payment updates and document changes
+  useEffect(() => {
+    const handleRefresh = () => {
+      console.log('Enrollment detail received refresh event');
+      fetchUserDetails();
+    };
+
+    window.addEventListener('refreshCertificationSteps', handleRefresh);
+    window.addEventListener('refreshRegistrations', handleRefresh);
+    window.addEventListener('documentsUpdated', handleRefresh);
+    
+    return () => {
+      window.removeEventListener('refreshCertificationSteps', handleRefresh);
+      window.removeEventListener('refreshRegistrations', handleRefresh);
+      window.removeEventListener('documentsUpdated', handleRefresh);
+    };
+  }, [registrationId]);
+
   const fetchUserDetails = async () => {
     try {
       setLoading(true);
@@ -122,13 +140,14 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
       {/* Content */}
       <div className="p-6">
         <div className="max-w-7xl mx-auto space-y-6">
-          {/* Workflow Flow */}
+          {/* Workflow Flow - Mostra per tutti i tipi di offerta */}
           <div className="bg-white rounded-xl shadow-sm border p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Stato Iscrizione</h2>
             <EnrollmentFlow 
               status={user.status} 
               registrationId={registrationId} 
               offerType={user.offerType}
+              examDate={user.examDate}
             />
           </div>
 
@@ -141,6 +160,8 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
                 registrationId={registrationId}
                 courseName={user.course}
                 finalAmount={user.finalAmount}
+                offerType={user.offerType}
+                installments={user.installments}
               />
               <EnhancedDocumentsSection user={user} />
               
@@ -168,7 +189,7 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
             </div>
 
             {/* Right Column - Offers Management */}
-            <div className="space-y-6">
+            <div>
               <OffersSection user={user} />
             </div>
           </div>

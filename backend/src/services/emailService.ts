@@ -1631,6 +1631,280 @@ Piattaforma Diamante
     return { subject, html, text };
   }
 
+  // Certification Step Email Notifications
+  async sendCertificationDocsApprovedNotification(email: string, userName: string, courseName: string): Promise<void> {
+    const template = this.getCertificationDocsApprovedTemplate(userName, courseName);
+    
+    const mailOptions = {
+      from: this.fromEmail,
+      to: email,
+      subject: template.subject,
+      html: template.html,
+      text: template.text
+    };
+
+    await this.transporter.sendMail(mailOptions);
+    console.log(`✉️ Certification docs approved notification sent to: ${email}`);
+  }
+
+  async sendCertificationExamRegisteredNotification(email: string, userName: string, courseName: string): Promise<void> {
+    const template = this.getCertificationExamRegisteredTemplate(userName, courseName);
+    
+    const mailOptions = {
+      from: this.fromEmail,
+      to: email,
+      subject: template.subject,
+      html: template.html,
+      text: template.text
+    };
+
+    await this.transporter.sendMail(mailOptions);
+    console.log(`✉️ Certification exam registered notification sent to: ${email}`);
+  }
+
+  async sendCertificationExamCompletedNotification(email: string, userName: string, courseName: string): Promise<void> {
+    const template = this.getCertificationExamCompletedTemplate(userName, courseName);
+    
+    const mailOptions = {
+      from: this.fromEmail,
+      to: email,
+      subject: template.subject,
+      html: template.html,
+      text: template.text
+    };
+
+    await this.transporter.sendMail(mailOptions);
+    console.log(`✉️ Certification exam completed notification sent to: ${email}`);
+  }
+
+  private getCertificationDocsApprovedTemplate(userName: string, courseName: string): { subject: string; html: string; text: string } {
+    const subject = '✅ Documenti Approvati - Corso di Certificazione';
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 30px; text-align: center; }
+          .content { padding: 30px; }
+          .step-badge { background-color: #d1fae5; color: #047857; padding: 8px 16px; border-radius: 20px; font-weight: 600; display: inline-block; margin-bottom: 20px; }
+          .footer { background-color: #f8fafc; padding: 20px; text-align: center; color: #64748b; font-size: 14px; }
+          .next-step { background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>✅ Documenti Approvati</h1>
+            <p>Il tuo percorso di certificazione continua!</p>
+          </div>
+          
+          <div class="content">
+            <div class="step-badge">📄 Step 3 Completato</div>
+            
+            <p>Gentile <strong>${userName}</strong>,</p>
+            
+            <p>I tuoi documenti (carta d'identità e tessera sanitaria) per il corso <strong>${courseName}</strong> sono stati <strong>verificati e approvati</strong> dal nostro team!</p>
+            
+            <p>Questo è un passo importante nel tuo percorso di certificazione. La verifica dei documenti garantisce l'autenticità e la validità della tua identità per il processo di certificazione.</p>
+            
+            <div class="next-step">
+              <h3>📚 Prossimo step:</h3>
+              <p>Il tuo partner procederà ora con l'<strong>iscrizione all'esame</strong>. Ti terremo aggiornato su tutti gli sviluppi.</p>
+            </div>
+            
+            <p>Puoi visualizzare lo stato aggiornato del tuo percorso accedendo alla tua area personale.</p>
+          </div>
+          
+          <div class="footer">
+            <p>Ottimo lavoro! Continua così!</p>
+            <p><strong>Team Certificazione</strong><br>Piattaforma Diamante</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Documenti Approvati - Corso di Certificazione
+
+Gentile ${userName},
+
+I tuoi documenti per il corso ${courseName} sono stati verificati e approvati!
+
+Questo è un passo importante nel tuo percorso di certificazione.
+
+Prossimo step: Il tuo partner procederà con l'iscrizione all'esame.
+
+Team Certificazione
+    `;
+
+    return { subject, html, text };
+  }
+
+  private getCertificationExamRegisteredTemplate(userName: string, courseName: string): { subject: string; html: string; text: string } {
+    const subject = '📝 Iscrizione all\'Esame Completata - Corso di Certificazione';
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 30px; text-align: center; }
+          .content { padding: 30px; }
+          .step-badge { background-color: #fef3c7; color: #d97706; padding: 8px 16px; border-radius: 20px; font-weight: 600; display: inline-block; margin-bottom: 20px; }
+          .footer { background-color: #f8fafc; padding: 20px; text-align: center; color: #64748b; font-size: 14px; }
+          .next-step { background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>📝 Iscrizione all'Esame</h1>
+            <p>Sei pronto per il prossimo passo!</p>
+          </div>
+          
+          <div class="content">
+            <div class="step-badge">🎯 Step 4 Completato</div>
+            
+            <p>Gentile <strong>${userName}</strong>,</p>
+            
+            <p>La tua <strong>iscrizione all'esame</strong> per il corso <strong>${courseName}</strong> è stata <strong>registrata con successo</strong>!</p>
+            
+            <p>Il nostro team ha completato tutte le procedure necessarie per iscriverti all'esame di certificazione. Ora sei ufficialmente registrato per sostenere l'esame.</p>
+            
+            <div class="next-step">
+              <h3>🎓 Prossimo step:</h3>
+              <p>Quando avrai <strong>sostenuto l'esame</strong>, il tuo partner registrerà il completamento e il tuo percorso di certificazione sarà concluso.</p>
+              <p>Riceverai tutte le informazioni necessarie direttamente dal centro d'esame.</p>
+            </div>
+            
+            <p>Puoi visualizzare lo stato aggiornato del tuo percorso accedendo alla tua area personale.</p>
+          </div>
+          
+          <div class="footer">
+            <p>In bocca al lupo per il tuo esame!</p>
+            <p><strong>Team Certificazione</strong><br>Piattaforma Diamante</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Iscrizione all'Esame Completata - Corso di Certificazione
+
+Gentile ${userName},
+
+La tua iscrizione all'esame per il corso ${courseName} è stata registrata con successo!
+
+Sei ora ufficialmente registrato per sostenere l'esame di certificazione.
+
+Prossimo step: Sostenere l'esame e completare il percorso di certificazione.
+
+In bocca al lupo!
+
+Team Certificazione
+    `;
+
+    return { subject, html, text };
+  }
+
+  private getCertificationExamCompletedTemplate(userName: string, courseName: string): { subject: string; html: string; text: string } {
+    const subject = '🎓 Esame Completato - Certificazione Conseguita!';
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 40px; text-align: center; }
+          .content { padding: 30px; }
+          .completion-badge { background-color: #d1fae5; color: #047857; padding: 15px 25px; border-radius: 8px; font-weight: 700; text-align: center; margin: 25px 0; font-size: 18px; }
+          .steps-completed { background-color: #f0fdf4; border: 2px solid #bbf7d0; border-radius: 8px; padding: 20px; margin: 20px 0; }
+          .footer { background-color: #f8fafc; padding: 25px; text-align: center; color: #64748b; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🎓 CERTIFICAZIONE CONSEGUITA!</h1>
+            <p style="font-size: 18px; margin-top: 15px;">Hai completato con successo il tuo percorso</p>
+          </div>
+          
+          <div class="content">
+            <div class="completion-badge">
+              ✅ PERCORSO DI CERTIFICAZIONE COMPLETATO
+            </div>
+            
+            <p style="font-size: 18px;">Gentile <strong>${userName}</strong>,</p>
+            
+            <p><strong>Complimenti!</strong> Hai completato con successo il tuo corso <strong>${courseName}</strong> e <strong>sostenuto l'esame finale</strong>!</p>
+            
+            <p>Il tuo percorso di certificazione è ora <strong>ufficialmente concluso</strong>. Questo rappresenta un importante traguardo professionale che testimonia le tue competenze e conoscenze acquisite.</p>
+            
+            <div class="steps-completed">
+              <h3 style="margin-top: 0; color: #047857;">🏁 Tutti i passaggi completati:</h3>
+              <ul style="margin: 10px 0;">
+                <li>✅ <strong>Iscrizione confermata</strong> - Accesso al percorso garantito</li>
+                <li>✅ <strong>Pagamento completato</strong> - Tutte le pratiche amministrative concluse</li>
+                <li>✅ <strong>Documenti approvati</strong> - Identità verificata e confermata</li>
+                <li>✅ <strong>Esame registrato e sostenuto</strong> - Competenze certificate ufficialmente</li>
+                <li>✅ <strong>Certificazione conseguita</strong> - Obiettivo raggiunto con successo!</li>
+              </ul>
+            </div>
+            
+            <p>Ora hai acquisito una qualificazione ufficiale che potrai utilizzare per il tuo sviluppo professionale e accademico.</p>
+            
+            <p><strong>Grazie</strong> per aver scelto la Piattaforma Diamante e per la fiducia che ci hai accordato durante tutto il percorso di certificazione.</p>
+          </div>
+          
+          <div class="footer">
+            <p style="font-size: 16px; font-weight: 600; color: #059669;">🎉 Congratulazioni per questo straordinario traguardo! 🎉</p>
+            <p><strong>Team Certificazione</strong><br>Piattaforma Diamante</p>
+            <p style="font-style: italic;">Siamo orgogliosi di aver contribuito al tuo successo!</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+🎓 CERTIFICAZIONE CONSEGUITA - Complimenti!
+
+Gentile ${userName},
+
+Complimenti! Hai completato con successo il tuo corso ${courseName} e sostenuto l'esame finale!
+
+Il tuo percorso di certificazione è ora ufficialmente concluso.
+
+Tutti i passaggi completati:
+✅ Iscrizione confermata
+✅ Pagamento completato  
+✅ Documenti approvati
+✅ Esame registrato e sostenuto
+✅ Certificazione conseguita
+
+Hai acquisito una qualificazione ufficiale per il tuo sviluppo professionale.
+
+🎉 Congratulazioni per questo straordinario traguardo! 🎉
+
+Team Certificazione
+Piattaforma Diamante
+    `;
+
+    return { subject, html, text };
+  }
+
   async testConnection(): Promise<boolean> {
     try {
       await this.transporter.verify();

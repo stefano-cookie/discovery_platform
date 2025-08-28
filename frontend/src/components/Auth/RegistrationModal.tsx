@@ -414,7 +414,7 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
           </div>
 
           {currentStep === 1 && (
-            <div className="space-y-6 animate-slideInRight">
+            <div className="animate-slideInRight">
               {/* Header step */}
               <div className="text-center mb-6">
                 <div className="flex items-center justify-center space-x-2 mb-2">
@@ -797,7 +797,7 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
           )}
 
           {currentStep === 2 && (
-            <div className="space-y-6 animate-slideInLeft">
+            <div className="animate-slideInLeft">
               {/* Header step */}
               <div className="text-center mb-6">
                 <div className="flex items-center justify-center space-x-2 mb-2">
@@ -896,7 +896,7 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
 
               {/* Campi domicilio - mostrati solo se checkbox è selezionata */}
               {formData.hasDifferentDomicilio && (
-                <div className="mt-4 space-y-6">
+                <div className="mt-4">
                   <div className="text-center">
                     <h4 className="text-lg font-semibold text-gray-800">Indirizzo di Domicilio</h4>
                     <div className="w-16 h-1 bg-blue-500 mx-auto mt-2 rounded-full"></div>

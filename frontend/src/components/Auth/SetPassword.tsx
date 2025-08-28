@@ -85,7 +85,7 @@ const SetPassword: React.FC<SetPasswordProps> = ({
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit}>
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Password *

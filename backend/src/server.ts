@@ -55,8 +55,8 @@ app.use('/api/partners', partnerRoutes);
 app.use('/api/registration', registrationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/offers', offerRoutes);
-app.use('/api/user/documents', userDocumentRoutes); // More specific route first
-app.use('/api/user', userRoutes); // Clean user routes without old document conflicts
+// app.use('/api/user/documents', userDocumentRoutes); // Disabled - now handled by userRoutes
+app.use('/api/user', userRoutes); // Clean user routes with integrated document handling
 app.use('/api/documents', documentsRoutes); // New unified documents API
 app.use('/api/document-upload', documentUploadRoutes);
 app.use('/api/courses', courseRoutes);

@@ -4,12 +4,42 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import emailService from '../services/emailService';
 import SecureTokenService from '../services/secureTokenService';
 import { ContractService } from '../services/contractService';
+import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
 const contractService = new ContractService();
 const router = Router();
 const prisma = new PrismaClient();
+
+// Multer configuration for user document uploads
+const storage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    const uploadDir = path.join('uploads', 'documents');
+    await fs.promises.mkdir(uploadDir, { recursive: true });
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    const baseName = path.basename(file.originalname, ext);
+    cb(null, `${uniqueSuffix}-${baseName}${ext}`);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['.pdf', '.jpg', '.jpeg', '.png'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedTypes.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Tipo di file non supportato'));
+    }
+  }
+});
 
 // Get user profile by secure access token (no auth required)
 router.post('/profile-by-token', async (req, res) => {
@@ -698,14 +728,107 @@ router.get('/enrollment-documents/:id/download', authenticate, async (req: AuthR
   }
 });
 
+// POST /api/user/documents - Upload document to user repository
+router.post('/documents', authenticate, upload.single('document'), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { type, registrationId } = req.body;
+    const file = req.file;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Utente non autenticato' });
+    }
+    
+    if (!file) {
+      return res.status(400).json({ error: 'File non fornito' });
+    }
+    
+    if (!type) {
+      return res.status(400).json({ error: 'Tipo documento non specificato' });
+    }
+    
+    // Store the relative path
+    const relativePath = file.path;
+    
+    console.log('📤 Upload request:', { userId, type, registrationId, fileName: file.originalname });
+    
+    // Create new document with registrationId
+    const newDoc = await prisma.userDocument.create({
+      data: {
+        userId,
+        type: type as any,
+        originalName: file.originalname,
+        url: relativePath,
+        size: file.size,
+        mimeType: file.mimetype,
+        status: 'PENDING' as any,
+        uploadSource: 'USER_DASHBOARD' as any,
+        uploadedBy: userId,
+        uploadedByRole: 'USER' as any,
+        ...(registrationId && { registrationId })
+      }
+    });
+    
+    console.log('📤 Document created:', { id: newDoc.id, type: newDoc.type, registrationId: newDoc.registrationId });
+    
+    return res.json({
+      success: true,
+      document: {
+        id: newDoc.id,
+        type: newDoc.type,
+        fileName: newDoc.originalName,
+        uploadedAt: newDoc.uploadedAt,
+        isVerified: newDoc.status === 'APPROVED'
+      },
+      message: 'Documento caricato con successo'
+    });
+    
+  } catch (error) {
+    console.error('Error uploading document:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
 // GET /api/user/documents/unified - Get unified documents - shows documents from all sources
 router.get('/documents/unified', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { registrationId } = req.query;
 
-    // Document types based on template
-    const documentTypes = [
+    // Get registration info if registrationId is provided to determine document types
+    let courseTemplateType = 'TFA'; // Default
+    
+    if (registrationId && typeof registrationId === 'string') {
+      const registration = await prisma.registration.findFirst({
+        where: { 
+          id: registrationId,
+          userId // Ensure registration belongs to this user
+        },
+        include: {
+          offer: {
+            include: {
+              course: true
+            }
+          }
+        }
+      });
+      
+      if (registration) {
+        // Check registration's offerType directly (it's a field on Registration model)
+        const registrationOfferType = (registration as any).offerType;
+        if (registrationOfferType === 'CERTIFICATION' || registration.offer?.offerType === 'CERTIFICATION') {
+          courseTemplateType = 'CERTIFICATION';
+        } else {
+          courseTemplateType = registration.offer?.course?.templateType || 'TFA';
+        }
+      }
+    }
+
+    // Document types based on course type
+    const documentTypes = courseTemplateType === 'CERTIFICATION' ? [
+      { type: 'IDENTITY_CARD', name: 'Carta d\'Identità', description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità' },
+      { type: 'TESSERA_SANITARIA', name: 'Tessera Sanitaria', description: 'Tessera sanitaria o documento che attesti il codice fiscale' }
+    ] : [
       { type: 'IDENTITY_CARD', name: 'Carta d\'Identità', description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità' },
       { type: 'TESSERA_SANITARIA', name: 'Tessera Sanitaria', description: 'Tessera sanitaria o documento che attesti il codice fiscale' },
       { type: 'BACHELOR_DEGREE', name: 'Certificato Laurea Triennale', description: 'Certificato di laurea triennale o diploma universitario' },
@@ -717,16 +840,21 @@ router.get('/documents/unified', authenticate, async (req: AuthRequest, res: Res
       { type: 'OTHER', name: 'Pergamena di Laurea', description: 'Pergamena di laurea (documento originale)' }
     ];
 
-    // Get all user documents - NOT filtered by registrationId
-    // We want to show ALL user documents regardless of where they were uploaded
+    // Get documents filtered by registrationId - documents should be isolated per registration
+    const whereClause: any = {
+      userId,
+      type: {
+        in: documentTypes.map(dt => dt.type) as any
+      }
+    };
+    
+    // ALWAYS filter by registrationId if provided - each registration should have its own documents
+    if (registrationId && typeof registrationId === 'string') {
+      whereClause.registrationId = registrationId;
+    }
+    
     const userDocuments = await prisma.userDocument.findMany({
-      where: { 
-        userId,
-        // Filter only by valid document types
-        type: {
-          in: documentTypes.map(dt => dt.type) as any
-        }
-      },
+      where: whereClause,
       include: {
         verifier: {
           select: { id: true, email: true }
@@ -1070,6 +1198,167 @@ router.get('/tfa-steps/:registrationId', authenticate, async (req: AuthRequest, 
   } catch (error) {
     console.error('Error getting TFA steps:', error);
     res.status(500).json({ error: 'Errore nel recupero steps TFA' });
+  }
+});
+
+// GET /api/user/certification-steps/:registrationId - Get certification steps progress
+router.get('/certification-steps/:registrationId', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { registrationId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Utente non autenticato' });
+    }
+
+    const registration = await prisma.registration.findFirst({
+      where: { 
+        id: registrationId, 
+        userId 
+      },
+      include: { 
+        offer: true,
+        deadlines: {
+          orderBy: { paymentNumber: 'asc' }
+        }
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    if (registration.offer?.offerType !== 'CERTIFICATION') {
+      return res.status(400).json({ error: 'Steps disponibili solo per corsi di certificazione' });
+    }
+
+    // Check if all payments are completed
+    const allDeadlinesPaid = registration.deadlines.every(d => d.paymentStatus === 'PAID');
+
+    // Build certification steps
+    console.log('=== CERTIFICATION STEPS DEBUG ===');
+    console.log('Registration ID:', registration.id);
+    console.log('Registration Status:', registration.status);
+    console.log('Registration examDate:', registration.examDate);
+    console.log('Registration examCompletedDate:', registration.examCompletedDate);
+    
+    const steps = {
+      enrollment: {
+        step: 1,
+        title: 'Iscrizione Completata',
+        description: 'La tua iscrizione al corso di certificazione è stata completata',
+        completed: true,
+        completedAt: registration.createdAt,
+        status: 'completed' as const
+      },
+      payment: {
+        step: 2,
+        title: 'Pagamento Completato',
+        description: 'Tutti i pagamenti devono essere completati',
+        completed: allDeadlinesPaid,
+        completedAt: allDeadlinesPaid ? registration.deadlines.find(d => d.paymentStatus === 'PAID')?.paidAt : null,
+        status: allDeadlinesPaid ? 'completed' as const : 
+                (registration.status === 'ENROLLED' ? 'current' as const : 'pending' as const)
+      },
+      documentsApproved: {
+        step: 3,
+        title: 'Documenti Approvati',
+        description: 'Carta d\'identità e tessera sanitaria verificate',
+        completed: registration.status === 'DOCUMENTS_APPROVED' || 
+                   ['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status),
+        completedAt: ['DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 
+                     registration.createdAt : null,
+        status: registration.status === 'DOCUMENTS_APPROVED' ? 'completed' as const :
+                (['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 'completed' as const : 
+                (registration.status === 'ENROLLED' && allDeadlinesPaid ? 'current' as const : 'pending' as const))
+      },
+      examRegistered: {
+        step: 4,
+        title: 'Iscritto all\'Esame',
+        description: 'Iscrizione all\'esame di certificazione confermata',
+        completed: registration.status === 'EXAM_REGISTERED' || !!registration.examDate,
+        completedAt: registration.status === 'EXAM_REGISTERED' ? registration.createdAt : registration.examDate,
+        status: registration.status === 'EXAM_REGISTERED' ? 'completed' as const :
+                (!!registration.examDate ? 'completed' as const : 'pending' as const)
+      },
+      examCompleted: {
+        step: 5,
+        title: 'Esame Sostenuto',
+        description: 'Esame di certificazione completato con successo',
+        completed: !!registration.examCompletedDate,
+        completedAt: registration.examCompletedDate,
+        status: registration.status === 'EXAM_REGISTERED' ? 'current' as const :
+                (registration.status === 'COMPLETED' ? 'completed' as const : 'pending' as const)
+      }
+    };
+    
+    console.log('=== STEPS CALCULATED ===');
+    console.log('Step 4 (examRegistered):', {
+      completed: steps.examRegistered.completed,
+      status: steps.examRegistered.status
+    });
+    console.log('Step 5 (examCompleted):', {
+      completed: steps.examCompleted.completed,
+      status: steps.examCompleted.status
+    });
+    console.log('=== END DEBUG ===');
+
+    res.json({
+      registrationId: registration.id,
+      currentStatus: registration.status,
+      steps
+    });
+
+  } catch (error) {
+    console.error('Error getting certification steps:', error);
+    res.status(500).json({ error: 'Errore nel recupero degli step di certificazione' });
+  }
+});
+
+// GET /api/user/documents/:documentId/download - Download user document  
+router.get('/documents/:documentId/download', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { documentId } = req.params;
+
+    // Find document
+    const document = await prisma.userDocument.findFirst({
+      where: {
+        id: documentId,
+        userId: userId
+      }
+    });
+
+    if (!document) {
+      return res.status(404).json({ error: 'Documento non trovato' });
+    }
+
+    // Build file path
+    const filePath = path.isAbsolute(document.url) 
+      ? document.url 
+      : path.resolve(document.url);
+
+    console.log('📄 Download request:', {
+      documentId,
+      documentUrl: document.url,
+      resolvedPath: filePath,
+      exists: fs.existsSync(filePath)
+    });
+
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      console.error('📄 File not found:', filePath);
+      return res.status(404).json({ error: 'File non trovato sul filesystem' });
+    }
+
+    // Send file
+    res.setHeader('Content-Disposition', `attachment; filename="${document.originalName}"`);
+    res.setHeader('Content-Type', document.mimeType || 'application/octet-stream');
+    res.sendFile(path.resolve(filePath));
+
+  } catch (error) {
+    console.error('Error downloading document:', error);
+    res.status(500).json({ error: 'Errore nel download del documento' });
   }
 });
 

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { PartnerUser } from '../../types/partner';
 import Button from '../UI/Button';
+import { partnerService } from '../../services/partner';
+import { getStatusBadge } from '../../utils/statusTranslations';
 
 interface UserTableProps {
   users: PartnerUser[];
@@ -8,6 +10,7 @@ interface UserTableProps {
   onFilterChange: (filter: 'all' | 'direct' | 'children') => void;
   currentFilter: 'all' | 'direct' | 'children';
   onNavigateToEnrollmentDetail?: (registrationId: string) => void;
+  onRegistrationsUpdated?: () => void; // Callback per aggiornare la lista dopo eliminazione
 }
 
 const UserTable: React.FC<UserTableProps> = ({ 
@@ -15,39 +18,81 @@ const UserTable: React.FC<UserTableProps> = ({
   isLoading, 
   onFilterChange, 
   currentFilter,
-  onNavigateToEnrollmentDetail
+  onNavigateToEnrollmentDetail,
+  onRegistrationsUpdated
 }) => {
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [selectedRegistrations, setSelectedRegistrations] = useState<string[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteSuccess, setDeleteSuccess] = useState<{ count: number; registrations: any[] } | null>(null);
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      PENDING: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'In Attesa' },
-      DATA_VERIFIED: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Dati Verificati' },
-      CONTRACT_GENERATED: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Contratto Generato' },
-      CONTRACT_SIGNED: { bg: 'bg-indigo-100', text: 'text-indigo-800', label: 'Contratto Firmato' },
-      ENROLLED: { bg: 'bg-green-100', text: 'text-green-800', label: 'Iscritto' },
-      COMPLETED: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Completato' },
-    };
 
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.PENDING;
-
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
-        {config.label}
-      </span>
-    );
-  };
-
-  const toggleUserSelection = (userId: string) => {
-    setSelectedUsers(prev => 
-      prev.includes(userId) 
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
+  const toggleRegistrationSelection = (registrationId: string) => {
+    setSelectedRegistrations(prev => 
+      prev.includes(registrationId) 
+        ? prev.filter(id => id !== registrationId)
+        : [...prev, registrationId]
     );
   };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('it-IT');
+  };
+
+
+  const handleDeleteRegistrations = async () => {
+    if (selectedRegistrations.length === 0) return;
+    
+    // Salva info delle registrazioni prima dell'eliminazione per il messaggio di successo
+    const registrationsInfo = getSelectedRegistrationsInfo();
+    
+    setIsDeleting(true);
+    try {
+      // Elimina tutte le registrazioni selezionate
+      await Promise.all(
+        selectedRegistrations.map(regId => 
+          partnerService.deleteRegistration(regId)
+        )
+      );
+      
+      // Reset selezione
+      setSelectedRegistrations([]);
+      setShowDeleteConfirm(false);
+      
+      // Mostra messaggio di successo
+      setDeleteSuccess({
+        count: registrationsInfo.length,
+        registrations: registrationsInfo
+      });
+      
+      // Nascondi messaggio dopo 5 secondi
+      setTimeout(() => {
+        setDeleteSuccess(null);
+      }, 5000);
+      
+      // Aggiorna la lista
+      if (onRegistrationsUpdated) {
+        onRegistrationsUpdated();
+      }
+      
+    } catch (error: any) {
+      console.error('Errore eliminazione iscrizioni:', error);
+      alert('Errore durante l\'eliminazione delle iscrizioni: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const getSelectedRegistrationsInfo = () => {
+    return selectedRegistrations.map(regId => {
+      const user = users.find(u => u.registrationId === regId);
+      return user ? {
+        registrationId: regId,
+        userName: user.profile ? `${user.profile.nome} ${user.profile.cognome}` : user.email,
+        course: user.course,
+        status: user.status
+      } : null;
+    }).filter((info): info is NonNullable<typeof info> => info !== null);
   };
 
   if (isLoading) {
@@ -87,10 +132,18 @@ const UserTable: React.FC<UserTableProps> = ({
               <option value="children">Da Partner Figli</option>
             </select>
             
-            {selectedUsers.length > 0 && (
-              <Button size="sm" variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100">
-                Azioni su {selectedUsers.length} utenti
-              </Button>
+            {selectedRegistrations.length > 0 && (
+              <div className="flex space-x-2">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? 'Eliminando...' : `Elimina ${selectedRegistrations.length} iscrizioni`}
+                </Button>
+              </div>
             )}
           </div>
         </div>
@@ -105,12 +158,12 @@ const UserTable: React.FC<UserTableProps> = ({
                   type="checkbox"
                   onChange={(e) => {
                     if (e.target.checked) {
-                      setSelectedUsers(users.map(u => u.id));
+                      setSelectedRegistrations(users.map(u => u.registrationId));
                     } else {
-                      setSelectedUsers([]);
+                      setSelectedRegistrations([]);
                     }
                   }}
-                  checked={selectedUsers.length === users.length && users.length > 0}
+                  checked={selectedRegistrations.length === users.length && users.length > 0}
                   className="rounded border-gray-300"
                 />
               </th>
@@ -151,8 +204,8 @@ const UserTable: React.FC<UserTableProps> = ({
                 <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
-                    checked={selectedUsers.includes(user.id)}
-                    onChange={() => toggleUserSelection(user.id)}
+                    checked={selectedRegistrations.includes(user.registrationId)}
+                    onChange={() => toggleRegistrationSelection(user.registrationId)}
                     className="rounded border-gray-300"
                   />
                 </td>
@@ -171,7 +224,9 @@ const UserTable: React.FC<UserTableProps> = ({
                   {user.course}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  {getStatusBadge(user.status)}
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(user.status).className}`}>
+                    {getStatusBadge(user.status).label}
+                  </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
                   {user.isDirectUser ? (
@@ -206,6 +261,129 @@ const UserTable: React.FC<UserTableProps> = ({
             </div>
             <p className="text-gray-500 text-lg font-medium mb-2">Nessun utente trovato</p>
             <p className="text-gray-400 text-sm">I tuoi utenti registrati appariranno qui</p>
+          </div>
+        </div>
+      )}
+
+      {/* Modale di conferma eliminazione */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true" onClick={() => setShowDeleteConfirm(false)}>
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="sm:flex sm:items-start">
+                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                    <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.884-.833-2.664 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900">
+                      Conferma eliminazione
+                    </h3>
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-500">
+                        Stai per eliminare {selectedRegistrations.length} iscrizioni:
+                      </p>
+                      <div className="mt-3 max-h-32 overflow-y-auto">
+                        {getSelectedRegistrationsInfo().map((info) => (
+                          <div key={info.registrationId} className="text-sm py-1 border-b border-gray-100">
+                            <span className="font-medium">{info.userName}</span> - {info.course} ({info.status})
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-sm text-red-600 mt-3 font-medium">
+                        ⚠️ Questa azione eliminerà definitivamente le iscrizioni, inclusi pagamenti e documenti correlati. I profili utente rimarranno intatti.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <Button
+                  onClick={handleDeleteRegistrations}
+                  disabled={isDeleting}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  {isDeleting ? 'Eliminando...' : 'Elimina'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={isDeleting}
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Annulla
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Messaggio di successo eliminazione */}
+      {deleteSuccess && (
+        <div className="fixed top-4 right-4 z-60 max-w-md">
+          <div className="bg-white rounded-lg shadow-xl border-l-4 border-green-500 p-4 animate-slide-in-right">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+              </div>
+              <div className="ml-3 flex-1">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    {deleteSuccess.count === 1 ? 'Iscrizione eliminata' : 'Iscrizioni eliminate'}
+                  </h3>
+                  <button
+                    onClick={() => setDeleteSuccess(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                
+                <div className="mt-2 text-sm text-gray-700">
+                  {deleteSuccess.count === 1 ? (
+                    <div>
+                      <span className="font-medium">{deleteSuccess.registrations[0]?.userName}</span>
+                      <br />
+                      <span className="text-gray-500">{deleteSuccess.registrations[0]?.course}</span>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="font-medium mb-1">{deleteSuccess.count} iscrizioni eliminate:</p>
+                      <div className="space-y-1">
+                        {deleteSuccess.registrations.slice(0, 3).map((reg, index) => (
+                          <div key={index} className="text-xs bg-gray-50 rounded px-2 py-1">
+                            <span className="font-medium">{reg.userName}</span> - {reg.course}
+                          </div>
+                        ))}
+                        {deleteSuccess.registrations.length > 3 && (
+                          <div className="text-xs text-gray-500">
+                            ...e altre {deleteSuccess.registrations.length - 3}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {/* Progress bar per auto-dismiss */}
+            <div className="mt-3 w-full bg-gray-200 rounded-full h-1">
+              <div className="bg-green-500 h-1 rounded-full animate-shrink-width"></div>
+            </div>
           </div>
         </div>
       )}
