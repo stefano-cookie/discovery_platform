@@ -25,7 +25,7 @@ const QuickMetrics: React.FC<QuickMetricsProps> = ({ stats, analytics, loading, 
     },
     {
       label: 'Media per Utente',
-      value: stats?.totalUsers ? Math.round((stats.monthlyRevenue || 0) / stats.totalUsers) : 0,
+      value: stats?.totalRegistrations ? Math.round((stats.monthlyRevenue || 0) / stats.totalRegistrations) : 0,
       format: 'currency',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -49,7 +49,7 @@ const QuickMetrics: React.FC<QuickMetricsProps> = ({ stats, analytics, loading, 
     },
     {
       label: 'Utenti Rete',
-      value: stats?.childrenUsers || 0,
+      value: stats?.indirectRegistrations || 0,
       format: 'number',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

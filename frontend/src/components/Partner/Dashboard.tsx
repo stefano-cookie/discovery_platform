@@ -144,7 +144,7 @@ const PartnerDashboard: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
         <StatsCard
           title="Utenti Totali"
-          value={statsLoading ? '...' : stats?.totalUsers || 0}
+          value={statsLoading ? '...' : stats?.totalRegistrations || 0}
           color="blue"
           icon={
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -155,7 +155,7 @@ const PartnerDashboard: React.FC = () => {
 
         <StatsCard
           title="Utenti Diretti"
-          value={statsLoading ? '...' : stats?.directUsers || 0}
+          value={statsLoading ? '...' : stats?.directRegistrations || 0}
           color="green"
           icon={
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

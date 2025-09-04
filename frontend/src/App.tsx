@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { PartnerAuthProvider } from './hooks/usePartnerAuth';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -9,6 +10,10 @@ import Registration from './pages/Registration';
 import EmailVerification from './pages/EmailVerification';
 import VerifyEmail from './pages/VerifyEmail';
 import ChangePassword from './pages/ChangePassword';
+
+// Partner System - New Routes
+import PartnerLogin from './pages/PartnerLogin';
+import PartnerDashboard from './pages/PartnerDashboard';
 
 const AppContent: React.FC = () => {
   const { user, isLoading } = useAuth();
@@ -147,6 +152,13 @@ const AppContent: React.FC = () => {
           </ProtectedRoute>
         } 
       />
+      
+      {/* ========================================
+          PARTNER ROUTES - New System
+          ======================================== */}
+      <Route path="/partner/login" element={<PartnerLogin />} />
+      <Route path="/partner/dashboard" element={<PartnerDashboard />} />
+      
       <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
@@ -156,11 +168,13 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <Router>
-        <div className="App">
-          <AppContent />
-        </div>
-      </Router>
+      <PartnerAuthProvider>
+        <Router>
+          <div className="App">
+            <AppContent />
+          </div>
+        </Router>
+      </PartnerAuthProvider>
     </AuthProvider>
   );
 };

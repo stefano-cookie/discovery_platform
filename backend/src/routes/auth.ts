@@ -12,7 +12,7 @@ const prisma = new PrismaClient();
 
 const SALT_ROUNDS = 10;
 
-// Login
+// Login Unificato - User e PartnerEmployee
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -21,6 +21,7 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email e password sono obbligatori' });
     }
     
+    // STEP 1: Cerca prima negli User (clienti)
     const user = await prisma.user.findUnique({
       where: { email },
       include: {
@@ -30,45 +31,114 @@ router.post('/login', async (req, res) => {
       }
     });
     
-    if (!user || !await bcrypt.compare(password, user.password)) {
-      return res.status(401).json({ error: 'Credenziali non valide' });
-    }
-    
-    // Verifica che l'account sia attivato
-    if (!user.emailVerified) {
-      return res.status(401).json({ 
-        error: 'Account non attivato. Controlla la tua email per il link di attivazione.',
-        needsEmailVerification: true
+    if (user && await bcrypt.compare(password, user.password)) {
+      // Verifica che l'account sia attivato
+      if (!user.emailVerified) {
+        return res.status(401).json({ 
+          error: 'Account non attivato. Controlla la tua email per il link di attivazione.',
+          needsEmailVerification: true
+        });
+      }
+      
+      // Aggiorna ultimo login
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() }
+      });
+      
+      const token = jwt.sign(
+        { id: user.id, type: 'user', role: user.role },
+        process.env.JWT_SECRET!,
+        { expiresIn: '7d' }
+      );
+      
+      return res.json({
+        token,
+        type: 'user',
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          emailVerified: user.emailVerified,
+          hasProfile: !!user.profile,
+          referralCode: user.partner?.referralCode || null,
+          assignedPartner: user.assignedPartner ? {
+            id: user.assignedPartner.id,
+            referralCode: user.assignedPartner.referralCode
+          } : null
+        }
       });
     }
     
-    // Aggiorna ultimo login
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() }
-    });
-    
-    const token = jwt.sign(
-      { id: user.id, role: user.role },
-      process.env.JWT_SECRET!,
-      { expiresIn: '7d' }
-    );
-    
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        emailVerified: user.emailVerified,
-        hasProfile: !!user.profile,
-        referralCode: user.partner?.referralCode || null,
-        assignedPartner: user.assignedPartner ? {
-          id: user.assignedPartner.id,
-          referralCode: user.assignedPartner.referralCode
-        } : null
+    // STEP 2: Se non trovato in User, cerca in PartnerEmployee
+    const partnerEmployee = await prisma.partnerEmployee.findUnique({
+      where: { email },
+      include: {
+        partnerCompany: true
       }
     });
+    
+    if (partnerEmployee && await bcrypt.compare(password, partnerEmployee.password)) {
+      if (!partnerEmployee.isActive) {
+        return res.status(401).json({ 
+          error: 'Account disattivato. Contatta l\'amministratore.',
+        });
+      }
+      
+      // Aggiorna ultimo login
+      await prisma.partnerEmployee.update({
+        where: { id: partnerEmployee.id },
+        data: { lastLoginAt: new Date() }
+      });
+      
+      // Log attività login
+      await prisma.partnerActivityLog.create({
+        data: {
+          partnerEmployeeId: partnerEmployee.id,
+          action: 'LOGIN',
+          details: {
+            ipAddress: req.ip,
+            userAgent: req.get('User-Agent')
+          },
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        }
+      });
+      
+      const token = jwt.sign(
+        { 
+          id: partnerEmployee.id, 
+          type: 'partner',
+          partnerCompanyId: partnerEmployee.partnerCompanyId,
+          role: partnerEmployee.role 
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: '7d' }
+      );
+      
+      return res.json({
+        token,
+        type: 'partner',
+        user: {
+          id: partnerEmployee.id,
+          email: partnerEmployee.email,
+          firstName: partnerEmployee.firstName,
+          lastName: partnerEmployee.lastName,
+          role: partnerEmployee.role
+        },
+        partnerCompany: {
+          id: partnerEmployee.partnerCompany.id,
+          name: partnerEmployee.partnerCompany.name,
+          referralCode: partnerEmployee.partnerCompany.referralCode,
+          canCreateChildren: partnerEmployee.partnerCompany.canCreateChildren,
+          hierarchyLevel: partnerEmployee.partnerCompany.hierarchyLevel
+        }
+      });
+    }
+    
+    // STEP 3: Nessun match trovato
+    return res.status(401).json({ error: 'Credenziali non valide' });
+    
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Errore interno del server' });

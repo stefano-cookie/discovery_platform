@@ -47,6 +47,127 @@ enum UserRole {
   USER
 }
 
+// ========================================
+// SISTEMA PARTNER AZIENDE RINNOVATO
+// ========================================
+
+model PartnerCompany {
+  id                String   @id @default(uuid())
+  name              String
+  referralCode      String   @unique
+  
+  // Sistema Gerarchico
+  parentId          String?  // Partner padre (NULL = root)
+  canCreateChildren Boolean  @default(false)
+  hierarchyLevel    Int      @default(0)
+  isActive          Boolean  @default(true)
+  
+  // Business Data
+  commissionPerUser Decimal  @default(0)
+  totalEarnings     Decimal  @default(0)
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relazioni Gerarchiche
+  parent            PartnerCompany?  @relation("CompanyHierarchy", fields: [parentId], references: [id])
+  children          PartnerCompany[] @relation("CompanyHierarchy")
+  
+  // Relazioni Business
+  employees         PartnerEmployee[]
+  offers            PartnerOffer[] @relation("CompanyOffers")
+  registrations     Registration[] @relation("CompanyRegistrations")
+  sourceRegistrations Registration[] @relation("SourceCompanyRegistrations")
+  coupons           Coupon[] @relation("CompanyCoupons")
+  transfersFrom     UserTransfer[] @relation("TransferFromCompany")
+  transfersTo       UserTransfer[] @relation("TransferToCompany")
+  userOfferAccess   UserOfferAccess[] @relation("CompanyOfferAccess")
+  
+  @@index([parentId])
+  @@index([referralCode])
+  @@index([hierarchyLevel])
+}
+
+model PartnerEmployee {
+  id              String   @id @default(uuid())
+  partnerCompanyId String
+  email           String   @unique
+  password        String
+  firstName       String
+  lastName        String
+  role            PartnerEmployeeRole
+  isActive        Boolean  @default(true)
+  isOwner         Boolean  @default(false) // Primo utente amministrativo
+  
+  // Sistema inviti sicuri
+  inviteToken     String?  @unique
+  inviteExpiresAt DateTime?
+  invitedBy       String?  // ID di chi ha invitato
+  acceptedAt      DateTime?
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastLoginAt     DateTime?
+  
+  // Relazioni
+  partnerCompany  PartnerCompany @relation(fields: [partnerCompanyId], references: [id], onDelete: Cascade)
+  sessions        PartnerSession[]
+  activityLogs    PartnerActivityLog[]
+  
+  @@index([partnerCompanyId])
+  @@index([email])
+  @@index([inviteToken])
+}
+
+enum PartnerEmployeeRole {
+  ADMINISTRATIVE  // Accesso completo: crea collaboratori, aziende figlie, vede dati finanziari
+  COMMERCIAL      // Accesso limitato: NO dati finanziari, NO creazione utenti
+}
+
+// ========================================
+// SESSION MANAGEMENT SEPARATO
+// ========================================
+
+model PartnerSession {
+  id            String   @id @default(uuid())
+  partnerEmployeeId String
+  token         String   @unique
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime
+  lastUsedAt    DateTime @default(now())
+  ipAddress     String?
+  userAgent     String?
+  
+  partnerEmployee PartnerEmployee @relation(fields: [partnerEmployeeId], references: [id], onDelete: Cascade)
+  
+  @@index([partnerEmployeeId])
+  @@index([token])
+}
+
+model PartnerActivityLog {
+  id              String   @id @default(uuid())
+  partnerEmployeeId String
+  action          String   // "LOGIN", "CREATE_EMPLOYEE", "CREATE_CHILD_COMPANY", "VIEW_REGISTRATIONS"
+  details         Json?    // Dati aggiuntivi azione
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime @default(now())
+  
+  partnerEmployee PartnerEmployee @relation(fields: [partnerEmployeeId], references: [id], onDelete: Cascade)
+  
+  @@index([partnerEmployeeId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ========================================
+// MANTENIMENTO COMPATIBILITÀ LEGACY
+// ========================================
+
+// TEMP: Manteniamo model Partner vuoto per compatibilità durante migrazione
 model Partner {
   id                      String   @id @default(uuid())
   userId                  String   @unique
@@ -61,13 +182,13 @@ model Partner {
   user                    User     @relation(fields: [userId], references: [id])
   parent                  Partner? @relation("PartnerHierarchy", fields: [parentId], references: [id])
   children                Partner[] @relation("PartnerHierarchy")
-  assignedUsers           User[]   @relation("UserPartnerAssignment") // Utenti assegnati permanentemente
+  assignedUsers           User[]   @relation("UserPartnerAssignment")
   registrations           Registration[]
   offers                  PartnerOffer[]
   coupons                 Coupon[]
   transfersFrom           UserTransfer[] @relation("TransferFrom")
   transfersTo             UserTransfer[] @relation("TransferTo")
-  userOfferAccess         UserOfferAccess[] // Accessi alle offerte abilitati dal partner
+  userOfferAccess         UserOfferAccess[]
 }
 
 model Course {
@@ -89,6 +210,7 @@ enum CourseTemplate {
 model PartnerOffer {
   id                      String   @id @default(uuid())
   partnerId               String
+  partnerCompanyId        String?  // NEW: Reference to PartnerCompany
   courseId                String
   name                    String
   offerType               OfferType @default(TFA_ROMANIA)
@@ -100,11 +222,16 @@ model PartnerOffer {
   isActive                Boolean  @default(true)
   createdAt               DateTime @default(now())
   
+  // Legacy relation (manteniamo per compatibilità)
   partner                 Partner  @relation(fields: [partnerId], references: [id])
+  // NEW: Partner company relation
+  partnerCompany          PartnerCompany? @relation("CompanyOffers", fields: [partnerCompanyId], references: [id])
   course                  Course   @relation(fields: [courseId], references: [id])
   registrations           Registration[]
   visibilities            OfferVisibility[]
-  userAccess              UserOfferAccess[] // Utenti che hanno accesso a questa offerta
+  userAccess              UserOfferAccess[]
+  
+  @@index([partnerCompanyId])
 }
 
 enum OfferType {
@@ -115,6 +242,7 @@ enum OfferType {
 model Coupon {
   id                String   @id @default(uuid())
   partnerId         String
+  partnerCompanyId  String?  // NEW: Reference to PartnerCompany
   code              String
   discountType      DiscountType
   discountAmount    Decimal?
@@ -125,10 +253,14 @@ model Coupon {
   validUntil        DateTime
   isActive          Boolean  @default(true)
   
+  // Legacy relation
   partner           Partner  @relation(fields: [partnerId], references: [id])
+  // NEW: Partner company relation
+  partnerCompany    PartnerCompany? @relation("CompanyCoupons", fields: [partnerCompanyId], references: [id])
   uses              CouponUse[]
   
   @@unique([partnerId, code])
+  @@index([partnerCompanyId])
 }
 
 enum DiscountType {
@@ -172,13 +304,16 @@ model UserProfile {
 }
 
 model Registration {
-  id              String   @id @default(uuid())
-  userId          String
-  partnerId       String   // Partner che ha portato l'iscrizione
-  courseId        String
-  partnerOfferId  String?
-  couponId        String?
-  offerType       OfferType @default(TFA_ROMANIA)
+  id                     String   @id @default(uuid())
+  userId                 String
+  partnerId              String   // Partner che ha portato l'iscrizione (LEGACY)
+  partnerCompanyId       String?  // NEW: Azienda proprietaria (per commissioni)
+  sourcePartnerCompanyId String?  // NEW: Azienda che ha generato l'iscrizione (per tracking)
+  isDirectRegistration   Boolean  @default(true) // false se da azienda figlia
+  courseId               String
+  partnerOfferId         String?
+  couponId               String?
+  offerType              OfferType @default(TFA_ROMANIA)
   
   // Dati specifici iscrizione (non nel profilo)
   // Per TFA Romania:
@@ -266,33 +401,45 @@ model Registration {
   
   createdAt       DateTime @default(now())
   
-  user            User         @relation(fields: [userId], references: [id])
-  partner         Partner      @relation(fields: [partnerId], references: [id])
-  offer           PartnerOffer? @relation(fields: [partnerOfferId], references: [id])
-  userDocuments   UserDocument[] // Unified document system
-  payments        Payment[]
-  deadlines       PaymentDeadline[]
-  couponUses      CouponUse[]
+  user                    User         @relation(fields: [userId], references: [id])
+  // Legacy relation
+  partner                 Partner      @relation(fields: [partnerId], references: [id])
+  // NEW: Partner company relations
+  partnerCompany          PartnerCompany?  @relation("CompanyRegistrations", fields: [partnerCompanyId], references: [id])
+  sourcePartnerCompany    PartnerCompany?  @relation("SourceCompanyRegistrations", fields: [sourcePartnerCompanyId], references: [id])
+  offer                   PartnerOffer? @relation(fields: [partnerOfferId], references: [id])
+  userDocuments           UserDocument[] // Unified document system
+  payments                Payment[]
+  deadlines               PaymentDeadline[]
+  couponUses              CouponUse[]
   
   // Prevent duplicate registrations for same user, course and partner
   @@unique([userId, courseId, partnerId, status])
+  @@index([partnerCompanyId])
+  @@index([sourcePartnerCompanyId])
+  @@index([isDirectRegistration])
 }
 
 // Gestione accesso utenti alle offerte aggiuntive del partner
 model UserOfferAccess {
-  id        String   @id @default(uuid())
-  userId    String
-  offerId   String
-  partnerId String   // Partner che ha abilitato l'accesso
-  enabled   Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String   @id @default(uuid())
+  userId           String
+  offerId          String
+  partnerId        String   // Partner che ha abilitato l'accesso (LEGACY)
+  partnerCompanyId String?  // NEW: Partner company che ha abilitato l'accesso
+  enabled          Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
   
-  user    User         @relation(fields: [userId], references: [id])
-  offer   PartnerOffer @relation(fields: [offerId], references: [id])
-  partner Partner      @relation(fields: [partnerId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+  offer          PartnerOffer @relation(fields: [offerId], references: [id])
+  // Legacy relation
+  partner        Partner      @relation(fields: [partnerId], references: [id])
+  // NEW: Partner company relation
+  partnerCompany PartnerCompany? @relation("CompanyOfferAccess", fields: [partnerCompanyId], references: [id])
   
-  @@unique([userId, offerId]) // Un utente può avere accesso a un'offerta solo una volta
+  @@unique([userId, offerId])
+  @@index([partnerCompanyId])
 }
 
 enum RegistrationStatus {
@@ -525,15 +672,23 @@ model OfferVisibility {
 }
 
 model UserTransfer {
-  id                String   @id @default(uuid())
-  userId            String
-  fromPartnerId     String?
-  toPartnerId       String
-  transferredBy     String   // Admin user ID
-  reason            String?
-  transferredAt     DateTime @default(now())
+  id                     String   @id @default(uuid())
+  userId                 String
+  fromPartnerId          String?
+  toPartnerId            String
+  fromPartnerCompanyId   String?  // NEW: From partner company
+  toPartnerCompanyId     String?  // NEW: To partner company
+  transferredBy          String   // Admin user ID
+  reason                 String?
+  transferredAt          DateTime @default(now())
   
-  // Relazioni
-  toPartner         Partner  @relation("TransferTo", fields: [toPartnerId], references: [id])
-  fromPartner       Partner? @relation("TransferFrom", fields: [fromPartnerId], references: [id])
+  // Legacy relations
+  toPartner              Partner  @relation("TransferTo", fields: [toPartnerId], references: [id])
+  fromPartner            Partner? @relation("TransferFrom", fields: [fromPartnerId], references: [id])
+  // NEW: Partner company relations
+  toPartnerCompany       PartnerCompany? @relation("TransferToCompany", fields: [toPartnerCompanyId], references: [id])
+  fromPartnerCompany     PartnerCompany? @relation("TransferFromCompany", fields: [fromPartnerCompanyId], references: [id])
+  
+  @@index([fromPartnerCompanyId])
+  @@index([toPartnerCompanyId])
 }

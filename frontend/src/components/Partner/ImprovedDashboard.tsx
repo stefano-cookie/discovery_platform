@@ -183,10 +183,10 @@ const ImprovedPartnerDashboard: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
           <StatsCard
             title="Utenti Totali"
-            value={statsLoading ? '...' : stats?.totalUsers || 0}
+            value={statsLoading ? '...' : stats?.totalRegistrations || 0}
             color="blue"
             subtitle="Tutti gli utenti gestiti"
-            trend={stats?.directUsers && stats?.totalUsers ? `${Math.round((stats.directUsers / stats.totalUsers) * 100)}% diretti` : undefined}
+            trend={stats?.directRegistrations && stats?.totalRegistrations ? `${Math.round((stats.directRegistrations / stats.totalRegistrations) * 100)}% diretti` : undefined}
             icon={
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20v-2a3 3 0 01-5.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 01-9.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -209,10 +209,10 @@ const ImprovedPartnerDashboard: React.FC = () => {
 
           <StatsCard
             title="Utenti Diretti"
-            value={statsLoading ? '...' : stats?.directUsers || 0}
+            value={statsLoading ? '...' : stats?.directRegistrations || 0}
             color="violet"
             subtitle="Iscrizioni dirette"
-            trend={stats?.childrenUsers ? `+${stats.childrenUsers} rete` : undefined}
+            trend={stats?.indirectRegistrations ? `+${stats.indirectRegistrations} rete` : undefined}
             icon={
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />

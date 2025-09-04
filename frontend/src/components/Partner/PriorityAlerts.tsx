@@ -46,7 +46,7 @@ const PriorityAlerts: React.FC<PriorityAlertsProps> = ({ analytics, stats }) => 
     }
     
     // Check for high revenue month
-    if (stats && stats.monthlyRevenue > 5000) {
+    if (stats && stats.monthlyRevenue && stats.monthlyRevenue > 5000) {
       alerts.push({
         type: 'success' as const,
         title: 'Ottimo mese!',

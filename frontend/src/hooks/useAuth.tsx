@@ -41,13 +41,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const login = async (credentials: LoginRequest) => {
     try {
       const response = await authService.login(credentials);
-      const { token: newToken, user: newUser } = response;
+      
+      // TEMPORARY: This hook only handles User (legacy), not PartnerEmployee
+      // Partner login will be handled by a separate hook in next checkpoint
+      if ('type' in response && response.type === 'partner') {
+        throw new Error('Partner login not supported in this context. Use Partner login page.');
+      }
+      
+      const { token: newToken, user: newUser } = response as any;
       
       localStorage.setItem('token', newToken);
       localStorage.setItem('user', JSON.stringify(newUser));
       
       setToken(newToken);
-      setUser(newUser);
+      setUser(newUser as any); // Temporary cast for compilation
     } catch (error) {
       throw error;
     }
