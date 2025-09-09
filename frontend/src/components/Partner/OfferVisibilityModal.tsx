@@ -60,10 +60,10 @@ const OfferVisibilityModal: React.FC<OfferVisibilityModalProps> = ({
       setSaving(true);
       setError(null);
 
-      const userVisibility = users.map(user => ({
+      const userVisibility = Array.isArray(users) ? users.map(user => ({
         userId: user.id,
         isVisible: user.isVisible
-      }));
+      })) : [];
 
       await api.put(`/partners/offer-visibility/${offerId}`, {
         userVisibility
@@ -123,7 +123,7 @@ const OfferVisibilityModal: React.FC<OfferVisibilityModalProps> = ({
             <>
               {/* Users List */}
               <div className="space-y-3 max-h-96 overflow-y-auto">
-                {users.length === 0 ? (
+                {(!Array.isArray(users) || users.length === 0) ? (
                   <div className="text-center py-8 text-gray-500">
                     <p>Nessun utente associato trovato</p>
                   </div>

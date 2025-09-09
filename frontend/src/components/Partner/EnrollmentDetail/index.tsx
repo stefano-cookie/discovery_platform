@@ -44,6 +44,7 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
       window.removeEventListener('refreshRegistrations', handleRefresh);
       window.removeEventListener('documentsUpdated', handleRefresh);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [registrationId]);
 
   const fetchUserDetails = async () => {
@@ -53,8 +54,8 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
       
       // Per ora uso l'API esistente per ottenere tutti gli utenti
       // e filtro per registrationId - in futuro creeremo un endpoint dedicato
-      const users = await partnerService.getUsers('all');
-      const targetUser = users.find(u => u.registrationId === registrationId);
+      const response = await partnerService.getUsers('all');
+      const targetUser = response.users.find((u: any) => u.registrationId === registrationId);
       
       if (!targetUser) {
         setError('Iscrizione non trovata');

@@ -1,6 +1,6 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authenticate, AuthRequest } from '../middleware/auth';
+import { authenticateUnified, AuthRequest } from '../middleware/auth';
 import { generateUniqueId } from '../utils/idGenerator';
 
 const router = express.Router();
@@ -26,19 +26,17 @@ function validateCreateOffer(data: any) {
   return data;
 }
 
-// GET /api/offers - Get all offers for authenticated partner
-router.get('/', authenticate, async (req: AuthRequest, res) => {
+// GET /api/offers - Get all offers for partner company
+router.get('/', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partner = await prisma.partner.findUnique({
-      where: { userId: req.user!.id }
-    });
-
-    if (!partner) {
-      return res.status(404).json({ error: 'Partner not found' });
+    const partnerCompanyId = req.partnerCompany?.id;
+    
+    if (!partnerCompanyId) {
+      return res.status(404).json({ error: 'Partner company not found' });
     }
 
     const offers = await prisma.partnerOffer.findMany({
-      where: { partnerId: partner.id },
+      where: { partnerCompanyId },
       include: {
         course: true,
         _count: {
@@ -55,8 +53,8 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// GET /api/offers/:id - Get specific offer (accessible to authenticated users)
-router.get('/:id', authenticate, async (req: AuthRequest, res) => {
+// GET /api/offers/:id - Get specific offer (accessible to authenticateUnifiedd users)
+router.get('/:id', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const offer = await prisma.partnerOffer.findFirst({
       where: {
@@ -101,24 +99,65 @@ router.get('/:id', authenticate, async (req: AuthRequest, res) => {
 });
 
 // POST /api/offers - Create new offer
-router.post('/', authenticate, async (req: AuthRequest, res) => {
+router.post('/', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const validatedData = validateCreateOffer(req.body);
 
-    const partner = await prisma.partner.findUnique({
-      where: { userId: req.user!.id }
-    });
+    const partnerCompanyId = req.partnerCompany?.id;
+    const partnerCompany = req.partnerCompany;
 
-    if (!partner) {
-      return res.status(404).json({ error: 'Partner not found' });
+    if (!partnerCompanyId || !partnerCompany) {
+      return res.status(404).json({ error: 'Partner company not found' });
     }
 
     // Generate unique referral link
-    const referralLink = `${partner.referralCode}-${generateUniqueId(8)}`;
+    const referralLink = `${partnerCompany.referralCode}-${generateUniqueId(8)}`;
+
+    // Find or create a legacy Partner record for backward compatibility
+    let legacyPartner = await prisma.partner.findFirst({
+      where: {
+        referralCode: `${partnerCompany.referralCode}-LEGACY`
+      }
+    });
+
+    if (!legacyPartner) {
+      const dummyUserId = `dummy-user-for-partner-${partnerCompanyId}`;
+      
+      // Create a dummy user if it doesn't exist
+      let dummyUser = await prisma.user.findUnique({
+        where: { id: dummyUserId }
+      });
+      
+      if (!dummyUser) {
+        dummyUser = await prisma.user.create({
+          data: {
+            id: dummyUserId,
+            email: `dummy-${partnerCompanyId}@legacy.system`,
+            password: 'dummy-password-hash',
+            role: 'PARTNER',
+            isActive: false,
+            emailVerified: false
+          }
+        });
+      }
+      
+      // Create a legacy partner entry for backward compatibility
+      legacyPartner = await prisma.partner.create({
+        data: {
+          id: `legacy-partner-${partnerCompanyId}`,
+          userId: dummyUserId,
+          referralCode: `${partnerCompany.referralCode}-LEGACY`,
+          canCreateChildren: false,
+          commissionPerUser: 0,
+          commissionToAdmin: 0
+        }
+      });
+    }
 
     const offer = await prisma.partnerOffer.create({
       data: {
-        partnerId: partner.id,
+        partnerId: legacyPartner.id, // For backward compatibility
+        partnerCompanyId,
         courseId: validatedData.courseId,
         name: validatedData.name,
         offerType: validatedData.offerType,
@@ -144,20 +183,18 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 });
 
 // PUT /api/offers/:id - Update offer
-router.put('/:id', authenticate, async (req: AuthRequest, res) => {
+router.put('/:id', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partner = await prisma.partner.findUnique({
-      where: { userId: req.user!.id }
-    });
-
-    if (!partner) {
-      return res.status(404).json({ error: 'Partner not found' });
+    const partnerCompanyId = req.partnerCompany?.id;
+    
+    if (!partnerCompanyId) {
+      return res.status(404).json({ error: 'Partner company not found' });
     }
 
     const offer = await prisma.partnerOffer.findFirst({
       where: {
         id: req.params.id,
-        partnerId: partner.id
+        partnerCompanyId: partnerCompanyId
       }
     });
 
@@ -181,20 +218,18 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
 });
 
 // DELETE /api/offers/:id - Delete offer
-router.delete('/:id', authenticate, async (req: AuthRequest, res) => {
+router.delete('/:id', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partner = await prisma.partner.findUnique({
-      where: { userId: req.user!.id }
-    });
-
-    if (!partner) {
-      return res.status(404).json({ error: 'Partner not found' });
+    const partnerCompanyId = req.partnerCompany?.id;
+    
+    if (!partnerCompanyId) {
+      return res.status(404).json({ error: 'Partner company not found' });
     }
 
     const offer = await prisma.partnerOffer.findFirst({
       where: {
         id: req.params.id,
-        partnerId: partner.id
+        partnerCompanyId: partnerCompanyId
       }
     });
 

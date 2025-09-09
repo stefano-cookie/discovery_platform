@@ -62,30 +62,15 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
         endpoint = `/user/documents/unified${registrationId ? `?registrationId=${registrationId}` : ''}`;
       }
 
-      console.log('📋 Fetching documents from:', endpoint);
-      console.log('📋 RegistrationId:', registrationId);
       const response = await apiRequest<{ documents: UnifiedDocument[], uploadedCount: number, totalCount: number }>({
         method: 'GET',
         url: endpoint
       });
       
-      console.log('📋 Documents received:', response.documents?.length, 'total');
-      console.log('📋 All documents:', response.documents?.map(d => ({ 
-        type: d.type, 
-        name: d.name, 
-        uploaded: d.uploaded,
-        status: d.status,
-        fileName: d.fileName,
-        documentId: d.documentId,
-        registrationId: d.registrationId
-      })));
-      console.log('📋 Uploaded documents:', response.documents?.filter(d => d.uploaded).map(d => ({ 
-        type: d.type, 
-        name: d.name,
-        documentId: d.documentId
-      })));
+      // Handle both possible response formats
+      const documents = response.documents || response as any || [];
       
-      setDocuments(response.documents || []);
+      setDocuments(documents);
     } catch (err: any) {
       console.error('📋 Error fetching documents:', err);
       setError(err.response?.data?.error || 'Errore nel caricamento documenti');
@@ -153,10 +138,7 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
         endpoint = `/partners/users/${userId}/documents/upload`;
       }
 
-      console.log('📤 Uploading document type:', documentType, 'to endpoint:', endpoint);
-      console.log('📤 FormData registrationId:', registrationId);
-      
-      const uploadResponse = await apiRequest({
+      await apiRequest({
         method: 'POST',
         url: endpoint,
         data: formData,
@@ -164,22 +146,14 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
           'Content-Type': 'multipart/form-data'
         }
       });
-
-      console.log('📤 Upload response:', uploadResponse);
-      console.log('📤 Refreshing documents...');
       
       await fetchDocuments();
       if (onDocumentChange) {
         onDocumentChange();
       }
       
-      // Trigger global event for document approval
-      window.dispatchEvent(new Event('documentsUpdated'));
-      
       // Trigger global event for document updates
       window.dispatchEvent(new Event('documentsUpdated'));
-      
-      console.log('📤 Documents updated');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Errore nel caricamento del documento');
     } finally {
@@ -207,9 +181,10 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
       }
 
       const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+      const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${token}`
         }
       });
 
@@ -240,9 +215,10 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
       }
 
       const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+      const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${token}`
         }
       });
 

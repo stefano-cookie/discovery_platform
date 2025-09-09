@@ -19,7 +19,7 @@ const UsersView: React.FC<UsersViewProps> = ({ onNavigateToEnrollmentDetail }) =
       setUsersLoading(true);
       setUsersError(null);
       const data = await partnerService.getUsers(filter);
-      setUsers(data);
+      setUsers(data.users);
     } catch (err: any) {
       setUsersError(err.response?.data?.error || 'Errore nel caricamento utenti');
     } finally {
@@ -53,7 +53,7 @@ const UsersView: React.FC<UsersViewProps> = ({ onNavigateToEnrollmentDetail }) =
     setCurrentFilter(filter);
   };
 
-  const filteredUsers = users.filter(user => {
+  const filteredUsers = (users || []).filter(user => {
     if (!searchTerm) return true;
     
     const searchLower = searchTerm.toLowerCase();
@@ -68,9 +68,9 @@ const UsersView: React.FC<UsersViewProps> = ({ onNavigateToEnrollmentDetail }) =
 
   const getFilterStats = () => {
     return {
-      all: users.length,
-      direct: users.filter(u => u.isDirectUser).length,
-      children: users.filter(u => !u.isDirectUser).length
+      all: (users || []).length,
+      direct: (users || []).filter(u => u.isDirectUser).length,
+      children: (users || []).filter(u => !u.isDirectUser).length
     };
   };
 

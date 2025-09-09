@@ -120,10 +120,10 @@ const QuickMetrics: React.FC<QuickMetricsProps> = ({ stats, analytics, loading, 
             <div className="w-20 h-2 bg-slate-200 rounded-full mr-2">
               <div 
                 className="h-2 bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full transition-all duration-300"
-                style={{ width: `${Math.min((analytics?.metrics.conversionRate || 0), 100)}%` }}
+                style={{ width: `${Math.min((analytics?.metrics?.conversionRate || 0), 100)}%` }}
               ></div>
             </div>
-            <span className="text-sm font-medium text-emerald-600">{analytics?.metrics.conversionRate || 0}%</span>
+            <span className="text-sm font-medium text-emerald-600">{analytics?.metrics?.conversionRate || 0}%</span>
           </div>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../../hooks/useAuth';
+import { usePartnerAuth } from '../../hooks/usePartnerAuth';
 
 interface SidebarProps {
   activeTab: 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers';
@@ -7,7 +7,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
-  const { user, logout } = useAuth();
+  const { partnerEmployee, partnerCompany, logout } = usePartnerAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const menuItems = [
@@ -106,33 +106,105 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
 
 
           {/* User Profile */}
-          <div className="flex-shrink-0 flex border-t border-gray-700 p-4">
-            <div className="flex items-center w-full">
-              <div className="flex-shrink-0">
-                <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">
-                    {user?.email?.charAt(0).toUpperCase()}
-                  </span>
+          <div className="flex-shrink-0 border-t border-gray-700">
+            {!isCollapsed && partnerCompany && (
+              <div className="px-4 py-3 bg-gray-800">
+                {/* Company Info */}
+                <div className="mb-3">
+                  <div className="flex items-center mb-1">
+                    <div className="h-6 w-6 bg-purple-600 rounded flex items-center justify-center mr-2">
+                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4zM18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate">
+                        {partnerCompany.name}
+                      </p>
+                      <p className="text-xs text-gray-300">
+                        Code: {partnerCompany.referralCode}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Divider */}
+                <div className="border-t border-gray-600 pt-3">
+                  {/* Employee Info */}
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center">
+                        <span className="text-white text-sm font-medium">
+                          {partnerEmployee?.firstName?.charAt(0).toUpperCase() || partnerEmployee?.email?.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="ml-3 flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate">
+                        {partnerEmployee?.firstName && partnerEmployee?.lastName 
+                          ? `${partnerEmployee.firstName} ${partnerEmployee.lastName}`
+                          : partnerEmployee?.email
+                        }
+                      </p>
+                      <div className="flex items-center mt-1">
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                          partnerEmployee?.role === 'ADMINISTRATIVE' 
+                            ? 'bg-blue-800 text-blue-100' 
+                            : 'bg-gray-700 text-gray-200'
+                        }`}>
+                          {partnerEmployee?.role === 'ADMINISTRATIVE' ? (
+                            <>
+                              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
+                              </svg>
+                              Admin
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z" />
+                              </svg>
+                              Commercial
+                            </>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={logout}
+                      className="ml-2 p-1 rounded-md text-gray-300 hover:text-white hover:bg-gray-700"
+                      title="Logout"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
-              {!isCollapsed && (
-                <div className="ml-3 flex-1">
-                  <p className="text-sm font-medium text-white truncate">
-                    {user?.email}
-                  </p>
-                  <p className="text-xs text-gray-300">Partner</p>
+            )}
+            
+            {/* Collapsed User Profile */}
+            {isCollapsed && (
+              <div className="p-4">
+                <div className="flex flex-col items-center">
+                  <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center mb-2">
+                    <span className="text-white text-sm font-medium">
+                      {partnerEmployee?.firstName?.charAt(0).toUpperCase() || partnerEmployee?.email?.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <button
+                    onClick={logout}
+                    className="p-1 rounded-md text-gray-300 hover:text-white hover:bg-gray-700"
+                    title="Logout"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                  </button>
                 </div>
-              )}
-              <button
-                onClick={logout}
-                className="ml-2 p-1 rounded-md text-gray-300 hover:text-white hover:bg-gray-700"
-                title="Logout"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-              </button>
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -54,7 +54,7 @@ const ReferralGatekeeper: React.FC<ReferralGatekeeperProps> = ({
     } finally {
       setIsValidating(false);
     }
-  }, [referralCode, user, location.search]); // Dipendenze del useCallback
+  }, [referralCode, location.search]); // Dipendenze del useCallback
 
   const handleRegisterClick = () => {
     setShowRegistrationModal(true);
@@ -118,11 +118,8 @@ const ReferralGatekeeper: React.FC<ReferralGatekeeperProps> = ({
   }
 
   // Controlli prioritari dopo che referralInfo è stato caricato
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const urlParams = new URLSearchParams(location.search);
-  const emailVerified = urlParams.get('emailVerified');
-  const secureToken = urlParams.get('token');
-  const verificationCode = urlParams.get('code');
-  const email = urlParams.get('email');
   
   // Se arriva con parametri di verifica, consenti accesso immediato
   if (hasSpecialParams) {
@@ -189,27 +186,6 @@ const ReferralGatekeeper: React.FC<ReferralGatekeeperProps> = ({
                 </p>
               </div>
             </div>
-            
-            {/* Action Buttons */}
-            <div className="space-y-4">
-              <button
-                onClick={() => window.location.href = '/login'}
-                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 rounded-xl hover:from-blue-700 hover:to-blue-800 font-medium transition-all duration-200 shadow-lg hover:shadow-xl"
-              >
-                Vai al Login
-              </button>
-              
-              <button
-                onClick={() => {
-                  localStorage.setItem('pendingReferralAfterVerification', referralCode);
-                  window.location.href = '/';
-                }}
-                className="w-full border border-gray-200 text-gray-600 px-6 py-3 rounded-xl hover:bg-gray-50 font-medium transition-colors duration-200"
-              >
-                Torna alla Home
-              </button>
-            </div>
-            
             {/* Footer Note */}
             <p className="text-sm text-gray-500 mt-8">
               Dopo aver verificato la tua email, torna al link del corso per procedere con l'iscrizione

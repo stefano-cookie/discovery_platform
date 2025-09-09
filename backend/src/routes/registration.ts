@@ -621,6 +621,33 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
         return existingRegistration; // Return the existing registration instead of creating a duplicate
       }
       
+      // Find the corresponding PartnerCompany for the Partner (new hierarchical system)
+      let partnerCompanyId = null;
+      if (partnerId && partnerId !== 'default-partner-id') {
+        // Try to find PartnerCompany via PartnerOffer first (most reliable)
+        if (offer?.partnerCompanyId) {
+          partnerCompanyId = offer.partnerCompanyId;
+        } else {
+          // Fallback: try to map Partner to PartnerCompany via referralCode matching
+          const partner = await tx.partner.findUnique({
+            where: { id: partnerId }
+          });
+          if (partner?.referralCode) {
+            const partnerCompany = await tx.partnerCompany.findFirst({
+              where: { 
+                referralCode: {
+                  startsWith: partner.referralCode.split('-')[0] // Handle variations like TEST001 vs TEST001-LEGACY
+                }
+              }
+            });
+            if (partnerCompany) {
+              partnerCompanyId = partnerCompany.id;
+              console.log(`📋 Mapped Partner ${partnerId} (${partner.referralCode}) to PartnerCompany ${partnerCompanyId}`);
+            }
+          }
+        }
+      }
+      
       // Determine default amounts based on offer type
       const isCertification = offer?.course?.templateType === 'CERTIFICATION';
       const defaultAmount = isCertification ? 1500 : 4500;
@@ -631,6 +658,9 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
         data: {
           userId: userId,
           partnerId: partnerId || 'default-partner-id',
+          partnerCompanyId: partnerCompanyId,
+          sourcePartnerCompanyId: partnerCompanyId, // Same as partnerCompanyId for direct registrations
+          isDirectRegistration: true,
           courseId: courseId,
           partnerOfferId: partnerOfferId,
           offerType: isCertification ? 'CERTIFICATION' : 'TFA_ROMANIA',
@@ -1214,6 +1244,33 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
         return updatedRegistration;
       }
       
+      // Find the corresponding PartnerCompany for the Partner (new hierarchical system)
+      let partnerCompanyId = null;
+      if (partnerId && partnerId !== 'default-partner-id') {
+        // Try to find PartnerCompany via PartnerOffer first (most reliable)
+        if (offer?.partnerCompanyId) {
+          partnerCompanyId = offer.partnerCompanyId;
+        } else {
+          // Fallback: try to map Partner to PartnerCompany via referralCode matching
+          const partner = await tx.partner.findUnique({
+            where: { id: partnerId }
+          });
+          if (partner?.referralCode) {
+            const partnerCompany = await tx.partnerCompany.findFirst({
+              where: { 
+                referralCode: {
+                  startsWith: partner.referralCode.split('-')[0] // Handle variations like TEST001 vs TEST001-LEGACY
+                }
+              }
+            });
+            if (partnerCompany) {
+              partnerCompanyId = partnerCompany.id;
+              console.log(`📋 Mapped Partner ${partnerId} (${partner.referralCode}) to PartnerCompany ${partnerCompanyId}`);
+            }
+          }
+        }
+      }
+      
       // Determine default amounts based on offer type
       const isCertification = offer?.course?.templateType === 'CERTIFICATION';
       const defaultAmount = isCertification ? 1500 : 4500;
@@ -1224,6 +1281,9 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
         data: {
           userId: user.id,
           partnerId: partnerId || 'default-partner-id',
+          partnerCompanyId: partnerCompanyId,
+          sourcePartnerCompanyId: partnerCompanyId, // Same as partnerCompanyId for direct registrations
+          isDirectRegistration: true,
           courseId: courseId,
           partnerOfferId: partnerOfferId,
           offerType: isCertification ? 'CERTIFICATION' : 'TFA_ROMANIA',

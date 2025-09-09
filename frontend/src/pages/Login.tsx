@@ -52,20 +52,23 @@ const Login: React.FC = () => {
             
             {/* Footer */}
             <div className="px-6 py-4 sm:px-8 sm:py-6 bg-gray-50 border-t border-gray-100">
-              <div className="text-center">
-                <p className="text-sm text-gray-600">
-                  Non hai ancora un account?
-                </p>
-                <Link 
-                  to="/registration" 
-                  className="mt-2 inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1"
-                  aria-label="Vai alla pagina di registrazione"
-                >
-                  <span>Registrati gratuitamente</span>
-                  <svg className="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </Link>
+              <div className="text-center space-y-4">                
+                {/* Partner Login Link */}
+                <div className="border-t border-gray-200 pt-4">
+                  <p className="text-sm text-gray-600">
+                    Sei un partner aziendale?
+                  </p>
+                  <Link 
+                    to="/partner/login" 
+                    className="mt-2 inline-flex items-center text-sm font-medium text-purple-600 hover:text-purple-500 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 rounded-md px-2 py-1"
+                    aria-label="Vai al login partner"
+                  >
+                    <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-4m-5 0H9m0 0H5m4 0V9a2 2 0 011-1h4a2 2 0 011 1v12" />
+                    </svg>
+                    <span>Accedi come Partner</span>
+                  </Link>
+                </div>
               </div>
             </div>
           </div>

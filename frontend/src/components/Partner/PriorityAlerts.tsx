@@ -31,11 +31,11 @@ const PriorityAlerts: React.FC<PriorityAlertsProps> = ({ analytics, stats }) => 
     const alerts = [];
     
     // Check for pending documents
-    if ((analytics?.pendingActions.documentsToApprove || 0) > 0) {
+    if ((analytics?.pendingActions?.documentsToApprove || 0) > 0) {
       alerts.push({
         type: 'warning' as const,
         title: 'Documenti in attesa',
-        message: `${analytics?.pendingActions.documentsToApprove || 0} utenti hanno documenti da approvare`,
+        message: `${analytics?.pendingActions?.documentsToApprove || 0} utenti hanno documenti da approvare`,
         action: 'Gestisci Documenti',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -61,11 +61,11 @@ const PriorityAlerts: React.FC<PriorityAlertsProps> = ({ analytics, stats }) => 
     }
     
     // Check for contracts to sign
-    if ((analytics?.pendingActions.contractsToSign || 0) > 0) {
+    if ((analytics?.pendingActions?.contractsToSign || 0) > 0) {
       alerts.push({
         type: 'info' as const,
         title: 'Contratti generati',
-        message: `${analytics?.pendingActions.contractsToSign || 0} contratti sono pronti per la firma`,
+        message: `${analytics?.pendingActions?.contractsToSign || 0} contratti sono pronti per la firma`,
         action: 'Vedi Contratti',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

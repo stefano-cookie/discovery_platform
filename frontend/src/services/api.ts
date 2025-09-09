@@ -12,7 +12,11 @@ const api = axios.create({
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    // Check for both user and partner tokens
+    const userToken = localStorage.getItem('token');
+    const partnerToken = localStorage.getItem('partnerToken');
+    const token = userToken || partnerToken;
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -28,8 +32,12 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      // Clear both user and partner auth data
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      localStorage.removeItem('partnerToken');
+      localStorage.removeItem('partnerEmployee');
+      localStorage.removeItem('partnerCompany');
       window.location.href = '/login';
     }
     

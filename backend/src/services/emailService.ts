@@ -1915,6 +1915,136 @@ Piattaforma Diamante
       return false;
     }
   }
+
+  // Send partner employee invite email
+  async sendPartnerInviteEmail(
+    email: string,
+    inviteToken: string,
+    inviterName: string,
+    companyName: string
+  ): Promise<void> {
+    const inviteUrl = `${process.env.FRONTEND_URL}/partner/accept-invite/${inviteToken}`;
+    
+    const mailOptions = {
+      from: this.fromEmail,
+      to: email,
+      subject: `Invito a collaborare con ${companyName} - Piattaforma Diamante`,
+      html: this.getPartnerInviteTemplate(inviteToken, inviterName, companyName, inviteUrl),
+      text: `
+        Ciao,
+        
+        ${inviterName} ti ha invitato a collaborare con l'azienda ${companyName} sulla Piattaforma Diamante.
+        
+        Accetta l'invito visitando il seguente link:
+        ${inviteUrl}
+        
+        Questo link è valido per 7 giorni.
+        
+        Se non hai richiesto questo invito, puoi ignorare questa email.
+        
+        Cordiali saluti,
+        Il team di Piattaforma Diamante
+      `
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log(`✉️ Partner invite email sent to: ${email}`);
+    } catch (error) {
+      console.error('Error sending partner invite email:', error);
+      throw error;
+    }
+  }
+
+  private getPartnerInviteTemplate(
+    inviteToken: string, 
+    inviterName: string, 
+    companyName: string, 
+    inviteUrl: string
+  ): string {
+    return `
+      <!DOCTYPE html>
+      <html lang="it">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Invito Collaborazione - Piattaforma Diamante</title>
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 40px 30px; text-align: center; }
+          .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+          .content { padding: 30px; }
+          .invite-icon { font-size: 48px; margin-bottom: 20px; text-align: center; }
+          .company-info { background-color: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
+          .accept-button { 
+            background-color: #8b5cf6; 
+            color: white; 
+            padding: 15px 30px; 
+            text-decoration: none; 
+            border-radius: 6px; 
+            font-weight: 600; 
+            display: inline-block; 
+            margin: 25px 0;
+            font-size: 16px;
+          }
+          .footer { background-color: #f8fafc; padding: 25px 30px; text-align: center; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div class="logo">PIATTAFORMA DIAMANTE</div>
+            <div style="font-size: 16px; margin-top: 10px; opacity: 0.9;">Formazione Professionale</div>
+            <h1 style="margin: 25px 0 0 0; font-size: 24px;">Invito di Collaborazione</h1>
+          </div>
+          
+          <div class="content">
+            <div class="invite-icon">🤝</div>
+            
+            <p>Ciao,</p>
+            
+            <p><strong>${inviterName}</strong> ti ha invitato a collaborare come partner sulla <strong>Piattaforma Diamante</strong>.</p>
+            
+            <div class="company-info">
+              <h3 style="margin-top: 0; color: #374151;">Azienda Partner</h3>
+              <p style="font-size: 18px; font-weight: 600; color: #8b5cf6; margin-bottom: 0;">${companyName}</p>
+            </div>
+            
+            <p>Unendoti al loro team, avrai accesso a:</p>
+            <ul>
+              <li>🎯 Dashboard completa per gestire registrazioni</li>
+              <li>📊 Analisi e statistiche dettagliate</li>
+              <li>👥 Strumenti per la gestione utenti</li>
+              <li>📋 Sistema di gestione documenti integrato</li>
+            </ul>
+            
+            <div style="text-align: center;">
+              <a href="${inviteUrl}" class="accept-button">
+                ✅ Accetta Invito
+              </a>
+            </div>
+            
+            <p style="background-color: #fef3c7; padding: 15px; border-radius: 6px; border-left: 4px solid #f59e0b; margin: 25px 0; font-size: 14px;">
+              ⏱️ <strong>Importante:</strong> Questo invito è valido per <strong>7 giorni</strong>. Dopo la scadenza dovrai richiedere un nuovo invito.
+            </p>
+            
+            <p style="font-size: 14px; color: #666;">Se non hai richiesto questo invito o non conosci ${inviterName}, puoi ignorare questa email in sicurezza.</p>
+          </div>
+          
+          <div class="footer">
+            <p><strong>Piattaforma Diamante</strong><br>
+            Formazione Professionale di Qualità</p>
+            <p style="font-size: 12px; margin-top: 15px;">
+              Questo messaggio è stato inviato automaticamente. Per favore non rispondere a questa email.<br>
+              Per assistenza, contatti il nostro supporto.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
 }
 
 export default new EmailService();

@@ -27,7 +27,7 @@ const ContractPreview: React.FC<ContractPreviewProps> = ({ registrationId, onDow
     try {
       const response = await fetch(`/api/partners/preview-contract/${registrationId}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('partnerToken') || localStorage.getItem('token')}`,
         },
       });
 

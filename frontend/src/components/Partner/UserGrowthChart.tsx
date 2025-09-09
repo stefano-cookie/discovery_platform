@@ -9,7 +9,7 @@ interface UserGrowthChartProps {
 
 const UserGrowthChart: React.FC<UserGrowthChartProps> = ({ analytics, loading }) => {
   const statusData = React.useMemo(() => {
-    if (!analytics?.statusDistribution.length) return [];
+    if (!analytics?.statusDistribution?.length) return [];
     
     const statusLabels: Record<string, string> = {
       'COMPLETED': 'Completati',
@@ -23,7 +23,7 @@ const UserGrowthChart: React.FC<UserGrowthChartProps> = ({ analytics, loading })
       'EXAM_REGISTERED': 'Iscritti Esame'
     };
 
-    return analytics.statusDistribution.map(item => ({
+    return analytics?.statusDistribution?.map(item => ({
       name: statusLabels[item.status] || item.status,
       value: item.count,
       status: item.status

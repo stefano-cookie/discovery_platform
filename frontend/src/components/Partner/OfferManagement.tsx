@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { OfferService } from '../../services/offerService';
 import { PartnerOffer, CreateOfferData } from '../../types/offers';
 import { apiRequest } from '../../services/api';
+import { usePartnerAuth } from '../../hooks/usePartnerAuth';
 
 interface OfferType {
   id: string;
@@ -12,6 +13,7 @@ interface OfferType {
 }
 
 const OfferManagement: React.FC = () => {
+  const { token, isAuthenticated, partnerEmployee, canManageOffers } = usePartnerAuth();
   const [offers, setOffers] = useState<PartnerOffer[]>([]);
   const [availableOfferTypes, setAvailableOfferTypes] = useState<OfferType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,33 +37,46 @@ const OfferManagement: React.FC = () => {
     installmentFrequency: 1
   });
 
-  useEffect(() => {
-    loadOffers();
-    loadOfferTypes();
-  }, []);
-
-  const loadOffers = async () => {
+  const loadOffers = useCallback(async () => {
     try {
-      const data = await OfferService.getOffers();
+      if (!token) {
+        console.error('No partner token available');
+        setLoading(false);
+        return;
+      }
+
+      // Use API service which includes base URL and handles auth
+      const data = await apiRequest<PartnerOffer[]>({
+        url: '/offers',
+        method: 'GET'
+      });
+      
       setOffers(data);
     } catch (error) {
       console.error('Error loading offers:', error);
+      setNotification({ type: 'error', message: 'Errore nel caricamento delle offerte' });
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
-  const loadOfferTypes = async () => {
+  const loadOfferTypes = useCallback(async () => {
     try {
-      // This should be an API call to get available offer types from admin
-      const response = await apiRequest<OfferType[]>({
-        method: 'GET',
-        url: '/offer-types'
+      if (!token) {
+        console.error('No partner token available');
+        return;
+      }
+
+      // Use API service which includes base URL and handles auth
+      const data = await apiRequest<OfferType[]>({
+        url: '/offer-types',
+        method: 'GET'
       });
-      setAvailableOfferTypes(response);
+      
+      setAvailableOfferTypes(data);
     } catch (error) {
       console.error('Error loading offer types:', error);
-      // Mock data for now - solo TFA e Certificazioni
+      // Mock data using real courseId from database
       setAvailableOfferTypes([
         {
           id: 'tfa-romania-2024',
@@ -71,18 +86,25 @@ const OfferManagement: React.FC = () => {
           type: 'TFA_ROMANIA'
         },
         {
-          id: 'cert-generic',
-          name: 'Certificazioni Professionali',
-          description: 'Certificazioni e corsi professionali vari',
+          id: 'c2-english-cert',
+          name: 'Certificazione C2 Inglese',
+          description: 'Certificazione C2 livello avanzato lingua inglese',
           baseAmount: 1500,
           type: 'CERTIFICATION'
         }
       ]);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    if (isAuthenticated() && token) {
+      loadOffers();
+      loadOfferTypes();
+    }
+  }, [isAuthenticated, token, loadOffers, loadOfferTypes]);
 
   const handleCreateOffer = async () => {
-    if (!selectedOfferType) return;
+    if (!selectedOfferType || !token) return;
 
     try {
       const offerData: CreateOfferData = {
@@ -103,7 +125,21 @@ const OfferManagement: React.FC = () => {
         offerData.customPaymentPlan = { payments };
       }
 
-      await OfferService.createOffer(offerData);
+      // Use fetch instead of OfferService to control token
+      const response = await fetch('/api/offers', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(offerData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Errore nella creazione dell\'offerta');
+      }
+
       await loadOffers();
       setShowCreateModal(false);
       resetCreateForm();
@@ -165,7 +201,7 @@ const OfferManagement: React.FC = () => {
   };
 
   const confirmEditOffer = async () => {
-    if (!selectedOffer) return;
+    if (!selectedOffer || !token) return;
 
     try {
       // SEMPRE genera il customPaymentPlan per offerte modificate
@@ -198,7 +234,20 @@ const OfferManagement: React.FC = () => {
         customPaymentPlan: customPaymentPlan
       };
 
-      await OfferService.updateOffer(selectedOffer.id, updateData);
+      // Use fetch instead of OfferService to control token
+      const response = await fetch(`/api/offers/${selectedOffer.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updateData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Errore nella modifica dell\'offerta');
+      }
 
       await loadOffers();
       setShowEditModal(false);
@@ -211,17 +260,30 @@ const OfferManagement: React.FC = () => {
   };
 
   const confirmDeleteOffer = async () => {
-    if (!selectedOffer) return;
+    if (!selectedOffer || !token) return;
 
     try {
-      await OfferService.deleteOffer(selectedOffer.id);
+      // Use fetch instead of OfferService to control token
+      const response = await fetch(`/api/offers/${selectedOffer.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Errore nell\'eliminazione dell\'offerta');
+      }
+
       await loadOffers();
       setShowDeleteModal(false);
       setSelectedOffer(null);
       showNotification('success', 'Offerta eliminata con successo!');
     } catch (error: any) {
       console.error('Error deleting offer:', error);
-      const errorMessage = error?.response?.data?.error || 'Errore durante l\'eliminazione dell\'offerta';
+      const errorMessage = error?.message || 'Errore durante l\'eliminazione dell\'offerta';
       showNotification('error', errorMessage);
     }
   };
@@ -317,6 +379,27 @@ const OfferManagement: React.FC = () => {
     );
   };
 
+  // Check if user has permission to manage offers
+  if (!canManageOffers()) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-center">
+        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+          <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        </div>
+        <h3 className="text-xl font-semibold text-gray-900 mb-2">Accesso non autorizzato</h3>
+        <p className="text-gray-600 mb-4">Solo gli utenti con ruolo ADMINISTRATIVE possono gestire le offerte.</p>
+        <div className="flex items-center text-sm text-gray-500">
+          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 mr-2">
+            Il tuo ruolo: {partnerEmployee?.role || 'COMMERCIAL'}
+          </span>
+          <span>Contatta un amministratore per richiedere l'accesso</span>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -380,7 +463,8 @@ const OfferManagement: React.FC = () => {
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl flex items-center group"
+          disabled={!canManageOffers()}
+          className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl flex items-center group disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <svg className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -401,7 +485,8 @@ const OfferManagement: React.FC = () => {
           <p className="text-gray-600 mb-6">Inizia creando la tua prima offerta personalizzata per iniziare a raccogliere iscrizioni.</p>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl inline-flex items-center"
+            disabled={!canManageOffers()}
+            className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl inline-flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -493,7 +578,8 @@ const OfferManagement: React.FC = () => {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => handleEditOffer(offer)}
-                    className="bg-white border border-green-200 text-green-700 px-4 py-2.5 rounded-lg hover:bg-green-50 hover:border-green-300 transition-all duration-200 font-medium text-sm flex items-center justify-center group"
+                    disabled={!canManageOffers()}
+                    className="bg-white border border-green-200 text-green-700 px-4 py-2.5 rounded-lg hover:bg-green-50 hover:border-green-300 transition-all duration-200 font-medium text-sm flex items-center justify-center group disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <svg className="w-4 h-4 mr-1.5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -503,13 +589,13 @@ const OfferManagement: React.FC = () => {
                   
                   <button
                     onClick={() => handleDeleteOffer(offer)}
-                    disabled={(offer._count?.registrations || 0) > 0}
+                    disabled={(offer._count?.registrations || 0) > 0 || !canManageOffers()}
                     className={`px-4 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center transition-all duration-200 ${
-                      (offer._count?.registrations || 0) > 0
+                      (offer._count?.registrations || 0) > 0 || !canManageOffers()
                         ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         : 'bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 group'
                     }`}
-                    title={(offer._count?.registrations || 0) > 0 ? 'Non è possibile eliminare offerte con iscrizioni' : 'Elimina offerta'}
+                    title={!canManageOffers() ? 'Solo gli utenti ADMINISTRATIVE possono eliminare offerte' : (offer._count?.registrations || 0) > 0 ? 'Non è possibile eliminare offerte con iscrizioni' : 'Elimina offerta'}
                   >
                     <svg className={`w-4 h-4 mr-1.5 transition-transform ${(offer._count?.registrations || 0) === 0 ? 'group-hover:scale-110' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

@@ -7,19 +7,81 @@ import emailService from './emailService';
 const prisma = new PrismaClient();
 
 export class UnifiedDocumentService {
+  // Document type definitions
+  static getDocumentTypeLabel(type: string) {
+    const labels: Record<string, string> = {
+      'IDENTITY_CARD': 'Carta d\'Identità',
+      'PASSPORT': 'Passaporto', 
+      'TESSERA_SANITARIA': 'Tessera Sanitaria',
+      'BACHELOR_DEGREE': 'Certificato Laurea Triennale',
+      'MASTER_DEGREE': 'Certificato Laurea Magistrale',
+      'TRANSCRIPT': 'Piano di Studio',
+      'MEDICAL_CERT': 'Certificato Medico',
+      'BIRTH_CERT': 'Certificato di Nascita',
+      'DIPLOMA': 'Diploma di Laurea',
+      'OTHER': 'Altri Documenti'
+    };
+    return labels[type] || type.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+  }
+
+  static getDocumentDescription(type: string) {
+    const descriptions: Record<string, string> = {
+      'IDENTITY_CARD': 'Fronte e retro della carta d\'identità o passaporto in corso di validità',
+      'TESSERA_SANITARIA': 'Tessera sanitaria o documento che attesti il codice fiscale',
+      'BACHELOR_DEGREE': 'Certificato di laurea triennale o diploma universitario',
+      'MASTER_DEGREE': 'Certificato di laurea magistrale, specialistica o vecchio ordinamento',
+      'TRANSCRIPT': 'Piano di studio con lista esami sostenuti',
+      'MEDICAL_CERT': 'Certificato medico attestante la sana e robusta costituzione fisica e psichica',
+      'BIRTH_CERT': 'Certificato di nascita o estratto di nascita dal Comune',
+      'DIPLOMA': 'Diploma di laurea (cartaceo o digitale)',
+      'OTHER': 'Altri documenti rilevanti'
+    };
+    return descriptions[type] || '';
+  }
+
+  // Get document types for different offer types
+  static getDocumentTypesForOffer(offerType: string) {
+    if (offerType === 'CERTIFICATION') {
+      return ['IDENTITY_CARD', 'TESSERA_SANITARIA'];
+    }
+    // TFA and other types require all documents
+    return [
+      'IDENTITY_CARD',
+      'TESSERA_SANITARIA', 
+      'BACHELOR_DEGREE',
+      'MASTER_DEGREE',
+      'TRANSCRIPT',
+      'MEDICAL_CERT',
+      'BIRTH_CERT',
+      'DIPLOMA',
+      'OTHER'
+    ];
+  }
+
   // Get all documents for a registration (from all sources)
   static async getRegistrationDocuments(registrationId: string) {
     const registration = await prisma.registration.findUnique({
       where: { id: registrationId },
-      include: { user: true }
+      include: { 
+        user: true,
+        offer: {
+          include: {
+            course: true
+          }
+        }
+      }
     });
 
     if (!registration) {
       throw new Error('Registrazione non trovata');
     }
 
-    // Get all documents related to this specific registration only
-    const documents = await prisma.userDocument.findMany({
+    // Get document types based on offer type
+    const offerType = registration.offer?.offerType || 'TFA';
+    const requiredDocumentTypes = this.getDocumentTypesForOffer(offerType);
+
+    // Get uploaded documents for this registration
+    const uploadedDocuments = await prisma.userDocument.findMany({
       where: {
         registrationId: registrationId
       },
@@ -34,7 +96,33 @@ export class UnifiedDocumentService {
       orderBy: { uploadedAt: 'desc' }
     });
 
-    return documents;
+    // Create unified document list
+    const unifiedDocuments = requiredDocumentTypes.map(docType => {
+      const uploadedDoc = uploadedDocuments.find(doc => doc.type === docType);
+      
+      return {
+        id: uploadedDoc ? uploadedDoc.id : `empty-${docType}`,
+        type: docType,
+        name: this.getDocumentTypeLabel(docType),
+        description: this.getDocumentDescription(docType),
+        fileName: uploadedDoc?.originalName,
+        originalName: uploadedDoc?.originalName,
+        mimeType: uploadedDoc?.mimeType,
+        size: uploadedDoc?.size,
+        uploaded: !!uploadedDoc,
+        uploadedAt: uploadedDoc?.uploadedAt?.toISOString(),
+        documentId: uploadedDoc?.id,
+        status: uploadedDoc?.status,
+        rejectionReason: uploadedDoc?.rejectionReason,
+        verifiedBy: uploadedDoc?.verifier?.email,
+        verifiedAt: uploadedDoc?.verifiedAt?.toISOString(),
+        uploadSource: uploadedDoc?.uploadSource,
+        isVerified: uploadedDoc?.status === 'APPROVED',
+        registrationId: registrationId
+      };
+    });
+
+    return unifiedDocuments;
   }
 
   // Get all documents for a user (across all registrations)
@@ -43,7 +131,13 @@ export class UnifiedDocumentService {
       where: { userId },
       include: {
         registration: {
-          select: { id: true, status: true, offerType: true }
+          include: {
+            offer: {
+              include: {
+                course: true
+              }
+            }
+          }
         },
         verifier: {
           select: { id: true, email: true }

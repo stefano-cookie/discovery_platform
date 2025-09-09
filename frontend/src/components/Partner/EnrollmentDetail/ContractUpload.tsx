@@ -88,7 +88,7 @@ const ContractUpload: React.FC<ContractUploadProps> = ({ registrationId, onUploa
       const response = await fetch(`${API_BASE_URL}/partners/upload-signed-contract`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('partnerToken') || localStorage.getItem('token')}`,
         },
         body: formData,
       });

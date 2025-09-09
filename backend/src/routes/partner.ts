@@ -1,7 +1,7 @@
 import { Router, Response as ExpressResponse } from 'express';
 import { PrismaClient, DocumentStatus } from '@prisma/client';
 // Auto-progression fix for certification status
-import { authenticate, requireRole, AuthRequest } from '../middleware/auth';
+import { authenticate, authenticateUnified, requireRole, requirePartnerRole, AuthRequest } from '../middleware/auth';
 import { ContractService } from '../services/contractService';
 import { DocumentService, upload as documentUpload } from '../services/documentService';
 import UnifiedDocumentService from '../services/unifiedDocumentService';
@@ -39,37 +39,37 @@ const uploadContract = multer({
 });
 
 // Get partner stats
-router.get('/stats', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/stats', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
-    // Get direct users count
-    const directUsers = await prisma.registration.count({
-      where: { partnerId }
+    // Get direct registrations count
+    const directRegistrations = await prisma.registration.count({
+      where: { partnerCompanyId }
     });
 
-    // Get children partners users count
-    const childrenPartners = await prisma.partner.findMany({
-      where: { parentId: partnerId }
+    // Get children partner companies registrations count
+    const childrenCompanies = await prisma.partnerCompany.findMany({
+      where: { parentId: partnerCompanyId }
     });
 
-    let childrenUsers = 0;
-    for (const child of childrenPartners) {
+    let childrenRegistrations = 0;
+    for (const child of childrenCompanies) {
       const count = await prisma.registration.count({
-        where: { partnerId: child.id }
+        where: { partnerCompanyId: child.id }
       });
-      childrenUsers += count;
+      childrenRegistrations += count;
     }
 
     // Calculate monthly revenue (simplified)
     const monthlyRevenue = await prisma.payment.aggregate({
       _sum: { amount: true },
       where: {
-        registration: { partnerId },
+        registration: { partnerCompanyId },
         paymentDate: {
           gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
         }
@@ -77,9 +77,9 @@ router.get('/stats', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req
     });
 
     res.json({
-      totalUsers: directUsers + childrenUsers,
-      directUsers,
-      childrenUsers,
+      totalRegistrations: directRegistrations + childrenRegistrations,
+      directRegistrations,
+      childrenRegistrations,
       monthlyRevenue: monthlyRevenue._sum.amount || 0,
       pendingCommissions: 0 // To be implemented
     });
@@ -90,35 +90,35 @@ router.get('/stats', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req
 });
 
 // Get partner users
-router.get('/users', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/users', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const filter = req.query.filter as string || 'all';
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     let whereClause: any = {};
     
     if (filter === 'direct') {
-      whereClause = { partnerId };
+      whereClause = { partnerCompanyId };
     } else if (filter === 'children') {
-      const childrenPartners = await prisma.partner.findMany({
-        where: { parentId: partnerId },
+      const childrenCompanies = await prisma.partnerCompany.findMany({
+        where: { parentId: partnerCompanyId },
         select: { id: true }
       });
       whereClause = { 
-        partnerId: { in: childrenPartners.map((p: { id: string }) => p.id) } 
+        partnerCompanyId: { in: childrenCompanies.map((p: { id: string }) => p.id) } 
       };
     } else {
       // All users (direct + children)
-      const childrenPartners = await prisma.partner.findMany({
-        where: { parentId: partnerId },
+      const childrenCompanies = await prisma.partnerCompany.findMany({
+        where: { parentId: partnerCompanyId },
         select: { id: true }
       });
       whereClause = { 
-        partnerId: { in: [partnerId, ...childrenPartners.map((p: { id: string }) => p.id)] } 
+        partnerCompanyId: { in: [partnerCompanyId, ...childrenCompanies.map((p: { id: string }) => p.id)] } 
       };
     }
 
@@ -128,9 +128,7 @@ router.get('/users', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req
         user: {
           include: { profile: true }
         },
-        partner: {
-          include: { user: true }
-        },
+        partnerCompany: true,
         offer: {
           include: { course: true }
         }
@@ -147,15 +145,15 @@ router.get('/users', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req
       course: reg.offer?.name || 'Offerta non specificata',
       courseId: reg.courseId,
       offerType: reg.offerType,
-      isDirectUser: reg.partnerId === partnerId,
-      partnerName: reg.partner.user.email,
+      isDirectUser: reg.partnerCompanyId === partnerCompanyId,
+      partnerName: reg.partnerCompany?.name || 'Partner non specificato',
       canManagePayments: true,
       // Date importanti
       createdAt: reg.user.createdAt, // Data registrazione utente
       enrollmentDate: reg.createdAt,  // Data iscrizione al corso
       // Dati pagamento
-      originalAmount: Number(reg.originalAmount),
-      finalAmount: Number(reg.finalAmount),
+      originalAmount: Number(reg.originalAmount || 0),
+      finalAmount: Number(reg.finalAmount || 0),
       installments: reg.installments,
       // Dati contratto
       contractTemplateUrl: reg.contractTemplateUrl,
@@ -165,7 +163,7 @@ router.get('/users', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req
       // Lista offerte aggiuntive disponibili (sarà implementata dopo)
     }));
 
-    res.json(users);
+    res.json({ users, total: users.length });
   } catch (error) {
     console.error('Get partner users error:', error);
     res.status(500).json({ error: 'Errore interno del server' });
@@ -174,20 +172,20 @@ router.get('/users', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req
 
 
 // Get documents for a specific registration
-router.get('/registrations/:registrationId/documents', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/registrations/:registrationId/documents', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     // Verify that the registration belongs to this partner
     const registration = await prisma.registration.findFirst({
       where: { 
         id: registrationId,
-        partnerId 
+        partnerCompanyId 
       },
       include: {
         userDocuments: true,  // Unified document system
@@ -367,19 +365,19 @@ router.get('/registrations/:registrationId/documents', authenticate, requireRole
 });
 
 // Get user offers access - for managing what offers a user can access
-router.get('/users/:userId/offers', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/users/:userId/offers', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { userId } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     // Get all partner's active offers
     const partnerOffers = await prisma.partnerOffer.findMany({
       where: { 
-        partnerId,
+        partnerCompanyId,
         isActive: true 
       },
       include: {
@@ -391,7 +389,7 @@ router.get('/users/:userId/offers', authenticate, requireRole(['PARTNER', 'ADMIN
     const userRegistrations = await prisma.registration.findMany({
       where: { 
         userId,
-        partnerId 
+        partnerCompanyId 
       },
       include: {
         offer: true
@@ -402,7 +400,7 @@ router.get('/users/:userId/offers', authenticate, requireRole(['PARTNER', 'ADMIN
     const userOfferAccess = await prisma.userOfferAccess.findMany({
       where: {
         userId,
-        partnerId,
+        partnerCompanyId,
         enabled: true
       }
     });
@@ -436,20 +434,20 @@ router.get('/users/:userId/offers', authenticate, requireRole(['PARTNER', 'ADMIN
 });
 
 // Grant user access to an offer
-router.post('/users/:userId/offers/:offerId/grant', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/users/:userId/offers/:offerId/grant', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { userId, offerId } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     // Verify the offer belongs to this partner
     const offer = await prisma.partnerOffer.findFirst({
       where: { 
         id: offerId,
-        partnerId,
+        partnerCompanyId,
         isActive: true 
       }
     });
@@ -476,11 +474,65 @@ router.post('/users/:userId/offers/:offerId/grant', authenticate, requireRole(['
       });
     } else {
       // Create new access
+      // Find corresponding partnerId for partnerCompanyId for legacy compatibility
+      const partnerCompany = req.partnerCompany;
+      let legacyPartnerId = null;
+      
+      // Try to find legacy partner by referral code pattern
+      const legacyPartner = await prisma.partner.findFirst({
+        where: { 
+          OR: [
+            { referralCode: { endsWith: 'LEGACY' } },
+            { referralCode: { contains: partnerCompany?.referralCode || '' } }
+          ]
+        }
+      });
+      
+      if (legacyPartner) {
+        legacyPartnerId = legacyPartner.id;
+      } else {
+        // Create a legacy partner for this company if it doesn't exist
+        const dummyUserId = `dummy-user-for-partner-${partnerCompanyId}`;
+        
+        // Check if dummy user exists
+        let dummyUser = await prisma.user.findUnique({
+          where: { id: dummyUserId }
+        });
+        
+        if (!dummyUser) {
+          dummyUser = await prisma.user.create({
+            data: {
+              id: dummyUserId,
+              email: `dummy-${partnerCompanyId}@legacy.system`,
+              password: 'dummy-password-hash',
+              role: 'PARTNER',
+              isActive: false,
+              emailVerified: false
+            }
+          });
+        }
+        
+        // Create legacy partner
+        const newLegacyPartner = await prisma.partner.create({
+          data: {
+            id: `legacy-partner-${partnerCompanyId}`,
+            userId: dummyUserId,
+            referralCode: `${partnerCompany?.referralCode || 'UNKNOWN'}-LEGACY`,
+            canCreateChildren: false,
+            commissionPerUser: 0,
+            commissionToAdmin: 0
+          }
+        });
+        
+        legacyPartnerId = newLegacyPartner.id;
+      }
+      
       await prisma.userOfferAccess.create({
         data: {
           userId,
           offerId,
-          partnerId,
+          partnerId: legacyPartnerId,
+          partnerCompanyId,
           enabled: true
         }
       });
@@ -494,20 +546,20 @@ router.post('/users/:userId/offers/:offerId/grant', authenticate, requireRole(['
 });
 
 // Revoke user access to an offer
-router.post('/users/:userId/offers/:offerId/revoke', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/users/:userId/offers/:offerId/revoke', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { userId, offerId } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     // Verify the offer belongs to this partner
     const offer = await prisma.partnerOffer.findFirst({
       where: { 
         id: offerId,
-        partnerId,
+        partnerCompanyId,
         isActive: true 
       }
     });
@@ -521,7 +573,7 @@ router.post('/users/:userId/offers/:offerId/revoke', authenticate, requireRole([
       where: {
         userId,
         partnerOfferId: offerId,
-        partnerId
+        partnerCompanyId
       }
     });
 
@@ -556,16 +608,28 @@ router.post('/users/:userId/offers/:offerId/revoke', authenticate, requireRole([
 });
 
 // Get partner coupons
-router.get('/coupons', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/coupons', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company not found' });
+    }
+
+    // Find legacy partner for this company
+    const legacyPartner = await prisma.partner.findFirst({
+      where: {
+        referralCode: `${req.partnerCompany!.referralCode}-LEGACY`
+      }
+    });
+
+    if (!legacyPartner) {
+      // Return empty array if no legacy partner exists yet
+      return res.json([]);
     }
 
     const coupons = await prisma.coupon.findMany({
-      where: { partnerId },
+      where: { partnerCompanyId },
       include: {
         uses: true
       },
@@ -580,19 +644,59 @@ router.get('/coupons', authenticate, requireRole(['PARTNER', 'ADMIN']), async (r
 });
 
 // Create partner coupon
-router.post('/coupons', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/coupons', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { code, discountType, discountAmount, discountPercent, maxUses, validFrom, validUntil } = req.body;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company not found' });
+    }
+
+    // Find or create legacy partner for this company
+    let legacyPartner = await prisma.partner.findFirst({
+      where: {
+        referralCode: `${req.partnerCompany!.referralCode}-LEGACY`
+      }
+    });
+
+    if (!legacyPartner) {
+      // Create legacy partner if it doesn't exist (similar to offers.ts logic)
+      const dummyUserId = `dummy-user-for-partner-${partnerCompanyId}`;
+      
+      let dummyUser = await prisma.user.findUnique({
+        where: { id: dummyUserId }
+      });
+      
+      if (!dummyUser) {
+        dummyUser = await prisma.user.create({
+          data: {
+            id: dummyUserId,
+            email: `dummy-${partnerCompanyId}@legacy.system`,
+            password: 'dummy-password-hash',
+            role: 'PARTNER',
+            isActive: false,
+            emailVerified: false
+          }
+        });
+      }
+      
+      legacyPartner = await prisma.partner.create({
+        data: {
+          id: `legacy-partner-${partnerCompanyId}`,
+          userId: dummyUserId,
+          referralCode: `${req.partnerCompany!.referralCode}-LEGACY`,
+          canCreateChildren: false,
+          commissionPerUser: 0,
+          commissionToAdmin: 0
+        }
+      });
     }
 
     // Check if coupon code already exists for this partner
     const existingCoupon = await prisma.coupon.findFirst({
       where: {
-        partnerId,
+        partnerCompanyId: legacyPartner.id,
         code
       }
     });
@@ -604,7 +708,8 @@ router.post('/coupons', authenticate, requireRole(['PARTNER', 'ADMIN']), async (
     // Create coupon
     const coupon = await prisma.coupon.create({
       data: {
-        partnerId,
+        partnerId: legacyPartner.id, // Legacy field  
+        partnerCompanyId: partnerCompanyId, // Use actual partner company ID
         code,
         discountType,
         discountAmount: discountAmount ? Number(discountAmount) : null,
@@ -626,21 +731,32 @@ router.post('/coupons', authenticate, requireRole(['PARTNER', 'ADMIN']), async (
 });
 
 // Update coupon status
-router.put('/coupons/:id/status', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.put('/coupons/:id/status', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { id } = req.params;
     const { isActive } = req.body;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company not found' });
+    }
+
+    // Find legacy partner for this company
+    const legacyPartner = await prisma.partner.findFirst({
+      where: {
+        referralCode: `${req.partnerCompany!.referralCode}-LEGACY`
+      }
+    });
+
+    if (!legacyPartner) {
+      return res.status(404).json({ error: 'Legacy partner not found' });
     }
 
     // Update coupon - only if it belongs to this partner
     const coupon = await prisma.coupon.updateMany({
       where: {
         id,
-        partnerId
+        partnerCompanyId: legacyPartner.id
       },
       data: { isActive }
     });
@@ -657,13 +773,24 @@ router.put('/coupons/:id/status', authenticate, requireRole(['PARTNER', 'ADMIN']
 });
 
 // Delete coupon
-router.delete('/coupons/:id', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.delete('/coupons/:id', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { id } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company not found' });
+    }
+
+    // Find legacy partner for this company
+    const legacyPartner = await prisma.partner.findFirst({
+      where: {
+        referralCode: `${req.partnerCompany!.referralCode}-LEGACY`
+      }
+    });
+
+    if (!legacyPartner) {
+      return res.status(404).json({ error: 'Legacy partner not found' });
     }
 
     // Check if coupon has been used
@@ -675,11 +802,11 @@ router.delete('/coupons/:id', authenticate, requireRole(['PARTNER', 'ADMIN']), a
       return res.status(400).json({ error: 'Impossibile eliminare un coupon già utilizzato' });
     }
 
-    // Delete coupon - only if it belongs to this partner
+    // Delete coupon - only if it belongs to this partner company
     const coupon = await prisma.coupon.deleteMany({
       where: {
         id,
-        partnerId
+        partnerCompanyId: partnerCompanyId
       }
     });
 
@@ -695,20 +822,31 @@ router.delete('/coupons/:id', authenticate, requireRole(['PARTNER', 'ADMIN']), a
 });
 
 // Validate coupon code
-router.post('/coupons/validate', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/coupons/validate', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { code } = req.body;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company not found' });
+    }
+
+    // Find legacy partner for this company
+    const legacyPartner = await prisma.partner.findFirst({
+      where: {
+        referralCode: `${req.partnerCompany!.referralCode}-LEGACY`
+      }
+    });
+
+    if (!legacyPartner) {
+      return res.status(404).json({ error: 'Legacy partner not found' });
     }
 
     // Find coupon
     const coupon = await prisma.coupon.findFirst({
       where: {
         code,
-        partnerId,
+        partnerCompanyId: legacyPartner.id,
         isActive: true,
         validFrom: { lte: new Date() },
         validUntil: { gte: new Date() }
@@ -750,20 +888,31 @@ router.post('/coupons/validate', authenticate, requireRole(['PARTNER', 'ADMIN'])
 });
 
 // Get coupon usage logs with user details
-router.get('/coupons/:couponId/usage-logs', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/coupons/:couponId/usage-logs', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { couponId } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company not found' });
+    }
+
+    // Find legacy partner for this company
+    const legacyPartner = await prisma.partner.findFirst({
+      where: {
+        referralCode: `${req.partnerCompany!.referralCode}-LEGACY`
+      }
+    });
+
+    if (!legacyPartner) {
+      return res.status(404).json({ error: 'Legacy partner not found' });
     }
 
     // Verify coupon belongs to this partner
     const coupon = await prisma.coupon.findFirst({
       where: {
         id: couponId,
-        partnerId: partnerId
+        partnerCompanyId: legacyPartner.id
       }
     });
 
@@ -834,7 +983,7 @@ router.get('/coupons/:couponId/usage-logs', authenticate, requireRole(['PARTNER'
 });
 
 // GET /api/partners/offer-visibility/:offerId - Get offer visibility settings for users
-router.get('/offer-visibility/:offerId', authenticate, async (req: AuthRequest, res: ExpressResponse) => {
+router.get('/offer-visibility/:offerId', authenticateUnified, async (req: AuthRequest, res: ExpressResponse) => {
   try {
     const partner = await prisma.partner.findUnique({
       where: { userId: req.user!.id }
@@ -848,7 +997,7 @@ router.get('/offer-visibility/:offerId', authenticate, async (req: AuthRequest, 
     const offer = await prisma.partnerOffer.findFirst({
       where: {
         id: req.params.offerId,
-        partnerId: partner.id
+        partnerCompanyId: partner.id
       }
     });
 
@@ -894,7 +1043,7 @@ router.get('/offer-visibility/:offerId', authenticate, async (req: AuthRequest, 
 });
 
 // PUT /api/partners/offer-visibility/:offerId - Update offer visibility for users
-router.put('/offer-visibility/:offerId', authenticate, async (req: AuthRequest, res: ExpressResponse) => {
+router.put('/offer-visibility/:offerId', authenticateUnified, async (req: AuthRequest, res: ExpressResponse) => {
   try {
     const partner = await prisma.partner.findUnique({
       where: { userId: req.user!.id }
@@ -908,7 +1057,7 @@ router.put('/offer-visibility/:offerId', authenticate, async (req: AuthRequest, 
     const offer = await prisma.partnerOffer.findFirst({
       where: {
         id: req.params.offerId,
-        partnerId: partner.id
+        partnerCompanyId: partner.id
       }
     });
 
@@ -960,19 +1109,19 @@ router.put('/offer-visibility/:offerId', authenticate, async (req: AuthRequest, 
 });
 
 // Get registration details for partner
-router.get('/registrations/:registrationId', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/registrations/:registrationId', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     const registration = await prisma.registration.findFirst({
       where: { 
         id: registrationId,
-        partnerId 
+        partnerCompanyId 
       },
       include: {
         user: {
@@ -1018,14 +1167,14 @@ router.get('/registrations/:registrationId', authenticate, requireRole(['PARTNER
 });
 
 // Download contract template
-router.get('/download-contract/:registrationId', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/download-contract/:registrationId', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.params;
     
-    console.log(`[CONTRACT_DOWNLOAD] Starting download for registration: ${registrationId}, partner: ${partnerId}`);
+    console.log(`[CONTRACT_DOWNLOAD] Starting download for registration: ${registrationId}, partner: ${partnerCompanyId}`);
     
-    if (!partnerId) {
+    if (!partnerCompanyId) {
       console.log('[CONTRACT_DOWNLOAD] Error: Partner not found');
       return res.status(400).json({ error: 'Partner non trovato' });
     }
@@ -1034,7 +1183,7 @@ router.get('/download-contract/:registrationId', authenticate, requireRole(['PAR
     const registration = await prisma.registration.findFirst({
       where: { 
         id: registrationId,
-        partnerId 
+        partnerCompanyId 
       }
     });
 
@@ -1099,14 +1248,14 @@ router.get('/download-contract/:registrationId', authenticate, requireRole(['PAR
 });
 
 // Preview contract template - inline display
-router.get('/preview-contract/:registrationId', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/preview-contract/:registrationId', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.params;
     
-    console.log(`[CONTRACT_PREVIEW] Starting preview for registration: ${registrationId}, partner: ${partnerId}`);
+    console.log(`[CONTRACT_PREVIEW] Starting preview for registration: ${registrationId}, partner: ${partnerCompanyId}`);
     
-    if (!partnerId) {
+    if (!partnerCompanyId) {
       console.log('[CONTRACT_PREVIEW] Error: Partner not found');
       return res.status(400).json({ error: 'Partner non trovato' });
     }
@@ -1115,7 +1264,7 @@ router.get('/preview-contract/:registrationId', authenticate, requireRole(['PART
     const registration = await prisma.registration.findFirst({
       where: { 
         id: registrationId,
-        partnerId 
+        partnerCompanyId 
       }
     });
 
@@ -1177,13 +1326,13 @@ router.get('/preview-contract/:registrationId', authenticate, requireRole(['PART
 });
 
 // Upload signed contract
-router.post('/upload-signed-contract', authenticate, requireRole(['PARTNER', 'ADMIN']), uploadContract.single('contract'), async (req: AuthRequest, res) => {
+router.post('/upload-signed-contract', authenticateUnified, uploadContract.single('contract'), async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.body;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     if (!req.file) {
@@ -1194,7 +1343,7 @@ router.post('/upload-signed-contract', authenticate, requireRole(['PARTNER', 'AD
     const registration = await prisma.registration.findFirst({
       where: { 
         id: registrationId,
-        partnerId 
+        partnerCompanyId 
       }
     });
 
@@ -1341,14 +1490,14 @@ router.post('/upload-signed-contract', authenticate, requireRole(['PARTNER', 'AD
 });
 
 // Download signed contract endpoint
-router.get('/download-signed-contract/:registrationId', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/download-signed-contract/:registrationId', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.params;
     
-    console.log(`[SIGNED_CONTRACT_DOWNLOAD] Starting download for registration: ${registrationId}, partner: ${partnerId}`);
+    console.log(`[SIGNED_CONTRACT_DOWNLOAD] Starting download for registration: ${registrationId}, partner: ${partnerCompanyId}`);
     
-    if (!partnerId) {
+    if (!partnerCompanyId) {
       console.log('[SIGNED_CONTRACT_DOWNLOAD] Error: Partner not found');
       return res.status(400).json({ error: 'Partner non trovato' });
     }
@@ -1357,7 +1506,7 @@ router.get('/download-signed-contract/:registrationId', authenticate, requireRol
     const registration = await prisma.registration.findFirst({
       where: { 
         id: registrationId,
-        partnerId 
+        partnerCompanyId 
       }
     });
 
@@ -1394,7 +1543,7 @@ router.get('/download-signed-contract/:registrationId', authenticate, requireRol
 });
 
 // Reset contract cache endpoint
-router.delete('/reset-contract/:registrationId', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.delete('/reset-contract/:registrationId', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const { registrationId } = req.params;
     
@@ -1414,7 +1563,7 @@ router.delete('/reset-contract/:registrationId', authenticate, requireRole(['PAR
 });
 
 // Test contract data endpoint
-router.get('/test-contract-data/:registrationId', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/test-contract-data/:registrationId', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const { registrationId } = req.params;
     
@@ -1460,16 +1609,16 @@ router.get('/test-contract-data/:registrationId', authenticate, requireRole(['PA
 });
 
 // Get recent enrollments for dashboard
-router.get('/recent-enrollments', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/recent-enrollments', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     const recentEnrollments = await prisma.registration.findMany({
-      where: { partnerId },
+      where: { partnerCompanyId },
       take: 5,
       orderBy: { createdAt: 'desc' },
       include: {
@@ -1502,15 +1651,15 @@ router.get('/recent-enrollments', authenticate, requireRole(['PARTNER', 'ADMIN']
 });
 
 // Get pending documents for verification
-router.get('/documents/pending', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/documents/pending', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
-    const pendingDocuments = await DocumentService.getPendingDocumentsForPartner(partnerId);
+    const pendingDocuments = await DocumentService.getPendingDocumentsForPartner(partnerCompanyId);
     
     const formattedDocs = pendingDocuments.map(doc => ({
       id: doc.id,
@@ -1542,20 +1691,20 @@ router.get('/documents/pending', authenticate, requireRole(['PARTNER', 'ADMIN'])
 });
 
 // Get payment deadlines for a registration
-router.get('/registrations/:registrationId/deadlines', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/registrations/:registrationId/deadlines', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
-    // Verify registration belongs to partner
+    // Verify registration belongs to partner company
     const registration = await prisma.registration.findFirst({
       where: {
         id: registrationId,
-        partnerId
+        partnerCompanyId
       }
     });
 
@@ -1605,21 +1754,21 @@ router.get('/registrations/:registrationId/deadlines', authenticate, requireRole
 });
 
 // Mark payment deadline as paid and update remaining amount
-router.post('/registrations/:registrationId/payments/:deadlineId/mark-paid', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/registrations/:registrationId/payments/:deadlineId/mark-paid', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId, deadlineId } = req.params;
     const { notes } = req.body;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     // Verify registration belongs to partner
     const registration = await prisma.registration.findFirst({
       where: {
         id: registrationId,
-        partnerId
+        partnerCompanyId
       },
       include: {
         deadlines: {
@@ -1672,10 +1821,10 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-paid', aut
           paymentNumber: deadline.paymentNumber,
           isFirstPayment: deadline.paymentNumber === 0,
           isConfirmed: true,
-          confirmedBy: req.user!.id,
+          confirmedBy: req.user?.id || req.partnerEmployee?.id,
           confirmedAt: paymentDate,
           notes,
-          createdBy: req.user!.id
+          createdBy: req.user?.id || req.partnerEmployee?.id
         }
       });
     });
@@ -1756,14 +1905,14 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-paid', aut
 });
 
 // Mark payment deadline as custom paid
-router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-paid', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-paid', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId, deadlineId } = req.params;
     const { partialAmount, notes } = req.body;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     if (!partialAmount || partialAmount <= 0) {
@@ -1774,7 +1923,7 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-pa
     const registration = await prisma.registration.findFirst({
       where: {
         id: registrationId,
-        partnerId
+        partnerCompanyId
       },
       include: {
         deadlines: {
@@ -1860,12 +2009,12 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-pa
           paymentNumber: deadline.paymentNumber,
           isFirstPayment: deadline.paymentNumber === 0,
           isConfirmed: true,
-          confirmedBy: req.user!.id,
+          confirmedBy: req.user?.id || req.partnerEmployee?.id,
           confirmedAt: paymentDate,
           notes: isOverpayment 
             ? `Pagamento personalizzato: €${partialAmountNum} (Rata: €${deadlineAmount} + Riduzione ritardi: €${excessAmount.toFixed(2)}). ${notes || ''}`.trim()
             : `Pagamento personalizzato: €${partialAmountNum} di €${deadlineAmount}. ${notes || ''}`.trim(),
-          createdBy: req.user!.id
+          createdBy: req.user?.id || req.partnerEmployee?.id
         }
       });
 
@@ -1990,13 +2139,13 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-pa
 });
 
 // Notify partner about document upload
-router.post('/documents/:documentId/notify', authenticate, requireRole(['USER']), async (req: AuthRequest, res) => {
+router.post('/documents/:documentId/notify', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const { documentId } = req.params;
     
     // Get user's assigned partner
     const user = await prisma.user.findUnique({
-      where: { id: req.user!.id },
+      where: { id: req.user?.id || req.partnerEmployee?.id },
       select: { assignedPartnerId: true }
     });
 
@@ -2014,20 +2163,20 @@ router.post('/documents/:documentId/notify', authenticate, requireRole(['USER'])
 });
 
 // GET /api/partners/users/:userId/documents - Get all documents for a user (partner access)
-router.get('/users/:userId/documents', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/users/:userId/documents', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { userId } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     // Verify that the user has registrations with this partner
     const userRegistrations = await prisma.registration.findMany({
       where: {
         userId,
-        partnerId
+        partnerCompanyId
       }
     });
 
@@ -2049,20 +2198,20 @@ router.get('/users/:userId/documents', authenticate, requireRole(['PARTNER', 'AD
 });
 
 // GET /api/partners/users/:userId/documents/:documentId/download - Download user document (partner access)
-router.get('/users/:userId/documents/:documentId/download', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/users/:userId/documents/:documentId/download', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { userId, documentId } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     // Verify that the user has registrations with this partner
     const userRegistrations = await prisma.registration.findMany({
       where: {
         userId,
-        partnerId
+        partnerCompanyId
       }
     });
 
@@ -2126,18 +2275,18 @@ router.get('/users/:userId/documents/:documentId/download', authenticate, requir
 // =====================================
 
 // Get all documents for a registration (new document system)
-router.get('/registrations/:registrationId/documents', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/registrations/:registrationId/documents', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     // Verify registration belongs to this partner
     const registration = await prisma.registration.findFirst({
-      where: { id: registrationId, partnerId }
+      where: { id: registrationId, partnerCompanyId }
     });
 
     if (!registration) {
@@ -2146,7 +2295,18 @@ router.get('/registrations/:registrationId/documents', authenticate, requireRole
 
     const documents = await UnifiedDocumentService.getRegistrationDocuments(registrationId);
     
-    res.json({ documents });
+    const uploadedCount = documents.filter((doc: any) => doc.uploaded).length;
+    const totalCount = documents.length;
+    
+    res.json({
+      documents,
+      uploadedCount,
+      totalCount,
+      registration: {
+        id: registration.id,
+        courseName: 'Corso non specificato' // Will be populated by frontend
+      }
+    });
   } catch (error: any) {
     console.error('Get registration documents error:', error);
     res.status(500).json({ error: 'Errore interno del server' });
@@ -2154,18 +2314,18 @@ router.get('/registrations/:registrationId/documents', authenticate, requireRole
 });
 
 // Get all documents for a user (comprehensive view)
-router.get('/users/:userId/documents/all', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/users/:userId/documents/all', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { userId } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     // Verify user has registrations with this partner
     const userRegistrations = await prisma.registration.findMany({
-      where: { userId, partnerId }
+      where: { userId, partnerCompanyId }
     });
 
     if (userRegistrations.length === 0) {
@@ -2197,13 +2357,13 @@ router.get('/users/:userId/documents/all', authenticate, requireRole(['PARTNER',
 });
 
 // Download document (partner access with full permissions)
-router.get('/documents/:documentId/download', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/documents/:documentId/download', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { documentId } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     const fileInfo = await DocumentService.downloadDocument(documentId, '', true); // Partner has full access
@@ -2218,17 +2378,17 @@ router.get('/documents/:documentId/download', authenticate, requireRole(['PARTNE
 });
 
 // Approve document
-router.post('/documents/:documentId/approve', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/documents/:documentId/approve', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { documentId } = req.params;
     const { notes } = req.body;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
-    const result = await UnifiedDocumentService.approveDocument(documentId, req.user!.id, notes);
+    const result = await UnifiedDocumentService.approveDocument(documentId, req.user?.id || req.partnerEmployee?.id, notes);
     
     res.json({ 
       message: 'Documento approvato con successo',
@@ -2246,21 +2406,21 @@ router.post('/documents/:documentId/approve', authenticate, requireRole(['PARTNE
 });
 
 // Reject document with email notification
-router.post('/documents/:documentId/reject', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/documents/:documentId/reject', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { documentId } = req.params;
     const { reason, details } = req.body;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     if (!reason) {
       return res.status(400).json({ error: 'Motivo del rifiuto obbligatorio' });
     }
 
-    const result = await UnifiedDocumentService.rejectDocument(documentId, req.user!.id, reason, details);
+    const result = await UnifiedDocumentService.rejectDocument(documentId, req.user?.id || req.partnerEmployee?.id, reason, details);
     
     res.json({ 
       message: 'Documento rifiutato con successo',
@@ -2280,14 +2440,14 @@ router.post('/documents/:documentId/reject', authenticate, requireRole(['PARTNER
 });
 
 // Legacy verify endpoint (for backward compatibility)
-router.post('/documents/:documentId/verify', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/documents/:documentId/verify', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { documentId } = req.params;
     const { status, rejectionReason } = req.body;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     if (!Object.values(DocumentStatus).includes(status)) {
@@ -2300,8 +2460,8 @@ router.post('/documents/:documentId/verify', authenticate, requireRole(['PARTNER
 
     // Use new methods based on status
     const result = status === DocumentStatus.APPROVED 
-      ? await UnifiedDocumentService.approveDocument(documentId, req.user!.id)
-      : await UnifiedDocumentService.rejectDocument(documentId, req.user!.id, rejectionReason);
+      ? await UnifiedDocumentService.approveDocument(documentId, req.user?.id || req.partnerEmployee?.id)
+      : await UnifiedDocumentService.rejectDocument(documentId, req.user?.id || req.partnerEmployee?.id, rejectionReason);
     
     // Auto-progression logic for CERTIFICATION workflows (only when approving)
     if (status === DocumentStatus.APPROVED) {
@@ -2311,7 +2471,7 @@ router.post('/documents/:documentId/verify', authenticate, requireRole(['PARTNER
           user: {
             include: {
               registrations: {
-                where: { partnerId }
+                where: { partnerCompanyId }
               }
             }
           }
@@ -2373,13 +2533,13 @@ router.post('/documents/:documentId/verify', authenticate, requireRole(['PARTNER
 });
 
 // Upload CNRed document for registration
-router.post('/registrations/:registrationId/cnred', authenticate, requireRole(['PARTNER', 'ADMIN']), documentUpload.single('document'), async (req: AuthRequest, res) => {
+router.post('/registrations/:registrationId/cnred', authenticateUnified, documentUpload.single('document'), async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     if (!req.file) {
@@ -2388,7 +2548,7 @@ router.post('/registrations/:registrationId/cnred', authenticate, requireRole(['
 
     // Verify registration belongs to this partner
     const registration = await prisma.registration.findFirst({
-      where: { id: registrationId, partnerId }
+      where: { id: registrationId, partnerCompanyId }
     });
 
     if (!registration) {
@@ -2417,13 +2577,13 @@ router.post('/registrations/:registrationId/cnred', authenticate, requireRole(['
 });
 
 // Upload Adverintia document for registration
-router.post('/registrations/:registrationId/adverintia', authenticate, requireRole(['PARTNER', 'ADMIN']), documentUpload.single('document'), async (req: AuthRequest, res) => {
+router.post('/registrations/:registrationId/adverintia', authenticateUnified, documentUpload.single('document'), async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     if (!req.file) {
@@ -2432,7 +2592,7 @@ router.post('/registrations/:registrationId/adverintia', authenticate, requireRo
 
     // Verify registration belongs to this partner
     const registration = await prisma.registration.findFirst({
-      where: { id: registrationId, partnerId }
+      where: { id: registrationId, partnerCompanyId }
     });
 
     if (!registration) {
@@ -2461,17 +2621,17 @@ router.post('/registrations/:registrationId/adverintia', authenticate, requireRo
 });
 
 // Download CNRed document
-router.get('/registrations/:registrationId/cnred/download', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/registrations/:registrationId/cnred/download', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     const registration = await prisma.registration.findFirst({
-      where: { id: registrationId, partnerId }
+      where: { id: registrationId, partnerCompanyId }
     });
 
     if (!registration || !registration.cnredUrl) {
@@ -2494,17 +2654,17 @@ router.get('/registrations/:registrationId/cnred/download', authenticate, requir
 });
 
 // Download Adverintia document
-router.get('/registrations/:registrationId/adverintia/download', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/registrations/:registrationId/adverintia/download', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     const registration = await prisma.registration.findFirst({
-      where: { id: registrationId, partnerId }
+      where: { id: registrationId, partnerCompanyId }
     });
 
     if (!registration || !registration.adverintiaUrl) {
@@ -2527,14 +2687,14 @@ router.get('/registrations/:registrationId/adverintia/download', authenticate, r
 });
 
 // Set exam date for certification workflow
-router.post('/registrations/:registrationId/exam-date', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/registrations/:registrationId/exam-date', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.params;
     const { examDate } = req.body;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     if (!examDate) {
@@ -2543,7 +2703,7 @@ router.post('/registrations/:registrationId/exam-date', authenticate, requireRol
 
     // Verify registration belongs to this partner
     const registration = await prisma.registration.findFirst({
-      where: { id: registrationId, partnerId }
+      where: { id: registrationId, partnerCompanyId }
     });
 
     if (!registration) {
@@ -2555,7 +2715,7 @@ router.post('/registrations/:registrationId/exam-date', authenticate, requireRol
       where: { id: registrationId },
       data: {
         examDate: new Date(examDate),
-        examRegisteredBy: partnerId,
+        examRegisteredBy: partnerCompanyId,
         status: 'EXAM_REGISTERED'
       }
     });
@@ -2571,20 +2731,20 @@ router.post('/registrations/:registrationId/exam-date', authenticate, requireRol
 });
 
 // Mark exam as completed for certification workflow
-router.post('/registrations/:registrationId/complete-exam', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/registrations/:registrationId/complete-exam', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     // Verify registration belongs to this partner and is in EXAM_REGISTERED state
     const registration = await prisma.registration.findFirst({
       where: { 
         id: registrationId, 
-        partnerId,
+        partnerCompanyId,
         status: 'EXAM_REGISTERED' 
       }
     });
@@ -2599,7 +2759,7 @@ router.post('/registrations/:registrationId/complete-exam', authenticate, requir
       data: {
         status: 'COMPLETED',
         examCompletedDate: new Date(),
-        examCompletedBy: partnerId
+        examCompletedBy: partnerCompanyId
       },
       include: {
         user: {
@@ -2638,13 +2798,13 @@ router.post('/registrations/:registrationId/complete-exam', authenticate, requir
 });
 
 // Get document audit trail for a specific document
-router.get('/documents/:documentId/audit', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/documents/:documentId/audit', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { documentId } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     const auditLog = await DocumentService.getDocumentAuditTrail(documentId);
@@ -2667,19 +2827,19 @@ router.get('/documents/:documentId/audit', authenticate, requireRole(['PARTNER',
 });
 
 // Bulk verify documents for a registration
-router.post('/registrations/:registrationId/bulk-verify', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/registrations/:registrationId/bulk-verify', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.params;
     const { documentStatuses } = req.body; // Array of { documentId, status, rejectionReason }
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     // Verify registration belongs to this partner
     const registration = await prisma.registration.findFirst({
-      where: { id: registrationId, partnerId }
+      where: { id: registrationId, partnerCompanyId }
     });
 
     if (!registration) {
@@ -2696,8 +2856,8 @@ router.post('/registrations/:registrationId/bulk-verify', authenticate, requireR
       try {
         // Use new methods based on status
         const result = status === DocumentStatus.APPROVED 
-          ? await UnifiedDocumentService.approveDocument(documentId, req.user!.id)
-          : await UnifiedDocumentService.rejectDocument(documentId, req.user!.id, rejectionReason || 'Motivo non specificato');
+          ? await UnifiedDocumentService.approveDocument(documentId, req.user?.id || req.partnerEmployee?.id)
+          : await UnifiedDocumentService.rejectDocument(documentId, req.user?.id || req.partnerEmployee?.id, rejectionReason || 'Motivo non specificato');
         
         results.push({
           documentId,
@@ -2757,18 +2917,18 @@ router.post('/registrations/:registrationId/bulk-verify', authenticate, requireR
 });
 
 // Get unified documents for a specific registration (partner view)
-router.get('/registrations/:registrationId/documents/unified', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/registrations/:registrationId/documents/unified', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.params;
 
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
-    // Verify registration belongs to this partner
+    // Verify registration belongs to this partner company
     const registration = await prisma.registration.findFirst({
-      where: { id: registrationId, partnerId },
+      where: { id: registrationId, partnerCompanyId },
       include: {
         offer: {
           include: {
@@ -2822,16 +2982,7 @@ router.get('/registrations/:registrationId/documents/unified', authenticate, req
       orderBy: { uploadedAt: 'desc' }
     });
 
-    // Debug logging
-    console.log('Documents debug:', {
-      registrationId,
-      userId: registration.userId,
-      offerType: registration.offer?.offerType,
-      documentTypesCount: documentTypes.length,
-      documentTypes: documentTypes.map(dt => dt.type),
-      userDocumentsCount: userDocuments.length,
-      userDocuments: userDocuments.map(ud => ({ type: ud.type, name: ud.originalName, status: ud.status }))
-    });
+
 
     // Create unified document structure
     const documents = documentTypes.map(docType => {
@@ -2878,15 +3029,15 @@ router.get('/registrations/:registrationId/documents/unified', authenticate, req
 });
 
 // Approve document
-router.post('/documents/:documentId/approve', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/documents/:documentId/approve', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const { documentId } = req.params;
     const { notes } = req.body;
-    const partnerId = req.partner?.id;
-    const userId = req.user!.id;
+    const partnerCompanyId = req.partnerCompany?.id;
+    const userId = req.user?.id || req.partnerEmployee?.id;
 
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     // Find the document and verify user belongs to this partner
@@ -2896,7 +3047,7 @@ router.post('/documents/:documentId/approve', authenticate, requireRole(['PARTNE
         user: {
           include: {
             registrations: {
-              where: { partnerId }
+              where: { partnerCompanyId }
             }
           }
         }
@@ -2992,15 +3143,15 @@ router.post('/documents/:documentId/approve', authenticate, requireRole(['PARTNE
 });
 
 // Reject document
-router.post('/documents/:documentId/reject', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/documents/:documentId/reject', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const { documentId } = req.params;
     const { reason, details } = req.body;
-    const partnerId = req.partner?.id;
-    const userId = req.user!.id;
+    const partnerCompanyId = req.partnerCompany?.id;
+    const userId = req.user?.id || req.partnerEmployee?.id;
 
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     if (!reason) {
@@ -3014,7 +3165,7 @@ router.post('/documents/:documentId/reject', authenticate, requireRole(['PARTNER
         user: {
           include: {
             registrations: {
-              where: { partnerId }
+              where: { partnerCompanyId }
             }
           }
         }
@@ -3073,13 +3224,13 @@ router.post('/documents/:documentId/reject', authenticate, requireRole(['PARTNER
 });
 
 // POST /api/partners/users/:userId/documents/upload - Partner uploads document for user
-router.post('/users/:userId/documents/upload', authenticate, requireRole(['PARTNER', 'ADMIN']), documentUpload.single('document'), async (req: AuthRequest, res) => {
+router.post('/users/:userId/documents/upload', authenticateUnified, documentUpload.single('document'), async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { userId } = req.params;
     const { type, registrationId } = req.body;
 
-    if (!partnerId) {
+    if (!partnerCompanyId) {
       return res.status(403).json({ error: 'Accesso negato' });
     }
 
@@ -3095,7 +3246,7 @@ router.post('/users/:userId/documents/upload', authenticate, requireRole(['PARTN
     const userRegistrations = await prisma.registration.findMany({
       where: {
         userId: userId,
-        partnerId: partnerId
+        partnerCompanyId: partnerCompanyId
       }
     });
 
@@ -3109,7 +3260,7 @@ router.post('/users/:userId/documents/upload', authenticate, requireRole(['PARTN
       userId, // Document belongs to the user
       type,
       'PARTNER_PANEL', // Upload source
-      req.user!.id, // Uploaded by partner
+      req.user?.id || req.partnerEmployee?.id, // Uploaded by partner
       'PARTNER', // Uploaded by role
       registrationId
     );
@@ -3140,16 +3291,16 @@ router.post('/users/:userId/documents/upload', authenticate, requireRole(['PARTN
 });
 
 // GET /api/partner/export/registrations - Export partner's registrations to Excel
-router.get('/export/registrations', authenticate, requireRole(['PARTNER']), async (req: AuthRequest, res) => {
+router.get('/export/registrations', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    const partnerCompanyId = req.partnerCompany?.id;
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
-    // Get partner info for filename
-    const partner = await prisma.partner.findUnique({
-      where: { id: partnerId },
+    // Get partner company info for filename
+    const partner = await prisma.partnerCompany.findUnique({
+      where: { id: partnerCompanyId },
       select: { referralCode: true }
     });
 
@@ -3159,7 +3310,7 @@ router.get('/export/registrations', authenticate, requireRole(['PARTNER']), asyn
 
     // Fetch partner's registrations with comprehensive data
     const registrations = await prisma.registration.findMany({
-      where: { partnerId },
+      where: { partnerCompanyId },
       include: {
         user: {
           include: {
@@ -3300,17 +3451,17 @@ router.get('/export/registrations', authenticate, requireRole(['PARTNER']), asyn
 // ==================== CERTIFICATION 5-STEP WORKFLOW ====================
 
 // Step 3: Mark documents as approved (carta identità + tessera sanitaria)
-router.post('/registrations/:registrationId/certification-docs-approved', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/registrations/:registrationId/certification-docs-approved', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const { registrationId } = req.params;
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
 
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     const registration = await prisma.registration.findFirst({
-      where: { id: registrationId, partnerId },
+      where: { id: registrationId, partnerCompanyId },
       include: { 
         offer: true,
         user: {
@@ -3360,17 +3511,17 @@ router.post('/registrations/:registrationId/certification-docs-approved', authen
 });
 
 // Step 4: Register for exam
-router.post('/registrations/:registrationId/certification-exam-registered', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/registrations/:registrationId/certification-exam-registered', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const { registrationId } = req.params;
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
 
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     const registration = await prisma.registration.findFirst({
-      where: { id: registrationId, partnerId },
+      where: { id: registrationId, partnerCompanyId },
       include: { 
         offer: true,
         user: {
@@ -3393,7 +3544,7 @@ router.post('/registrations/:registrationId/certification-exam-registered', auth
     await prisma.registration.update({
       where: { id: registrationId },
       data: {
-        examRegisteredBy: partnerId,
+        examRegisteredBy: partnerCompanyId,
         status: 'EXAM_REGISTERED'
       }
     });
@@ -3423,17 +3574,17 @@ router.post('/registrations/:registrationId/certification-exam-registered', auth
 });
 
 // Step 5: Mark exam as completed
-router.post('/registrations/:registrationId/certification-exam-completed', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/registrations/:registrationId/certification-exam-completed', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const { registrationId } = req.params;
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
 
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     const registration = await prisma.registration.findFirst({
-      where: { id: registrationId, partnerId },
+      where: { id: registrationId, partnerCompanyId },
       include: { 
         offer: true,
         user: {
@@ -3457,7 +3608,7 @@ router.post('/registrations/:registrationId/certification-exam-completed', authe
       where: { id: registrationId },
       data: {
         examCompletedDate: new Date(),
-        examCompletedBy: partnerId,
+        examCompletedBy: partnerCompanyId,
         status: 'COMPLETED'
       }
     });
@@ -3487,17 +3638,17 @@ router.post('/registrations/:registrationId/certification-exam-completed', authe
 });
 
 // Get certification steps progress  
-router.get('/registrations/:registrationId/certification-steps', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/registrations/:registrationId/certification-steps', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const { registrationId } = req.params;
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
 
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     const registration = await prisma.registration.findFirst({
-      where: { id: registrationId, partnerId },
+      where: { id: registrationId, partnerCompanyId },
       include: { 
         offer: true,
         deadlines: true
@@ -3579,14 +3730,14 @@ router.get('/registrations/:registrationId/certification-steps', authenticate, r
 // ==================== TFA POST-ENROLLMENT STEPS ====================
 
 // Step 0: Register admission test
-router.post('/registrations/:registrationId/admission-test', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/registrations/:registrationId/admission-test', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const { registrationId } = req.params;
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { testDate, passed = true } = req.body;
 
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     if (!testDate) {
@@ -3594,7 +3745,7 @@ router.post('/registrations/:registrationId/admission-test', authenticate, requi
     }
 
     const registration = await prisma.registration.findFirst({
-      where: { id: registrationId, partnerId },
+      where: { id: registrationId, partnerCompanyId },
       include: { 
         offer: true,
         user: {
@@ -3618,7 +3769,7 @@ router.post('/registrations/:registrationId/admission-test', authenticate, requi
       where: { id: registrationId },
       data: {
         admissionTestDate: new Date(testDate),
-        admissionTestBy: partnerId,
+        admissionTestBy: partnerCompanyId,
         admissionTestPassed: Boolean(passed)
       }
     });
@@ -3631,17 +3782,17 @@ router.post('/registrations/:registrationId/admission-test', authenticate, requi
 });
 
 // Step 1: Register CNRED release
-router.post('/registrations/:registrationId/cnred-release', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/registrations/:registrationId/cnred-release', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const { registrationId } = req.params;
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
 
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     const registration = await prisma.registration.findFirst({
-      where: { id: registrationId, partnerId },
+      where: { id: registrationId, partnerCompanyId },
       include: { 
         offer: true,
         user: {
@@ -3666,7 +3817,7 @@ router.post('/registrations/:registrationId/cnred-release', authenticate, requir
       data: {
         status: 'CNRED_RELEASED',
         cnredReleasedAt: new Date(),
-        cnredReleasedBy: partnerId
+        cnredReleasedBy: partnerCompanyId
       }
     });
 
@@ -3704,14 +3855,14 @@ router.post('/registrations/:registrationId/cnred-release', authenticate, requir
 });
 
 // Step 2: Register final exam
-router.post('/registrations/:registrationId/final-exam', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/registrations/:registrationId/final-exam', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const { registrationId } = req.params;
     const { examDate, passed } = req.body;
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
 
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     if (!examDate || passed === undefined) {
@@ -3719,7 +3870,7 @@ router.post('/registrations/:registrationId/final-exam', authenticate, requireRo
     }
 
     const registration = await prisma.registration.findFirst({
-      where: { id: registrationId, partnerId },
+      where: { id: registrationId, partnerCompanyId },
       include: { 
         offer: true,
         user: {
@@ -3744,7 +3895,7 @@ router.post('/registrations/:registrationId/final-exam', authenticate, requireRo
       data: {
         status: 'FINAL_EXAM',
         finalExamDate: new Date(examDate),
-        finalExamRegisteredBy: partnerId,
+        finalExamRegisteredBy: partnerCompanyId,
         finalExamPassed: Boolean(passed)
       }
     });
@@ -3786,17 +3937,17 @@ router.post('/registrations/:registrationId/final-exam', authenticate, requireRo
 });
 
 // Step 3: Register recognition request
-router.post('/registrations/:registrationId/recognition-request', authenticate, requireRole(['PARTNER', 'ADMIN']), documentUpload.single('document'), async (req: AuthRequest, res) => {
+router.post('/registrations/:registrationId/recognition-request', authenticateUnified, documentUpload.single('document'), async (req: AuthRequest, res) => {
   try {
     const { registrationId } = req.params;
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
 
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     const registration = await prisma.registration.findFirst({
-      where: { id: registrationId, partnerId },
+      where: { id: registrationId, partnerCompanyId },
       include: { 
         offer: true,
         user: {
@@ -3826,7 +3977,7 @@ router.post('/registrations/:registrationId/recognition-request', authenticate, 
       data: {
         status: 'RECOGNITION_REQUEST',
         recognitionRequestDate: new Date(),
-        recognitionRequestBy: partnerId,
+        recognitionRequestBy: partnerCompanyId,
         recognitionDocumentUrl
       }
     });
@@ -3866,17 +4017,17 @@ router.post('/registrations/:registrationId/recognition-request', authenticate, 
 });
 
 // Approve recognition (final step to COMPLETED)
-router.post('/registrations/:registrationId/recognition-approval', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/registrations/:registrationId/recognition-approval', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const { registrationId } = req.params;
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
 
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     const registration = await prisma.registration.findFirst({
-      where: { id: registrationId, partnerId },
+      where: { id: registrationId, partnerCompanyId },
       include: { 
         offer: true,
         user: {
@@ -3938,19 +4089,19 @@ router.post('/registrations/:registrationId/recognition-approval', authenticate,
 });
 
 // GET /api/partner/registrations/:registrationId/tfa-steps - Get TFA steps for partner's registration
-router.get('/registrations/:registrationId/tfa-steps', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/registrations/:registrationId/tfa-steps', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const { registrationId } = req.params;
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
 
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     const registration = await prisma.registration.findFirst({
       where: { 
         id: registrationId, 
-        partnerId 
+        partnerCompanyId 
       },
       include: {
         offer: true
@@ -4030,12 +4181,12 @@ router.get('/registrations/:registrationId/tfa-steps', authenticate, requireRole
 });
 
 // Get partner analytics data for charts
-router.get('/analytics', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/analytics', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     // Get monthly revenue for the last 6 months
@@ -4049,7 +4200,7 @@ router.get('/analytics', authenticate, requireRole(['PARTNER', 'ADMIN']), async 
       const monthlyRevenue = await prisma.payment.aggregate({
         _sum: { amount: true },
         where: {
-          registration: { partnerId },
+          registration: { partnerCompanyId: partnerCompanyId },
           paymentDate: {
             gte: startDate,
             lte: endDate
@@ -4068,7 +4219,7 @@ router.get('/analytics', authenticate, requireRole(['PARTNER', 'ADMIN']), async 
     // Get registration status distribution
     const statusCounts = await prisma.registration.groupBy({
       by: ['status'],
-      where: { partnerId },
+      where: { partnerCompanyId: partnerCompanyId },
       _count: true
     });
 
@@ -4085,7 +4236,7 @@ router.get('/analytics', authenticate, requireRole(['PARTNER', 'ADMIN']), async 
       
       const monthlyUsers = await prisma.registration.count({
         where: {
-          partnerId,
+          partnerCompanyId: partnerCompanyId,
           createdAt: {
             gte: startDate,
             lte: endDate
@@ -4102,12 +4253,12 @@ router.get('/analytics', authenticate, requireRole(['PARTNER', 'ADMIN']), async 
 
     // Calculate conversion metrics
     const totalRegistrations = await prisma.registration.count({
-      where: { partnerId }
+      where: { partnerCompanyId: partnerCompanyId }
     });
 
     const completedRegistrations = await prisma.registration.count({
       where: { 
-        partnerId,
+        partnerCompanyId: partnerCompanyId,
         status: 'COMPLETED'
       }
     });
@@ -4118,21 +4269,21 @@ router.get('/analytics', authenticate, requireRole(['PARTNER', 'ADMIN']), async 
     // Get pending actions count (users waiting for document verification)
     const documentsUpload = await prisma.registration.count({
       where: { 
-        partnerId,
+        partnerCompanyId: partnerCompanyId,
         status: 'PENDING'
       }
     });
 
     const contractGenerated = await prisma.registration.count({
       where: { 
-        partnerId,
+        partnerCompanyId: partnerCompanyId,
         status: 'CONTRACT_GENERATED'
       }
     });
 
     const contractSigned = await prisma.registration.count({
       where: { 
-        partnerId,
+        partnerCompanyId: partnerCompanyId,
         status: 'CONTRACT_SIGNED'
       }
     });
@@ -4162,20 +4313,20 @@ router.get('/analytics', authenticate, requireRole(['PARTNER', 'ADMIN']), async 
 });
 
 // DELETE /api/partner/registrations/:registrationId - Delete a registration with all related data
-router.delete('/registrations/:registrationId', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req: AuthRequest, res) => {
+router.delete('/registrations/:registrationId', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.params;
     
-    if (!partnerId) {
-      return res.status(400).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     // Verify registration exists and belongs to this partner
     const registration = await prisma.registration.findFirst({
       where: {
         id: registrationId,
-        partnerId
+        partnerCompanyId
       },
       include: {
         user: {
@@ -4195,7 +4346,7 @@ router.delete('/registrations/:registrationId', authenticate, requireRole(['PART
     }
 
     // Log deletion for audit purposes
-    console.log(`🗑️ Deleting registration ${registrationId} for partner ${partnerId}`);
+    console.log(`🗑️ Deleting registration ${registrationId} for partner ${partnerCompanyId}`);
     console.log(`- User: ${registration.user.email}`);
     console.log(`- Offer: ${registration.offer?.name}`);
     console.log(`- Status: ${registration.status}`);
@@ -4257,6 +4408,78 @@ router.delete('/registrations/:registrationId', authenticate, requireRole(['PART
   } catch (error) {
     console.error('Delete registration error:', error);
     res.status(500).json({ error: 'Errore durante l\'eliminazione della registrazione' });
+  }
+});
+
+// Get company hierarchy for partner coupon management
+router.get('/companies/hierarchy', authenticateUnified, async (req: AuthRequest, res) => {
+  try {
+    const partnerCompanyId = req.partnerCompany?.id;
+    const partnerEmployee = req.partnerEmployee;
+    
+    if (!partnerCompanyId || !partnerEmployee) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
+    }
+
+    let companies = [];
+    
+    // Only ADMINISTRATIVE users can see hierarchy for coupon management
+    if (partnerEmployee.role === 'ADMINISTRATIVE') {
+      // Get all child companies
+      const getAllChildren = async (parentId: string): Promise<any[]> => {
+        const children = await prisma.partnerCompany.findMany({
+          where: { parentId },
+          select: {
+            id: true,
+            name: true,
+            referralCode: true
+          }
+        });
+        
+        let allChildren = [...children];
+        for (const child of children) {
+          const grandChildren = await getAllChildren(child.id);
+          allChildren = allChildren.concat(grandChildren);
+        }
+        
+        return allChildren;
+      };
+      
+      const childrenCompanies = await getAllChildren(partnerCompanyId);
+      
+      // Get current company details
+      const currentCompany = await prisma.partnerCompany.findUnique({
+        where: { id: partnerCompanyId },
+        select: {
+          id: true,
+          name: true,
+          referralCode: true
+        }
+      });
+      
+      companies = [
+        ...(currentCompany ? [currentCompany] : []),
+        ...childrenCompanies
+      ];
+    } else {
+      // COMMERCIAL users can only see their own company
+      const currentCompany = await prisma.partnerCompany.findUnique({
+        where: { id: partnerCompanyId },
+        select: {
+          id: true,
+          name: true,
+          referralCode: true
+        }
+      });
+      
+      companies = currentCompany ? [currentCompany] : [];
+    }
+    
+    res.json({ companies });
+    
+  } catch (error) {
+    console.error('Get companies hierarchy error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
   }
 });
 

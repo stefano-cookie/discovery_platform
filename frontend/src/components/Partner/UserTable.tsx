@@ -158,12 +158,12 @@ const UserTable: React.FC<UserTableProps> = ({
                   type="checkbox"
                   onChange={(e) => {
                     if (e.target.checked) {
-                      setSelectedRegistrations(users.map(u => u.registrationId));
+                      setSelectedRegistrations(Array.isArray(users) ? users.map(u => u.registrationId) : []);
                     } else {
                       setSelectedRegistrations([]);
                     }
                   }}
-                  checked={selectedRegistrations.length === users.length && users.length > 0}
+                  checked={Array.isArray(users) && selectedRegistrations.length === users.length && users.length > 0}
                   className="rounded border-gray-300"
                 />
               </th>
@@ -185,9 +185,9 @@ const UserTable: React.FC<UserTableProps> = ({
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-50">
-            {users.map((user, index) => (
+            {Array.isArray(users) ? users.map((user, index) => (
               <tr 
-                key={user.id} 
+                key={user.registrationId} 
                 className={`hover:bg-blue-50/50 transition-colors duration-200 cursor-pointer ${
                   index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
                 }`}
@@ -246,12 +246,18 @@ const UserTable: React.FC<UserTableProps> = ({
                   </div>
                 </td>
               </tr>
-            ))}
+            )) : (
+              <tr>
+                <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
+                  Errore nel caricamento dei dati utenti
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
 
-      {users.length === 0 && (
+      {Array.isArray(users) && users.length === 0 && (
         <div className="text-center py-16">
           <div className="flex flex-col items-center">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">

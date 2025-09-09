@@ -46,7 +46,7 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId,
       const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
       const response = await fetch(`${API_BASE_URL}/partners/download-contract/${registrationId}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('partnerToken') || localStorage.getItem('token')}`,
         },
       });
 

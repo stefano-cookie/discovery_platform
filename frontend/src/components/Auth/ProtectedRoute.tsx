@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { usePartnerAuth } from '../../hooks/usePartnerAuth';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -11,7 +12,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children, 
   requiredRole 
 }) => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading: userLoading } = useAuth();
+  const { partnerEmployee, isLoading: partnerLoading } = usePartnerAuth();
+
+  const isLoading = userLoading || partnerLoading;
+  const currentUser = user || partnerEmployee;
+  const userRole = user?.role || (partnerEmployee ? 'PARTNER' : null);
 
   if (isLoading) {
     return (
@@ -21,11 +27,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  if (!user) {
+  if (!currentUser) {
+    // Redirect to appropriate login page
+    // For now, default to general login - the login page will handle partner redirects
     return <Navigate to="/login" replace />;
   }
 
-  if (requiredRole && !requiredRole.includes(user.role)) {
+  if (requiredRole && userRole && !requiredRole.includes(userRole)) {
     return <Navigate to="/dashboard" replace />;
   }
 

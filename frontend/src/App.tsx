@@ -1,7 +1,7 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
-import { PartnerAuthProvider } from './hooks/usePartnerAuth';
+import { PartnerAuthProvider, usePartnerAuth } from './hooks/usePartnerAuth';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -13,13 +13,101 @@ import ChangePassword from './pages/ChangePassword';
 
 // Partner System - New Routes
 import PartnerLogin from './pages/PartnerLogin';
-import PartnerDashboard from './pages/PartnerDashboard';
+
+// Route Components to avoid IIFE issues
+const RootRoute: React.FC<{ isAuthenticated: boolean }> = ({ isAuthenticated }) => {
+  console.log('🏠 Root route accessed, isAuthenticated:', isAuthenticated);
+  
+  if (isAuthenticated) {
+    // Check if there's a pending referral after login
+    const pendingReferral = localStorage.getItem('pendingReferral');
+    const pendingReferralUrl = localStorage.getItem('pendingReferralUrl');
+    
+    if (pendingReferral) {
+      localStorage.removeItem('pendingReferral');
+      localStorage.removeItem('pendingReferralUrl');
+      console.log('➡️ Redirecting authenticated user to registration:', `/registration/${pendingReferral}`);
+      return <Navigate to={`/registration/${pendingReferral}`} replace />;
+    }
+    
+    if (pendingReferralUrl && pendingReferralUrl.includes('/registration/')) {
+      localStorage.removeItem('pendingReferralUrl');
+      console.log('➡️ Redirecting authenticated user to stored URL:', pendingReferralUrl);
+      return <Navigate to={pendingReferralUrl} replace />;
+    }
+    
+    console.log('➡️ Redirecting authenticated user to dashboard');
+    return <Navigate to="/dashboard" replace />;
+  } else {
+    console.log('➡️ Redirecting unauthenticated user to /login');
+    return <Navigate to="/login" replace />;
+  }
+};
+
+const LoginRoute: React.FC<{ isAuthenticated: boolean }> = ({ isAuthenticated }) => {
+  console.log('🔑 Login route accessed, isAuthenticated:', isAuthenticated);
+  
+  if (isAuthenticated) {
+    console.log('➡️ Already authenticated, redirecting to dashboard');
+    return <Navigate to="/dashboard" replace />;
+  } else {
+    console.log('📝 Showing login form');
+    return <Login />;
+  }
+};
+
+const PartnerLoginRoute: React.FC<{ isAuthenticated: boolean }> = ({ isAuthenticated }) => {
+  console.log('🤝 Partner login route accessed, isAuthenticated:', isAuthenticated);
+  
+  if (isAuthenticated) {
+    console.log('➡️ Already authenticated, redirecting to dashboard');
+    return <Navigate to="/dashboard" replace />;
+  } else {
+    console.log('📝 Showing partner login form');
+    return <PartnerLogin />;
+  }
+};
+
+const DashboardRoute: React.FC<{ userRole: string | null }> = ({ userRole }) => {
+  console.log('🏢 Dashboard route - user role check:', userRole);
+  
+  if (userRole === 'USER') {
+    console.log('👤 Loading UserDashboard');
+    return <UserDashboard />;
+  } else {
+    console.log('🏢 Loading Partner/Admin Dashboard');
+    return <Dashboard />;
+  }
+};
+
+const CatchAllRoute: React.FC = () => {
+  console.log('❓ Catch-all route accessed for:', window.location.pathname);
+  return <Navigate to="/" replace />;
+};
 
 const AppContent: React.FC = () => {
-  const { user, isLoading } = useAuth();
-  const location = useLocation();
+  const { user, isLoading: userLoading } = useAuth();
+  const { partnerEmployee, isLoading: partnerLoading } = usePartnerAuth();
+
+  const isLoading = userLoading || partnerLoading;
+  const isAuthenticated = !!(user || partnerEmployee);
+  const userRole = user?.role || (partnerEmployee ? 'PARTNER' : null);
+  
+  // Debug logging
+  console.log('🔍 App Debug:', {
+    user: user?.email || null,
+    userRole: user?.role || null,
+    partnerEmployee: partnerEmployee?.email || null,
+    partnerRole: partnerEmployee?.role || null,
+    userLoading,
+    partnerLoading,
+    isLoading,
+    isAuthenticated,
+    pathname: window.location.pathname
+  });
 
   if (isLoading) {
+    console.log('⏳ App is loading...');
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -27,145 +115,123 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // Helper function to determine where authenticated user should go
-  const getAuthenticatedRedirect = () => {
-    // Check if there's a pending referral after login
-    const pendingReferral = localStorage.getItem('pendingReferral');
-    const pendingReferralUrl = localStorage.getItem('pendingReferralUrl');
-    
-    console.log('Checking authenticated redirect:', { 
-      pendingReferral, 
-      pendingReferralUrl, 
-      user: user?.email 
-    });
-    
-    if (pendingReferral) {
-      // Clear both pending items
-      localStorage.removeItem('pendingReferral');
-      localStorage.removeItem('pendingReferralUrl');
-      
-      console.log('Redirecting to pending referral:', `/registration/${pendingReferral}`);
-      return `/registration/${pendingReferral}`;
-    }
-    
-    // Fallback: check if URL contains referral pattern but no pending storage
-    if (pendingReferralUrl && pendingReferralUrl.includes('/registration/')) {
-      localStorage.removeItem('pendingReferralUrl');
-      console.log('Redirecting to stored URL:', pendingReferralUrl);
-      return pendingReferralUrl;
-    }
-    
-    console.log('No pending referral, redirecting to dashboard');
-    return user?.role === 'USER' ? '/dashboard' : '/dashboard';
-  };
-
   return (
     <div>
       <Routes>
+        {/* ========================================
+            ROOT ROUTE
+            ======================================== */}
         <Route 
           path="/" 
-          element={user ? <Navigate to={getAuthenticatedRedirect()} replace /> : <Navigate to="/login" replace />} 
+          element={<RootRoute isAuthenticated={isAuthenticated} />}
         />
+
+        {/* ========================================
+            AUTHENTICATION ROUTES  
+            ======================================== */}
         <Route 
           path="/login" 
-          element={user ? (
-            // Se l'utente è già autenticato e sta tentando di accedere al login,
-            // mantieni la pagina corrente se è valida, altrimenti vai alla dashboard
-            location.pathname !== '/login' && location.pathname !== '/' ? 
-              <Navigate to={location.pathname} replace /> : 
-              <Navigate to={getAuthenticatedRedirect()} replace />
-          ) : <Login />} 
+          element={<LoginRoute isAuthenticated={isAuthenticated} />}
         />
-      <Route 
-        path="/change-password" 
-        element={
-          <ProtectedRoute>
-            <ChangePassword />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/registration/:referralCode?" 
-        element={<Registration />} 
-      />
-      <Route 
-        path="/email-verification" 
-        element={<EmailVerification />} 
-      />
-      <Route 
-        path="/verify-email" 
-        element={<VerifyEmail />} 
-      />
-      <Route 
-        path="/dashboard" 
-        element={
-          <ProtectedRoute>
-            {user?.role === 'USER' ? <UserDashboard /> : <Dashboard />}
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/dashboard/enrollment/:registrationId" 
-        element={
-          <ProtectedRoute>
-            <UserDashboard />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/dashboard/users" 
-        element={
-          <ProtectedRoute>
-            {user?.role === 'USER' ? <UserDashboard /> : <Dashboard />}
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/dashboard/users/:registrationId" 
-        element={
-          <ProtectedRoute>
-            {user?.role === 'USER' ? <UserDashboard /> : <Dashboard />}
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/dashboard/coupons" 
-        element={
-          <ProtectedRoute>
-            {user?.role === 'USER' ? <UserDashboard /> : <Dashboard />}
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/dashboard/offers" 
-        element={
-          <ProtectedRoute>
-            {user?.role === 'USER' ? <UserDashboard /> : <Dashboard />}
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/dashboard/chat" 
-        element={
-          <ProtectedRoute>
-            {user?.role === 'USER' ? <UserDashboard /> : <Dashboard />}
-          </ProtectedRoute>
-        } 
-      />
-      
-      {/* ========================================
-          PARTNER ROUTES - New System
-          ======================================== */}
-      <Route path="/partner/login" element={<PartnerLogin />} />
-      <Route path="/partner/dashboard" element={<PartnerDashboard />} />
-      
-      <Route path="*" element={<Navigate to="/" replace />} />
+        
+        <Route 
+          path="/partner/login" 
+          element={<PartnerLoginRoute isAuthenticated={isAuthenticated} />}
+        />
+
+        {/* ========================================
+            PUBLIC ROUTES
+            ======================================== */}
+        <Route path="/registration/:referralCode?" element={<Registration />} />
+        <Route path="/email-verification" element={<EmailVerification />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        
+        {/* ========================================
+            PROTECTED ROUTES
+            ======================================== */}
+        <Route 
+          path="/change-password" 
+          element={
+            <ProtectedRoute>
+              <ChangePassword />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* ========================================
+            DASHBOARD ROUTES - Simplified logic
+            ======================================== */}
+        <Route 
+          path="/dashboard" 
+          element={
+            <ProtectedRoute>
+              <DashboardRoute userRole={userRole} />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/dashboard/enrollment/:registrationId" 
+          element={
+            <ProtectedRoute>
+              <UserDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/dashboard/users" 
+          element={
+            <ProtectedRoute>
+              <DashboardRoute userRole={userRole} />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/dashboard/users/:registrationId" 
+          element={
+            <ProtectedRoute>
+              <DashboardRoute userRole={userRole} />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/dashboard/coupons" 
+          element={
+            <ProtectedRoute>
+              <DashboardRoute userRole={userRole} />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/dashboard/offers" 
+          element={
+            <ProtectedRoute>
+              <DashboardRoute userRole={userRole} />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/dashboard/chat" 
+          element={
+            <ProtectedRoute>
+              <DashboardRoute userRole={userRole} />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* ========================================
+            CATCH ALL
+            ======================================== */}
+        <Route 
+          path="*" 
+          element={<CatchAllRoute />} 
+        />
       </Routes>
     </div>
   );
 };
 
 const App: React.FC = () => {
+  console.log('🚀 App component mounted');
   return (
     <AuthProvider>
       <PartnerAuthProvider>

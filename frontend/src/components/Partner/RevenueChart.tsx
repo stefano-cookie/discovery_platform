@@ -107,7 +107,7 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ analytics, loading }) => {
         </div>
         <div className="text-center p-3 bg-emerald-50 rounded-lg">
           <p className="text-2xl font-bold text-emerald-600">
-            {analytics?.metrics.growthRate ? `${analytics.metrics.growthRate > 0 ? '+' : ''}${analytics.metrics.growthRate}%` : '0%'}
+            {analytics?.metrics?.growthRate ? `${analytics.metrics?.growthRate > 0 ? '+' : ''}${analytics.metrics?.growthRate}%` : '0%'}
           </p>
           <p className="text-sm text-slate-500">vs Mesi Precedenti</p>
         </div>

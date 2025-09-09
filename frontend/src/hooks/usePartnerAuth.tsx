@@ -64,17 +64,41 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
         const savedToken = localStorage.getItem('partnerToken');
         const savedEmployee = localStorage.getItem('partnerEmployee');
         const savedCompany = localStorage.getItem('partnerCompany');
+        
+        console.log('🔑 Partner Auth Init:', {
+          savedToken: savedToken ? 'EXISTS' : 'NULL',
+          savedEmployee: savedEmployee ? 'EXISTS' : 'NULL',
+          savedCompany: savedCompany ? 'EXISTS' : 'NULL'
+        });
 
         if (savedToken && savedEmployee && savedCompany) {
+          const employee = JSON.parse(savedEmployee);
+          const company = JSON.parse(savedCompany);
+          
           setToken(savedToken);
-          setPartnerEmployee(JSON.parse(savedEmployee));
-          setPartnerCompany(JSON.parse(savedCompany));
+          setPartnerEmployee(employee);
+          setPartnerCompany(company);
+          
+          console.log('✅ Partner Auth Restored:', {
+            email: employee.email,
+            role: employee.role,
+            company: company.name
+          });
           
           // Setup axios default header
           axios.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
+        } else {
+          // Clear any partial/corrupted data
+          if (savedToken || savedEmployee || savedCompany) {
+            console.log('🧹 Clearing corrupted partner auth data');
+            localStorage.removeItem('partnerToken');
+            localStorage.removeItem('partnerEmployee');
+            localStorage.removeItem('partnerCompany');
+          }
+          console.log('❌ Partner Auth: No saved data found');
         }
       } catch (error) {
-        console.error('Error loading partner auth from storage:', error);
+        console.error('❌ Error loading partner auth from storage:', error);
         logout();
       }
       setIsLoading(false);
@@ -89,8 +113,16 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
 
   const login = async (credentials: LoginRequest) => {
     try {
+      console.log('🔄 Partner login attempt:', credentials.email);
       const response = await axios.post<PartnerLoginResponse>('/api/auth/login', credentials);
       const { token: newToken, type, user: employee, partnerCompany: company } = response.data;
+      
+      console.log('📝 Partner login response:', {
+        type,
+        employee: employee.email,
+        company: company.name,
+        tokenLength: newToken.length
+      });
       
       // Verify this is a partner login
       if (type !== 'partner') {
@@ -102,10 +134,14 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
       localStorage.setItem('partnerEmployee', JSON.stringify(employee));
       localStorage.setItem('partnerCompany', JSON.stringify(company));
       
+      console.log('💾 Partner data stored in localStorage');
+      
       // Update state
       setToken(newToken);
       setPartnerEmployee(employee);
       setPartnerCompany(company);
+      
+      console.log('🔄 Partner state updated in React');
       
       // Setup axios default header
       axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
@@ -117,7 +153,7 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
       });
       
     } catch (error) {
-      console.error('Partner login failed:', error);
+      console.error('❌ Partner login failed:', error);
       throw error;
     }
   };
@@ -244,22 +280,5 @@ export const PartnerRouteGuard: React.FC<PartnerRouteGuardProps> = ({
 // AXIOS INTERCEPTOR SETUP
 // ========================================
 
-// Setup response interceptor for partner auth
-axios.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Token expired or invalid
-      const savedToken = localStorage.getItem('partnerToken');
-      if (savedToken) {
-        console.warn('Partner token expired, logging out');
-        // Clear partner auth data
-        localStorage.removeItem('partnerToken');
-        localStorage.removeItem('partnerEmployee');
-        localStorage.removeItem('partnerCompany');
-        window.location.href = '/partner/login';
-      }
-    }
-    return Promise.reject(error);
-  }
-);
+// Note: Removed global interceptor to prevent routing conflicts.
+// Error handling is managed by individual components.

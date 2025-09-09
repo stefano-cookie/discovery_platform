@@ -1,12 +1,12 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authenticate, AuthRequest } from '../middleware/auth';
+import { authenticateUnified, AuthRequest } from '../middleware/auth';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
 // GET /api/offer-types - Get available offer types (courses) that can be offered
-router.get('/', authenticate, async (req: AuthRequest, res) => {
+router.get('/', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     // Get all active courses
     const courses = await prisma.course.findMany({
@@ -54,7 +54,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
 });
 
 // GET /api/offer-types/:id - Get specific offer type details
-router.get('/:id', authenticate, async (req: AuthRequest, res) => {
+router.get('/:id', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const course = await prisma.course.findUnique({
       where: { id: req.params.id }

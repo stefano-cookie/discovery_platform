@@ -25,7 +25,7 @@ const PartnerDashboard: React.FC = () => {
       setUsersLoading(true);
       setUsersError(null);
       const data = await partnerService.getUsers(filter);
-      setUsers(data);
+      setUsers(data.users);
     } catch (err: any) {
       setUsersError(err.response?.data?.error || 'Errore nel caricamento utenti');
     } finally {
@@ -56,7 +56,7 @@ const PartnerDashboard: React.FC = () => {
     setExportLoading(true);
     
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
       
       const response = await fetch('/api/partners/export/registrations', {
         method: 'GET',

@@ -49,9 +49,13 @@ import adminRoutes from './routes/admin';
 import userDocumentRoutes from './routes/userDocuments';
 import documentUploadRoutes from './routes/documentUpload';
 import documentsRoutes from './routes/documents';
+import partnerEmployeesRoutes from './routes/partnerEmployees';
+// import partnerCouponsRoutes from './routes/_refactored/partnerCoupons'; // Disabled due to compilation errors
 
 app.use('/api/auth', authRoutes);
-app.use('/api/partners', partnerRoutes);
+app.use('/api/partners', partnerRoutes); // Main partner routes (fixed)
+app.use('/api/partner-employees', partnerEmployeesRoutes); // NEW: Simplified partner routes
+// app.use('/api/partners', partnerCouponsRoutes); // NEW: Refactored coupon management - Disabled due to compilation errors
 app.use('/api/registration', registrationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/offers', offerRoutes);

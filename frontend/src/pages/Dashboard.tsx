@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { usePartnerAuth } from '../hooks/usePartnerAuth';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Sidebar from '../components/Partner/Sidebar';
 import DashboardView from '../components/Partner/DashboardView';
@@ -11,10 +12,16 @@ import UserManagement from '../components/Admin/UserManagement';
 import EnrollmentDetail from '../components/Partner/EnrollmentDetail';
 
 const Dashboard: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout: userLogout } = useAuth();
+  const { partnerEmployee, partnerCompany, logout: partnerLogout } = usePartnerAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { registrationId } = useParams();
+  
+  // Determine which user is active and their role
+  const currentUser = user || partnerEmployee;
+  const currentLogout = user ? userLogout : partnerLogout;
+  const userRole = user?.role || (partnerEmployee ? 'PARTNER' : null);
   
   // Determine active tab from URL
   const getActiveTabFromPath = (pathname: string): 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' => {
@@ -50,7 +57,7 @@ const Dashboard: React.FC = () => {
   };
 
   const getDashboardContent = () => {
-    switch (user?.role) {
+    switch (userRole) {
       case 'ADMIN':
         return (
           <div>
@@ -108,7 +115,7 @@ const Dashboard: React.FC = () => {
   };
 
   // Per ADMIN e USER manteniamo il layout originale
-  if (user?.role !== 'PARTNER') {
+  if (userRole !== 'PARTNER') {
     return (
       <div className="min-h-screen bg-gray-50">
         <nav className="bg-white shadow">
@@ -119,10 +126,13 @@ const Dashboard: React.FC = () => {
               </div>
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-gray-700">
-                  {user?.email} ({user?.role})
+                  {currentUser?.email} ({userRole})
+                  {partnerEmployee && partnerCompany && (
+                    <span className="ml-2 text-xs text-gray-500">({partnerCompany.name})</span>
+                  )}
                 </span>
                 <button
-                  onClick={logout}
+                  onClick={currentLogout}
                   className="bg-red-600 text-white px-4 py-2 rounded-md text-sm hover:bg-red-700"
                 >
                   Esci

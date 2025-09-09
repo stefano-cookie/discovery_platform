@@ -31,8 +31,18 @@ const ImprovedPartnerDashboard: React.FC = () => {
       setUsersLoading(true);
       setUsersError(null);
       const data = await partnerService.getUsers(filter);
-      setUsers(data);
+      
+      // L'API restituisce {users: PartnerUser[], total: number}
+      if (data && data.users && Array.isArray(data.users)) {
+        setUsers(data.users);
+      } else {
+        console.error('API response format invalid:', data);
+        setUsers([]);
+        setUsersError('Formato dati non valido dal server');
+      }
     } catch (err: any) {
+      console.error('Fetch users error:', err);
+      setUsers([]); // Reset users to empty array on error
       setUsersError(err.response?.data?.error || 'Errore nel caricamento utenti');
     } finally {
       setUsersLoading(false);
@@ -79,7 +89,7 @@ const ImprovedPartnerDashboard: React.FC = () => {
     setExportLoading(true);
     
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
       
       const response = await fetch('/api/partners/export/registrations', {
         method: 'GET',
@@ -199,7 +209,7 @@ const ImprovedPartnerDashboard: React.FC = () => {
             value={statsLoading ? '...' : formatCurrency(stats?.monthlyRevenue || 0)}
             color="emerald"
             subtitle="Entrate del mese corrente"
-            trend={analytics?.metrics.growthRate ? `${analytics.metrics.growthRate > 0 ? '+' : ''}${analytics.metrics.growthRate}% crescita` : undefined}
+            trend={analytics?.metrics?.growthRate ? `${analytics.metrics?.growthRate > 0 ? '+' : ''}${analytics.metrics?.growthRate}% crescita` : undefined}
             icon={
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
@@ -222,10 +232,10 @@ const ImprovedPartnerDashboard: React.FC = () => {
 
           <StatsCard
             title="Conversione"
-            value={analyticsLoading ? '...' : `${analytics?.metrics.conversionRate || 0}%`}
+            value={analyticsLoading ? '...' : `${analytics?.metrics?.conversionRate || 0}%`}
             color="amber"
             subtitle="Tasso di completamento"
-            trend={analytics?.metrics.conversionRate ? `${analytics.metrics.conversionRate}% completate` : undefined}
+            trend={analytics?.metrics?.conversionRate ? `${analytics.metrics?.conversionRate}% completate` : undefined}
             icon={
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -318,45 +328,45 @@ const ImprovedPartnerDashboard: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                {(analytics?.pendingActions.documentsToApprove || 0) > 0 && (
+                {(analytics?.pendingActions?.documentsToApprove || 0) > 0 && (
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center">
                       <div className="w-2 h-2 bg-red-400 rounded-full mr-3"></div>
                       <span className="text-slate-600">Documenti da approvare</span>
                     </div>
-                    <span className="font-medium text-red-600">{analytics?.pendingActions.documentsToApprove || 0}</span>
+                    <span className="font-medium text-red-600">{analytics?.pendingActions?.documentsToApprove || 0}</span>
                   </div>
                 )}
-                {(analytics?.pendingActions.contractsToSign || 0) > 0 && (
+                {(analytics?.pendingActions?.contractsToSign || 0) > 0 && (
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center">
                       <div className="w-2 h-2 bg-amber-400 rounded-full mr-3"></div>
                       <span className="text-slate-600">Contratti da firmare</span>
                     </div>
-                    <span className="font-medium text-amber-600">{analytics?.pendingActions.contractsToSign || 0}</span>
+                    <span className="font-medium text-amber-600">{analytics?.pendingActions?.contractsToSign || 0}</span>
                   </div>
                 )}
-                {(analytics?.pendingActions.paymentsInProgress || 0) > 0 && (
+                {(analytics?.pendingActions?.paymentsInProgress || 0) > 0 && (
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center">
                       <div className="w-2 h-2 bg-blue-400 rounded-full mr-3"></div>
                       <span className="text-slate-600">Pagamenti in corso</span>
                     </div>
-                    <span className="font-medium text-blue-600">{analytics?.pendingActions.paymentsInProgress || 0}</span>
+                    <span className="font-medium text-blue-600">{analytics?.pendingActions?.paymentsInProgress || 0}</span>
                   </div>
                 )}
-                {(analytics?.pendingActions.completedEnrollments || 0) > 0 && (
+                {(analytics?.pendingActions?.completedEnrollments || 0) > 0 && (
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center">
                       <div className="w-2 h-2 bg-green-400 rounded-full mr-3"></div>
                       <span className="text-slate-600">Iscrizioni completate</span>
                     </div>
-                    <span className="font-medium text-green-600">{analytics?.pendingActions.completedEnrollments || 0}</span>
+                    <span className="font-medium text-green-600">{analytics?.pendingActions?.completedEnrollments || 0}</span>
                   </div>
                 )}
-                {!(analytics?.pendingActions.documentsToApprove || 0) && 
-                 !(analytics?.pendingActions.contractsToSign || 0) && 
-                 !(analytics?.pendingActions.paymentsInProgress || 0) && (
+                {!(analytics?.pendingActions?.documentsToApprove || 0) && 
+                 !(analytics?.pendingActions?.contractsToSign || 0) && 
+                 !(analytics?.pendingActions?.paymentsInProgress || 0) && (
                   <div className="text-center py-4">
                     <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
                       <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

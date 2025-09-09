@@ -74,7 +74,7 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
   const fetchPaymentDeadlines = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
       const response = await axios.get(
         `${process.env.REACT_APP_API_URL}/partners/registrations/${registrationId}/deadlines`,
         {
@@ -113,7 +113,7 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
       setMarkingPaid(selectedDeadlineId);
       setShowNotesModal(false);
       
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
       const response = await axios.post(
         `${process.env.REACT_APP_API_URL}/partners/registrations/${registrationId}/payments/${selectedDeadlineId}/mark-paid`,
         { notes },
@@ -168,7 +168,7 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
       setMarkingPaid(selectedDeadlineId);
       setShowPartialModal(false);
       
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
       const response = await axios.post(
         `${process.env.REACT_APP_API_URL}/partners/registrations/${registrationId}/payments/${selectedDeadlineId}/mark-partial-paid`,
         { partialAmount: amount, notes },
@@ -241,6 +241,7 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
   
   // Calcola il totale dei ritardi localmente considerando anche i surplus
   let calculatedDelayedAmount = 0;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let accumulatedSurplus = 0;
   
   // Ordina le scadenze per data per calcolare correttamente i surplus cumulativi
