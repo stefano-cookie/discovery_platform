@@ -187,7 +187,8 @@ export const PartnerPermissions = {
   },
   
   canManageOffers: (role: PartnerEmployeeRole): boolean => {
-    return role === PartnerEmployeeRole.ADMINISTRATIVE;
+    // Sia ADMINISTRATIVE che COMMERCIAL possono gestire le offerte
+    return role === PartnerEmployeeRole.ADMINISTRATIVE || role === PartnerEmployeeRole.COMMERCIAL;
   },
   
   canViewAllRegistrations: (role: PartnerEmployeeRole): boolean => {

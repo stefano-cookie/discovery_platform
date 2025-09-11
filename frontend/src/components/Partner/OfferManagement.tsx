@@ -3,6 +3,8 @@ import { OfferService } from '../../services/offerService';
 import { PartnerOffer, CreateOfferData } from '../../types/offers';
 import { apiRequest } from '../../services/api';
 import { usePartnerAuth } from '../../hooks/usePartnerAuth';
+import Modal from '../UI/Modal';
+import Portal from '../UI/Portal';
 
 interface OfferType {
   id: string;
@@ -412,48 +414,50 @@ const OfferManagement: React.FC = () => {
     <div className="w-full h-fit space-y-6">
       {/* Notification */}
       {notification && (
-        <div 
-          className="fixed inset-0 flex items-center justify-center z-50 backdrop-blur-sm pointer-events-none animate-in fade-in-0 duration-200"
-          onClick={() => setNotification(null)}
-        >
+        <Portal>
           <div 
-            className={`pointer-events-auto transform transition-all duration-300 scale-100 animate-in fade-in-0 zoom-in-95 duration-200 p-6 rounded-2xl shadow-2xl max-w-md mx-4 cursor-pointer hover:scale-105 ${
-              notification.type === 'success' 
-                ? 'bg-gradient-to-r from-emerald-50 to-green-50 text-emerald-800 border-2 border-emerald-200 hover:from-emerald-100 hover:to-green-100' 
-                : 'bg-gradient-to-r from-red-50 to-rose-50 text-red-800 border-2 border-red-200 hover:from-red-100 hover:to-rose-100'
-            }`}
+            className="fixed inset-0 flex items-center justify-center z-50 backdrop-blur-sm pointer-events-none animate-in fade-in-0 duration-200"
             onClick={() => setNotification(null)}
           >
-            <div className="flex items-center justify-center">
-              <div className={`flex items-center justify-center w-12 h-12 rounded-full mr-4 ${
+            <div 
+              className={`pointer-events-auto transform transition-all duration-300 scale-100 animate-in fade-in-0 zoom-in-95 duration-200 p-6 rounded-2xl shadow-2xl max-w-md mx-4 cursor-pointer hover:scale-105 ${
                 notification.type === 'success' 
-                  ? 'bg-emerald-100 text-emerald-600' 
-                  : 'bg-red-100 text-red-600'
-              }`}>
-                {notification.type === 'success' ? (
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                ) : (
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                )}
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-lg mb-1">
-                  {notification.type === 'success' ? 'Perfetto!' : 'Errore'}
-                </h3>
-                <p className="text-sm opacity-90">
-                  {notification.message}
-                </p>
-              </div>
-              <div className="ml-2 text-xs opacity-60">
-                Clicca per chiudere
+                  ? 'bg-gradient-to-r from-emerald-50 to-green-50 text-emerald-800 border-2 border-emerald-200 hover:from-emerald-100 hover:to-green-100' 
+                  : 'bg-gradient-to-r from-red-50 to-rose-50 text-red-800 border-2 border-red-200 hover:from-red-100 hover:to-rose-100'
+              }`}
+              onClick={() => setNotification(null)}
+            >
+              <div className="flex items-center justify-center">
+                <div className={`flex items-center justify-center w-12 h-12 rounded-full mr-4 ${
+                  notification.type === 'success' 
+                    ? 'bg-emerald-100 text-emerald-600' 
+                    : 'bg-red-100 text-red-600'
+                }`}>
+                  {notification.type === 'success' ? (
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-lg mb-1">
+                    {notification.type === 'success' ? 'Perfetto!' : 'Errore'}
+                  </h3>
+                  <p className="text-sm opacity-90">
+                    {notification.message}
+                  </p>
+                </div>
+                <div className="ml-2 text-xs opacity-60">
+                  Clicca per chiudere
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </Portal>
       )}
 
       <div className="w-full flex justify-between items-center">
@@ -612,8 +616,17 @@ const OfferManagement: React.FC = () => {
 
       {/* Create Offer Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[95vh] overflow-y-auto shadow-2xl transform transition-all duration-300 scale-100 mx-auto my-auto relative animate-in fade-in-0 zoom-in-95 duration-300">
+        <Modal
+          isOpen={true}
+          onClose={() => {
+            setShowCreateModal(false);
+            resetCreateForm();
+          }}
+          size="xl"
+          closeOnOverlayClick={false}
+          closeOnEscape={false}
+          className="max-h-[95vh] overflow-y-auto"
+        >
             
             {/* Header */}
             <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 rounded-t-2xl">
@@ -629,15 +642,6 @@ const OfferManagement: React.FC = () => {
                     }
                   </p>
                 </div>
-                <button
-                  onClick={() => {
-                    setShowCreateModal(false);
-                    resetCreateForm();
-                  }}
-                  className="text-white hover:text-blue-200 text-2xl"
-                >
-                  ×
-                </button>
               </div>
             </div>
             
@@ -883,29 +887,20 @@ const OfferManagement: React.FC = () => {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Edit Offer Modal */}
       {showEditModal && selectedOffer && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl transform transition-all duration-300 scale-100 mx-auto my-auto relative animate-in fade-in-0 zoom-in-95 duration-300">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 p-6 rounded-t-2xl">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-bold text-white">Modifica Offerta</h3>
-                  <p className="text-emerald-100 mt-1">Aggiorna i parametri della tua offerta</p>
-                </div>
-                <button
-                  onClick={() => setShowEditModal(false)}
-                  className="text-white hover:text-emerald-200 text-2xl"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
+        <Modal
+          isOpen={true}
+          onClose={() => setShowEditModal(false)}
+          title="Modifica Offerta"
+          size="lg"
+          closeOnOverlayClick={false}
+          closeOnEscape={false}
+          className="max-h-[90vh] overflow-y-auto"
+        >
             
             {/* Content */}
             <div className="p-6">
@@ -1062,30 +1057,20 @@ const OfferManagement: React.FC = () => {
                 Salva Modifiche
               </button>
             </div>
-            </div> {/* Close content div */}
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && selectedOffer && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl transform transition-all duration-300 scale-100 mx-auto my-auto relative animate-in fade-in-0 zoom-in-95 duration-300">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-red-600 to-red-700 p-6 rounded-t-2xl">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-bold text-white">Conferma Eliminazione</h3>
-                  <p className="text-red-100 mt-1">Questa azione non può essere annullata</p>
-                </div>
-                <button
-                  onClick={() => setShowDeleteModal(false)}
-                  className="text-white hover:text-red-200 text-2xl"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
+        <Modal
+          isOpen={true}
+          onClose={() => setShowDeleteModal(false)}
+          title="Conferma Eliminazione"
+          size="md"
+          closeOnOverlayClick={false}
+          closeOnEscape={false}
+        >
             
             {/* Content */}
             <div className="p-6">
@@ -1120,9 +1105,8 @@ const OfferManagement: React.FC = () => {
                 Elimina
               </button>
             </div>
-            </div> {/* Close content div */}
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

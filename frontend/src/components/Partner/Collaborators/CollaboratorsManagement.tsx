@@ -1,21 +1,24 @@
 import React, { useState } from 'react';
 import { usePartnerEmployees } from '../../../hooks/usePartnerEmployees';
 import { usePartnerAuth } from '../../../hooks/usePartnerAuth';
+import { PartnerEmployeeRole } from '../../../types/partner';
 import EmployeeCard from './EmployeeCard';
 import InviteEmployeeForm from './InviteEmployeeForm';
 import LoadingSpinner from '../../UI/LoadingSpinner';
+import Modal from '../../UI/Modal';
 
 const CollaboratorsManagement: React.FC = () => {
   const { employees, loading, error, inviteEmployee, updateEmployee, resendInvite, removeEmployee } = usePartnerEmployees();
   const { partnerEmployee, partnerCompany } = usePartnerAuth();
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
 
   const handleInviteEmployee = async (data: {
     email: string;
     firstName: string;
     lastName: string;
-    role: 'ADMINISTRATIVE' | 'COMMERCIAL';
+    role: PartnerEmployeeRole;
   }) => {
     try {
       setActionLoading('invite');
@@ -30,7 +33,7 @@ const CollaboratorsManagement: React.FC = () => {
   };
 
   const handleUpdateEmployee = async (id: string, data: {
-    role?: 'ADMINISTRATIVE' | 'COMMERCIAL';
+    role?: PartnerEmployeeRole;
     isActive?: boolean;
   }) => {
     try {
@@ -54,14 +57,15 @@ const CollaboratorsManagement: React.FC = () => {
     }
   };
 
-  const handleRemoveEmployee = async (id: string) => {
-    if (!window.confirm('Sei sicuro di voler rimuovere questo collaboratore?')) {
-      return;
-    }
+  const handleRemoveEmployee = (id: string) => {
+    setShowDeleteConfirm(id);
+  };
 
+  const confirmRemoveEmployee = async (id: string) => {
     try {
       setActionLoading(`remove-${id}`);
       await removeEmployee(id);
+      setShowDeleteConfirm(null);
     } catch (error) {
       console.error('Failed to remove employee:', error);
     } finally {
@@ -216,6 +220,62 @@ const CollaboratorsManagement: React.FC = () => {
           onSubmit={handleInviteEmployee}
           loading={actionLoading === 'invite'}
         />
+      )}
+
+      {/* Modal di conferma rimozione */}
+      {showDeleteConfirm && (
+        <Modal
+          isOpen={true}
+          onClose={() => setShowDeleteConfirm(null)}
+          title="Conferma rimozione"
+          size="md"
+          closeOnOverlayClick={false}
+          closeOnEscape={false}
+        >
+          <div className="p-6">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0">
+                <svg className="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 18.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <h3 className="text-lg font-medium text-gray-900">Rimuovi collaboratore</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Sei sicuro di voler rimuovere questo collaboratore? Questa azione non può essere annullata.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(null)}
+                disabled={actionLoading === `remove-${showDeleteConfirm}`}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={() => confirmRemoveEmployee(showDeleteConfirm)}
+                disabled={actionLoading === `remove-${showDeleteConfirm}`}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
+              >
+                {actionLoading === `remove-${showDeleteConfirm}` ? (
+                  <span className="flex items-center">
+                    <svg className="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2v4m0 12v4M4.22 4.22l2.83 2.83m8.49 8.49l2.83 2.83M2 12h4m12 0h4M4.22 19.78l2.83-2.83m8.49-8.49l2.83-2.83" />
+                    </svg>
+                    Rimuovendo...
+                  </span>
+                ) : (
+                  'Rimuovi'
+                )}
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

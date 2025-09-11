@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { authService, RegisterRequest } from '../../services/auth';
 import { generateCodiceFiscale, decodeFiscalCode } from '../../utils/codiceFiscale';
 import { getProvinceOptions, getCityOptions, GENDER_OPTIONS } from '../../services/geoService';
+import Modal from '../UI/Modal';
 
 // Custom animations styles
 const modalStyles = `
@@ -303,41 +304,37 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fadeIn">
-      <div className="glass-effect rounded-2xl max-w-lg w-full max-h-[95vh] overflow-hidden shadow-2xl transform animate-slideUp hover-lift">
-        {/* Header con gradiente */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-600/80 to-purple-600/80"></div>
-          <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/5 to-transparent"></div>
-          <div className="relative flex justify-between items-center">
-            <div>
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold mb-1">
-                  Unisciti a Diamante
-                </h2>
-              </div>
-              <p className="text-blue-100 text-sm">
-                Crea il tuo account in pochi passi
-              </p>
-            </div>
-            <button
-              onClick={onClose}
-              className="text-white/80 hover:text-white transition-colors duration-200 p-2 hover:bg-white/10 rounded-full hover-lift"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      size="md"
+      closeOnOverlayClick={!isLoading}
+      closeOnEscape={!isLoading}
+      className="glass-effect"
+    >
+      {/* Header con gradiente */}
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/80 to-purple-600/80"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/5 to-transparent"></div>
+        <div className="relative">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
               </svg>
-            </button>
+            </div>
+            <h2 className="text-2xl font-bold mb-1">
+              Unisciti a Diamante
+            </h2>
           </div>
+          <p className="text-blue-100 text-sm">
+            Crea il tuo account in pochi passi
+          </p>
         </div>
+      </div>
 
-        <div className="p-6 overflow-y-auto max-h-[calc(95vh-120px)]">
+      <div className="p-6 overflow-y-auto max-h-[calc(95vh-120px)]">
 
           {error && (
             <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6 rounded-r-lg animate-shake">
@@ -1031,8 +1028,7 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 };
 

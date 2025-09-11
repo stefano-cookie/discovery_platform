@@ -1,14 +1,29 @@
 import React, { useState } from 'react';
 import { usePartnerAuth } from '../../hooks/usePartnerAuth';
+import LogoutDropdown from '../UI/LogoutDropdown';
 
 interface SidebarProps {
-  activeTab: 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers';
-  onTabChange: (tab: 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers') => void;
+  activeTab: 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators';
+  onTabChange: (tab: 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators') => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
   const { partnerEmployee, partnerCompany, logout } = usePartnerAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showLogoutDropdown, setShowLogoutDropdown] = useState(false);
+
+  const handleLogoutClick = () => {
+    setShowLogoutDropdown(true);
+  };
+
+  const handleLogoutConfirm = () => {
+    setShowLogoutDropdown(false);
+    logout();
+  };
+
+  const handleLogoutCancel = () => {
+    setShowLogoutDropdown(false);
+  };
 
   const menuItems = [
     {
@@ -48,6 +63,15 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
         </svg>
       )
 },
+    {
+      id: 'collaborators',
+      name: 'Collaboratori',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      )
+    },
     {
       id: 'chat',
       name: 'Chat',
@@ -170,15 +194,24 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
                         </span>
                       </div>
                     </div>
-                    <button
-                      onClick={logout}
-                      className="ml-2 p-1 rounded-md text-gray-300 hover:text-white hover:bg-gray-700"
-                      title="Logout"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                      </svg>
-                    </button>
+                    <div className="relative">
+                      <button
+                        onClick={handleLogoutClick}
+                        className="ml-2 p-1 rounded-md text-gray-300 hover:text-white hover:bg-gray-700"
+                        title="Logout"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                      </button>
+                      <LogoutDropdown 
+                        isOpen={showLogoutDropdown}
+                        onConfirm={handleLogoutConfirm}
+                        onCancel={handleLogoutCancel}
+                        position="top"
+                        align="end"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -193,15 +226,24 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
                       {partnerEmployee?.firstName?.charAt(0).toUpperCase() || partnerEmployee?.email?.charAt(0).toUpperCase()}
                     </span>
                   </div>
-                  <button
-                    onClick={logout}
-                    className="p-1 rounded-md text-gray-300 hover:text-white hover:bg-gray-700"
-                    title="Logout"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
-                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={handleLogoutClick}
+                      className="p-1 rounded-md text-gray-300 hover:text-white hover:bg-gray-700"
+                      title="Logout"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                    </button>
+                    <LogoutDropdown 
+                      isOpen={showLogoutDropdown}
+                      onConfirm={handleLogoutConfirm}
+                      onCancel={handleLogoutCancel}
+                      position="top"
+                      align="center"
+                    />
+                  </div>
                 </div>
               </div>
             )}

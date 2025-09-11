@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Download, ZoomIn, ZoomOut, RotateCw, FileText, Image, File } from 'lucide-react';
+import Portal from '../UI/Portal';
 
 export interface UserDocument {
   id: string;
@@ -182,7 +183,7 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     ? 'h-full w-full'
     : 'w-full h-96';
 
-  return (
+  const modalContent = (
     <div className={containerClass}>
       <div className={contentClass}>
         {/* Header */}
@@ -420,6 +421,12 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       </div>
     </div>
   );
+
+  if (mode === 'modal' || mode === 'fullscreen') {
+    return <Portal>{modalContent}</Portal>;
+  }
+
+  return modalContent;
 };
 
 export default DocumentPreview;

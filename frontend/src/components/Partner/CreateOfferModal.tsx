@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Course, CreateOfferData } from '../../types/offers';
 import { OfferService } from '../../services/offerService';
+import Portal from '../UI/Portal';
 
 interface CreateOfferModalProps {
   courses: Course[];
@@ -192,7 +193,8 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <Portal>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto m-4 shadow-2xl">
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 rounded-t-xl">
           <div className="flex items-center justify-between">
@@ -573,8 +575,9 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
             </div>
           </form>
         </div>
+        </div>
       </div>
-    </div>
+    </Portal>
   );
 };
 

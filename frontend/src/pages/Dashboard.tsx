@@ -10,6 +10,8 @@ import CouponManagement from '../components/Partner/CouponManagement';
 import OfferManagement from '../components/Partner/OfferManagement';
 import UserManagement from '../components/Admin/UserManagement';
 import EnrollmentDetail from '../components/Partner/EnrollmentDetail';
+import CollaboratorsManagement from '../components/Partner/Collaborators/CollaboratorsManagement';
+import LogoutDropdown from '../components/UI/LogoutDropdown';
 
 const Dashboard: React.FC = () => {
   const { user, logout: userLogout } = useAuth();
@@ -24,17 +26,19 @@ const Dashboard: React.FC = () => {
   const userRole = user?.role || (partnerEmployee ? 'PARTNER' : null);
   
   // Determine active tab from URL
-  const getActiveTabFromPath = (pathname: string): 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' => {
+  const getActiveTabFromPath = (pathname: string): 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators' => {
     if (pathname.includes('/users')) return 'users';
     if (pathname.includes('/chat')) return 'chat';
     if (pathname.includes('/coupons')) return 'coupons';
     if (pathname.includes('/offers')) return 'offers';
+    if (pathname.includes('/collaborators')) return 'collaborators';
     return 'dashboard';
   };
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'chat' | 'coupons' | 'offers'>(
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators'>(
     getActiveTabFromPath(location.pathname)
   );
+  const [showLogoutDropdown, setShowLogoutDropdown] = useState(false);
 
   // Update active tab when URL changes
   useEffect(() => {
@@ -42,7 +46,7 @@ const Dashboard: React.FC = () => {
   }, [location.pathname]);
 
   // Navigation functions
-  const handleTabChange = (tab: 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers') => {
+  const handleTabChange = (tab: 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators') => {
     const basePath = '/dashboard';
     const newPath = tab === 'dashboard' ? basePath : `${basePath}/${tab}`;
     navigate(newPath);
@@ -54,6 +58,19 @@ const Dashboard: React.FC = () => {
 
   const handleBackToUsers = () => {
     navigate('/dashboard/users');
+  };
+
+  const handleLogoutClick = () => {
+    setShowLogoutDropdown(true);
+  };
+
+  const handleLogoutConfirm = () => {
+    setShowLogoutDropdown(false);
+    currentLogout();
+  };
+
+  const handleLogoutCancel = () => {
+    setShowLogoutDropdown(false);
   };
 
   const getDashboardContent = () => {
@@ -94,6 +111,7 @@ const Dashboard: React.FC = () => {
                 )}
                 {activeTab === 'coupons' && <CouponManagement />}
                 {activeTab === 'offers' && <OfferManagement />}
+                {activeTab === 'collaborators' && <CollaboratorsManagement />}
                 {activeTab === 'chat' && <ChatView />}
               </div>
             </div>
@@ -131,12 +149,21 @@ const Dashboard: React.FC = () => {
                     <span className="ml-2 text-xs text-gray-500">({partnerCompany.name})</span>
                   )}
                 </span>
-                <button
-                  onClick={currentLogout}
-                  className="bg-red-600 text-white px-4 py-2 rounded-md text-sm hover:bg-red-700"
-                >
-                  Esci
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={handleLogoutClick}
+                    className="bg-red-600 text-white px-4 py-2 rounded-md text-sm hover:bg-red-700"
+                  >
+                    Esci
+                  </button>
+                  <LogoutDropdown 
+                    isOpen={showLogoutDropdown}
+                    onConfirm={handleLogoutConfirm}
+                    onCancel={handleLogoutCancel}
+                    position="bottom"
+                    align="end"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -147,6 +174,7 @@ const Dashboard: React.FC = () => {
             {getDashboardContent()}
           </div>
         </main>
+
       </div>
     );
   }

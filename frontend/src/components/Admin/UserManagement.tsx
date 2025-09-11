@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../services/api';
 import SuccessModal from '../UI/SuccessModal';
 import ErrorModal from '../UI/ErrorModal';
+import Portal from '../UI/Portal';
 
 interface User {
   id: string;
@@ -410,8 +411,9 @@ const UserManagement: React.FC = () => {
 
       {/* Transfer Modal */}
       {showTransferModal && selectedUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+        <Portal>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-4">Trasferisci Utente</h3>
             
             <div className="mb-4">
@@ -480,8 +482,9 @@ const UserManagement: React.FC = () => {
                 Trasferisci
               </button>
             </div>
+            </div>
           </div>
-        </div>
+        </Portal>
       )}
     </div>
   );

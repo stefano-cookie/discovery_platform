@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { PartnerEmployee } from '../types/partner';
+import { PartnerEmployee, PartnerEmployeeRole } from '../types/partner';
 
 // API service per collaboratori
 class PartnerEmployeeService {
@@ -16,8 +16,8 @@ class PartnerEmployeeService {
   }
 
   // Lista collaboratori
-  async getEmployees(): Promise<PartnerEmployee[]> {
-    const response = await fetch('/api/partner/employees', {
+  async getEmployees(): Promise<{ collaborators: PartnerEmployee[] }> {
+    const response = await fetch('/api/partner-employees/collaborators', {
       headers: this.getHeaders()
     });
 
@@ -34,9 +34,9 @@ class PartnerEmployeeService {
     email: string;
     firstName: string;
     lastName: string;
-    role: 'ADMINISTRATIVE' | 'COMMERCIAL';
-  }): Promise<{ success: boolean; employee: PartnerEmployee }> {
-    const response = await fetch('/api/partner/employees/invite', {
+    role: PartnerEmployeeRole;
+  }): Promise<{ message: string; collaborator: PartnerEmployee }> {
+    const response = await fetch('/api/partner-employees/invite', {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data)
@@ -50,12 +50,27 @@ class PartnerEmployeeService {
     return response.json();
   }
 
+  // Reinvia invito
+  async resendInvite(id: string): Promise<{ message: string }> {
+    const response = await fetch(`/api/partner-employees/collaborators/${id}/resend-invite`, {
+      method: 'POST',
+      headers: this.getHeaders()
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error || 'Errore nel reinvio invito');
+    }
+
+    return response.json();
+  }
+
   // Aggiorna collaboratore
   async updateEmployee(id: string, data: {
-    role?: 'ADMINISTRATIVE' | 'COMMERCIAL';
+    role?: PartnerEmployeeRole;
     isActive?: boolean;
-  }): Promise<PartnerEmployee> {
-    const response = await fetch(`/api/partner/employees/${id}`, {
+  }): Promise<{ message: string; collaborator: PartnerEmployee }> {
+    const response = await fetch(`/api/partner-employees/collaborators/${id}`, {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(data)
@@ -69,24 +84,9 @@ class PartnerEmployeeService {
     return response.json();
   }
 
-  // Reinvia invito
-  async resendInvite(id: string): Promise<{ success: boolean }> {
-    const response = await fetch(`/api/partner/employees/resend-invite/${id}`, {
-      method: 'POST',
-      headers: this.getHeaders()
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(error || 'Errore nel reinvio invito');
-    }
-
-    return response.json();
-  }
-
   // Rimuovi collaboratore
-  async removeEmployee(id: string): Promise<{ success: boolean }> {
-    const response = await fetch(`/api/partner/employees/${id}`, {
+  async removeEmployee(id: string): Promise<{ message: string }> {
+    const response = await fetch(`/api/partner-employees/collaborators/${id}`, {
       method: 'DELETE',
       headers: this.getHeaders()
     });
@@ -114,7 +114,7 @@ export const usePartnerEmployees = () => {
       setLoading(true);
       setError(null);
       const data = await partnerEmployeeService.getEmployees();
-      setEmployees(data);
+      setEmployees(data.collaborators);
     } catch (err: any) {
       setError(err.message || 'Errore nel caricamento collaboratori');
       console.error('Error fetching employees:', err);
@@ -128,7 +128,7 @@ export const usePartnerEmployees = () => {
     email: string;
     firstName: string;
     lastName: string;
-    role: 'ADMINISTRATIVE' | 'COMMERCIAL';
+    role: PartnerEmployeeRole;
   }) => {
     try {
       setError(null);
@@ -144,32 +144,32 @@ export const usePartnerEmployees = () => {
     }
   };
 
-  // Aggiorna collaboratore
-  const updateEmployee = async (id: string, data: {
-    role?: 'ADMINISTRATIVE' | 'COMMERCIAL';
-    isActive?: boolean;
-  }) => {
+  // Reinvia invito
+  const resendInvite = async (id: string) => {
     try {
       setError(null);
-      const updated = await partnerEmployeeService.updateEmployee(id, data);
-      
-      // Aggiorna nella lista locale
-      setEmployees(prev => 
-        prev.map(emp => emp.id === id ? { ...emp, ...updated } : emp)
-      );
-      
-      return updated;
+      await partnerEmployeeService.resendInvite(id);
     } catch (err: any) {
       setError(err.message);
       throw err;
     }
   };
 
-  // Reinvia invito
-  const resendInvite = async (id: string) => {
+  // Aggiorna collaboratore
+  const updateEmployee = async (id: string, data: {
+    role?: PartnerEmployeeRole;
+    isActive?: boolean;
+  }) => {
     try {
       setError(null);
-      await partnerEmployeeService.resendInvite(id);
+      const result = await partnerEmployeeService.updateEmployee(id, data);
+      
+      // Aggiorna nella lista locale
+      setEmployees(prev => prev.map(emp => 
+        emp.id === id ? { ...emp, ...data } : emp
+      ));
+      
+      return result;
     } catch (err: any) {
       setError(err.message);
       throw err;

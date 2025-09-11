@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Course, PartnerOffer, UpdateOfferData } from '../../types/offers';
 import { OfferService } from '../../services/offerService';
+import Modal from '../UI/Modal';
 
 interface EditOfferModalProps {
   offer: PartnerOffer;
@@ -80,23 +81,20 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
   const currentPayments = OfferService.formatPaymentPlan(offer.customPaymentPlan);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto m-4 shadow-2xl">
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-700 p-6 rounded-t-xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-white">Modifica Offerta</h2>
-              <p className="text-indigo-100 mt-1">{offer.name}</p>
-            </div>
-            <button
-              onClick={onClose}
-              className="text-white hover:text-indigo-200 text-2xl"
-            >
-              ×
-            </button>
-          </div>
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      size="full"
+      closeOnOverlayClick={false}
+      closeOnEscape={true}
+    >
+      <div className="bg-gradient-to-r from-indigo-600 to-purple-700 p-6">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Modifica Offerta</h2>
+          <p className="text-indigo-100 mt-1">{offer.name}</p>
         </div>
-        <div className="p-6">
+      </div>
+      <div className="p-6">
           <form onSubmit={handleSubmit} className="space-y-8">
             {/* Configurazione Base */}
             <div className="bg-gray-50 p-6 rounded-lg">
@@ -404,9 +402,8 @@ const EditOfferModal: React.FC<EditOfferModalProps> = ({ offer, courses, onSave,
               </div>
             </div>
           </form>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Portal from '../../UI/Portal';
 import axios from 'axios';
 import SuccessModal from '../../UI/SuccessModal';
 import ErrorModal from '../../UI/ErrorModal';
@@ -460,7 +461,8 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
 
       {/* Notes Modal */}
       {showNotesModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <Portal>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-4">Conferma Pagamento</h3>
             <p className="text-gray-600 mb-4">
@@ -492,12 +494,14 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
               </button>
             </div>
           </div>
-        </div>
+          </div>
+        </Portal>
       )}
 
       {/* Partial Payment Modal */}
       {showPartialModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <Portal>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-4">Pagamento Personalizzato</h3>
             <p className="text-gray-600 mb-4">
@@ -551,7 +555,8 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
               </button>
             </div>
           </div>
-        </div>
+          </div>
+        </Portal>
       )}
 
       {/* Success Modal */}

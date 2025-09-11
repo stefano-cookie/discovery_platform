@@ -1,4 +1,5 @@
 import React from 'react';
+import Modal from './Modal';
 
 interface CopiedModalProps {
   isOpen: boolean;
@@ -13,12 +14,16 @@ const CopiedModal: React.FC<CopiedModalProps> = ({
   title = "Link Copiato!",
   message = "Il link è stato copiato negli appunti"
 }) => {
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 backdrop-blur-sm">
-      <div className="bg-black bg-opacity-75 absolute inset-0" onClick={onClose}></div>
-      <div className="relative bg-white rounded-2xl p-6 mx-4 max-w-sm shadow-2xl transform transition-all duration-300 scale-100 animate-in fade-in-0 zoom-in-95 duration-300">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      size="sm"
+      showCloseButton={false}
+      closeOnOverlayClick={true}
+      closeOnEscape={true}
+    >
+      <div className="p-6">
         <div className="flex items-center justify-center w-12 h-12 mx-auto bg-green-100 rounded-full mb-4">
           <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -31,7 +36,7 @@ const CopiedModal: React.FC<CopiedModalProps> = ({
           {message}
         </p>
       </div>
-    </div>
+    </Modal>
   );
 };
 

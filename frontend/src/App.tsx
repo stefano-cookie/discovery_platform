@@ -13,6 +13,7 @@ import ChangePassword from './pages/ChangePassword';
 
 // Partner System - New Routes
 import PartnerLogin from './pages/PartnerLogin';
+import AcceptPartnerInvite from './pages/AcceptPartnerInvite';
 
 // Route Components to avoid IIFE issues
 const RootRoute: React.FC<{ isAuthenticated: boolean }> = ({ isAuthenticated }) => {
@@ -147,6 +148,11 @@ const AppContent: React.FC = () => {
         <Route path="/verify-email" element={<VerifyEmail />} />
         
         {/* ========================================
+            PARTNER INVITE SYSTEM
+            ======================================== */}
+        <Route path="/partner/accept-invite/:token" element={<AcceptPartnerInvite />} />
+        
+        {/* ========================================
             PROTECTED ROUTES
             ======================================== */}
         <Route 
@@ -203,6 +209,14 @@ const AppContent: React.FC = () => {
         />
         <Route 
           path="/dashboard/offers" 
+          element={
+            <ProtectedRoute>
+              <DashboardRoute userRole={userRole} />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/dashboard/collaborators" 
           element={
             <ProtectedRoute>
               <DashboardRoute userRole={userRole} />

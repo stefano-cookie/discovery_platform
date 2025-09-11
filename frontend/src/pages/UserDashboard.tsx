@@ -4,6 +4,7 @@ import { apiRequest } from '../services/api';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import UserEnrollmentDetail from '../components/User/EnrollmentDetail';
 import { getUserStatusDisplay, getStatusColors, getStatusBadge } from '../utils/statusTranslations';
+import LogoutDropdown from '../components/UI/LogoutDropdown';
 
 interface UserRegistration {
   id: string;
@@ -123,6 +124,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
       return 'overview';
     }
   );
+  const [showLogoutDropdown, setShowLogoutDropdown] = useState(false);
 
   useEffect(() => {
     loadUserData();
@@ -220,6 +222,19 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
     window.history.replaceState({}, '', url.toString());
   };
 
+  const handleLogoutClick = () => {
+    setShowLogoutDropdown(true);
+  };
+
+  const handleLogoutConfirm = () => {
+    setShowLogoutDropdown(false);
+    logout();
+  };
+
+  const handleLogoutCancel = () => {
+    setShowLogoutDropdown(false);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -242,12 +257,21 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
                 Gestisci le tue iscrizioni e il tuo profilo
               </p>
             </div>
-            <button
-              onClick={logout}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
-            >
-              Esci
-            </button>
+            <div className="relative">
+              <button
+                onClick={handleLogoutClick}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
+              >
+                Esci
+              </button>
+              <LogoutDropdown 
+                isOpen={showLogoutDropdown}
+                onConfirm={handleLogoutConfirm}
+                onCancel={handleLogoutCancel}
+                position="bottom"
+                align="end"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -1127,6 +1151,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
             )}
           </div>
         )}
+
       </div>
     </div>
   );

@@ -199,7 +199,9 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
   };
 
   const canManageOffers = (): boolean => {
-    return partnerEmployee?.role === PartnerEmployeeRole.ADMINISTRATIVE;
+    // Sia ADMINISTRATIVE che COMMERCIAL possono gestire le offerte
+    return partnerEmployee?.role === PartnerEmployeeRole.ADMINISTRATIVE || 
+           partnerEmployee?.role === PartnerEmployeeRole.COMMERCIAL;
   };
 
   // ========================================

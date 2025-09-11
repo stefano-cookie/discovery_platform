@@ -1,4 +1,5 @@
 import React from 'react';
+import Portal from './Portal';
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -49,8 +50,9 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
   const styles = getVariantStyles();
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 backdrop-blur-sm">
-      <div className="bg-black bg-opacity-75 absolute inset-0" onClick={onClose}></div>
+    <Portal>
+      <div className="fixed inset-0 flex items-center justify-center z-50 backdrop-blur-sm">
+        <div className="bg-black bg-opacity-75 absolute inset-0" onClick={onClose}></div>
       <div className="relative bg-white rounded-2xl p-6 mx-4 max-w-md shadow-2xl transform transition-all duration-300 scale-100 animate-in fade-in-0 zoom-in-95">
         <div className={`flex items-center justify-center w-12 h-12 mx-auto ${styles.icon} rounded-full mb-4`}>
           <svg className={`w-6 h-6 ${styles.iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -81,8 +83,9 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
             {confirmText}
           </button>
         </div>
+        </div>
       </div>
-    </div>
+    </Portal>
   );
 };
 

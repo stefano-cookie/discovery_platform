@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import Modal from './Modal';
 
 interface ErrorModalProps {
   isOpen: boolean;
@@ -27,12 +28,16 @@ const ErrorModal: React.FC<ErrorModalProps> = ({
     }
   }, [isOpen, autoClose, autoCloseDelay, onClose]);
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 backdrop-blur-sm">
-      <div className="bg-black bg-opacity-75 absolute inset-0" onClick={onClose}></div>
-      <div className="relative bg-white rounded-2xl p-6 mx-4 max-w-sm shadow-2xl transform transition-all duration-300 scale-100 animate-in fade-in-0 zoom-in-95 duration-300">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      size="sm"
+      showCloseButton={false}
+      closeOnOverlayClick={true}
+      closeOnEscape={true}
+    >
+      <div className="p-6">
         <div className="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
           <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -65,15 +70,15 @@ const ErrorModal: React.FC<ErrorModalProps> = ({
             OK
           </button>
         </div>
+        
+        <style>{`
+          @keyframes errorModalShrink {
+            from { width: 100%; }
+            to { width: 0%; }
+          }
+        `}</style>
       </div>
-      
-      <style>{`
-        @keyframes errorModalShrink {
-          from { width: 100%; }
-          to { width: 0%; }
-        }
-      `}</style>
-    </div>
+    </Modal>
   );
 };
 

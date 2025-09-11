@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
-import { PartnerEmployee } from '../../../types/partner';
+import React from 'react';
+import { PartnerEmployee, PartnerEmployeeRole } from '../../../types/partner';
+import Dropdown from '../../UI/Dropdown';
 
 interface EmployeeCardProps {
   employee: PartnerEmployee;
   onUpdate: (data: {
-    role?: 'ADMINISTRATIVE' | 'COMMERCIAL';
+    role?: PartnerEmployeeRole;
     isActive?: boolean;
   }) => Promise<void>;
   onResendInvite: () => Promise<void>;
-  onRemove: () => Promise<void>;
+  onRemove: () => void;
   loading: boolean;
 }
 
@@ -19,7 +20,6 @@ const EmployeeCard: React.FC<EmployeeCardProps> = ({
   onRemove,
   loading
 }) => {
-  const [showActions, setShowActions] = useState(false);
 
   const isActive = employee.isActive;
   const isPending = !employee.acceptedAt && !isActive;
@@ -93,84 +93,89 @@ const EmployeeCard: React.FC<EmployeeCardProps> = ({
             </div>
           </div>
           
-          <div className="relative">
-            <button
-              onClick={() => setShowActions(!showActions)}
-              disabled={loading}
-              className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors disabled:opacity-50"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-              </svg>
-            </button>
-            
-            {showActions && (
-              <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-10">
-                <div className="py-1">
-                  {isPending && (
-                    <button
-                      onClick={() => {
-                        onResendInvite();
-                        setShowActions(false);
-                      }}
-                      className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                    >
-                      Reinvia Invito
-                    </button>
-                  )}
-                  
-                  {isActive && (
-                    <>
-                      <button
-                        onClick={() => {
-                          onUpdate({ 
-                            role: employee.role === 'ADMINISTRATIVE' ? 'COMMERCIAL' : 'ADMINISTRATIVE' 
-                          });
-                          setShowActions(false);
-                        }}
-                        className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                      >
-                        Cambia Ruolo
-                      </button>
-                      <button
-                        onClick={() => {
-                          onUpdate({ isActive: false });
-                          setShowActions(false);
-                        }}
-                        className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                      >
-                        Disattiva
-                      </button>
-                    </>
-                  )}
-                  
-                  {!isActive && !isPending && (
-                    <button
-                      onClick={() => {
-                        onUpdate({ isActive: true });
-                        setShowActions(false);
-                      }}
-                      className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                    >
-                      Riattiva
-                    </button>
-                  )}
-                  
-                  <hr className="my-1" />
-                  
-                  <button
-                    onClick={() => {
-                      onRemove();
-                      setShowActions(false);
-                    }}
-                    className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                  >
-                    Rimuovi
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          <Dropdown
+            trigger={
+              <button
+                disabled={loading}
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors disabled:opacity-50"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                </svg>
+              </button>
+            }
+            options={[
+              ...(isPending ? [{
+                label: 'Reinvia Invito',
+                value: 'resend',
+                icon: (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 7.89a1 1 0 001.42 0L21 7M5 19h14" />
+                  </svg>
+                )
+              }] : []),
+              ...(isActive ? [{
+                label: 'Cambia Ruolo',
+                value: 'changeRole',
+                icon: (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                )
+              }, {
+                label: 'Disattiva',
+                value: 'deactivate',
+                icon: (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636" />
+                  </svg>
+                )
+              }] : []),
+              ...(!isActive && !isPending ? [{
+                label: 'Riattiva',
+                value: 'activate',
+                color: 'success' as const,
+                icon: (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                )
+              }] : []),
+              {
+                label: 'Rimuovi',
+                value: 'remove',
+                color: 'danger' as const,
+                icon: (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                )
+              }
+            ]}
+            onSelect={(value) => {
+              switch (value) {
+                case 'resend':
+                  onResendInvite();
+                  break;
+                case 'changeRole':
+                  onUpdate({ 
+                    role: employee.role === 'ADMINISTRATIVE' ? PartnerEmployeeRole.COMMERCIAL : PartnerEmployeeRole.ADMINISTRATIVE 
+                  });
+                  break;
+                case 'deactivate':
+                  onUpdate({ isActive: false });
+                  break;
+                case 'activate':
+                  onUpdate({ isActive: true });
+                  break;
+                case 'remove':
+                  onRemove();
+                  break;
+              }
+            }}
+            disabled={loading}
+            placement="bottom-right"
+          />
         </div>
       </div>
 
@@ -229,7 +234,7 @@ const EmployeeCard: React.FC<EmployeeCardProps> = ({
 
       {/* Loading Overlay */}
       {loading && (
-        <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+        <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-xl">
           <div className="flex items-center text-slate-600">
             <svg className="animate-spin -ml-1 mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

@@ -1956,6 +1956,148 @@ Piattaforma Diamante
     }
   }
 
+  // Alias method for backwards compatibility
+  async sendPartnerInvite(
+    email: string,
+    inviteUrl: string,
+    companyName: string,
+    inviterName: string,
+    role: string
+  ): Promise<void> {
+    const mailOptions = {
+      from: this.fromEmail,
+      to: email,
+      subject: `Invito a collaborare con ${companyName} - Piattaforma Diamante`,
+      html: this.getPartnerInviteTemplateV2(inviteUrl, inviterName, companyName, role),
+      text: `
+        Ciao,
+        
+        ${inviterName} ti ha invitato a collaborare come ${role} con l'azienda ${companyName} sulla Piattaforma Diamante.
+        
+        Accetta l'invito visitando il seguente link:
+        ${inviteUrl}
+        
+        Questo link è valido per 72 ore.
+        
+        Se non hai richiesto questo invito, puoi ignorare questa email.
+        
+        Cordiali saluti,
+        Il team di Piattaforma Diamante
+      `
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log(`✉️ Partner invite email sent to: ${email}`);
+    } catch (error) {
+      console.error('Error sending partner invite email:', error);
+      throw error;
+    }
+  }
+
+  private getPartnerInviteTemplateV2(
+    inviteUrl: string, 
+    inviterName: string, 
+    companyName: string, 
+    role: string
+  ): string {
+    const roleTranslation = role === 'ADMINISTRATIVE' ? 'Amministrativo' : 'Commerciale';
+    
+    return `
+      <!DOCTYPE html>
+      <html lang="it">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Invito Collaborazione - Piattaforma Diamante</title>
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 40px 30px; text-align: center; }
+          .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+          .content { padding: 30px; }
+          .invite-icon { font-size: 48px; margin-bottom: 20px; text-align: center; }
+          .company-info { background-color: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
+          .role-badge { background-color: #e0f2fe; color: #0369a1; padding: 8px 16px; border-radius: 20px; font-weight: 600; display: inline-block; margin: 10px 0; }
+          .accept-button { 
+            background-color: #8b5cf6; 
+            color: white; 
+            padding: 15px 30px; 
+            text-decoration: none; 
+            border-radius: 6px; 
+            font-weight: 600; 
+            display: inline-block; 
+            margin: 25px 0;
+            font-size: 16px;
+          }
+          .footer { background-color: #f8fafc; padding: 25px 30px; text-align: center; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div class="logo">PIATTAFORMA DIAMANTE</div>
+            <div style="font-size: 16px; margin-top: 10px; opacity: 0.9;">Formazione Professionale</div>
+            <h1 style="margin: 25px 0 0 0; font-size: 24px;">Invito di Collaborazione</h1>
+          </div>
+          
+          <div class="content">
+            <div class="invite-icon">🤝</div>
+            
+            <p>Ciao,</p>
+            
+            <p><strong>${inviterName}</strong> ti ha invitato a collaborare come partner sulla <strong>Piattaforma Diamante</strong>.</p>
+            
+            <div class="company-info">
+              <h3 style="margin-top: 0; color: #374151;">Azienda Partner</h3>
+              <p style="font-size: 18px; font-weight: 600; color: #8b5cf6; margin: 10px 0;">${companyName}</p>
+              <div class="role-badge">Ruolo: ${roleTranslation}</div>
+            </div>
+            
+            <p>Unendoti al loro team, avrai accesso a:</p>
+            <ul>
+              ${role === 'ADMINISTRATIVE' ? `
+                <li>🎯 Dashboard completa per gestire registrazioni</li>
+                <li>📊 Analisi e statistiche dettagliate con dati economici</li>
+                <li>👥 Strumenti per la gestione utenti e collaboratori</li>
+                <li>📋 Sistema di gestione documenti integrato</li>
+                <li>💰 Gestione pagamenti e contratti</li>
+                <li>🏢 Creazione e gestione aziende figlie</li>
+              ` : `
+                <li>🎯 Dashboard per gestire registrazioni</li>
+                <li>📊 Analisi e statistiche (senza dati economici)</li>
+                <li>👥 Strumenti per la gestione utenti</li>
+                <li>📋 Sistema di gestione documenti</li>
+              `}
+            </ul>
+            
+            <div style="text-align: center;">
+              <a href="${inviteUrl}" class="accept-button">
+                ✅ Accetta Invito
+              </a>
+            </div>
+            
+            <p style="background-color: #fef3c7; padding: 15px; border-radius: 6px; border-left: 4px solid #f59e0b; margin: 25px 0; font-size: 14px;">
+              ⏱️ <strong>Importante:</strong> Questo invito è valido per <strong>72 ore</strong>. Dopo la scadenza dovrai richiedere un nuovo invito.
+            </p>
+            
+            <p style="font-size: 14px; color: #666;">Se non hai richiesto questo invito o non conosci ${inviterName}, puoi ignorare questa email in sicurezza.</p>
+          </div>
+          
+          <div class="footer">
+            <p><strong>Piattaforma Diamante</strong><br>
+            Formazione Professionale di Qualità</p>
+            <p style="font-size: 12px; margin-top: 15px;">
+              Questo messaggio è stato inviato automaticamente. Per favore non rispondere a questa email.<br>
+              Per assistenza, contatti il nostro supporto.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
   private getPartnerInviteTemplate(
     inviteToken: string, 
     inviterName: string, 

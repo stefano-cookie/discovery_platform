@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { usePartnerAuth } from '../../hooks/usePartnerAuth';
+import Portal from '../UI/Portal';
 
 // Schema per creazione coupon
 const couponSchema = z.object({
@@ -1047,7 +1048,8 @@ const CouponManagement: React.FC = () => {
 
       {/* Usage Logs Modal */}
       {showUsageModal && selectedCouponUsage && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <Portal>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
@@ -1171,6 +1173,7 @@ const CouponManagement: React.FC = () => {
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   );
