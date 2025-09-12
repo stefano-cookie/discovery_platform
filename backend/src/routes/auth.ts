@@ -44,8 +44,8 @@ router.post('/test-partner-auth', async (req, res) => {
       passwordLength: partnerEmployee.password.length,
       inputPasswordLength: password.length
     });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Unknown error' });
   }
 });
 
