@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authenticatePartner, AuthRequest } from '../middleware/auth';
+import { authenticatePartner, AuthRequest } from '../../middleware/auth';
 import ExcelJS from 'exceljs';
 
 const router = Router();

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authenticatePartner, AuthRequest } from '../middleware/auth';
-import { DocumentService, upload as documentUpload } from '../services/documentService';
+import { authenticatePartner, AuthRequest } from '../../middleware/auth';
+import { DocumentService, upload as documentUpload } from '../../services/documentService';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -365,7 +365,7 @@ router.get('/users/:userId/documents/:documentId/download', authenticatePartner,
     }
 
     // Check if file exists on disk
-    const filePath = path.join(__dirname, '../../uploads', document.fileName);
+    const filePath = path.join(__dirname, '../../uploads', document.originalName);
     
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'File fisico non trovato sul server' });
@@ -423,14 +423,6 @@ router.get('/users/:userId/documents/all', authenticatePartner, async (req: Auth
     const documents = await prisma.userDocument.findMany({
       where: { userId },
       include: {
-        auditLogs: {
-          orderBy: { timestamp: 'desc' },
-          include: {
-            user: {
-              select: { email: true }
-            }
-          }
-        }
       },
       orderBy: { uploadedAt: 'desc' }
     });
@@ -438,23 +430,10 @@ router.get('/users/:userId/documents/all', authenticatePartner, async (req: Auth
     const documentsWithStatus = documents.map(doc => {
       // Calculate derived status based on audit logs and current status
       let derivedStatus = doc.status;
-      const latestLog = doc.auditLogs[0];
-      
-      if (latestLog && latestLog.action === 'VERIFIED') {
-        derivedStatus = 'VERIFIED';
-      } else if (latestLog && latestLog.action === 'REJECTED') {
-        derivedStatus = 'REJECTED';
-      }
-
       return {
         ...doc,
-        derivedStatus,
-        latestAction: latestLog ? {
-          action: latestLog.action,
-          timestamp: latestLog.timestamp,
-          userEmail: latestLog.user?.email,
-          notes: latestLog.notes
-        } : null
+        derivedStatus: doc.status,
+        latestAction: null
       };
     });
 
@@ -505,23 +484,28 @@ router.post('/users/:userId/documents/upload', authenticatePartner, documentUplo
     }
 
     // Create document record
-    const document = await DocumentService.createDocument(
-      userId,
-      type as any,
-      file.filename,
-      file.originalname,
-      file.size,
-      file.mimetype,
-      'PARTNER_UPLOAD',
-      userRegistrations[0].id // Associate with first registration
-    );
+    const document = await prisma.userDocument.create({
+      data: {
+        userId,
+        registrationId: userRegistrations[0].id,
+        type: type as any,
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        url: file.filename,
+        uploadSource: 'PARTNER_PANEL',
+        status: 'PENDING',
+        uploadedBy: partnerId,
+        uploadedByRole: 'PARTNER'
+      }
+    });
 
     // Create audit log
     await prisma.documentAuditLog.create({
       data: {
         documentId: document.id,
         action: 'UPLOADED',
-        userId: partnerId, // Partner as uploader
+        performedBy: partnerId, // Partner as uploader
         notes: notes || 'Caricato dal partner'
       }
     });

@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authenticatePartner, AuthRequest } from '../middleware/auth';
-import { DocumentService } from '../services/documentService';
-import UnifiedDocumentService from '../services/unifiedDocumentService';
-import emailService from '../services/emailService';
+import { authenticatePartner, AuthRequest } from '../../middleware/auth';
+import { DocumentService } from '../../services/documentService';
+import UnifiedDocumentService from '../../services/unifiedDocumentService';
+import emailService from '../../services/emailService';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -184,7 +184,7 @@ router.get('/registrations/:registrationId/documents', authenticatePartner, asyn
       source: 'USER_UPLOAD'
     }));
 
-    console.log(`📄 All documents found: ${allDocuments.map(d => `${d.fileName} (${d.type}, ${d.source})`).join(', ')}`);
+    console.log(`📄 All documents found: ${allDocuments.map(d => `${d.originalName} (${d.type}, ${d.source})`).join(', ')}`);
 
     // Map user documents to required ones (checking all document sources)
     const documentsWithStatus = requiredDocuments.map(reqDoc => {
@@ -195,7 +195,7 @@ router.get('/registrations/:registrationId/documents', authenticatePartner, asyn
         uploaded: !!matchingDoc,
         document: matchingDoc ? {
           id: matchingDoc.id,
-          fileName: matchingDoc.fileName,
+          fileName: matchingDoc.originalName,
           originalName: matchingDoc.originalName,
           uploadedAt: matchingDoc.uploadedAt,
           status: matchingDoc.status,
@@ -317,14 +317,6 @@ router.get('/documents/:documentId/audit', authenticatePartner, async (req: Auth
             }
           }
         },
-        auditLogs: {
-          include: {
-            user: {
-              select: { email: true }
-            }
-          },
-          orderBy: { timestamp: 'desc' }
-        }
       }
     });
 
@@ -344,7 +336,7 @@ router.get('/documents/:documentId/audit', authenticatePartner, async (req: Auth
         originalName: document.originalName,
         status: document.status
       },
-      auditLogs: document.auditLogs
+      auditLogs: []
     });
   } catch (error) {
     console.error('Get document audit error:', error);
@@ -389,15 +381,15 @@ router.post('/documents/:documentId/approve', authenticatePartner, async (req: A
     // Update document status
     await prisma.userDocument.update({
       where: { id: documentId },
-      data: { status: 'VERIFIED' }
+      data: { status: 'APPROVED' }
     });
 
     // Create audit log
     await prisma.documentAuditLog.create({
       data: {
         documentId,
-        action: 'VERIFIED',
-        userId: partnerId,
+        action: 'APPROVED',
+        performedBy: partnerId,
         notes: notes || 'Documento approvato dal partner'
       }
     });
@@ -455,7 +447,7 @@ router.post('/documents/:documentId/reject', authenticatePartner, async (req: Au
       data: {
         documentId,
         action: 'REJECTED',
-        userId: partnerId,
+        performedBy: partnerId,
         notes: `Motivo: ${reason}${details ? ` - Dettagli: ${details}` : ''}`
       }
     });
@@ -514,8 +506,8 @@ router.post('/documents/:documentId/verify', authenticatePartner, async (req: Au
     await prisma.documentAuditLog.create({
       data: {
         documentId,
-        action: status === 'VERIFIED' ? 'VERIFIED' : 'REJECTED',
-        userId: partnerId,
+        action: status === 'APPROVED' ? 'APPROVED' : 'REJECTED',
+        performedBy: partnerId,
         notes: rejectionReason || `Documento ${status.toLowerCase()}`
       }
     });
@@ -546,27 +538,20 @@ router.post('/documents/:documentId/notify', authenticatePartner, async (req: Au
     }
 
     // Send notification email based on document status
-    if (document.status === 'VERIFIED') {
-      await emailService.sendEmail({
-        to: document.user.email,
-        subject: 'Documento Approvato',
-        html: `
-          <p>Ciao ${document.user.profile?.nome || 'Utente'},</p>
-          <p>Il tuo documento <strong>${document.type}</strong> è stato approvato.</p>
-          <p>Puoi procedere con i prossimi passi della tua iscrizione.</p>
-        `
-      });
+    if (document.status === 'APPROVED') {
+      await emailService.sendDocumentApprovedEmail(
+        document.user.email,
+        document.user.profile?.nome || 'Utente',
+        document.type
+      );
     } else if (document.status === 'REJECTED') {
-      await emailService.sendEmail({
-        to: document.user.email,
-        subject: 'Documento Respinto - Azione Richiesta',
-        html: `
-          <p>Ciao ${document.user.profile?.nome || 'Utente'},</p>
-          <p>Il tuo documento <strong>${document.type}</strong> è stato respinto.</p>
-          <p>Motivo: ${document.rejectionReason || 'Non specificato'}</p>
-          <p>Ti preghiamo di caricare un nuovo documento.</p>
-        `
-      });
+      await emailService.sendDocumentRejectedEmail(
+        document.user.email,
+        document.user.profile?.nome || 'Utente',
+        document.type,
+        document.rejectionReason || 'Non specificato',
+        'Ti preghiamo di caricare un nuovo documento.'
+      );
     }
 
     res.json({ success: true, message: 'Notifica inviata' });

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authenticatePartner, AuthRequest } from '../middleware/auth';
-import { ContractService } from '../services/contractService';
+import { authenticatePartner, AuthRequest } from '../../middleware/auth';
+import { ContractService } from '../../services/contractService';
 import multer from 'multer';
 import * as path from 'path';
 import * as fs from 'fs';

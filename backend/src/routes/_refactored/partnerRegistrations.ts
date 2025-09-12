@@ -1,8 +1,8 @@
 import { Router, Response as ExpressResponse } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authenticatePartner, AuthRequest } from '../middleware/auth';
-import { DocumentService, upload as documentUpload } from '../services/documentService';
-import emailService from '../services/emailService';
+import { authenticatePartner, AuthRequest } from '../../middleware/auth';
+import { DocumentService, upload as documentUpload } from '../../services/documentService';
+import emailService from '../../services/emailService';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -154,8 +154,7 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-paid', aut
       data: {
         isPaid: true,
         paidAt: new Date(),
-        paidAmount: amount ? Number(amount) : undefined,
-        paymentMethod: method || 'MANUAL',
+        partialAmount: amount ? Number(amount) : undefined,
         notes: notes || 'Pagamento confermato dal partner'
       }
     });
@@ -165,11 +164,7 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-paid', aut
       await emailService.sendEmail({
         to: registration.user.email,
         subject: 'Pagamento Confermato',
-        html: `
-          <p>Ciao ${registration.user.profile?.nome || 'Utente'},</p>
-          <p>Il tuo pagamento di <strong>€ ${deadline.amount}</strong> è stato confermato.</p>
-          <p>Grazie per la tua puntualità!</p>
-        `
+        template: 'generic', data: { message: `Ciao ${registration.user.profile?.nome || 'Utente'}. Il tuo pagamento di €${deadline.amount} è stato confermato. Grazie per la tua puntualità!` }
       });
     }
 
@@ -220,18 +215,17 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-pa
     }
 
     const paidAmount = Number(amount);
-    const remainingAmount = deadline.amount - paidAmount;
+    const remainingAmount = deadline.amount.toNumber() - paidAmount;
 
-    if (paidAmount >= deadline.amount) {
+    if (paidAmount >= deadline.amount.toNumber()) {
       // Full payment
       await prisma.paymentDeadline.update({
         where: { id: deadlineId },
         data: {
           isPaid: true,
           paidAt: new Date(),
-          paidAmount: deadline.amount,
-          paymentMethod: method || 'MANUAL',
-          notes: notes || 'Pagamento completo confermato dal partner'
+          partialAmount: deadline.amount,
+            notes: notes || 'Pagamento completo confermato dal partner'
         }
       });
     } else {
@@ -241,10 +235,9 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-pa
         data: {
           isPaid: true,
           paidAt: new Date(),
-          paidAmount: paidAmount,
+          partialAmount: paidAmount,
           amount: paidAmount,
-          paymentMethod: method || 'MANUAL',
-          notes: `${notes || 'Pagamento parziale'} - Pagato: €${paidAmount}`
+            notes: `${notes || 'Pagamento parziale'} - Pagato: €${paidAmount}`
         }
       });
 
@@ -252,13 +245,23 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-pa
       const nextMonth = new Date(deadline.dueDate);
       nextMonth.setMonth(nextMonth.getMonth() + 1);
 
+      // Get next payment number
+      const maxPaymentNumber = await prisma.paymentDeadline.aggregate({
+        where: { registrationId },
+        _max: { paymentNumber: true }
+      });
+      const nextPaymentNumber = (maxPaymentNumber._max.paymentNumber || 0) + 1;
+
       await prisma.paymentDeadline.create({
         data: {
-          registrationId,
+          paymentNumber: nextPaymentNumber,
           amount: remainingAmount,
           dueDate: nextMonth,
           description: `Residuo rata precedente - €${remainingAmount.toFixed(2)}`,
-          isPaid: false
+          isPaid: false,
+          registration: {
+            connect: { id: registrationId }
+          }
         }
       });
     }
@@ -267,7 +270,7 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-pa
       success: true, 
       message: 'Pagamento parziale registrato',
       paidAmount,
-      remainingAmount: paidAmount >= deadline.amount ? 0 : remainingAmount
+      remainingAmount: paidAmount >= deadline.amount.toNumber() ? 0 : remainingAmount
     });
   } catch (error) {
     console.error('Mark partial payment error:', error);
@@ -408,9 +411,8 @@ router.post('/registrations/:registrationId/exam-date', authenticatePartner, asy
       where: { id: registrationId },
       data: {
         examDate: new Date(examDate),
-        examLocation: location,
-        examNotes: notes,
-        status: 'EXAM_SCHEDULED'
+        examRegisteredBy: partnerId,
+        status: 'EXAM_REGISTERED'
       }
     });
 
@@ -419,7 +421,7 @@ router.post('/registrations/:registrationId/exam-date', authenticatePartner, asy
       await emailService.sendEmail({
         to: registration.user.email,
         subject: 'Data Esame Programmata',
-        html: `
+        template: 'generic', data: { message: `
           <p>Ciao ${registration.user.profile?.nome || 'Utente'},</p>
           <p>La tua data d'esame è stata programmata:</p>
           <ul>
@@ -428,7 +430,7 @@ router.post('/registrations/:registrationId/exam-date', authenticatePartner, asy
             ${notes ? `<li><strong>Note:</strong> ${notes}</li>` : ''}
           </ul>
           <p>Ti invieremo ulteriori dettagli prossimamente.</p>
-        `
+        ` }
       });
     }
 
@@ -468,12 +470,9 @@ router.post('/registrations/:registrationId/complete-exam', authenticatePartner,
     await prisma.registration.update({
       where: { id: registrationId },
       data: {
-        examGrade: grade ? Number(grade) : null,
-        examPassed: passed,
-        examCompleted: true,
-        examCompletedAt: new Date(),
-        examNotes: notes,
-        status: passed ? 'EXAM_PASSED' : 'EXAM_FAILED'
+        examCompletedDate: new Date(),
+        examCompletedBy: partnerId,
+        status: passed ? 'COMPLETED' : 'ENROLLED'
       }
     });
 
@@ -482,7 +481,7 @@ router.post('/registrations/:registrationId/complete-exam', authenticatePartner,
       await emailService.sendEmail({
         to: registration.user.email,
         subject: passed ? 'Esame Superato!' : 'Risultato Esame',
-        html: `
+        template: 'generic', data: { message: `
           <p>Ciao ${registration.user.profile?.nome || 'Utente'},</p>
           <p>I risultati del tuo esame sono disponibili:</p>
           <ul>
@@ -491,7 +490,7 @@ router.post('/registrations/:registrationId/complete-exam', authenticatePartner,
             ${notes ? `<li><strong>Note:</strong> ${notes}</li>` : ''}
           </ul>
           ${passed ? '<p>Congratulazioni per aver superato l\'esame!</p>' : '<p>Contatta il tuo partner per informazioni sui prossimi passi.</p>'}
-        `
+        ` }
       });
     }
 
@@ -546,12 +545,12 @@ router.post('/registrations/:registrationId/certification-docs-approved', authen
       await emailService.sendEmail({
         to: registration.user.email,
         subject: 'Documenti Approvati - Prossimo Step',
-        html: `
+        template: 'generic', data: { message: `
           <p>Ciao ${userName},</p>
           <p>I tuoi documenti per il corso <strong>${courseName}</strong> sono stati approvati!</p>
           <p>Ora puoi procedere con la registrazione all'esame.</p>
           <p>Il tuo partner ti contatterà per i dettagli.</p>
-        `
+        ` }
       });
     }
 
@@ -596,7 +595,7 @@ router.post('/registrations/:registrationId/certification-exam-registered', auth
       data: { 
         status: 'EXAM_REGISTERED',
         examDate: examDate ? new Date(examDate) : null,
-        examLocation: examLocation || null
+        examRegisteredBy: partnerId
       }
     });
 
@@ -605,13 +604,13 @@ router.post('/registrations/:registrationId/certification-exam-registered', auth
       await emailService.sendEmail({
         to: registration.user.email,
         subject: 'Registrazione Esame Confermata',
-        html: `
+        template: 'generic', data: { message: `
           <p>Ciao ${registration.user.profile?.nome || 'Utente'},</p>
           <p>La tua registrazione all'esame è stata confermata!</p>
           ${examDate ? `<p><strong>Data Esame:</strong> ${new Date(examDate).toLocaleDateString('it-IT')}</p>` : ''}
-          ${examLocation ? `<p><strong>Luogo:</strong> ${examLocation}</p>` : ''}
+          <p><strong>Data:</strong> ${examDate ? new Date(examDate).toLocaleDateString() : 'Da definire'}</p>
           <p>Ti invieremo ulteriori dettagli prossimamente.</p>
-        `
+        ` }
       });
     }
 
@@ -656,11 +655,9 @@ router.post('/registrations/:registrationId/certification-exam-completed', authe
     await prisma.registration.update({
       where: { id: registrationId },
       data: { 
-        status: examPassed ? 'COMPLETED' : 'EXAM_FAILED',
-        examPassed,
-        examGrade: finalGrade ? Number(finalGrade) : null,
-        examCompleted: true,
-        examCompletedAt: new Date()
+        status: examPassed ? 'COMPLETED' : 'ENROLLED',
+        examCompletedDate: new Date(),
+        examCompletedBy: partnerId
       }
     });
 
@@ -669,7 +666,7 @@ router.post('/registrations/:registrationId/certification-exam-completed', authe
       await emailService.sendEmail({
         to: registration.user.email,
         subject: examPassed ? 'Certificazione Completata!' : 'Risultato Esame',
-        html: `
+        template: 'generic', data: { message: `
           <p>Ciao ${registration.user.profile?.nome || 'Utente'},</p>
           <p>Il tuo percorso di certificazione è terminato:</p>
           <p><strong>Risultato:</strong> ${examPassed ? 'SUPERATO ✅' : 'NON SUPERATO ❌'}</p>
@@ -678,14 +675,14 @@ router.post('/registrations/:registrationId/certification-exam-completed', authe
             '<p>Congratulazioni! La tua certificazione è stata completata con successo.</p>' : 
             '<p>Contatta il tuo partner per informazioni su eventuali recuperi.</p>'
           }
-        `
+        ` }
       });
     }
 
     res.json({ 
       success: true, 
       message: `Esame ${examPassed ? 'completato' : 'non superato'}`,
-      newStatus: examPassed ? 'COMPLETED' : 'EXAM_FAILED'
+      newStatus: examPassed ? 'COMPLETED' : 'ENROLLED'
     });
   } catch (error) {
     console.error('Certification exam completed error:', error);
@@ -728,7 +725,7 @@ router.get('/registrations/:registrationId/certification-steps', authenticatePar
         step: 2,
         name: 'Caricamento Documenti',
         status: registration.status === 'ENROLLED' ? 'CURRENT' : 'COMPLETED',
-        completedAt: registration.status !== 'ENROLLED' ? registration.updatedAt : null,
+        completedAt: registration.status !== 'ENROLLED' ? registration.createdAt : null,
         description: 'Caricamento carta identità e tessera sanitaria'
       },
       {
@@ -736,7 +733,7 @@ router.get('/registrations/:registrationId/certification-steps', authenticatePar
         name: 'Approvazione Documenti',
         status: registration.status === 'DOCUMENTS_APPROVED' ? 'CURRENT' : 
                 registration.status === 'ENROLLED' ? 'PENDING' : 'COMPLETED',
-        completedAt: registration.status === 'DOCUMENTS_APPROVED' ? registration.updatedAt : null,
+        completedAt: registration.status === 'DOCUMENTS_APPROVED' ? registration.createdAt : null,
         description: 'Partner approva i documenti caricati'
       },
       {
@@ -744,15 +741,15 @@ router.get('/registrations/:registrationId/certification-steps', authenticatePar
         name: 'Registrazione Esame',
         status: registration.status === 'EXAM_REGISTERED' ? 'CURRENT' :
                 ['ENROLLED', 'DOCUMENTS_APPROVED'].includes(registration.status) ? 'PENDING' : 'COMPLETED',
-        completedAt: registration.status === 'EXAM_REGISTERED' ? registration.updatedAt : null,
+        completedAt: registration.status === 'EXAM_REGISTERED' ? registration.createdAt : null,
         description: 'Registrazione all\'esame di certificazione'
       },
       {
         step: 5,
         name: 'Completamento Esame',
         status: registration.status === 'COMPLETED' ? 'COMPLETED' :
-                registration.status === 'EXAM_FAILED' ? 'FAILED' : 'PENDING',
-        completedAt: registration.examCompletedAt,
+                registration.status === 'ENROLLED' ? 'PENDING' : 'COMPLETED',
+        completedAt: registration.examCompletedDate,
         description: 'Sostenimento e completamento esame finale'
       }
     ];
@@ -762,9 +759,7 @@ router.get('/registrations/:registrationId/certification-steps', authenticatePar
         id: registration.id,
         status: registration.status,
         examDate: registration.examDate,
-        examLocation: registration.examLocation,
-        examPassed: registration.examPassed,
-        examGrade: registration.examGrade
+        examCompletedDate: registration.examCompletedDate
       },
       steps,
       currentStep: steps.find(s => s.status === 'CURRENT')?.step || 
