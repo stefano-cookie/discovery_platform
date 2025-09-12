@@ -108,6 +108,9 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
     initAuth();
   }, []);
 
+  // Calculated authentication state
+  const authenticated = !!(token && partnerEmployee && partnerCompany);
+
   // Debug: Log when partner state changes
   useEffect(() => {
     console.log('🔄 Partner state changed:', {
@@ -115,9 +118,9 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
       hasEmployee: !!partnerEmployee,
       hasCompany: !!partnerCompany,
       isLoading,
-      isAuthenticated
+      authenticated
     });
-  }, [token, partnerEmployee, partnerCompany, isLoading, isAuthenticated]);
+  }, [token, partnerEmployee, partnerCompany, isLoading, authenticated]);
 
   // ========================================
   // AUTH ACTIONS
