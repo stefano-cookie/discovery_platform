@@ -61,6 +61,7 @@ model PartnerCompany {
   canCreateChildren Boolean  @default(false)
   hierarchyLevel    Int      @default(0)
   isActive          Boolean  @default(true)
+  isPremium         Boolean  @default(false)  // NEW: Premium status for sub-partner creation
   
   // Business Data
   commissionPerUser Decimal  @default(0)
@@ -83,6 +84,9 @@ model PartnerCompany {
   transfersFrom     UserTransfer[] @relation("TransferFromCompany")
   transfersTo       UserTransfer[] @relation("TransferToCompany")
   userOfferAccess   UserOfferAccess[] @relation("CompanyOfferAccess")
+  
+  // Sub-Partner System
+  companyInvites    PartnerCompanyInvite[] @relation("CompanyInvites")
   
   @@index([parentId])
   @@index([referralCode])
@@ -124,6 +128,46 @@ model PartnerEmployee {
 enum PartnerEmployeeRole {
   ADMINISTRATIVE  // Accesso completo: crea collaboratori, aziende figlie, vede dati finanziari
   COMMERCIAL      // Accesso limitato: NO dati finanziari, NO creazione utenti
+}
+
+// ========================================
+// SISTEMA INVITI AZIENDE SUB-PARTNER
+// ========================================
+
+model PartnerCompanyInvite {
+  id                String   @id @default(uuid())
+  parentCompanyId   String   // Azienda premium che invia l'invito
+  inviteToken       String   @unique
+  email             String
+  companyName       String   // Nome della nuova azienda figlia
+  
+  // Stato dell'invito
+  status            CompanyInviteStatus @default(PENDING)
+  isActive          Boolean  @default(true)
+  expiresAt         DateTime
+  
+  // Tracking
+  invitedBy         String   // ID dell'employee che ha inviato l'invito
+  acceptedAt        DateTime?
+  acceptedBy        String?  // ID dell'utente che ha accettato
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relazioni
+  parentCompany     PartnerCompany @relation("CompanyInvites", fields: [parentCompanyId], references: [id], onDelete: Cascade)
+  
+  @@index([parentCompanyId])
+  @@index([inviteToken])
+  @@index([email])
+}
+
+enum CompanyInviteStatus {
+  PENDING    // Invito inviato, in attesa di accettazione
+  ACCEPTED   // Invito accettato, azienda creata
+  EXPIRED    // Invito scaduto
+  REVOKED    // Invito revocato dal parent
 }
 
 // ========================================
@@ -222,6 +266,11 @@ model PartnerOffer {
   isActive                Boolean  @default(true)
   createdAt               DateTime @default(now())
   
+  // Sub-Partner Inheritance System
+  isInherited             Boolean  @default(false)  // True se offerta ereditata da parent
+  parentOfferId           String?  // ID dell'offerta parent da cui deriva
+  inheritedBy             PartnerOffer[] @relation("OfferInheritance")
+  
   // Legacy relation (manteniamo per compatibilità)
   partner                 Partner  @relation(fields: [partnerId], references: [id])
   // NEW: Partner company relation
@@ -231,7 +280,12 @@ model PartnerOffer {
   visibilities            OfferVisibility[]
   userAccess              UserOfferAccess[]
   
+  // Inheritance relation
+  parentOffer             PartnerOffer? @relation("OfferInheritance", fields: [parentOfferId], references: [id])
+  
   @@index([partnerCompanyId])
+  @@index([parentOfferId])
+  @@index([isInherited])
 }
 
 enum OfferType {

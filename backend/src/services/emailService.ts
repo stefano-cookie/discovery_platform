@@ -2062,7 +2062,7 @@ Piattaforma Diamante
                 <li>👥 Strumenti per la gestione utenti e collaboratori</li>
                 <li>📋 Sistema di gestione documenti integrato</li>
                 <li>💰 Gestione pagamenti e contratti</li>
-                <li>🏢 Creazione e gestione aziende figlie</li>
+                <li>🏢 Creazione e gestione aziende sub-partners</li>
               ` : `
                 <li>🎯 Dashboard per gestire registrazioni</li>
                 <li>📊 Analisi e statistiche (senza dati economici)</li>
@@ -2186,6 +2186,319 @@ Piattaforma Diamante
       </body>
       </html>
     `;
+  }
+
+  // Sub-partner company invitation email
+  async sendEmail(options: {
+    to: string;
+    subject: string;
+    template: string;
+    data: any;
+  }): Promise<void> {
+    let template;
+    
+    switch (options.template) {
+      case 'companyInvite':
+        template = this.getCompanyInviteTemplate(options.data);
+        break;
+      case 'subPartnerWelcome':
+        template = this.getSubPartnerWelcomeTemplate(options.data);
+        break;
+      case 'parentNotification':
+        template = this.getParentNotificationTemplate(options.data);
+        break;
+      default:
+        throw new Error(`Unknown template: ${options.template}`);
+    }
+
+    const mailOptions = {
+      from: this.fromEmail,
+      to: options.to,
+      subject: options.subject,
+      html: template.html,
+      text: template.text
+    };
+
+    await this.transporter.sendMail(mailOptions);
+    console.log(`✉️ Email sent to: ${options.to} (template: ${options.template})`);
+  }
+
+  private getCompanyInviteTemplate(data: {
+    companyName: string;
+    parentCompanyName: string;
+    inviteUrl: string;
+    expiresAt: string;
+  }): { html: string; text: string } {
+    const html = `
+      <!DOCTYPE html>
+      <html lang="it">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Invito Creazione Azienda Partner - Piattaforma Diamante</title>
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 40px 30px; text-align: center; }
+          .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+          .content { padding: 30px; }
+          .company-highlight { background-color: #ecfdf5; border: 2px solid #10b981; border-radius: 8px; padding: 25px; margin: 25px 0; text-align: center; }
+          .accept-button { 
+            background-color: #059669; 
+            color: white; 
+            padding: 15px 30px; 
+            text-decoration: none; 
+            border-radius: 6px; 
+            font-weight: 600; 
+            display: inline-block; 
+            margin: 25px 0;
+            font-size: 16px;
+          }
+          .footer { background-color: #f8fafc; padding: 25px 30px; text-align: center; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div class="logo">PIATTAFORMA DIAMANTE</div>
+            <div style="font-size: 16px; margin-top: 10px; opacity: 0.9;">Formazione Professionale</div>
+            <h1 style="margin: 25px 0 0 0; font-size: 24px;">🏢 Invito Creazione Azienda Partner</h1>
+          </div>
+          
+          <div class="content">
+            <div style="text-align: center; font-size: 48px; margin-bottom: 20px;">🤝</div>
+            
+            <p>Ciao,</p>
+            
+            <p>Hai ricevuto un invito speciale per creare una nuova <strong>azienda partner</strong> sulla Piattaforma Diamante!</p>
+            
+            <div class="company-highlight">
+              <h3 style="margin-top: 0; color: #047857;">🎯 Dettagli della Nuova Azienda</h3>
+              <p style="font-size: 20px; font-weight: 700; color: #059669; margin: 15px 0;">${data.companyName}</p>
+              <p style="color: #374151;">Azienda partner di <strong>${data.parentCompanyName}</strong></p>
+            </div>
+            
+            <p>Come <strong>amministratore</strong> della nuova azienda partner, avrai accesso a:</p>
+            <ul>
+              <li>🎯 Dashboard completa per gestire registrazioni</li>
+              <li>📊 Analisi e statistiche dettagliate</li>
+              <li>👥 Gestione collaboratori e team</li>
+              <li>📋 Sistema di gestione documenti integrato</li>
+              <li>💰 Strumenti di gestione pagamenti</li>
+              <li>📈 Sistema di tracking commissioni</li>
+            </ul>
+            
+            <div style="text-align: center;">
+              <a href="${data.inviteUrl}" class="accept-button">
+                🚀 Crea la Tua Azienda Partner
+              </a>
+            </div>
+            
+            <p style="background-color: #fef3c7; padding: 15px; border-radius: 6px; border-left: 4px solid #f59e0b; margin: 25px 0; font-size: 14px;">
+              ⏱️ <strong>Importante:</strong> Questo invito è valido fino al <strong>${data.expiresAt}</strong>. Non perdere questa opportunità!
+            </p>
+            
+            <p style="font-size: 14px; color: #666;">Se non hai richiesto questo invito, puoi ignorare questa email in sicurezza.</p>
+          </div>
+          
+          <div class="footer">
+            <p><strong>Piattaforma Diamante</strong><br>
+            Formazione Professionale di Qualità</p>
+            <p style="font-size: 12px; margin-top: 15px;">
+              Questo messaggio è stato inviato automaticamente.<br>
+              Per assistenza, contatta il nostro supporto.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+INVITO CREAZIONE AZIENDA PARTNER - Piattaforma Diamante
+
+Ciao,
+
+Hai ricevuto un invito per creare una nuova azienda partner sulla Piattaforma Diamante!
+
+Dettagli della Nuova Azienda:
+- Nome: ${data.companyName}
+- Azienda partner di: ${data.parentCompanyName}
+
+Come amministratore avrai accesso a dashboard completa, analisi, gestione collaboratori e molto altro.
+
+Accetta l'invito visitando: ${data.inviteUrl}
+
+Importante: Questo invito è valido fino al ${data.expiresAt}.
+
+Piattaforma Diamante
+    `;
+
+    return { html, text };
+  }
+
+  private getSubPartnerWelcomeTemplate(data: {
+    firstName: string;
+    companyName: string;
+    parentCompanyName: string;
+    loginUrl: string;
+  }): { html: string; text: string } {
+    const html = `
+      <!DOCTYPE html>
+      <html lang="it">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Benvenuto - Piattaforma Diamante</title>
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 40px 30px; text-align: center; }
+          .content { padding: 30px; }
+          .welcome-badge { background-color: #f3e8ff; color: #7c3aed; padding: 15px 25px; border-radius: 8px; font-weight: 700; text-align: center; margin: 25px 0; font-size: 18px; }
+          .login-button { 
+            background-color: #8b5cf6; 
+            color: white; 
+            padding: 15px 30px; 
+            text-decoration: none; 
+            border-radius: 6px; 
+            font-weight: 600; 
+            display: inline-block; 
+            margin: 25px 0;
+            font-size: 16px;
+          }
+          .footer { background-color: #f8fafc; padding: 25px 30px; text-align: center; color: #64748b; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🎉 Benvenuto su Piattaforma Diamante!</h1>
+            <p>La tua azienda partner è stata creata con successo</p>
+          </div>
+          
+          <div class="content">
+            <div class="welcome-badge">
+              🏢 AZIENDA PARTNER ATTIVATA
+            </div>
+            
+            <p>Caro <strong>${data.firstName}</strong>,</p>
+            
+            <p><strong>Complimenti!</strong> La tua azienda partner <strong>"${data.companyName}"</strong> è stata creata con successo sulla Piattaforma Diamante!</p>
+            
+            <p>Sei ora partner affiliato di <strong>${data.parentCompanyName}</strong> e hai accesso completo alla piattaforma come amministratore della tua azienda.</p>
+            
+            <h3>🚀 Cosa puoi fare ora:</h3>
+            <ul>
+              <li>📊 Accedere alla dashboard dedicata</li>
+              <li>👥 Gestire le registrazioni degli utenti</li>
+              <li>📋 Monitorare lo stato dei documenti</li>
+              <li>📈 Visualizzare le statistiche</li>
+              <li>🔧 Configurare le impostazioni aziendali</li>
+            </ul>
+            
+            <div style="text-align: center;">
+              <a href="${data.loginUrl}" class="login-button">
+                🚪 Accedi alla Dashboard
+              </a>
+            </div>
+            
+            <p style="background-color: #ecfdf5; padding: 20px; border-radius: 6px; border-left: 4px solid #10b981; margin: 25px 0;">
+              💡 <strong>Suggerimento:</strong> Usa le credenziali che hai appena creato per accedere alla tua area riservata.
+            </p>
+          </div>
+          
+          <div class="footer">
+            <p><strong>Benvenuto nel network Piattaforma Diamante!</strong><br>
+            Siamo entusiasti di averti a bordo</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Benvenuto su Piattaforma Diamante!
+
+Caro ${data.firstName},
+
+Complimenti! La tua azienda partner "${data.companyName}" è stata creata con successo!
+
+Sei ora partner affiliato di ${data.parentCompanyName} con accesso completo alla piattaforma.
+
+Accedi alla dashboard: ${data.loginUrl}
+
+Benvenuto nel network Piattaforma Diamante!
+    `;
+
+    return { html, text };
+  }
+
+  private getParentNotificationTemplate(data: {
+    childCompanyName: string;
+    parentCompanyName: string;
+    adminName: string;
+    adminEmail: string;
+  }): { html: string; text: string } {
+    const html = `
+      <!DOCTYPE html>
+      <html lang="it">
+      <head>
+        <meta charset="utf-8">
+        <title>Nuova Azienda Figlia Creata</title>
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 30px; text-align: center; }
+          .content { padding: 30px; }
+          .info-box { background-color: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 8px; padding: 20px; margin: 20px 0; }
+          .footer { background-color: #f8fafc; padding: 20px; text-align: center; color: #64748b; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🎉 Nuova Azienda Figlia Creata!</h1>
+          </div>
+          
+          <div class="content">
+            <p>Una nuova azienda figlia è stata creata con successo nel tuo network partner!</p>
+            
+            <div class="info-box">
+              <h3>📋 Dettagli:</h3>
+              <p><strong>Azienda Figlia:</strong> ${data.childCompanyName}</p>
+              <p><strong>Azienda Parent:</strong> ${data.parentCompanyName}</p>
+              <p><strong>Amministratore:</strong> ${data.adminName}</p>
+              <p><strong>Email:</strong> ${data.adminEmail}</p>
+            </div>
+            
+            <p>L'amministratore ha completato la registrazione e ha ora accesso completo alla piattaforma.</p>
+          </div>
+          
+          <div class="footer">
+            <p>Piattaforma Diamante - Sistema Sub-Partner</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Nuova Azienda Figlia Creata!
+
+Una nuova azienda figlia è stata creata nel tuo network:
+
+Azienda Figlia: ${data.childCompanyName}
+Azienda Parent: ${data.parentCompanyName}
+Amministratore: ${data.adminName}
+Email: ${data.adminEmail}
+
+L'amministratore ha completato la registrazione.
+
+Piattaforma Diamante
+    `;
+
+    return { html, text };
   }
 }
 

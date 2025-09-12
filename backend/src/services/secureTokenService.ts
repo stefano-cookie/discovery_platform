@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
+import { OfferInheritanceService } from './offerInheritanceService';
 
 const prisma = new PrismaClient();
 
@@ -53,11 +54,43 @@ export class SecureTokenService {
     });
 
     if (!registration) {
+      // Calculate partner company tracking fields using OfferInheritanceService
+      let partnerCompanyId = null;
+      let sourcePartnerCompanyId = null;
+      let isDirectRegistration = true;
+      
+      try {
+        const { parentCompany, childCompany, isSubPartnerRegistration } = 
+          await OfferInheritanceService.findCompaniesByReferralLink(referralCode);
+        
+        if (isSubPartnerRegistration && childCompany) {
+          // Sub-partner registration: parent manages, child is source
+          partnerCompanyId = parentCompany.id;
+          sourcePartnerCompanyId = childCompany.id;
+          isDirectRegistration = false;
+          console.log(`🎯 Sub-partner registration: parent=${parentCompany.name}, source=${childCompany.name}`);
+        } else {
+          // Direct parent registration
+          partnerCompanyId = parentCompany.id;
+          sourcePartnerCompanyId = parentCompany.id;
+          isDirectRegistration = true;
+          console.log(`🎯 Direct registration: parent=${parentCompany.name}`);
+        }
+      } catch (error) {
+        console.error('Error calculating partner tracking fields:', error);
+        // Fallback to offer's company
+        partnerCompanyId = offer.partnerCompanyId;
+        sourcePartnerCompanyId = offer.partnerCompanyId;
+      }
+
       // Create a minimal registration that will be completed when user submits the form
       registration = await prisma.registration.create({
         data: {
           userId,
           partnerId: offer.partnerId,
+          partnerCompanyId: partnerCompanyId,
+          sourcePartnerCompanyId: sourcePartnerCompanyId,
+          isDirectRegistration: isDirectRegistration,
           courseId: offer.courseId,
           partnerOfferId: offer.id,
           offerType: offer.offerType,
