@@ -86,8 +86,8 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
             company: company.name
           });
           
-          // Setup axios default header
-          axios.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
+          // Setup api default header
+          api.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
         } else {
           // Clear any partial/corrupted data
           if (savedToken || savedEmployee || savedCompany) {
@@ -170,8 +170,8 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
     setPartnerEmployee(null);
     setPartnerCompany(null);
     
-    // Clear axios header
-    delete axios.defaults.headers.common['Authorization'];
+    // Clear api header
+    delete api.defaults.headers.common['Authorization'];
     
     console.log('✅ Partner logout completed');
   };
