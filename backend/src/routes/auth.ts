@@ -130,8 +130,10 @@ router.post('/login', async (req, res) => {
           id: partnerEmployee.partnerCompany.id,
           name: partnerEmployee.partnerCompany.name,
           referralCode: partnerEmployee.partnerCompany.referralCode,
+          parentId: partnerEmployee.partnerCompany.parentId,
           canCreateChildren: partnerEmployee.partnerCompany.canCreateChildren,
-          hierarchyLevel: partnerEmployee.partnerCompany.hierarchyLevel
+          hierarchyLevel: partnerEmployee.partnerCompany.hierarchyLevel,
+          isPremium: partnerEmployee.partnerCompany.isPremium
         }
       });
     }

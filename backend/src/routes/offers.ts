@@ -2,6 +2,7 @@ import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateUnified, AuthRequest } from '../middleware/auth';
 import { generateUniqueId } from '../utils/idGenerator';
+import { OfferInheritanceService } from '../services/offerInheritanceService';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -26,7 +27,7 @@ function validateCreateOffer(data: any) {
   return data;
 }
 
-// GET /api/offers - Get all offers for partner company
+// GET /api/offers - Get all offers for partner company (including inherited ones)
 router.get('/', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const partnerCompanyId = req.partnerCompany?.id;
@@ -35,27 +36,122 @@ router.get('/', authenticateUnified, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Partner company not found' });
     }
 
-    const offers = await prisma.partnerOffer.findMany({
-      where: { partnerCompanyId },
-      include: {
-        course: true,
-        _count: {
-          select: { registrations: true }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
+    // Get the partner company with parent info
+    const partnerCompany = await prisma.partnerCompany.findUnique({
+      where: { id: partnerCompanyId },
+      include: { parent: true }
     });
 
-    res.json(offers);
+    if (!partnerCompany) {
+      return res.status(404).json({ error: 'Partner company not found' });
+    }
+
+    let offers;
+    
+    if (partnerCompany.parentId) {
+      // For sub-partners: first ensure inherited offers are up to date, then show them
+      await OfferInheritanceService.createInheritedOffers(partnerCompany.parentId, partnerCompanyId);
+      
+      offers = await prisma.partnerOffer.findMany({
+        where: {
+          partnerCompanyId: partnerCompanyId, // Only inherited offers belonging to this sub-partner
+          isActive: true
+        },
+        include: {
+          course: true,
+          partnerCompany: {
+            select: {
+              id: true,
+              name: true,
+              referralCode: true
+            }
+          },
+          parentOffer: {
+            include: {
+              partnerCompany: {
+                select: {
+                  id: true,
+                  name: true,
+                  referralCode: true
+                }
+              }
+            }
+          },
+          _count: {
+            select: { registrations: true }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+    } else {
+      // For parent companies: show their own offers + can access all offers in hierarchy for management
+      const companyIds = [partnerCompanyId];
+      let currentParent = partnerCompany.parent;
+      
+      while (currentParent) {
+        companyIds.push(currentParent.id);
+        currentParent = await prisma.partnerCompany.findUnique({
+          where: { id: currentParent.id },
+          include: { parent: true }
+        }).then(company => company?.parent || null);
+      }
+
+      // Get offers from this company and all parents
+      offers = await prisma.partnerOffer.findMany({
+        where: { 
+          partnerCompanyId: { in: companyIds },
+          isActive: true
+        },
+        include: {
+          course: true,
+          partnerCompany: {
+            select: {
+              id: true,
+              name: true,
+              referralCode: true
+            }
+          },
+          _count: {
+            select: { registrations: true }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+    }
+
+    // Mark offers as inherited vs own and generate proper referral links for sub-partners
+    const offersWithInheritance = offers.map(offer => {
+      const isInherited = offer.partnerCompanyId !== partnerCompanyId || (offer as any).isInherited;
+      let inheritedFrom = null;
+      
+      // For sub-partners, all offers are inherited from parent
+      if (partnerCompany.parentId && (offer as any).parentOffer) {
+        inheritedFrom = (offer as any).parentOffer.partnerCompany;
+      } else if (isInherited) {
+        inheritedFrom = offer.partnerCompany;
+      }
+      
+      return {
+        ...offer,
+        referralLink: offer.referralLink, // Use the pre-generated referral link for sub-partners
+        isInherited,
+        inheritedFrom
+      };
+    });
+
+    res.json(offersWithInheritance);
   } catch (error) {
     console.error('Error fetching offers:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// GET /api/offers/:id - Get specific offer (accessible to authenticateUnifiedd users)
+// GET /api/offers/:id - Get specific offer (accessible to authenticated users)
 router.get('/:id', authenticateUnified, async (req: AuthRequest, res) => {
   try {
+    const partnerCompanyId = req.partnerCompany?.id;
+    const partnerCompany = req.partnerCompany;
+    
     const offer = await prisma.partnerOffer.findFirst({
       where: {
         id: req.params.id,
@@ -63,6 +159,13 @@ router.get('/:id', authenticateUnified, async (req: AuthRequest, res) => {
       },
       include: {
         course: true,
+        partnerCompany: {
+          select: {
+            id: true,
+            name: true,
+            referralCode: true
+          }
+        },
         partner: {
           select: {
             referralCode: true,
@@ -80,6 +183,19 @@ router.get('/:id', authenticateUnified, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Offer not found' });
     }
 
+    // Generate appropriate referral link for sub-partner if needed
+    let referralLink = offer.referralLink;
+    const isInherited = offer.partnerCompanyId !== partnerCompanyId;
+    
+    if (isInherited && partnerCompany?.parentId && partnerCompanyId) {
+      // Format: PARENT001-CHILD001-TYPE-HASH
+      const parentCode = offer.partnerCompany?.referralCode || '';
+      const childCode = partnerCompany.referralCode;
+      const offerType = offer.offerType === 'TFA_ROMANIA' ? 'TFA' : 'CERTIFICATION';
+      const hash = offer.referralLink.split('-').pop() || 'HASH';
+      referralLink = `${parentCode}-${childCode}-${offerType}-${hash}`;
+    }
+
     // Return simplified offer data for enrollment
     const simplifiedOffer = {
       id: offer.id,
@@ -88,7 +204,9 @@ router.get('/:id', authenticateUnified, async (req: AuthRequest, res) => {
       course: offer.course,
       totalAmount: offer.totalAmount,
       installments: offer.installments,
-      referralLink: offer.referralLink
+      referralLink: referralLink, // Use the modified referral link for sub-partners
+      isInherited,
+      inheritedFrom: isInherited ? offer.partnerCompany : null
     };
 
     res.json({ offer: simplifiedOffer });
@@ -98,7 +216,7 @@ router.get('/:id', authenticateUnified, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/offers - Create new offer
+// POST /api/offers - Create new offer (only for parent companies)
 router.post('/', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const validatedData = validateCreateOffer(req.body);
@@ -108,6 +226,13 @@ router.post('/', authenticateUnified, async (req: AuthRequest, res) => {
 
     if (!partnerCompanyId || !partnerCompany) {
       return res.status(404).json({ error: 'Partner company not found' });
+    }
+
+    // Block offer creation for child companies
+    if (partnerCompany.parentId) {
+      return res.status(403).json({ 
+        error: 'Child companies cannot create offers. Offers are inherited from parent companies.' 
+      });
     }
 
     // Generate unique referral link
@@ -172,6 +297,15 @@ router.post('/', authenticateUnified, async (req: AuthRequest, res) => {
       }
     });
 
+    // After creating the offer, automatically create inherited offers for all sub-partners
+    try {
+      await OfferInheritanceService.syncInheritedOffers(partnerCompanyId);
+      console.log(`✅ Auto-synced inherited offers for new offer: ${offer.name}`);
+    } catch (error) {
+      console.error('Error auto-syncing inherited offers:', error);
+      // Don't fail the offer creation if inheritance sync fails
+    }
+
     res.status(201).json(offer);
   } catch (error: any) {
     if (error.message.includes('Field') || error.message.includes('Invalid')) {
@@ -182,12 +316,13 @@ router.post('/', authenticateUnified, async (req: AuthRequest, res) => {
   }
 });
 
-// PUT /api/offers/:id - Update offer
+// PUT /api/offers/:id - Update offer (only for parent companies and own offers)
 router.put('/:id', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const partnerCompanyId = req.partnerCompany?.id;
+    const partnerCompany = req.partnerCompany;
     
-    if (!partnerCompanyId) {
+    if (!partnerCompanyId || !partnerCompany) {
       return res.status(404).json({ error: 'Partner company not found' });
     }
 
@@ -199,7 +334,14 @@ router.put('/:id', authenticateUnified, async (req: AuthRequest, res) => {
     });
 
     if (!offer) {
-      return res.status(404).json({ error: 'Offer not found' });
+      return res.status(404).json({ error: 'Offer not found or you do not have permission to modify it' });
+    }
+
+    // Block offer modification for child companies (they can't modify even their parent's inherited offers)
+    if (partnerCompany.parentId) {
+      return res.status(403).json({ 
+        error: 'Child companies cannot modify offers. Only parent companies can modify their offers.' 
+      });
     }
 
     const updatedOffer = await prisma.partnerOffer.update({
@@ -217,12 +359,13 @@ router.put('/:id', authenticateUnified, async (req: AuthRequest, res) => {
   }
 });
 
-// DELETE /api/offers/:id - Delete offer
+// DELETE /api/offers/:id - Delete offer (only for parent companies and own offers)
 router.delete('/:id', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const partnerCompanyId = req.partnerCompany?.id;
+    const partnerCompany = req.partnerCompany;
     
-    if (!partnerCompanyId) {
+    if (!partnerCompanyId || !partnerCompany) {
       return res.status(404).json({ error: 'Partner company not found' });
     }
 
@@ -234,7 +377,14 @@ router.delete('/:id', authenticateUnified, async (req: AuthRequest, res) => {
     });
 
     if (!offer) {
-      return res.status(404).json({ error: 'Offer not found' });
+      return res.status(404).json({ error: 'Offer not found or you do not have permission to delete it' });
+    }
+
+    // Block offer deletion for child companies
+    if (partnerCompany.parentId) {
+      return res.status(403).json({ 
+        error: 'Child companies cannot delete offers. Only parent companies can delete their offers.' 
+      });
     }
 
     // Check if offer has registrations
@@ -262,13 +412,25 @@ router.delete('/:id', authenticateUnified, async (req: AuthRequest, res) => {
 // GET /api/offers/by-link/:referralLink - Get offer by referral link (public)
 router.get('/by-link/:referralLink', async (req, res) => {
   try {
-    const offer = await prisma.partnerOffer.findUnique({
+    const referralLink = req.params.referralLink;
+    let offer = null;
+    let sourceCompanyInfo = null;
+    
+    // First try to find the offer with the exact referral link
+    offer = await prisma.partnerOffer.findUnique({
       where: { 
-        referralLink: req.params.referralLink,
+        referralLink: referralLink,
         isActive: true
       },
       include: {
         course: true,
+        partnerCompany: {
+          select: {
+            id: true,
+            name: true,
+            referralCode: true
+          }
+        },
         partner: {
           select: {
             referralCode: true,
@@ -281,6 +443,106 @@ router.get('/by-link/:referralLink', async (req, res) => {
         }
       }
     });
+    
+    // Check if this is a hierarchical link by parsing the referral link intelligently
+    if (offer && referralLink.includes('-') && referralLink.split('-').length >= 4) {
+      // Get all partner companies to match against the referral link
+      const allCompanies = await prisma.partnerCompany.findMany({
+        select: { id: true, name: true, referralCode: true, parentId: true }
+      });
+      
+      // Try to identify parent and child codes by matching existing referral codes
+      let childCompany = null;
+      
+      // Look for the longest matching referral code at the beginning (parent)
+      for (const company of allCompanies) {
+        if (referralLink.startsWith(company.referralCode + '-')) {
+          // Now look for child code after parent code
+          const afterParent = referralLink.substring(company.referralCode.length + 1);
+          
+          for (const childCandidate of allCompanies) {
+            if (childCandidate.parentId === company.id && afterParent.startsWith(childCandidate.referralCode + '-')) {
+              childCompany = childCandidate;
+              break;
+            }
+          }
+          break;
+        }
+      }
+      
+      if (childCompany) {
+        sourceCompanyInfo = {
+          id: childCompany.id,
+          name: childCompany.name,
+          referralCode: childCompany.referralCode
+        };
+      }
+    }
+
+    // If not found and referral link has hierarchical format (PARENT-CHILD-TYPE-HASH)
+    if (!offer && referralLink.includes('-') && referralLink.split('-').length >= 4) {
+      const linkParts = referralLink.split('-');
+      if (linkParts.length >= 4) {
+        const parentCode = linkParts[0];
+        const childCode = linkParts[1];
+        const offerType = linkParts[2];
+        const hash = linkParts.slice(3).join('-'); // Handle cases where hash might contain dashes
+        
+        // Map offer type back to database enum
+        const dbOfferType = offerType === 'TFA' ? 'TFA_ROMANIA' : 'CERTIFICATION';
+        
+        // Find the parent company and the original offer
+        const parentCompany = await prisma.partnerCompany.findUnique({
+          where: { referralCode: parentCode }
+        });
+        
+        // Find the child company to track the source
+        const childCompany = await prisma.partnerCompany.findUnique({
+          where: { referralCode: childCode }
+        });
+        
+        if (parentCompany && childCompany) {
+          // Find the parent's offer that ends with the same hash and matches the offer type
+          offer = await prisma.partnerOffer.findFirst({
+            where: {
+              partnerCompanyId: parentCompany.id,
+              offerType: dbOfferType,
+              referralLink: { endsWith: hash },
+              isActive: true
+            },
+            include: {
+              course: true,
+              partnerCompany: {
+                select: {
+                  id: true,
+                  name: true,
+                  referralCode: true
+                }
+              },
+              partner: {
+                select: {
+                  referralCode: true,
+                  user: {
+                    select: {
+                      email: true
+                    }
+                  }
+                }
+              }
+            }
+          });
+          
+          // Store child company info for tracking
+          if (offer) {
+            sourceCompanyInfo = {
+              id: childCompany.id,
+              name: childCompany.name,
+              referralCode: childCompany.referralCode
+            };
+          }
+        }
+      }
+    }
 
     if (!offer) {
       return res.status(404).json({ error: 'Offer not found' });
@@ -289,7 +551,9 @@ router.get('/by-link/:referralLink', async (req, res) => {
     // Include all fields needed by the frontend, including customPaymentPlan
     const offerResponse = {
       ...offer,
-      customPaymentPlan: offer.customPaymentPlan // Ensure this field is included
+      customPaymentPlan: offer.customPaymentPlan, // Ensure this field is included
+      originalReferralLink: referralLink, // Keep track of the original link used
+      sourceCompany: sourceCompanyInfo // Include sub-partner info if applicable
     };
 
     res.json(offerResponse);

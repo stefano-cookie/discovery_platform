@@ -555,12 +555,32 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
     
     // If still no partner and we have a referral code, try to find partner from referral code
     if (!partnerId && referralCode) {
-      const baseReferralCode = referralCode.split('-')[0];
-      const partner = await prisma.partner.findUnique({
-        where: { referralCode: baseReferralCode }
+      // First try to find PartnerCompany directly with the referral code
+      const partnerCompany = await prisma.partnerCompany.findUnique({
+        where: { referralCode: referralCode }
       });
       
-      if (partner) {
+      if (partnerCompany) {
+        // Create or find a legacy Partner record for backward compatibility
+        let partner = await prisma.partner.findFirst({
+          where: { referralCode: { startsWith: referralCode } }
+        });
+        
+        if (!partner) {
+          // Create a legacy partner entry for backward compatibility
+          partner = await prisma.partner.create({
+            data: {
+              id: `legacy-partner-${partnerCompany.id}`,
+              userId: `dummy-user-for-partner-${partnerCompany.id}`,
+              referralCode: `${referralCode}-LEGACY`,
+              canCreateChildren: partnerCompany.canCreateChildren || false,
+              commissionPerUser: partnerCompany.commissionPerUser || 0,
+              commissionToAdmin: 0,
+              promotedFromChild: false
+            }
+          });
+        }
+        
         partnerId = partner.id;
         
         // Assign this partner to the user permanently
@@ -569,7 +589,7 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
           data: { assignedPartnerId: partnerId }
         });
         
-        console.log(`Assigned partner ${partnerId} to user ${userId} from referral code ${referralCode}`);
+        console.log(`Assigned partner ${partnerId} to user ${userId} from referral code ${referralCode} (PartnerCompany: ${partnerCompany.id})`);
       }
     }
     
@@ -621,14 +641,71 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
         return existingRegistration; // Return the existing registration instead of creating a duplicate
       }
       
-      // Find the corresponding PartnerCompany for the Partner (new hierarchical system)
+      // NEW: Enhanced hierarchical system with referral link parsing
       let partnerCompanyId = null;
+      let sourcePartnerCompanyId = null;
+      let isDirectRegistration = true;
+      
       if (partnerId && partnerId !== 'default-partner-id') {
-        // Try to find PartnerCompany via PartnerOffer first (most reliable)
-        if (offer?.partnerCompanyId) {
-          partnerCompanyId = offer.partnerCompanyId;
+        // Method 1: Use referral link from offer (most accurate for sub-partner detection)
+        if (offer?.referralLink) {
+          console.log(`🔍 Analyzing referral link: ${offer.referralLink}`);
+          try {
+            // Import the service dynamically to avoid circular imports
+            const { OfferInheritanceService } = await import('../services/offerInheritanceService');
+            console.log(`✅ OfferInheritanceService imported successfully`);
+            
+            const companiesInfo = await OfferInheritanceService.findCompaniesByReferralLink(offer.referralLink);
+            console.log(`🔍 Companies info:`, companiesInfo);
+            
+            if (companiesInfo.isSubPartnerRegistration && companiesInfo.childCompany) {
+              // Sub-partner registration
+              partnerCompanyId = companiesInfo.parentCompany.id; // Parent gets commissions  
+              sourcePartnerCompanyId = companiesInfo.childCompany.id; // Child is the source
+              isDirectRegistration = false;
+              console.log(`📋 Sub-partner registration via referral link: source=${sourcePartnerCompanyId} (${companiesInfo.childCompany.name}), parent=${partnerCompanyId} (${companiesInfo.parentCompany.name})`);
+            } else {
+              // Direct parent registration
+              partnerCompanyId = companiesInfo.parentCompany.id;
+              sourcePartnerCompanyId = companiesInfo.parentCompany.id;
+              isDirectRegistration = true;
+              console.log(`📋 Direct parent registration via referral link: company=${partnerCompanyId} (${companiesInfo.parentCompany.name})`);
+            }
+          } catch (error) {
+            console.error(`❌ Error parsing referral link ${offer.referralLink}:`, error);
+            // Fallback to method 2
+          }
         } else {
-          // Fallback: try to map Partner to PartnerCompany via referralCode matching
+          console.log(`⚠️ No referral link found in offer:`, offer);
+        }
+        
+        // Method 2: Fallback - check partnerCompanyId from offer
+        console.log(`🔍 Method 1 result: partnerCompanyId=${partnerCompanyId}`);
+        if (!partnerCompanyId && offer?.partnerCompanyId) {
+          console.log(`🔍 Using Method 2 - offer.partnerCompanyId: ${offer.partnerCompanyId}`);
+          const offerCompany = await tx.partnerCompany.findUnique({
+            where: { id: offer.partnerCompanyId },
+            include: { parent: true }
+          });
+          
+          if (offerCompany) {
+            if (offerCompany.parentId) {
+              partnerCompanyId = offerCompany.parentId; // Parent gets commissions
+              sourcePartnerCompanyId = offerCompany.id; // Child is the source
+              isDirectRegistration = false;
+              console.log(`📋 Sub-partner registration via offer company: source=${sourcePartnerCompanyId}, parent=${partnerCompanyId}`);
+            } else {
+              partnerCompanyId = offerCompany.id;
+              sourcePartnerCompanyId = offerCompany.id;
+              console.log(`📋 Direct partner registration via offer company: company=${partnerCompanyId}`);
+            }
+          }
+        }
+        
+        // Method 3: Legacy fallback - map Partner to PartnerCompany via referralCode
+        console.log(`🔍 Method 2 result: partnerCompanyId=${partnerCompanyId}`);
+        if (!partnerCompanyId) {
+          console.log(`🔍 Using Method 3 - Legacy mapping with partnerId: ${partnerId}`);
           const partner = await tx.partner.findUnique({
             where: { id: partnerId }
           });
@@ -636,13 +713,22 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
             const partnerCompany = await tx.partnerCompany.findFirst({
               where: { 
                 referralCode: {
-                  startsWith: partner.referralCode.split('-')[0] // Handle variations like TEST001 vs TEST001-LEGACY
+                  startsWith: partner.referralCode.split('-')[0]
                 }
-              }
+              },
+              include: { parent: true }
             });
             if (partnerCompany) {
               partnerCompanyId = partnerCompany.id;
-              console.log(`📋 Mapped Partner ${partnerId} (${partner.referralCode}) to PartnerCompany ${partnerCompanyId}`);
+              sourcePartnerCompanyId = partnerCompany.id;
+              
+              if (partnerCompany.parentId) {
+                isDirectRegistration = false;
+                partnerCompanyId = partnerCompany.parentId;
+                console.log(`📋 Sub-partner registration via legacy mapping: source=${sourcePartnerCompanyId}, parent=${partnerCompanyId}`);
+              } else {
+                console.log(`📋 Direct partner registration via legacy mapping: company=${partnerCompanyId}`);
+              }
             }
           }
         }
@@ -653,14 +739,53 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
       const defaultAmount = isCertification ? 1500 : 4500;
       const offerAmount = Number(offer?.totalAmount) || defaultAmount;
       
+      // Final fallback: if still no partnerCompanyId, try to get it from the Partner's referralCode
+      if (!partnerCompanyId && partnerId && partnerId !== 'default-partner-id') {
+        console.log(`⚠️ Final fallback: trying to find PartnerCompany for partnerId ${partnerId}`);
+        const partner = await tx.partner.findUnique({
+          where: { id: partnerId }
+        });
+        
+        if (partner?.referralCode) {
+          // Extract base referral code (e.g., "DIAMANTE001" from "DIAMANTE001-LEGACY")
+          const baseReferralCode = partner.referralCode.split('-')[0];
+          console.log(`🔍 Looking for PartnerCompany with base referral code: ${baseReferralCode}`);
+          
+          const partnerCompany = await tx.partnerCompany.findFirst({
+            where: { 
+              OR: [
+                { referralCode: baseReferralCode },
+                { referralCode: { startsWith: baseReferralCode } }
+              ]
+            },
+            orderBy: { createdAt: 'asc' } // Get the oldest one (likely the main company)
+          });
+          
+          if (partnerCompany) {
+            partnerCompanyId = partnerCompany.id;
+            sourcePartnerCompanyId = partnerCompany.id;
+            isDirectRegistration = true;
+            console.log(`✅ Found PartnerCompany via final fallback: ${partnerCompany.id} (${partnerCompany.name})`);
+          }
+        }
+      }
+      
+      // Log final tracking values before creating registration
+      console.log(`📋 Final tracking values:`, {
+        partnerCompanyId,
+        sourcePartnerCompanyId,
+        isDirectRegistration,
+        offerReferralLink: offer?.referralLink
+      });
+      
       // Create new registration with course-specific data
       const registration = await tx.registration.create({
         data: {
           userId: userId,
           partnerId: partnerId || 'default-partner-id',
           partnerCompanyId: partnerCompanyId,
-          sourcePartnerCompanyId: partnerCompanyId, // Same as partnerCompanyId for direct registrations
-          isDirectRegistration: true,
+          sourcePartnerCompanyId: sourcePartnerCompanyId,
+          isDirectRegistration: isDirectRegistration,
           courseId: courseId,
           partnerOfferId: partnerOfferId,
           offerType: isCertification ? 'CERTIFICATION' : 'TFA_ROMANIA',
@@ -1009,12 +1134,32 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
     }
     
     if (!partnerId && referralCode) {
-      const baseReferralCode = referralCode.split('-')[0];
-      const partner = await prisma.partner.findUnique({
-        where: { referralCode: baseReferralCode }
+      // First try to find PartnerCompany directly with the referral code
+      const partnerCompany = await prisma.partnerCompany.findUnique({
+        where: { referralCode: referralCode }
       });
       
-      if (partner) {
+      if (partnerCompany) {
+        // Create or find a legacy Partner record for backward compatibility
+        let partner = await prisma.partner.findFirst({
+          where: { referralCode: { startsWith: referralCode } }
+        });
+        
+        if (!partner) {
+          // Create a legacy partner entry for backward compatibility
+          partner = await prisma.partner.create({
+            data: {
+              id: `legacy-partner-${partnerCompany.id}`,
+              userId: `dummy-user-for-partner-${partnerCompany.id}`,
+              referralCode: `${referralCode}-LEGACY`,
+              canCreateChildren: partnerCompany.canCreateChildren || false,
+              commissionPerUser: partnerCompany.commissionPerUser || 0,
+              commissionToAdmin: 0,
+              promotedFromChild: false
+            }
+          });
+        }
+        
         partnerId = partner.id;
         
         await prisma.user.update({
@@ -1022,7 +1167,7 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
           data: { assignedPartnerId: partnerId }
         });
         
-        console.log(`Assigned partner ${partnerId} to verified user ${user.id} from referral code ${referralCode}`);
+        console.log(`Assigned partner ${partnerId} to verified user ${user.id} from referral code ${referralCode} (PartnerCompany: ${partnerCompany.id})`);
       }
     }
     
@@ -1244,12 +1389,111 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
         return updatedRegistration;
       }
       
-      // Find the corresponding PartnerCompany for the Partner (new hierarchical system)
+      // NEW: Enhanced hierarchical system with referral link parsing (duplicate logic for complete registration)
       let partnerCompanyId = null;
+      let sourcePartnerCompanyId = null;
+      let isDirectRegistration = true;
+      
       if (partnerId && partnerId !== 'default-partner-id') {
-        // Try to find PartnerCompany via PartnerOffer first (most reliable)
+        // Method 1: Use referral link from offer (most accurate for sub-partner detection)
+        if (offer?.referralLink) {
+          try {
+            // Import the service dynamically to avoid circular imports
+            const { OfferInheritanceService } = await import('../services/offerInheritanceService');
+            
+            const companiesInfo = await OfferInheritanceService.findCompaniesByReferralLink(offer.referralLink);
+            
+            if (companiesInfo.isSubPartnerRegistration && companiesInfo.childCompany) {
+              // Sub-partner registration
+              partnerCompanyId = companiesInfo.parentCompany.id; // Parent gets commissions  
+              sourcePartnerCompanyId = companiesInfo.childCompany.id; // Child is the source
+              isDirectRegistration = false;
+              console.log(`📋 Sub-partner registration via referral link (complete): source=${sourcePartnerCompanyId} (${companiesInfo.childCompany.name}), parent=${partnerCompanyId} (${companiesInfo.parentCompany.name})`);
+            } else {
+              // Direct parent registration
+              partnerCompanyId = companiesInfo.parentCompany.id;
+              sourcePartnerCompanyId = companiesInfo.parentCompany.id;
+              isDirectRegistration = true;
+              console.log(`📋 Direct parent registration via referral link (complete): company=${partnerCompanyId} (${companiesInfo.parentCompany.name})`);
+            }
+          } catch (error) {
+            console.warn(`⚠️ Error parsing referral link ${offer.referralLink}:`, error);
+            // Fallback to method 2
+          }
+        }
+        
+        // Method 2: Fallback - check partnerCompanyId from offer
+        if (!partnerCompanyId && offer?.partnerCompanyId) {
+          const offerCompany = await tx.partnerCompany.findUnique({
+            where: { id: offer.partnerCompanyId },
+            include: { parent: true }
+          });
+          
+          if (offerCompany) {
+            if (offerCompany.parentId) {
+              partnerCompanyId = offerCompany.parentId; // Parent gets commissions
+              sourcePartnerCompanyId = offerCompany.id; // Child is the source
+              isDirectRegistration = false;
+              console.log(`📋 Sub-partner registration via offer company (complete): source=${sourcePartnerCompanyId}, parent=${partnerCompanyId}`);
+            } else {
+              partnerCompanyId = offerCompany.id;
+              sourcePartnerCompanyId = offerCompany.id;
+              console.log(`📋 Direct partner registration via offer company (complete): company=${partnerCompanyId}`);
+            }
+          }
+        }
+        
+        // Method 3: Legacy fallback - map Partner to PartnerCompany via referralCode
+        if (!partnerCompanyId) {
+          const partner = await tx.partner.findUnique({
+            where: { id: partnerId }
+          });
+          if (partner?.referralCode) {
+            const partnerCompany = await tx.partnerCompany.findFirst({
+              where: { 
+                referralCode: {
+                  startsWith: partner.referralCode.split('-')[0]
+                }
+              },
+              include: { parent: true }
+            });
+            if (partnerCompany) {
+              partnerCompanyId = partnerCompany.id;
+              sourcePartnerCompanyId = partnerCompany.id;
+              
+              if (partnerCompany.parentId) {
+                isDirectRegistration = false;
+                partnerCompanyId = partnerCompany.parentId;
+                console.log(`📋 Sub-partner registration via legacy mapping (complete): source=${sourcePartnerCompanyId}, parent=${partnerCompanyId}`);
+              } else {
+                console.log(`📋 Direct partner registration via legacy mapping (complete): company=${partnerCompanyId}`);
+              }
+            }
+          }
+        }
+        
+        // OLD FALLBACK: Try to find PartnerCompany via PartnerOffer first (most reliable)
         if (offer?.partnerCompanyId) {
-          partnerCompanyId = offer.partnerCompanyId;
+          // Get the company that created the offer to check hierarchy
+          const offerCompany = await tx.partnerCompany.findUnique({
+            where: { id: offer.partnerCompanyId },
+            include: { parent: true }
+          });
+          
+          if (offerCompany) {
+            // If the offer company has a parent, this is a sub-partner registration
+            if (offerCompany.parentId) {
+              partnerCompanyId = offerCompany.parentId; // Parent gets commissions
+              sourcePartnerCompanyId = offerCompany.id; // Child is the source
+              isDirectRegistration = false;
+              console.log(`📋 Sub-partner registration via offer (complete): source=${sourcePartnerCompanyId}, parent=${partnerCompanyId}`);
+            } else {
+              // Direct registration from root company
+              partnerCompanyId = offerCompany.id;
+              sourcePartnerCompanyId = offerCompany.id;
+              console.log(`📋 Direct partner registration via offer (complete): company=${partnerCompanyId}`);
+            }
+          }
         } else {
           // Fallback: try to map Partner to PartnerCompany via referralCode matching
           const partner = await tx.partner.findUnique({
@@ -1261,11 +1505,25 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
                 referralCode: {
                   startsWith: partner.referralCode.split('-')[0] // Handle variations like TEST001 vs TEST001-LEGACY
                 }
+              },
+              include: {
+                parent: true // Include parent to determine if this is a sub-partner
               }
             });
             if (partnerCompany) {
               partnerCompanyId = partnerCompany.id;
-              console.log(`📋 Mapped Partner ${partnerId} (${partner.referralCode}) to PartnerCompany ${partnerCompanyId}`);
+              sourcePartnerCompanyId = partnerCompany.id;
+              
+              // Check if this is a sub-partner registration (indirect)
+              if (partnerCompany.parentId) {
+                isDirectRegistration = false;
+                // For sub-partners, partnerCompanyId should be the parent (for commissions)
+                // sourcePartnerCompanyId remains the sub-partner (for tracking)
+                partnerCompanyId = partnerCompany.parentId;
+                console.log(`📋 Sub-partner registration: source=${sourcePartnerCompanyId}, parent=${partnerCompanyId}`);
+              } else {
+                console.log(`📋 Direct partner registration: company=${partnerCompanyId}`);
+              }
             }
           }
         }
@@ -1282,8 +1540,8 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
           userId: user.id,
           partnerId: partnerId || 'default-partner-id',
           partnerCompanyId: partnerCompanyId,
-          sourcePartnerCompanyId: partnerCompanyId, // Same as partnerCompanyId for direct registrations
-          isDirectRegistration: true,
+          sourcePartnerCompanyId: sourcePartnerCompanyId,
+          isDirectRegistration: isDirectRegistration,
           courseId: courseId,
           partnerOfferId: partnerOfferId,
           offerType: isCertification ? 'CERTIFICATION' : 'TFA_ROMANIA',

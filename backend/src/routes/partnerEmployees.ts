@@ -17,14 +17,22 @@ router.get('/stats', authenticateUnified, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Azienda partner non trovata' });
     }
 
-    // Simple stats for now
+    // Simple stats for now - include both owned and generated registrations
     const totalRegistrations = await prisma.registration.count({
-      where: { partnerCompanyId }
+      where: {
+        OR: [
+          { partnerCompanyId },
+          { sourcePartnerCompanyId: partnerCompanyId }
+        ]
+      }
     });
 
     const activeRegistrations = await prisma.registration.count({
       where: { 
-        partnerCompanyId,
+        OR: [
+          { partnerCompanyId },
+          { sourcePartnerCompanyId: partnerCompanyId }
+        ],
         status: { in: ['ENROLLED', 'CONTRACT_SIGNED'] }
       }
     });
@@ -34,7 +42,10 @@ router.get('/stats', authenticateUnified, async (req: AuthRequest, res) => {
     
     const recentRegistrations = await prisma.registration.count({
       where: {
-        partnerCompanyId,
+        OR: [
+          { partnerCompanyId },
+          { sourcePartnerCompanyId: partnerCompanyId }
+        ],
         createdAt: { gte: thirtyDaysAgo }
       }
     });
@@ -62,7 +73,12 @@ router.get('/users', authenticateUnified, async (req: AuthRequest, res) => {
     }
 
     const registrations = await prisma.registration.findMany({
-      where: { partnerCompanyId },
+      where: {
+        OR: [
+          { partnerCompanyId },
+          { sourcePartnerCompanyId: partnerCompanyId }
+        ]
+      },
       include: {
         user: {
           select: {
@@ -109,7 +125,12 @@ router.get('/analytics', authenticateUnified, async (req: AuthRequest, res) => {
     // Status distribution
     const statusData = await prisma.registration.groupBy({
       by: ['status'],
-      where: { partnerCompanyId },
+      where: {
+        OR: [
+          { partnerCompanyId },
+          { sourcePartnerCompanyId: partnerCompanyId }
+        ]
+      },
       _count: { id: true }
     });
 

@@ -50,11 +50,15 @@ import userDocumentRoutes from './routes/userDocuments';
 import documentUploadRoutes from './routes/documentUpload';
 import documentsRoutes from './routes/documents';
 import partnerEmployeesRoutes from './routes/partnerEmployees';
+import subPartnersRoutes from './routes/subPartners';
+import offerInheritanceRoutes from './routes/offerInheritance';
 // import partnerCouponsRoutes from './routes/_refactored/partnerCoupons'; // Disabled due to compilation errors
 
 app.use('/api/auth', authRoutes);
 app.use('/api/partners', partnerRoutes); // Main partner routes (fixed)
 app.use('/api/partner-employees', partnerEmployeesRoutes); // NEW: Simplified partner routes
+app.use('/api/sub-partners', subPartnersRoutes); // NEW: Sub-partner management for premium accounts
+app.use('/api/offer-inheritance', offerInheritanceRoutes); // NEW: Offer inheritance system for sub-partners
 // app.use('/api/partners', partnerCouponsRoutes); // NEW: Refactored coupon management - Disabled due to compilation errors
 app.use('/api/registration', registrationRoutes);
 app.use('/api/payments', paymentRoutes);
