@@ -108,6 +108,17 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
     initAuth();
   }, []);
 
+  // Debug: Log when partner state changes
+  useEffect(() => {
+    console.log('🔄 Partner state changed:', {
+      hasToken: !!token,
+      hasEmployee: !!partnerEmployee,
+      hasCompany: !!partnerCompany,
+      isLoading,
+      isAuthenticated
+    });
+  }, [token, partnerEmployee, partnerCompany, isLoading, isAuthenticated]);
+
   // ========================================
   // AUTH ACTIONS
   // ========================================
@@ -135,14 +146,22 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
       localStorage.setItem('partnerEmployee', JSON.stringify(employee));
       localStorage.setItem('partnerCompany', JSON.stringify(company));
       
-      console.log('💾 Partner data stored in localStorage');
+      console.log('💾 Partner data stored in localStorage:', {
+        tokenSaved: !!localStorage.getItem('partnerToken'),
+        employeeSaved: !!localStorage.getItem('partnerEmployee'),
+        companySaved: !!localStorage.getItem('partnerCompany')
+      });
       
       // Update state
       setToken(newToken);
       setPartnerEmployee(employee);
       setPartnerCompany(company);
       
-      console.log('🔄 Partner state updated in React');
+      console.log('🔄 Partner state updated in React:', {
+        tokenState: !!newToken,
+        employeeState: !!employee,
+        companyState: !!company
+      });
       
       // Setup api default header
       api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
