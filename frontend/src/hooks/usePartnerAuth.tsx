@@ -36,6 +36,7 @@ interface PartnerAuthContextType {
   canCreateChildCompanies: () => boolean;
   canViewFinancialData: () => boolean;
   canManageOffers: () => boolean;
+  canCreateOffers: () => boolean;
 }
 
 const PartnerAuthContext = createContext<PartnerAuthContextType | undefined>(undefined);
@@ -204,6 +205,12 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
            partnerEmployee?.role === PartnerEmployeeRole.COMMERCIAL;
   };
 
+  const canCreateOffers = (): boolean => {
+    // Solo partner ADMINISTRATIVE e solo se è una company parent (non figlio)
+    return partnerEmployee?.role === PartnerEmployeeRole.ADMINISTRATIVE && 
+           !partnerCompany?.parentId; // Solo se non ha un parent (quindi è root o parent) 
+  };
+
   // ========================================
   // CONTEXT VALUE
   // ========================================
@@ -224,7 +231,8 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
     canCreateEmployees,
     canCreateChildCompanies,
     canViewFinancialData,
-    canManageOffers
+    canManageOffers,
+    canCreateOffers
   };
 
   return (

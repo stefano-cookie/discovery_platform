@@ -3,8 +3,10 @@ import { OfferService } from '../../services/offerService';
 import { PartnerOffer, CreateOfferData } from '../../types/offers';
 import { apiRequest } from '../../services/api';
 import { usePartnerAuth } from '../../hooks/usePartnerAuth';
+import { partnerService } from '../../services/partner';
 import Modal from '../UI/Modal';
 import Portal from '../UI/Portal';
+import ToggleSwitch from '../UI/ToggleSwitch';
 
 interface OfferType {
   id: string;
@@ -15,7 +17,7 @@ interface OfferType {
 }
 
 const OfferManagement: React.FC = () => {
-  const { token, isAuthenticated, partnerEmployee, canManageOffers } = usePartnerAuth();
+  const { token, isAuthenticated, partnerEmployee, partnerCompany, canManageOffers, canCreateOffers } = usePartnerAuth();
   const [offers, setOffers] = useState<PartnerOffer[]>([]);
   const [availableOfferTypes, setAvailableOfferTypes] = useState<OfferType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,6 +28,7 @@ const OfferManagement: React.FC = () => {
   const [selectedOfferType, setSelectedOfferType] = useState<OfferType | null>(null);
   const [createStep, setCreateStep] = useState<'template' | 'details'>('template');
   const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
+  const [togglingOfferId, setTogglingOfferId] = useState<string | null>(null);
   const [createFormData, setCreateFormData] = useState({
     name: '',
     totalAmount: 0,
@@ -177,6 +180,33 @@ const OfferManagement: React.FC = () => {
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 1500); // Ridotto da 3000 a 1500ms
+  };
+
+  const handleToggleOfferStatus = async (offer: PartnerOffer) => {
+    if (!token || togglingOfferId === offer.id) return;
+
+    setTogglingOfferId(offer.id);
+    
+    try {
+      await partnerService.toggleOfferStatus(offer.id, !offer.isActive);
+      
+      // Update the offer in the local state
+      setOffers(prevOffers => 
+        prevOffers.map(o => 
+          o.id === offer.id 
+            ? { ...o, isActive: !offer.isActive }
+            : o
+        )
+      );
+      
+      const statusText = !offer.isActive ? 'attivata' : 'disattivata';
+      showNotification('success', `Offerta ${statusText} con successo!`);
+    } catch (error) {
+      console.error('Error toggling offer status:', error);
+      showNotification('error', 'Errore durante il cambio di stato dell\'offerta');
+    } finally {
+      setTogglingOfferId(null);
+    }
   };
 
   const copyReferralLink = (offer: PartnerOffer) => {
@@ -465,16 +495,19 @@ const OfferManagement: React.FC = () => {
           <h2 className="text-2xl font-bold text-gray-900">Gestione Offerte</h2>
           <p className="text-gray-600 mt-1">Crea e gestisci le tue offerte personalizzate</p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          disabled={!canManageOffers()}
-          className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl flex items-center group disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <svg className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-          Crea Nuova Offerta
-        </button>
+        {!partnerCompany?.parentId && (
+          <button
+            onClick={() => setShowCreateModal(true)}
+            disabled={!canCreateOffers()}
+            className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl flex items-center group disabled:opacity-50 disabled:cursor-not-allowed"
+            title={!canCreateOffers() ? 'Solo gli utenti ADMINISTRATIVE delle società padre possono creare offerte' : 'Crea una nuova offerta'}
+          >
+            <svg className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            Crea Nuova Offerta
+          </button>
+        )}
       </div>
 
       {/* Offers Grid */}
@@ -487,16 +520,26 @@ const OfferManagement: React.FC = () => {
           </div>
           <h3 className="text-xl font-semibold text-gray-900 mb-2">Nessuna offerta creata</h3>
           <p className="text-gray-600 mb-6">Inizia creando la tua prima offerta personalizzata per iniziare a raccogliere iscrizioni.</p>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            disabled={!canManageOffers()}
-            className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl inline-flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            Crea la tua prima offerta
-          </button>
+{partnerCompany?.parentId ? (
+            <div className="bg-orange-50 border border-orange-200 rounded-xl px-6 py-3 text-center max-w-md">
+              <p className="text-sm text-orange-700">
+                Le società figlie ereditano le offerte dalla società padre.
+                Contatta la società padre per aggiungere nuove offerte.
+              </p>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              disabled={!canCreateOffers()}
+              className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl inline-flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+              title={!canCreateOffers() ? 'Solo gli utenti ADMINISTRATIVE delle società padre possono creare offerte' : 'Crea la tua prima offerta'}
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Crea la tua prima offerta
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -512,7 +555,7 @@ const OfferManagement: React.FC = () => {
                   <h3 className="font-bold text-lg text-gray-900 truncate group-hover:text-blue-600 transition-colors">
                     {offer.name}
                   </h3>
-                  <div className="flex items-center mt-1">
+                  <div className="flex items-center mt-1 space-x-2">
                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
                       offer.offerType === 'TFA_ROMANIA' 
                         ? 'bg-purple-100 text-purple-800' 
@@ -520,20 +563,35 @@ const OfferManagement: React.FC = () => {
                     }`}>
                       {offer.offerType === 'TFA_ROMANIA' ? '🎓 TFA Romania' : '📜 Certificazione'}
                     </span>
+                    {offer.isInherited && (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200">
+                        🔗 Ereditata
+                      </span>
+                    )}
                   </div>
+                  {offer.isInherited && offer.inheritedFrom && (
+                    <div className="mt-1">
+                      <span className="text-xs text-gray-500">
+                        da: {offer.inheritedFrom.name}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 
-                <div className="flex flex-col items-end">
-                  <span className={`inline-flex items-center px-2.5 py-1.5 rounded-full text-xs font-semibold shadow-sm ${
-                    offer.isActive 
-                      ? 'bg-green-100 text-green-700 border border-green-200' 
-                      : 'bg-red-100 text-red-700 border border-red-200'
-                  }`}>
-                    <div className={`w-2 h-2 rounded-full mr-1.5 ${
-                      offer.isActive ? 'bg-green-500' : 'bg-red-500'
-                    }`}></div>
-                    {offer.isActive ? 'Attiva' : 'Inattiva'}
-                  </span>
+                <div className="flex flex-col items-end space-y-2">
+                  {/* Toggle Switch for Active/Inactive status */}
+                  <div className="flex items-center space-x-2">
+                    <span className={`text-xs font-medium ${offer.isActive ? 'text-green-700' : 'text-red-700'}`}>
+                      {offer.isActive ? 'Attiva' : 'Inattiva'}
+                    </span>
+                    <ToggleSwitch
+                      checked={offer.isActive}
+                      onChange={() => handleToggleOfferStatus(offer)}
+                      size="sm"
+                      disabled={offer.isInherited || !canManageOffers() || togglingOfferId === offer.id}
+                      loading={togglingOfferId === offer.id}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -579,34 +637,37 @@ const OfferManagement: React.FC = () => {
                 </button>
                 
                 {/* Edit and Delete Buttons */}
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => handleEditOffer(offer)}
-                    disabled={!canManageOffers()}
-                    className="bg-white border border-green-200 text-green-700 px-4 py-2.5 rounded-lg hover:bg-green-50 hover:border-green-300 transition-all duration-200 font-medium text-sm flex items-center justify-center group disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <svg className="w-4 h-4 mr-1.5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    Modifica
-                  </button>
-                  
-                  <button
-                    onClick={() => handleDeleteOffer(offer)}
-                    disabled={(offer._count?.registrations || 0) > 0 || !canManageOffers()}
-                    className={`px-4 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center transition-all duration-200 ${
-                      (offer._count?.registrations || 0) > 0 || !canManageOffers()
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : 'bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 group'
-                    }`}
-                    title={!canManageOffers() ? 'Solo gli utenti ADMINISTRATIVE possono eliminare offerte' : (offer._count?.registrations || 0) > 0 ? 'Non è possibile eliminare offerte con iscrizioni' : 'Elimina offerta'}
-                  >
-                    <svg className={`w-4 h-4 mr-1.5 transition-transform ${(offer._count?.registrations || 0) === 0 ? 'group-hover:scale-110' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    Elimina
-                  </button>
-                </div>
+                {!offer.isInherited && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => handleEditOffer(offer)}
+                      disabled={!canManageOffers()}
+                      className="bg-white border border-green-200 text-green-700 px-4 py-2.5 rounded-lg hover:bg-green-50 hover:border-green-300 transition-all duration-200 font-medium text-sm flex items-center justify-center group disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={!canManageOffers() ? 'Solo gli utenti ADMINISTRATIVE possono modificare offerte' : 'Modifica offerta'}
+                    >
+                      <svg className="w-4 h-4 mr-1.5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Modifica
+                    </button>
+                    
+                    <button
+                      onClick={() => handleDeleteOffer(offer)}
+                      disabled={(offer._count?.registrations || 0) > 0 || !canManageOffers()}
+                      className={`px-4 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center transition-all duration-200 ${
+                        (offer._count?.registrations || 0) > 0 || !canManageOffers()
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 group'
+                      }`}
+                      title={!canManageOffers() ? 'Solo gli utenti ADMINISTRATIVE possono eliminare offerte' : (offer._count?.registrations || 0) > 0 ? 'Non è possibile eliminare offerte con iscrizioni' : 'Elimina offerta'}
+                    >
+                      <svg className={`w-4 h-4 mr-1.5 transition-transform ${(offer._count?.registrations || 0) === 0 ? 'group-hover:scale-110' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Elimina
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -622,28 +683,13 @@ const OfferManagement: React.FC = () => {
             setShowCreateModal(false);
             resetCreateForm();
           }}
+          title={createStep === 'template' ? 'Scegli Template' : 'Configura Offerta'}
           size="xl"
           closeOnOverlayClick={false}
           closeOnEscape={false}
+          showCloseButton={true}
           className="max-h-[95vh] overflow-y-auto"
         >
-            
-            {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 rounded-t-2xl">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-white">
-                    {createStep === 'template' ? 'Scegli Template' : 'Configura Offerta'}
-                  </h2>
-                  <p className="text-blue-100 mt-1">
-                    {createStep === 'template' 
-                      ? 'Seleziona il tipo di corso per la tua offerta' 
-                      : 'Imposta nome, importo e rate personalizzate'
-                    }
-                  </p>
-                </div>
-              </div>
-            </div>
             
             <div className="p-8">
               {createStep === 'template' ? (
@@ -891,19 +937,25 @@ const OfferManagement: React.FC = () => {
       )}
 
       {/* Edit Offer Modal */}
-      {showEditModal && selectedOffer && (
-        <Modal
-          isOpen={true}
-          onClose={() => setShowEditModal(false)}
-          title="Modifica Offerta"
-          size="lg"
-          closeOnOverlayClick={false}
-          closeOnEscape={false}
-          className="max-h-[90vh] overflow-y-auto"
-        >
-            
-            {/* Content */}
-            <div className="p-6">
+      {showEditModal && selectedOffer && (() => {
+        // Ridefinisco la variabile per il modal di edit per essere sicuro che sia accessibile
+        const isTfaRomaniaEdit = selectedOffer?.offerType === 'TFA_ROMANIA' || 
+                                selectedOffer?.name?.includes('TFA') ||
+                                selectedOffer?.name?.includes('Corso di Formazione Diamante');
+        
+        return (
+          <Modal
+            isOpen={true}
+            onClose={() => setShowEditModal(false)}
+            title="Modifica Offerta"
+            size="lg"
+            closeOnOverlayClick={false}
+            closeOnEscape={false}
+            className="max-h-[90vh] overflow-y-auto"
+          >
+              
+              {/* Content */}
+              <div className="p-6">
 
             <div className="mb-4 p-4 bg-gray-50 rounded-lg">
               <h4 className="font-medium text-gray-900">{selectedOffer.name}</h4>
@@ -1059,8 +1111,8 @@ const OfferManagement: React.FC = () => {
             </div>
           </div>
         </Modal>
-      )}
-
+        );
+      })()}
       {/* Delete Confirmation Modal */}
       {showDeleteModal && selectedOffer && (
         <Modal

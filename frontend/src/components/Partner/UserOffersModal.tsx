@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { PartnerUser } from '../../types/partner';
 import { partnerService } from '../../services/partner';
 import Modal from '../UI/Modal';
+import { CogIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 interface UserOffersModalProps {
   isOpen: boolean;
@@ -100,37 +101,61 @@ const UserOffersModal: React.FC<UserOffersModalProps> = ({
     );
   };
 
+  const handleClose = () => {
+    if (!loading && !updatingOfferId) {
+      onClose();
+    }
+  };
+
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       size="xl"
       closeOnOverlayClick={!loading && !updatingOfferId}
       closeOnEscape={!loading && !updatingOfferId}
+      showCloseButton={false}
     >
-      {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-6 text-white">
-        <div>
-          <h2 className="text-2xl font-bold mb-1">
-            Gestisci Offerte per {user?.profile?.nome} {user?.profile?.cognome}
-          </h2>
-          <p className="text-purple-100 text-sm">
-            {user?.email} • Abilita o disabilita l'accesso alle tue offerte
-          </p>
+      {/* Header with Gradient Background */}
+      <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
+              <CogIcon className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-white">
+                Gestisci Offerte per {user?.profile?.nome} {user?.profile?.cognome}
+              </h2>
+              <p className="text-purple-100 mt-1">
+                {user?.email} • Abilita o disabilita l'accesso alle tue offerte
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleClose}
+            disabled={loading || !!updatingOfferId}
+            className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Chiudi modal"
+          >
+            <XMarkIcon className="h-6 w-6" />
+          </button>
         </div>
       </div>
 
       <div className="p-6">
         {error && (
-          <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6 rounded-r-lg">
+          <div className="mb-6 rounded-xl bg-red-50 border-l-4 border-red-400 p-4">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                <svg className="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.498 0L4.402 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
               </div>
               <div className="ml-3">
-                <p className="text-sm text-red-700 font-medium">{error}</p>
+                <h3 className="text-sm font-medium text-red-800">Errore</h3>
+                <p className="text-sm text-red-700 mt-1">{error}</p>
               </div>
             </div>
           </div>
@@ -143,43 +168,49 @@ const UserOffersModal: React.FC<UserOffersModalProps> = ({
           </div>
         ) : (
           <div>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="mb-6 rounded-xl bg-blue-50 border-l-4 border-blue-400 p-4">
               <div className="flex items-start">
-                <svg className="w-5 h-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                </svg>
-                <div className="text-sm text-blue-800">
-                  <p className="font-semibold mb-1">Come funziona:</p>
-                  <ul className="list-disc list-inside space-y-1 text-blue-700">
-                    <li><strong>Offerta Originale:</strong> L'utente ha accesso automatico all'offerta con cui si è iscritto</li>
-                    <li><strong>Offerte Aggiuntive:</strong> Puoi abilitare l'accesso alle tue altre offerte attive</li>
-                    <li><strong>Dashboard Utente:</strong> L'utente vedrà tutte le offerte abilitate nella sua area riservata</li>
-                  </ul>
+                <div className="flex-shrink-0">
+                  <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-blue-800">Come funziona</h3>
+                  <div className="mt-1 text-sm text-blue-700">
+                    <ul className="list-disc list-inside space-y-1">
+                      <li><strong>Offerta Originale:</strong> L'utente ha accesso automatico all'offerta con cui si è iscritto</li>
+                      <li><strong>Offerte Aggiuntive:</strong> Puoi abilitare l'accesso alle tue altre offerte attive</li>
+                      <li><strong>Dashboard Utente:</strong> L'utente vedrà tutte le offerte abilitate nella sua area riservata</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
 
             {offers.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4 mx-auto">
-                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                  </svg>
+              <div className="text-center py-16">
+                <div className="flex flex-col items-center">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Nessuna offerta disponibile</h3>
+                  <p className="text-gray-500 text-sm max-w-sm">Crea delle offerte per poterle assegnare agli utenti</p>
                 </div>
-                <p className="text-gray-500 text-lg font-medium mb-2">Nessuna offerta disponibile</p>
-                <p className="text-gray-400 text-sm">Crea delle offerte per poterle assegnare agli utenti</p>
               </div>
             ) : (
-              <div className="grid gap-4">
+              <div className="space-y-4">
                 {offers.map((offer) => (
                   <div
                     key={offer.id}
-                    className={`border-2 rounded-xl p-6 transition-all duration-200 ${
+                    className={`rounded-xl border p-6 transition-all duration-200 ${
                       offer.isOriginal
-                        ? 'border-green-200 bg-green-50'
+                        ? 'border-green-200 bg-green-50/50'
                         : offer.hasAccess
-                        ? 'border-blue-200 bg-blue-50'
-                        : 'border-gray-200 bg-white hover:border-gray-300'
+                        ? 'border-blue-200 bg-blue-50/50'
+                        : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
                     }`}
                   >
                     <div className="flex items-start justify-between">
@@ -251,16 +282,6 @@ const UserOffersModal: React.FC<UserOffersModalProps> = ({
             )}
           </div>
         )}
-      </div>
-
-      {/* Footer */}
-      <div className="bg-gray-50 px-6 py-4 border-t flex justify-end">
-        <button
-          onClick={onClose}
-          className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
-        >
-          Chiudi
-        </button>
       </div>
     </Modal>
   );

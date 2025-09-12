@@ -13,7 +13,8 @@ const UserInfo: React.FC<UserInfoProps> = ({ user }) => {
     }).format(amount);
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('it-IT');
   };
 
@@ -99,7 +100,7 @@ const UserInfo: React.FC<UserInfoProps> = ({ user }) => {
           <div>
             <label className="block text-sm font-medium text-gray-700">Partner</label>
             <p className="mt-1 text-sm text-gray-900">
-              {user.isDirectUser ? 'Diretto' : `Tramite ${user.partnerName}`}
+              {user.isDirectUser ? 'Diretto' : user.partnerName}
             </p>
           </div>
         </div>

@@ -3,8 +3,8 @@ import { usePartnerAuth } from '../../hooks/usePartnerAuth';
 import LogoutDropdown from '../UI/LogoutDropdown';
 
 interface SidebarProps {
-  activeTab: 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators';
-  onTabChange: (tab: 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators') => void;
+  activeTab: 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators' | 'sub-partners';
+  onTabChange: (tab: 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators' | 'sub-partners') => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
@@ -25,32 +25,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
     setShowLogoutDropdown(false);
   };
 
-  const menuItems = [
-    {
-      id: 'dashboard',
-      name: 'Dashboard',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v6H8V5z" />
-        </svg>
-      )
-    },
+  // Base menu items for all partners
+  const baseMenuItems = [
     {
       id: 'users',
       name: 'Gestione Utenti',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-        </svg>
-      )
-    },
-    {
-      id: 'coupons',
-      name: 'Coupon',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2.01 2.01 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
         </svg>
       )
     },
@@ -62,7 +44,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       )
-},
+    },
     {
       id: 'collaborators',
       name: 'Collaboratori',
@@ -83,6 +65,52 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
     }
   ];
 
+  // Additional menu items for parent companies (not sub-partners)
+  const parentOnlyItems = [
+    {
+      id: 'dashboard',
+      name: 'Dashboard',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v6H8V5z" />
+        </svg>
+      )
+    },
+    {
+      id: 'coupons',
+      name: 'Coupon',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2.01 2.01 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+        </svg>
+      )
+    }
+  ];
+
+  // Build menu items based on company type
+  const menuItems = partnerCompany?.parentId 
+    ? baseMenuItems // Sub-partners: only basic items
+    : [parentOnlyItems[0], ...baseMenuItems.slice(0, -1), parentOnlyItems[1], baseMenuItems[baseMenuItems.length - 1]]; // Parent companies: dashboard + all items + coupons
+
+  // Add sub-partners menu item for premium companies
+  const extendedMenuItems = partnerCompany?.isPremium 
+    ? [
+        ...menuItems.slice(0, -1), // All items except chat
+        {
+          id: 'sub-partners',
+          name: 'Sub-Partners',
+          icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h4a1 1 0 011 1v5m-6 0h6" />
+            </svg>
+          ),
+          isPremium: true
+        },
+        menuItems[menuItems.length - 1] // Add chat at the end
+      ]
+    : menuItems;
+
   return (
     <>
       {/* Sidebar Desktop */}
@@ -94,7 +122,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
               {!isCollapsed && (
                 <div className="flex-1">
                   <h1 className="text-white text-lg font-bold">Discovery Platform</h1>
-                  <p className="text-gray-300 text-xs">Partner Dashboard</p>
+                  <p className="text-gray-300 text-xs">
+                    Partner Dashboard
+                  </p>
                 </div>
               )}
               <button
@@ -110,7 +140,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
 
           {/* Navigation */}
           <nav className="flex-1 px-2 py-4 space-y-1">
-            {menuItems.map((item) => (
+            {extendedMenuItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => onTabChange(item.id as any)}
@@ -123,7 +153,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
                 <div className="mr-3 flex-shrink-0">
                   {item.icon}
                 </div>
-                {!isCollapsed && item.name}
+                {!isCollapsed && (
+                  <div className="flex items-center justify-between w-full">
+                    <span>{item.name}</span>
+                    {(item as any).isPremium && (
+                      <span className="ml-2 text-yellow-400 text-xs">⭐</span>
+                    )}
+                  </div>
+                )}
               </button>
             ))}
           </nav>
@@ -145,9 +182,16 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
                       <p className="text-sm font-medium text-white truncate">
                         {partnerCompany.name}
                       </p>
-                      <p className="text-xs text-gray-300">
-                        Code: {partnerCompany.referralCode}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-gray-300">
+                          Code: {partnerCompany.referralCode}
+                        </p>
+                        {partnerCompany.isPremium && (
+                          <span className="text-yellow-400 text-xs">
+                            ⭐ Premium
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -254,7 +298,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
       {/* Mobile Bottom Navigation */}
       <div className="lg:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 z-10">
         <nav className="flex justify-around">
-          {menuItems.map((item) => (
+          {extendedMenuItems.map((item) => (
             <button
               key={item.id}
               onClick={() => onTabChange(item.id as any)}

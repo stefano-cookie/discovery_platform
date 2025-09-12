@@ -37,7 +37,7 @@ const DocumentsSection: React.FC<DocumentsSectionProps> = ({ user }) => {
       <div className="w-full p-6">
         <DocumentManager
           userId={user.id}
-          registrationId={user.registrationId}
+          registrationId={user.registrationId || undefined}
           source="partner"
           onDocumentChange={handleDocumentChange}
           allowUpload={true}

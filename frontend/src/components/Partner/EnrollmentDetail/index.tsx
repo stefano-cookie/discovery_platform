@@ -147,7 +147,7 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
             <EnrollmentFlow 
               status={user.status} 
               registrationId={registrationId} 
-              offerType={user.offerType}
+              offerType={user.offerType || undefined}
               examDate={user.examDate}
             />
           </div>
@@ -161,7 +161,7 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
                 registrationId={registrationId}
                 courseName={user.course}
                 finalAmount={user.finalAmount}
-                offerType={user.offerType}
+                offerType={user.offerType || undefined}
                 installments={user.installments}
               />
               <EnhancedDocumentsSection user={user} />

@@ -18,7 +18,7 @@ const EnhancedDocumentsSection: React.FC<EnhancedDocumentsSectionProps> = ({ use
   return (
     <UnifiedDocumentManager
       userId={user.id}
-      registrationId={user.registrationId}
+      registrationId={user.registrationId || undefined}
       mode="partner"
       templateType={templateType}
       allowUpload={true}

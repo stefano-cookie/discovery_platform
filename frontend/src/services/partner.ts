@@ -9,10 +9,14 @@ export const partnerService = {
     });
   },
 
-  async getUsers(filter: 'all' | 'direct' | 'children' = 'all'): Promise<{users: PartnerUser[], total: number}> {
+  async getUsers(filter: 'all' | 'direct' | 'children' | 'orphaned' = 'all', subPartner?: string): Promise<{users: PartnerUser[], total: number}> {
+    const params = new URLSearchParams({ filter });
+    if (subPartner) {
+      params.append('subPartner', subPartner);
+    }
     return partnerApiRequest<{users: PartnerUser[], total: number}>({
       method: 'GET',
-      url: `/partners/users?filter=${filter}`,
+      url: `/partners/users?${params.toString()}`,
     });
   },
 
@@ -91,4 +95,39 @@ export const partnerService = {
       url: `/partners/registrations/${registrationId}`,
     });
   },
+
+  // Get available offers for reactivating users
+  async getOffers(): Promise<{ offers: any[] }> {
+    return partnerApiRequest<{ offers: any[] }>({
+      method: 'GET',
+      url: '/partners/offers',
+    });
+  },
+
+  // Toggle offer status (active/inactive)
+  async toggleOfferStatus(offerId: string, isActive: boolean): Promise<{ success: boolean; offer: any }> {
+    return partnerApiRequest<{ success: boolean; offer: any }>({
+      method: 'PUT',
+      url: `/offers/${offerId}`,
+      data: { isActive },
+    });
+  },
+
+
+  // Delete orphaned user
+  async deleteOrphanedUser(userId: string): Promise<{ success: boolean; message: string }> {
+    return partnerApiRequest<{ success: boolean; message: string }>({
+      method: 'DELETE',
+      url: `/partners/users/${userId}/orphaned`,
+    });
+  },
+
+  // Delete all orphaned users (ADMINISTRATIVE only)
+  async deleteAllOrphanedUsers(): Promise<{ success: boolean; message: string; deletedCount: number; deletedUsers: any[] }> {
+    return partnerApiRequest<{ success: boolean; message: string; deletedCount: number; deletedUsers: any[] }>({
+      method: 'DELETE',
+      url: `/partners/users/orphaned/all`,
+    });
+  },
+
 };

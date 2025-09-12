@@ -12,6 +12,7 @@ export interface PartnerCompany {
   canCreateChildren: boolean;
   hierarchyLevel: number;
   isActive: boolean;
+  isPremium: boolean;
   
   // Business Data
   commissionPerUser: number;
@@ -99,6 +100,7 @@ export interface PartnerLoginResponse {
     referralCode: string;
     canCreateChildren: boolean;
     hierarchyLevel: number;
+    isPremium: boolean;
   };
 }
 
@@ -206,7 +208,7 @@ export const PartnerPermissions = {
 
 export interface PartnerUser {
   id: string;
-  registrationId: string;
+  registrationId: string | null;
   email: string;
   profile: {
     nome: string;
@@ -217,13 +219,15 @@ export interface PartnerUser {
   status: string;
   course: string;
   courseName?: string;
-  courseId: string;
-  offerType: string;
+  courseId: string | null;
+  offerType: string | null;
   isDirectUser: boolean;
   partnerName: string;
   canManagePayments: boolean;
+  canDelete?: boolean; // New field: can this partner delete this registration
+  isOrphaned?: boolean;
   createdAt: string;
-  enrollmentDate: string;
+  enrollmentDate: string | null;
   examDate?: string;
   originalAmount: number;
   finalAmount: number;

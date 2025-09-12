@@ -21,6 +21,12 @@ export interface CustomPaymentPlan {
   }>;
 }
 
+export interface PartnerCompany {
+  id: string;
+  name: string;
+  referralCode: string;
+}
+
 export interface PartnerOffer {
   id: string;
   partnerId: string;
@@ -36,6 +42,9 @@ export interface PartnerOffer {
   createdAt: string;
   course?: Course;
   partner?: Partner;
+  partnerCompany?: PartnerCompany;
+  isInherited?: boolean;
+  inheritedFrom?: PartnerCompany;
   _count?: {
     registrations: number;
   };

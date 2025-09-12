@@ -14,13 +14,13 @@ const PartnerDashboard: React.FC = () => {
   const [users, setUsers] = useState<PartnerUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [usersError, setUsersError] = useState<string | null>(null);
-  const [currentFilter, setCurrentFilter] = useState<'all' | 'direct' | 'children'>('all');
+  const [currentFilter, setCurrentFilter] = useState<'all' | 'direct' | 'children' | 'orphaned'>('all');
   const [exportLoading, setExportLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const fetchUsers = async (filter: 'all' | 'direct' | 'children' = 'all') => {
+  const fetchUsers = async (filter: 'all' | 'direct' | 'children' | 'orphaned' = 'all') => {
     try {
       setUsersLoading(true);
       setUsersError(null);
@@ -37,7 +37,7 @@ const PartnerDashboard: React.FC = () => {
     fetchUsers(currentFilter);
   }, [currentFilter]);
 
-  const handleFilterChange = (filter: 'all' | 'direct' | 'children') => {
+  const handleFilterChange = (filter: 'all' | 'direct' | 'children' | 'orphaned') => {
     setCurrentFilter(filter);
   };
 

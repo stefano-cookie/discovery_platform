@@ -2,24 +2,43 @@ import React, { useState, useEffect } from 'react';
 import { partnerService } from '../../services/partner';
 import { PartnerUser } from '../../types/partner';
 import UserTable from './UserTable';
+import { usePartnerAuth } from '../../hooks/usePartnerAuth';
+import subPartnerApi, { SubPartner } from '../../services/subPartnerApi';
 
 interface UsersViewProps {
   onNavigateToEnrollmentDetail?: (registrationId: string) => void;
 }
 
 const UsersView: React.FC<UsersViewProps> = ({ onNavigateToEnrollmentDetail }) => {
+  const { partnerCompany } = usePartnerAuth();
   const [users, setUsers] = useState<PartnerUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [usersError, setUsersError] = useState<string | null>(null);
-  const [currentFilter, setCurrentFilter] = useState<'all' | 'direct' | 'children'>('all');
+  const [currentFilter, setCurrentFilter] = useState<'all' | 'direct' | 'children' | 'orphaned'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [allUsersStats, setAllUsersStats] = useState({ all: 0, direct: 0, children: 0, orphaned: 0 });
+  const [subPartners, setSubPartners] = useState<SubPartner[]>([]);
+  const [selectedSubPartner, setSelectedSubPartner] = useState<string>('');
+  
+  const isSubPartner = partnerCompany?.parentId != null;
 
-  const fetchUsers = async (filter: 'all' | 'direct' | 'children' = 'all') => {
+  const fetchUsers = async (filter: 'all' | 'direct' | 'children' | 'orphaned' = 'all') => {
     try {
       setUsersLoading(true);
       setUsersError(null);
-      const data = await partnerService.getUsers(filter);
+      const data = await partnerService.getUsers(filter, selectedSubPartner || undefined);
       setUsers(data.users);
+      
+      // Se è 'all', aggiorna anche le statistiche
+      if (filter === 'all') {
+        const stats = {
+          all: data.users.length,
+          direct: data.users.filter(u => u.isDirectUser && !u.isOrphaned).length,
+          children: data.users.filter(u => !u.isDirectUser && !u.isOrphaned).length,
+          orphaned: data.users.filter(u => u.isOrphaned).length
+        };
+        setAllUsersStats(stats);
+      }
     } catch (err: any) {
       setUsersError(err.response?.data?.error || 'Errore nel caricamento utenti');
     } finally {
@@ -29,7 +48,41 @@ const UsersView: React.FC<UsersViewProps> = ({ onNavigateToEnrollmentDetail }) =
 
   useEffect(() => {
     fetchUsers(currentFilter);
-  }, [currentFilter]);
+  }, [currentFilter, selectedSubPartner]);
+
+  // Carica la lista dei sub-partner per i partner parent
+  useEffect(() => {
+    const loadSubPartners = async () => {
+      if (!isSubPartner) {
+        try {
+          const subPartnersData = await subPartnerApi.getSubPartners();
+          setSubPartners(subPartnersData);
+        } catch (err) {
+          console.error('Error loading sub-partners:', err);
+        }
+      }
+    };
+    loadSubPartners();
+  }, [isSubPartner]);
+
+  // Carica le statistiche totali all'inizio
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        const data = await partnerService.getUsers('all');
+        const stats = {
+          all: data.users.length,
+          direct: data.users.filter(u => u.isDirectUser && !u.isOrphaned).length,
+          children: data.users.filter(u => !u.isDirectUser && !u.isOrphaned).length,
+          orphaned: data.users.filter(u => u.isOrphaned).length
+        };
+        setAllUsersStats(stats);
+      } catch (err) {
+        console.error('Error loading stats:', err);
+      }
+    };
+    loadStats();
+  }, []);
 
   // Listen for refresh events from certification steps updates
   useEffect(() => {
@@ -49,8 +102,23 @@ const UsersView: React.FC<UsersViewProps> = ({ onNavigateToEnrollmentDetail }) =
     };
   }, [currentFilter]);
 
-  const handleFilterChange = (filter: 'all' | 'direct' | 'children') => {
+  const handleFilterChange = async (filter: 'all' | 'direct' | 'children' | 'orphaned') => {
     setCurrentFilter(filter);
+    
+    // Aggiorna sempre le statistiche quando cambi filtro
+    try {
+      const data = await partnerService.getUsers('all');
+      const stats = {
+        all: data.users.length,
+        direct: data.users.filter(u => u.isDirectUser && !u.isOrphaned).length,
+        children: data.users.filter(u => !u.isDirectUser && !u.isOrphaned).length,
+        orphaned: data.users.filter(u => u.isOrphaned).length
+      };
+      setAllUsersStats(stats);
+      console.log('Updated stats:', stats);
+    } catch (err) {
+      console.error('Error updating stats:', err);
+    }
   };
 
   const filteredUsers = (users || []).filter(user => {
@@ -66,15 +134,8 @@ const UsersView: React.FC<UsersViewProps> = ({ onNavigateToEnrollmentDetail }) =
     );
   });
 
-  const getFilterStats = () => {
-    return {
-      all: (users || []).length,
-      direct: (users || []).filter(u => u.isDirectUser).length,
-      children: (users || []).filter(u => !u.isDirectUser).length
-    };
-  };
-
-  const stats = getFilterStats();
+  // Usa le statistiche salvate invece di calcolarle sui dati filtrati
+  const stats = allUsersStats;
 
   if (usersError) {
     return (
@@ -114,12 +175,12 @@ const UsersView: React.FC<UsersViewProps> = ({ onNavigateToEnrollmentDetail }) =
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className={`p-4 rounded-lg border-2 transition-colors ${
+      <div className={`grid grid-cols-1 gap-4 ${isSubPartner ? 'sm:grid-cols-1' : 'sm:grid-cols-4'}`}>
+        <div className={`p-4 rounded-lg border-2 transition-colors cursor-pointer ${
           currentFilter === 'all' 
             ? 'border-blue-500 bg-blue-50' 
             : 'border-gray-200 bg-white hover:border-gray-300'
-        }`}>
+        }`} onClick={() => handleFilterChange('all')}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Tutti gli Utenti</p>
@@ -133,41 +194,65 @@ const UsersView: React.FC<UsersViewProps> = ({ onNavigateToEnrollmentDetail }) =
           </div>
         </div>
 
-        <div className={`p-4 rounded-lg border-2 transition-colors ${
-          currentFilter === 'direct' 
-            ? 'border-green-500 bg-green-50' 
-            : 'border-gray-200 bg-white hover:border-gray-300'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Utenti Diretti</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.direct}</p>
-            </div>
-            <div className="p-2 bg-green-100 rounded-lg">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
+        {!isSubPartner && (
+          <div className={`p-4 rounded-lg border-2 transition-colors cursor-pointer ${
+            currentFilter === 'direct' 
+              ? 'border-green-500 bg-green-50' 
+              : 'border-gray-200 bg-white hover:border-gray-300'
+          }`} onClick={() => handleFilterChange('direct')}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Utenti Diretti</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.direct}</p>
+              </div>
+              <div className="p-2 bg-green-100 rounded-lg">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        <div className={`p-4 rounded-lg border-2 transition-colors ${
-          currentFilter === 'children' 
-            ? 'border-purple-500 bg-purple-50' 
-            : 'border-gray-200 bg-white hover:border-gray-300'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Da Partner Figli</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.children}</p>
-            </div>
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-              </svg>
+        {!isSubPartner && (
+          <div className={`p-4 rounded-lg border-2 transition-colors cursor-pointer ${
+            currentFilter === 'children' 
+              ? 'border-purple-500 bg-purple-50' 
+              : 'border-gray-200 bg-white hover:border-gray-300'
+          }`} onClick={() => handleFilterChange('children')}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Da Partner Figli</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.children}</p>
+              </div>
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                </svg>
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {!isSubPartner && (
+          <div className={`p-4 rounded-lg border-2 transition-colors cursor-pointer ${
+            currentFilter === 'orphaned' 
+              ? 'border-orange-500 bg-orange-50' 
+              : 'border-gray-200 bg-white hover:border-gray-300'
+          }`} onClick={() => handleFilterChange('orphaned')}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Utenti Orfani</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.orphaned}</p>
+              </div>
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Search and Filters */}
@@ -190,40 +275,78 @@ const UsersView: React.FC<UsersViewProps> = ({ onNavigateToEnrollmentDetail }) =
             </div>
           </div>
           
-          <div className="flex items-center space-x-3">
-            <span className="text-sm text-gray-500">Filtro:</span>
-            <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
-              {[
-                { id: 'all', label: 'Tutti', count: stats.all },
-                { id: 'direct', label: 'Diretti', count: stats.direct },
-                { id: 'children', label: 'Figli', count: stats.children }
-              ].map((filter) => (
-                <button
-                  key={filter.id}
-                  onClick={() => handleFilterChange(filter.id as any)}
-                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    currentFilter === filter.id
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
+          <div className="flex flex-col lg:flex-row items-start lg:items-center space-y-3 lg:space-y-0 lg:space-x-6">
+            {/* Sub-Partner Filter (solo per parent companies) */}
+            {!isSubPartner && subPartners.length > 0 && (
+              <div className="flex items-center space-x-3">
+                <span className="text-sm text-gray-500">Sub-Partner:</span>
+                <select
+                  value={selectedSubPartner}
+                  onChange={(e) => setSelectedSubPartner(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  {filter.label} ({filter.count})
-                </button>
-              ))}
+                  <option value="">Tutti i sub-partner</option>
+                  {subPartners.map((subPartner) => (
+                    <option key={subPartner.id} value={subPartner.id}>
+                      {subPartner.name} ({subPartner.stats.totalRegistrations})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="flex items-center space-x-3">
+              <span className="text-sm text-gray-500">Filtro:</span>
+              <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
+                {[
+                  { id: 'all', label: 'Tutti', count: stats.all },
+                  { id: 'direct', label: 'Diretti', count: stats.direct },
+                  // Hide "Figli" filter for sub-partners as they can't have children
+                  ...(isSubPartner ? [] : [{ id: 'children', label: 'Figli', count: stats.children }]),
+                  { id: 'orphaned', label: 'Orfani', count: stats.orphaned }
+                ].map((filter) => (
+                  <button
+                    key={filter.id}
+                    onClick={() => handleFilterChange(filter.id as any)}
+                    className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                      currentFilter === filter.id
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    {filter.label} ({filter.count})
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
 
-        {searchTerm && (
-          <div className="mt-4 text-sm text-gray-600">
-            Mostrando {filteredUsers.length} di {users.length} utenti per "{searchTerm}"
-            {filteredUsers.length !== users.length && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="ml-2 text-blue-600 hover:text-blue-700"
-              >
-                Cancella ricerca
-              </button>
+        {(searchTerm || selectedSubPartner) && (
+          <div className="mt-4 space-y-2">
+            {searchTerm && (
+              <div className="text-sm text-gray-600">
+                Mostrando {filteredUsers.length} di {users.length} utenti per "{searchTerm}"
+                {filteredUsers.length !== users.length && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="ml-2 text-blue-600 hover:text-blue-700"
+                  >
+                    Cancella ricerca
+                  </button>
+                )}
+              </div>
+            )}
+            {selectedSubPartner && (
+              <div className="text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">
+                Filtrando per sub-partner: {subPartners.find(sp => sp.id === selectedSubPartner)?.name}
+                <button
+                  onClick={() => setSelectedSubPartner('')}
+                  className="ml-2 text-blue-700 hover:text-blue-800 font-medium"
+                >
+                  Rimuovi filtro
+                </button>
+              </div>
             )}
           </div>
         )}

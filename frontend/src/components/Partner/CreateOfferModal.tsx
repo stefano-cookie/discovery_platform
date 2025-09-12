@@ -197,14 +197,14 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto m-4 shadow-2xl">
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 rounded-t-xl">
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between">
             <div>
               <h2 className="text-2xl font-bold text-white">Crea Nuova Offerta</h2>
               <p className="text-blue-100 mt-1">Configura la tua offerta personalizzata per i clienti</p>
             </div>
             <button
               onClick={onClose}
-              className="text-white hover:text-blue-200 text-2xl"
+              className="text-white hover:text-blue-200 text-2xl w-8 h-8 flex items-center justify-center flex-shrink-0 ml-4"
             >
               ×
             </button>
@@ -214,7 +214,7 @@ const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ courses, onSave, on
           <form onSubmit={handleSubmit} className="space-y-8">
             {/* Selezione Template - Sezione principale */}
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-8 rounded-xl border border-blue-200">
-              <div className="text-center mb-6">
+              <div className="text-left mb-6">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Scegli il Template</h3>
                 <p className="text-gray-600">Seleziona il tipo di corso per la tua offerta</p>
               </div>

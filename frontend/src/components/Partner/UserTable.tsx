@@ -3,12 +3,14 @@ import { PartnerUser } from '../../types/partner';
 import Button from '../UI/Button';
 import { partnerService } from '../../services/partner';
 import { getStatusBadge } from '../../utils/statusTranslations';
+import UserOffersModal from './UserOffersModal';
+import OrphanedUserModal from './OrphanedUserModal';
 
 interface UserTableProps {
   users: PartnerUser[];
   isLoading: boolean;
-  onFilterChange: (filter: 'all' | 'direct' | 'children') => void;
-  currentFilter: 'all' | 'direct' | 'children';
+  onFilterChange: (filter: 'all' | 'direct' | 'children' | 'orphaned') => void;
+  currentFilter: 'all' | 'direct' | 'children' | 'orphaned';
   onNavigateToEnrollmentDetail?: (registrationId: string) => void;
   onRegistrationsUpdated?: () => void; // Callback per aggiornare la lista dopo eliminazione
 }
@@ -25,9 +27,14 @@ const UserTable: React.FC<UserTableProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteSuccess, setDeleteSuccess] = useState<{ count: number; registrations: any[] } | null>(null);
+  const [showOffersModal, setShowOffersModal] = useState(false);
+  const [userForOffers, setUserForOffers] = useState<PartnerUser | null>(null);
+  const [showOrphanedModal, setShowOrphanedModal] = useState(false);
+  const [orphanedUser, setOrphanedUser] = useState<PartnerUser | null>(null);
 
 
   const toggleRegistrationSelection = (registrationId: string) => {
+    if (!registrationId) return; // Skip orphaned users
     setSelectedRegistrations(prev => 
       prev.includes(registrationId) 
         ? prev.filter(id => id !== registrationId)
@@ -35,7 +42,8 @@ const UserTable: React.FC<UserTableProps> = ({
     );
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('it-IT');
   };
 
@@ -95,6 +103,40 @@ const UserTable: React.FC<UserTableProps> = ({
     }).filter((info): info is NonNullable<typeof info> => info !== null);
   };
 
+  const handleManageOffers = (user: PartnerUser) => {
+    setUserForOffers(user);
+    setShowOffersModal(true);
+  };
+
+  const handleOffersUpdated = () => {
+    setShowOffersModal(false);
+    setUserForOffers(null);
+    if (onRegistrationsUpdated) {
+      onRegistrationsUpdated();
+    }
+  };
+
+  const handleManageOrphanedUser = (user: PartnerUser) => {
+    setOrphanedUser(user);
+    setShowOrphanedModal(true);
+  };
+
+  const handleOrphanedUserUpdated = () => {
+    setShowOrphanedModal(false);
+    setOrphanedUser(null);
+    if (onRegistrationsUpdated) {
+      onRegistrationsUpdated();
+    }
+  };
+
+  const handleOrphanedUserDeleted = () => {
+    setShowOrphanedModal(false);
+    setOrphanedUser(null);
+    if (onRegistrationsUpdated) {
+      onRegistrationsUpdated();
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="bg-white rounded-2xl shadow-lg border border-gray-100">
@@ -130,6 +172,7 @@ const UserTable: React.FC<UserTableProps> = ({
               <option value="all">Tutti gli Utenti</option>
               <option value="direct">Utenti Diretti</option>
               <option value="children">Da Partner Figli</option>
+              <option value="orphaned">Utenti Orfani</option>
             </select>
             
             {selectedRegistrations.length > 0 && (
@@ -158,12 +201,12 @@ const UserTable: React.FC<UserTableProps> = ({
                   type="checkbox"
                   onChange={(e) => {
                     if (e.target.checked) {
-                      setSelectedRegistrations(Array.isArray(users) ? users.map(u => u.registrationId) : []);
+                      setSelectedRegistrations(Array.isArray(users) ? users.filter(u => u.registrationId && u.canDelete).map(u => u.registrationId!) : []);
                     } else {
                       setSelectedRegistrations([]);
                     }
                   }}
-                  checked={Array.isArray(users) && selectedRegistrations.length === users.length && users.length > 0}
+                  checked={Array.isArray(users) && selectedRegistrations.length === users.filter(u => u.registrationId && u.canDelete).length && users.filter(u => u.registrationId && u.canDelete).length > 0}
                   className="rounded border-gray-300"
                 />
               </th>
@@ -182,32 +225,42 @@ const UserTable: React.FC<UserTableProps> = ({
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 📅 Data Iscrizione
               </th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                ⚡ Azioni
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-50">
             {Array.isArray(users) ? users.map((user, index) => (
               <tr 
                 key={user.registrationId} 
-                className={`hover:bg-blue-50/50 transition-colors duration-200 cursor-pointer ${
+                className={`hover:bg-blue-50/50 transition-colors duration-200 ${
+                  user.canManagePayments ? 'cursor-pointer' : 'cursor-default'
+                } ${
                   index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
                 }`}
                 onClick={(e) => {
-                  // Prevent navigation if clicking on checkbox
-                  if ((e.target as HTMLElement).closest('input[type="checkbox"]')) {
+                  // Prevent navigation if clicking on checkbox or action buttons
+                  if ((e.target as HTMLElement).closest('input[type="checkbox"]') || 
+                      (e.target as HTMLElement).closest('button')) {
                     return;
                   }
-                  if (onNavigateToEnrollmentDetail) {
+                  if (onNavigateToEnrollmentDetail && user.registrationId && user.canManagePayments) {
                     onNavigateToEnrollmentDetail(user.registrationId);
                   }
                 }}
               >
                 <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    checked={selectedRegistrations.includes(user.registrationId)}
-                    onChange={() => toggleRegistrationSelection(user.registrationId)}
-                    className="rounded border-gray-300"
-                  />
+                  {user.registrationId && user.canDelete ? (
+                    <input
+                      type="checkbox"
+                      checked={selectedRegistrations.includes(user.registrationId)}
+                      onChange={() => toggleRegistrationSelection(user.registrationId!)}
+                      className="rounded border-gray-300"
+                    />
+                  ) : (
+                    <div className="w-4 h-4"></div>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div>
@@ -232,18 +285,33 @@ const UserTable: React.FC<UserTableProps> = ({
                   {user.isDirectUser ? (
                     <span className="text-green-600 font-medium">Diretto</span>
                   ) : (
-                    <span className="text-blue-600">Via: {user.partnerName}</span>
+                    <span className="text-blue-600">{user.partnerName}</span>
                   )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   <div>
                     <div className="font-medium text-gray-900">
-                      {formatDate(user.enrollmentDate)}
+                      {user.enrollmentDate ? formatDate(user.enrollmentDate) : 'N/A'}
                     </div>
                     <div className="text-xs text-gray-400">
                       Registrato: {formatDate(user.createdAt)}
                     </div>
                   </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
+                  {user.isOrphaned ? (
+                    <button
+                      onClick={() => handleManageOrphanedUser(user)}
+                      className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors"
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+                      </svg>
+                      Gestisci
+                    </button>
+                  ) : (
+                    <span className="text-gray-400 text-xs">Attivo</span>
+                  )}
                 </td>
               </tr>
             )) : (
@@ -393,6 +461,23 @@ const UserTable: React.FC<UserTableProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal gestione offerte utente */}
+      <UserOffersModal
+        user={userForOffers}
+        isOpen={showOffersModal}
+        onClose={() => setShowOffersModal(false)}
+        onOffersUpdated={handleOffersUpdated}
+      />
+
+      {/* Modal gestione utenti orfani */}
+      <OrphanedUserModal
+        user={orphanedUser}
+        isOpen={showOrphanedModal}
+        onClose={() => setShowOrphanedModal(false)}
+        onUserUpdated={handleOrphanedUserUpdated}
+        onUserDeleted={handleOrphanedUserDeleted}
+      />
     </div>
   );
 };

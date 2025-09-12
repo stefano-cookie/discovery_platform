@@ -11,6 +11,7 @@ import OfferManagement from '../components/Partner/OfferManagement';
 import UserManagement from '../components/Admin/UserManagement';
 import EnrollmentDetail from '../components/Partner/EnrollmentDetail';
 import CollaboratorsManagement from '../components/Partner/Collaborators/CollaboratorsManagement';
+import SubPartnerManagement from '../components/Partner/SubPartnerManagement';
 import LogoutDropdown from '../components/UI/LogoutDropdown';
 
 const Dashboard: React.FC = () => {
@@ -26,16 +27,20 @@ const Dashboard: React.FC = () => {
   const userRole = user?.role || (partnerEmployee ? 'PARTNER' : null);
   
   // Determine active tab from URL
-  const getActiveTabFromPath = (pathname: string): 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators' => {
+  const getActiveTabFromPath = (pathname: string): 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators' | 'sub-partners' => {
     if (pathname.includes('/users')) return 'users';
     if (pathname.includes('/chat')) return 'chat';
     if (pathname.includes('/coupons')) return 'coupons';
     if (pathname.includes('/offers')) return 'offers';
     if (pathname.includes('/collaborators')) return 'collaborators';
+    if (pathname.includes('/sub-partners')) return 'sub-partners';
+    
+    // For sub-partners, default to users instead of dashboard
+    if (partnerCompany?.parentId) return 'users';
     return 'dashboard';
   };
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators'>(
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators' | 'sub-partners'>(
     getActiveTabFromPath(location.pathname)
   );
   const [showLogoutDropdown, setShowLogoutDropdown] = useState(false);
@@ -46,8 +51,15 @@ const Dashboard: React.FC = () => {
   }, [location.pathname]);
 
   // Navigation functions
-  const handleTabChange = (tab: 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators') => {
+  const handleTabChange = (tab: 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators' | 'sub-partners') => {
     const basePath = '/dashboard';
+    
+    // For sub-partners, prevent navigation to dashboard and redirect to users
+    if (partnerCompany?.parentId && tab === 'dashboard') {
+      navigate(`${basePath}/users`);
+      return;
+    }
+    
     const newPath = tab === 'dashboard' ? basePath : `${basePath}/${tab}`;
     navigate(newPath);
   };
@@ -98,7 +110,7 @@ const Dashboard: React.FC = () => {
             <Sidebar activeTab={activeTab} onTabChange={handleTabChange} />
             <div className="flex-1 lg:ml-64">
               <div className="p-6 lg:p-8">
-                {activeTab === 'dashboard' && (
+                {activeTab === 'dashboard' && !partnerCompany?.parentId && (
                   <DashboardView 
                     onNavigateToUsers={() => navigate('/dashboard/users')}
                     onNavigateToEnrollmentDetail={handleNavigateToEnrollmentDetail}
@@ -109,9 +121,10 @@ const Dashboard: React.FC = () => {
                     onNavigateToEnrollmentDetail={handleNavigateToEnrollmentDetail}
                   />
                 )}
-                {activeTab === 'coupons' && <CouponManagement />}
+                {activeTab === 'coupons' && !partnerCompany?.parentId && <CouponManagement />}
                 {activeTab === 'offers' && <OfferManagement />}
                 {activeTab === 'collaborators' && <CollaboratorsManagement />}
+                {activeTab === 'sub-partners' && <SubPartnerManagement />}
                 {activeTab === 'chat' && <ChatView />}
               </div>
             </div>
