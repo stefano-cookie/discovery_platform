@@ -31,14 +31,21 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // Don't redirect on 401 if it's a login attempt
+    const isLoginAttempt = error.config?.url?.includes('/auth/login') || 
+                          error.config?.url?.includes('/auth/register');
+    
+    if (error.response?.status === 401 && !isLoginAttempt) {
       // Clear both user and partner auth data
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       localStorage.removeItem('partnerToken');
       localStorage.removeItem('partnerEmployee');
       localStorage.removeItem('partnerCompany');
-      window.location.href = '/login';
+      
+      // Redirect to appropriate login page based on current path
+      const isPartnerArea = window.location.pathname.includes('/partner');
+      window.location.href = isPartnerArea ? '/partner/login' : '/login';
     }
     
     // Extract meaningful error message from backend
