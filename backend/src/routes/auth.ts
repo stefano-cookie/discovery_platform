@@ -12,6 +12,43 @@ const prisma = new PrismaClient();
 
 const SALT_ROUNDS = 10;
 
+// Temporary debug endpoint - REMOVE IN PRODUCTION
+router.post('/test-partner-auth', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    const partnerEmployee = await prisma.partnerEmployee.findUnique({
+      where: { email },
+      include: {
+        partnerCompany: true
+      }
+    });
+    
+    if (!partnerEmployee) {
+      return res.json({ 
+        found: false, 
+        message: 'Partner employee not found',
+        searchedEmail: email 
+      });
+    }
+    
+    const passwordMatch = await bcrypt.compare(password, partnerEmployee.password);
+    
+    return res.json({
+      found: true,
+      email: partnerEmployee.email,
+      isActive: partnerEmployee.isActive,
+      hasCompany: !!partnerEmployee.partnerCompany,
+      companyName: partnerEmployee.partnerCompany?.name,
+      passwordMatch,
+      passwordLength: partnerEmployee.password.length,
+      inputPasswordLength: password.length
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 // Login Unificato - User e PartnerEmployee
 router.post('/login', async (req, res) => {
   try {
