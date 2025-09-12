@@ -120,7 +120,7 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
       isLoading,
       authenticated
     });
-  }, [token, partnerEmployee, partnerCompany, isLoading, authenticated]);
+  }, [token, partnerEmployee, partnerCompany, isLoading]);
 
   // ========================================
   // AUTH ACTIONS
