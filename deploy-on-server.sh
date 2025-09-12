@@ -112,8 +112,10 @@ npx prisma migrate deploy || {
 npx prisma db seed --preview-feature 2>/dev/null || true
 echo -e "${GREEN}✓ Database migrations completed${NC}"
 
-# 7. Riavvia backend con PM2
+# 7. Copy ecosystem config and restart backend with PM2
 echo -e "${YELLOW}🔄 Restarting backend service...${NC}"
+cp "$TEMP_DIR/ecosystem.config.js" "$DEPLOY_DIR/"
+cd "$DEPLOY_DIR"
 pm2 restart ecosystem.config.js --update-env || pm2 start ecosystem.config.js
 
 # 8. Salva configurazione PM2
