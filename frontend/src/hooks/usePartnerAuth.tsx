@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import { 
   PartnerEmployee, 
   PartnerCompany, 
@@ -115,7 +115,7 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
   const login = async (credentials: LoginRequest) => {
     try {
       console.log('🔄 Partner login attempt:', credentials.email);
-      const response = await axios.post<PartnerLoginResponse>('/api/auth/login', credentials);
+      const response = await api.post<PartnerLoginResponse>('/auth/login', credentials);
       const { token: newToken, type, user: employee, partnerCompany: company } = response.data;
       
       console.log('📝 Partner login response:', {
@@ -144,8 +144,8 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
       
       console.log('🔄 Partner state updated in React');
       
-      // Setup axios default header
-      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+      // Setup api default header
+      api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
       
       console.log('✅ Partner login successful:', {
         employee: employee.email,
