@@ -54,6 +54,16 @@ import subPartnersRoutes from './routes/subPartners';
 import offerInheritanceRoutes from './routes/offerInheritance';
 // import partnerCouponsRoutes from './routes/_refactored/partnerCoupons'; // Disabled due to compilation errors
 
+// Health check endpoint
+app.get('/api/health', (_req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    version: process.env.npm_package_version || '1.0.0',
+    environment: process.env.NODE_ENV
+  });
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/partners', partnerRoutes); // Main partner routes (fixed)
 app.use('/api/partner-employees', partnerEmployeesRoutes); // NEW: Simplified partner routes

@@ -14,7 +14,7 @@ module.exports = {
       },
       env_production: {
         NODE_ENV: 'production',
-        PORT: 3001
+        PORT: 3010
       },
       log_date_format: 'YYYY-MM-DD HH:mm Z',
       error_file: './logs/backend-error.log',
@@ -23,9 +23,9 @@ module.exports = {
     },
     {
       name: 'discovery-frontend',
-      script: 'serve',
+      script: 'npx',
       cwd: './frontend',
-      args: '-s build -l 3000',
+      args: 'serve -s build -l 3000',
       instances: 1,
       autorestart: true,
       watch: false,

@@ -70,6 +70,14 @@ echo -e "${YELLOW}📦 Installing backend dependencies...${NC}"
 cd "$DEPLOY_DIR/backend"
 npm ci --production
 
+# 5.1 Installa serve per frontend se non presente
+echo -e "${YELLOW}📦 Installing frontend serve dependency...${NC}"
+cd "$DEPLOY_DIR/frontend"
+if [ ! -f "package.json" ] || [ ! -d "node_modules" ]; then
+    echo '{"devDependencies": {"serve": "^14.2.5"}}' > package.json
+    npm install --only=dev
+fi
+
 # 6. Esegui migrazioni database
 echo -e "${YELLOW}🗄️ Running database migrations...${NC}"
 # Generate Prisma Client
@@ -116,7 +124,7 @@ echo -e "${GREEN}✓ Database migrations completed${NC}"
 echo -e "${YELLOW}🔄 Restarting backend service...${NC}"
 cp "$TEMP_DIR/ecosystem.config.js" "$DEPLOY_DIR/"
 cd "$DEPLOY_DIR"
-pm2 restart ecosystem.config.js --update-env || pm2 start ecosystem.config.js
+pm2 restart ecosystem.config.js --update-env --env production || pm2 start ecosystem.config.js --env production
 
 # 8. Salva configurazione PM2
 pm2 save
@@ -133,12 +141,20 @@ ls -t discovery_backup_*.tar.gz | tail -n +6 | xargs -r rm
 echo -e "${YELLOW}🔍 Verifying deployment...${NC}"
 
 # Check if PM2 process is running
-if pm2 show discovery-api > /dev/null 2>&1; then
-    echo -e "${GREEN}✓ PM2 process is running${NC}"
+if pm2 show discovery-backend > /dev/null 2>&1; then
+    echo -e "${GREEN}✓ PM2 backend process is running${NC}"
 else
-    echo -e "${RED}❌ PM2 process failed to start${NC}"
-    pm2 logs discovery-api --lines 20
+    echo -e "${RED}❌ PM2 backend process failed to start${NC}"
+    pm2 logs discovery-backend --lines 20
     exit 1
+fi
+
+# Check if frontend process is running
+if pm2 show discovery-frontend > /dev/null 2>&1; then
+    echo -e "${GREEN}✓ PM2 frontend process is running${NC}"
+else
+    echo -e "${YELLOW}⚠️ PM2 frontend process not running, attempting restart...${NC}"
+    pm2 restart discovery-frontend || pm2 start ecosystem.config.js --only discovery-frontend
 fi
 
 # Quick API health check
