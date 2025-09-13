@@ -68,18 +68,21 @@ fi
 # 5. Installa dipendenze backend
 echo -e "${YELLOW}📦 Installing backend dependencies...${NC}"
 cd "$DEPLOY_DIR/backend"
-npm ci --production
+npm ci --omit=dev
+# Fix security vulnerabilities
+npm audit fix --omit=dev || echo -e "${YELLOW}⚠️ Some vulnerabilities could not be automatically fixed${NC}"
 
 # 5.1 Installa serve per frontend se non presente
 echo -e "${YELLOW}📦 Installing frontend serve dependency...${NC}"
 cd "$DEPLOY_DIR/frontend"
 if [ ! -f "package.json" ] || [ ! -d "node_modules" ]; then
     echo '{"devDependencies": {"serve": "^14.2.5"}}' > package.json
-    npm install --only=dev
+    npm install --omit=prod
 fi
 
 # 6. Esegui migrazioni database
 echo -e "${YELLOW}🗄️ Running database migrations...${NC}"
+cd "$DEPLOY_DIR/backend"
 # Generate Prisma Client
 npx prisma generate
 
