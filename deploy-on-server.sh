@@ -46,15 +46,30 @@ rsync -av \
     --exclude='*.log' \
     "$TEMP_DIR/backend/" "$DEPLOY_DIR/backend/"
 
-# 3.1 Preserve existing uploads and create directory structure
+# 3.1 Backup existing uploads before deploy
+echo -e "${YELLOW}📁 Backing up existing uploads...${NC}"
+if [ -d "$DEPLOY_DIR/backend/uploads" ]; then
+    mkdir -p "$BACKUP_DIR"
+    cp -r "$DEPLOY_DIR/backend/uploads" "$BACKUP_DIR/uploads_backup_$TIMESTAMP"
+    echo -e "${GREEN}✓ Uploads backed up to: uploads_backup_$TIMESTAMP${NC}"
+fi
+
+# 3.2 Preserve existing uploads and create directory structure
 echo -e "${YELLOW}📁 Setting up document directories...${NC}"
 mkdir -p "$DEPLOY_DIR/backend/uploads"/{contracts,signed-contracts,documents,registrations,temp-enrollment}
 mkdir -p "$DEPLOY_DIR/backend/uploads/documents/user-uploads"
 mkdir -p "$DEPLOY_DIR/backend/uploads/registrations"
 
+# 3.3 Restore backed up uploads if they exist
+if [ -d "$BACKUP_DIR/uploads_backup_$TIMESTAMP" ]; then
+    echo -e "${YELLOW}📁 Restoring uploaded documents...${NC}"
+    cp -r "$BACKUP_DIR/uploads_backup_$TIMESTAMP/"* "$DEPLOY_DIR/backend/uploads/" 2>/dev/null || true
+    echo -e "${GREEN}✓ Uploaded documents restored${NC}"
+fi
+
 # Set correct permissions for uploads
 chmod -R 755 "$DEPLOY_DIR/backend/uploads"
-echo -e "${GREEN}✓ Document directories created${NC}"
+echo -e "${GREEN}✓ Document directories configured${NC}"
 
 # 4. Copia file .env.production come .env
 echo -e "${YELLOW}🔐 Setting up environment variables...${NC}"
@@ -139,6 +154,7 @@ rm -rf "$TEMP_DIR"
 # 10. Rimuovi backup vecchi (mantieni solo ultimi 5)
 cd "$BACKUP_DIR"
 ls -t discovery_backup_*.tar.gz | tail -n +6 | xargs -r rm
+ls -t uploads_backup_* | tail -n +6 | xargs -r rm -rf
 
 # 11. Verify deployment
 echo -e "${YELLOW}🔍 Verifying deployment...${NC}"
