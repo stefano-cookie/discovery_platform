@@ -223,6 +223,9 @@ const UserTable: React.FC<UserTableProps> = ({
                 🤝 Partner
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                👤 Richiedente
+              </th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 📅 Data Iscrizione
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -287,6 +290,9 @@ const UserTable: React.FC<UserTableProps> = ({
                   ) : (
                     <span className="text-blue-600">{user.partnerName}</span>
                   )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                  {user.requestedByEmployee || 'N/A'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   <div>

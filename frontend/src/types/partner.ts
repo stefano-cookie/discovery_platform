@@ -223,6 +223,7 @@ export interface PartnerUser {
   offerType: string | null;
   isDirectUser: boolean;
   partnerName: string;
+  requestedByEmployee?: string; // NEW: Who made the registration request
   canManagePayments: boolean;
   canDelete?: boolean; // New field: can this partner delete this registration
   isOrphaned?: boolean;

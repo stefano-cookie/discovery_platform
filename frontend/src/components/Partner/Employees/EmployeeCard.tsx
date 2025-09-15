@@ -41,7 +41,7 @@ const EmployeeCard: React.FC<EmployeeCardProps> = ({
         )
       };
     }
-    
+
     if (!isActive) {
       return {
         text: 'Disattivato',
@@ -92,7 +92,7 @@ const EmployeeCard: React.FC<EmployeeCardProps> = ({
               <p className="text-slate-600 text-sm truncate">{employee.email}</p>
             </div>
           </div>
-          
+
           <Dropdown
             trigger={
               <button
@@ -158,8 +158,8 @@ const EmployeeCard: React.FC<EmployeeCardProps> = ({
                   onResendInvite();
                   break;
                 case 'changeRole':
-                  onUpdate({ 
-                    role: employee.role === 'ADMINISTRATIVE' ? PartnerEmployeeRole.COMMERCIAL : PartnerEmployeeRole.ADMINISTRATIVE 
+                  onUpdate({
+                    role: employee.role === 'ADMINISTRATIVE' ? PartnerEmployeeRole.COMMERCIAL : PartnerEmployeeRole.ADMINISTRATIVE
                   });
                   break;
                 case 'deactivate':
@@ -191,8 +191,8 @@ const EmployeeCard: React.FC<EmployeeCardProps> = ({
           </div>
           <div className="flex items-center">
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-              employee.role === 'ADMINISTRATIVE' 
-                ? 'bg-purple-100 text-purple-800' 
+              employee.role === 'ADMINISTRATIVE'
+                ? 'bg-purple-100 text-purple-800'
                 : 'bg-blue-100 text-blue-800'
             }`}>
               {employee.role}
@@ -206,14 +206,14 @@ const EmployeeCard: React.FC<EmployeeCardProps> = ({
             <span className="text-slate-500">Creato:</span>
             <span className="text-slate-700">{formatDate(employee.createdAt)}</span>
           </div>
-          
+
           {employee.lastLoginAt && (
             <div className="flex justify-between">
               <span className="text-slate-500">Ultimo accesso:</span>
               <span className="text-slate-700">{formatDate(employee.lastLoginAt)}</span>
             </div>
           )}
-          
+
           {employee.acceptedAt && (
             <div className="flex justify-between">
               <span className="text-slate-500">Invito accettato:</span>

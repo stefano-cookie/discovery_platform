@@ -238,6 +238,7 @@ router.get('/users', authenticateUnified, async (req: AuthRequest, res) => {
         offerType: null,
         isDirectUser: true,
         partnerName: 'Utente orfano',
+        requestedByEmployee: 'N/A', // Orphaned users have no registration requester
         canManagePayments: false,
         canDelete: false, // Orphaned users cannot be deleted via registration deletion
         isOrphaned: true,
@@ -339,6 +340,7 @@ router.get('/users', authenticateUnified, async (req: AuthRequest, res) => {
         },
         partnerCompany: true,
         sourcePartnerCompany: true,
+        requestedByEmployee: true, // Include employee who made the registration
         offer: {
           include: { course: true }
         }
@@ -361,11 +363,14 @@ router.get('/users', authenticateUnified, async (req: AuthRequest, res) => {
         courseId: reg.courseId,
         offerType: reg.offerType,
         isDirectUser: reg.sourcePartnerCompanyId === partnerCompanyId ? true : reg.isDirectRegistration,
-        partnerName: reg.sourcePartnerCompanyId === partnerCompanyId 
+        partnerName: reg.sourcePartnerCompanyId === partnerCompanyId
           ? 'Diretto'
-          : (reg.isDirectRegistration 
+          : (reg.isDirectRegistration
             ? (reg.partnerCompany?.name || 'Partner non specificato')
             : (reg.sourcePartnerCompany?.name || 'Sub-partner non specificato')),
+        requestedByEmployee: reg.requestedByEmployee ?
+          `${reg.requestedByEmployee.firstName} ${reg.requestedByEmployee.lastName}` :
+          'Iscrizione diretta utente', // Show who made the registration request
         canManagePayments: reg.partnerCompanyId === partnerCompanyId, // Only parent company can manage payments
         canDelete, // New field: can this partner delete this registration
         isOrphaned: false,
@@ -448,6 +453,7 @@ router.get('/users', authenticateUnified, async (req: AuthRequest, res) => {
         offerType: null,
         isDirectUser: true,
         partnerName: 'Utente orfano',
+        requestedByEmployee: 'N/A', // Orphaned users have no registration requester
         canManagePayments: false,
         canDelete: false, // Orphaned users cannot be deleted via registration deletion
         isOrphaned: true,
@@ -4994,6 +5000,7 @@ router.post('/users/:userId/reactivate', authenticateUnified, async (req: AuthRe
         partnerId: legacyPartner?.id || 'legacy-partner-for-test-company',
         partnerCompanyId: partnerCompanyId,
         sourcePartnerCompanyId: partnerCompanyId,
+        requestedByEmployeeId: req.partnerEmployee?.id, // Track who made the registration
         partnerOfferId: offerId,
         courseId: offer.courseId,
         offerType: offer.offerType,

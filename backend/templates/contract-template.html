@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contratto di Iscrizione</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .company-name {
+            font-size: 24px;
+            font-weight: bold;
+            color: #003366;
+            margin-bottom: 10px;
+        }
+        .contract-title {
+            font-size: 20px;
+            font-weight: bold;
+            margin: 30px 0;
+            text-align: center;
+            color: #003366;
+        }
+        .section {
+            margin-bottom: 25px;
+        }
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #003366;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        .data-table td {
+            padding: 8px;
+            border: 1px solid #ddd;
+            vertical-align: top;
+        }
+        .data-table .label {
+            font-weight: bold;
+            background-color: #f5f5f5;
+            width: 30%;
+        }
+        .services-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        .services-table th,
+        .services-table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        .services-table th {
+            background-color: #003366;
+            color: white;
+            font-weight: bold;
+        }
+        .payment-schedule {
+            margin-top: 20px;
+        }
+        .total-amount {
+            font-size: 18px;
+            font-weight: bold;
+            color: #003366;
+            text-align: right;
+            margin-top: 15px;
+            padding: 10px;
+            border: 2px solid #003366;
+            background-color: #f0f8ff;
+        }
+        .signature-section {
+            margin-top: 50px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .signature-box {
+            width: 45%;
+            border-top: 1px solid #333;
+            padding-top: 10px;
+            text-align: center;
+        }
+        .terms {
+            font-size: 12px;
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-left: 4px solid #003366;
+        }
+        .page-break {
+            page-break-before: always;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="company-name">CFO EDUCATION S.R.L.</div>
+        <div>Via dell'Innovazione, 123 - 00100 Roma (RM)</div>
+        <div>P.IVA: 12345678901 - Tel: +39 06 1234567</div>
+        <div>Email: info@cfoeducation.it - Web: www.cfoeducation.it</div>
+    </div>
+
+    <div class="contract-title">
+        CONTRATTO DI ISCRIZIONE AL CORSO
+    </div>
+
+    <div class="section">
+        <div class="section-title">DATI DELL'ISCRITTO</div>
+        <table class="data-table">
+            <tr>
+                <td class="label">Nome e Cognome:</td>
+                <td>{{fullName}}</td>
+            </tr>
+            <tr>
+                <td class="label">Data di Nascita:</td>
+                <td>{{birthDate}}</td>
+            </tr>
+            <tr>
+                <td class="label">Luogo di Nascita:</td>
+                <td>{{birthPlace}}</td>
+            </tr>
+            <tr>
+                <td class="label">Codice Fiscale:</td>
+                <td>{{fiscalCode}}</td>
+            </tr>
+            <tr>
+                <td class="label">Indirizzo:</td>
+                <td>{{address}}, {{province}} {{zipCode}}</td>
+            </tr>
+            <tr>
+                <td class="label">Email:</td>
+                <td>{{email}}</td>
+            </tr>
+            <tr>
+                <td class="label">Telefono:</td>
+                <td>{{phone}}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">CORSO SELEZIONATO</div>
+        <table class="services-table">
+            <thead>
+                <tr>
+                    <th>Corso</th>
+                    <th>Prezzo</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each selectedServices}}
+                <tr>
+                    <td>{{this.name}}</td>
+                    <td>€ {{this.price}}</td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+
+        <div class="total-amount">
+            IMPORTO TOTALE: € {{totalAmount}}
+        </div>
+    </div>
+
+    <div class="section payment-schedule">
+        <div class="section-title">PIANO DI PAGAMENTO</div>
+        <table class="services-table">
+            <thead>
+                <tr>
+                    <th>Rata N°</th>
+                    <th>Importo</th>
+                    <th>Scadenza</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each paymentPlan}}
+                <tr>
+                    <td>{{this.number}}</td>
+                    <td>€ {{this.amount}}</td>
+                    <td>{{this.dueDate}}</td>
+                </tr>
+                {{#if this.secondNumber}}
+                <tr>
+                    <td>{{this.secondNumber}}</td>
+                    <td>€ {{this.secondAmount}}</td>
+                    <td>{{this.secondDueDate}}</td>
+                </tr>
+                {{/if}}
+                {{/each}}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">TERMINI E CONDIZIONI</div>
+        <p>
+            L'iscritto si impegna a versare le rate secondo il piano di pagamento stabilito.
+            In caso di mancato pagamento entro 30 giorni dalla scadenza, l'iscrizione potrà essere sospesa.
+        </p>
+        <p>
+            Il corso si considera concluso con il superamento dell'esame finale.
+            CFO Education S.R.L. si riserva il diritto di modificare le date del corso con preavviso di almeno 15 giorni.
+        </p>
+        <p>
+            Per qualsiasi controversia è competente il Foro di Roma.
+        </p>
+    </div>
+
+    <div class="signature-section">
+        <div class="signature-box">
+            <strong>L'ISCRITTO</strong><br>
+            {{fullName}}<br><br>
+            Data: {{contractDate}}<br><br>
+            ________________________________<br>
+            Firma
+        </div>
+        <div class="signature-box">
+            <strong>CFO EDUCATION S.R.L.</strong><br>
+            Il Legale Rappresentante<br><br>
+            Data: {{contractDate}}<br><br>
+            ________________________________<br>
+            Firma e Timbro
+        </div>
+    </div>
+
+    <div class="terms">
+        <strong>Informativa Privacy:</strong> I dati personali raccolti saranno trattati in conformità al Regolamento UE 2016/679 (GDPR) 
+        esclusivamente per le finalità relative all'erogazione del servizio formativo. 
+        Il titolare del trattamento è CFO Education S.R.L. con sede in Via dell'Innovazione, 123 - 00100 Roma (RM).
+    </div>
+</body>
+</html>

@@ -785,6 +785,7 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
           partnerId: partnerId || 'default-partner-id',
           partnerCompanyId: partnerCompanyId,
           sourcePartnerCompanyId: sourcePartnerCompanyId,
+          requestedByEmployeeId: null, // User self-registration, not by partner employee
           isDirectRegistration: isDirectRegistration,
           courseId: courseId,
           partnerOfferId: partnerOfferId,
@@ -1541,6 +1542,7 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
           partnerId: partnerId || 'default-partner-id',
           partnerCompanyId: partnerCompanyId,
           sourcePartnerCompanyId: sourcePartnerCompanyId,
+          requestedByEmployeeId: null, // User self-registration, not by partner employee
           isDirectRegistration: isDirectRegistration,
           courseId: courseId,
           partnerOfferId: partnerOfferId,

@@ -141,8 +141,8 @@ const SubPartnerManagement: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
         <div className="flex-1">
-          <h2 className="text-2xl font-bold text-gray-900">Gestione Aziende Sub-Partners</h2>
-          <p className="text-gray-600 mt-1">Crea e gestisci le tue aziende partner affiliate</p>
+          <h2 className="text-2xl font-bold text-gray-900">Gestione Aziende Collaboratrici</h2>
+          <p className="text-gray-600 mt-1">Crea e gestisci le tue aziende collaboratrici</p>
         </div>
         <div className="mt-4 lg:mt-0">
           <button
@@ -195,7 +195,7 @@ const SubPartnerManagement: React.FC = () => {
         <div className="p-4 rounded-lg border-2 border-gray-200 bg-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Totale Collaboratori</p>
+              <p className="text-sm font-medium text-gray-600">Totale Dipendenti</p>
               <p className="text-2xl font-bold text-gray-900">
                 {subPartners.reduce((acc, company) => acc + company.stats.employeeCount, 0)}
               </p>
@@ -255,7 +255,7 @@ const SubPartnerManagement: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div className="text-center p-3 bg-gray-50 rounded-lg">
                       <p className="text-2xl font-bold text-gray-900">{company.stats.employeeCount}</p>
-                      <p className="text-xs text-gray-500">Collaboratori</p>
+                      <p className="text-xs text-gray-500">Dipendenti</p>
                     </div>
                     <div className="text-center p-3 bg-gray-50 rounded-lg">
                       <p className="text-2xl font-bold text-gray-900">{company.stats.totalRegistrations}</p>

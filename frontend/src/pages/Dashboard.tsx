@@ -10,7 +10,7 @@ import CouponManagement from '../components/Partner/CouponManagement';
 import OfferManagement from '../components/Partner/OfferManagement';
 import UserManagement from '../components/Admin/UserManagement';
 import EnrollmentDetail from '../components/Partner/EnrollmentDetail';
-import CollaboratorsManagement from '../components/Partner/Collaborators/CollaboratorsManagement';
+import EmployeesManagement from '../components/Partner/Employees/EmployeesManagement';
 import SubPartnerManagement from '../components/Partner/SubPartnerManagement';
 import LogoutDropdown from '../components/UI/LogoutDropdown';
 
@@ -123,7 +123,7 @@ const Dashboard: React.FC = () => {
                 )}
                 {activeTab === 'coupons' && !partnerCompany?.parentId && <CouponManagement />}
                 {activeTab === 'offers' && <OfferManagement />}
-                {activeTab === 'collaborators' && <CollaboratorsManagement />}
+                {activeTab === 'collaborators' && <EmployeesManagement />}
                 {activeTab === 'sub-partners' && <SubPartnerManagement />}
                 {activeTab === 'chat' && <ChatView />}
               </div>

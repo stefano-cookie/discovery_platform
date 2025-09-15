@@ -279,52 +279,13 @@ export class ContractService {
     secondService?: string;
     secondPrice?: string;
   }> {
-    // Servizi standard basati sul tipo di offerta della registrazione
-    const services = [];
-    const offerType = offer?.offerType || 'TFA_ROMANIA';
+    // Mostra solo il corso effettivo della registrazione
+    const courseName = offer?.course?.name || offer?.name || 'Corso di Formazione';
 
-    if (offerType === 'TFA_ROMANIA') {
-      services.push({
-        name: 'Certificazione Lingua Inglese Livello B2',
-        price: '122,00',
-        secondService: 'Corso per Realizzazione U.D.A.',
-        secondPrice: ''
-      });
-      services.push({
-        name: 'Certificazione Lingua Inglese Livello C1',
-        price: '120,78',
-        secondService: 'Autocad Expert',
-        secondPrice: ''
-      });
-      services.push({
-        name: 'Certificazione Lingua Inglese Livello C2',
-        price: '117,12',
-        secondService: '',
-        secondPrice: ''
-      });
-      services.push({
-        name: 'Corso di Dattilografia',
-        price: '732,00',
-        secondService: '',
-        secondPrice: ''
-      });
-      services.push({
-        name: 'Corso Tablet',
-        price: '1.525,00',
-        secondService: '',
-        secondPrice: ''
-      });
-    } else {
-      // Per certificazioni, servizi più semplici
-      services.push({
-        name: 'Servizi di Formazione e Certificazione',
-        price: totalAmount ? `${totalAmount.toFixed(2).replace('.', ',')}` : '0,00',
-        secondService: '',
-        secondPrice: ''
-      });
-    }
-
-    return services;
+    return [{
+      name: courseName,
+      price: totalAmount ? `${totalAmount.toFixed(2).replace('.', ',')}` : '0,00'
+    }];
   }
 
   private preparePaymentPlan(registration: any, totalAmount: number): Array<{
@@ -350,35 +311,31 @@ export class ContractService {
       const today = new Date();
       const installments = registration.installments || 12;
       
-      // Determina se è TFA Romania per calcolare correttamente le rate
-      const isTfaRomania = registration.offer?.course?.templateType === 'TFA' || 
-                           registration.offer?.offerType === 'TFA_ROMANIA';
-      
-      if (isTfaRomania && installments > 1) {
-        // Per TFA Romania con rate: acconto €1500 + rate sul restante
+      if (installments > 1) {
+        // Per corsi con rate multiple: acconto €1500 + rate sul restante
         // L'acconto NON è contato come rata, quindi se installments = 10, avremo 1 acconto + 10 rate
         const downPayment = 1500;
         const installmentableAmount = Math.max(0, totalAmount - downPayment);
         const monthlyAmount = installments > 0 ? installmentableAmount / installments : installmentableAmount;
-        
+
         // Aggiungi l'acconto come primo pagamento (paymentNumber 0)
         const downPaymentDate = new Date(today);
         downPaymentDate.setDate(downPaymentDate.getDate() + 7); // 7 giorni dopo registrazione
-        
+
         allPayments.push({
           amount: downPayment,
           dueDate: downPaymentDate,
           paymentNumber: 0
         });
-        
+
         // Calcola le rate mensili a partire da 37 giorni dopo la registrazione
         const baseDate = new Date(today);
         baseDate.setDate(baseDate.getDate() + 37); // 7 giorni acconto + 30 giorni prima rata
-        
+
         for (let i = 0; i < installments; i++) {
           const dueDate = new Date(baseDate);
           dueDate.setMonth(dueDate.getMonth() + i);
-          
+
           // Calcola importo per ultima rata (remainder)
           let amount = monthlyAmount;
           if (i === installments - 1) {
@@ -386,7 +343,7 @@ export class ContractService {
             const totalPaid = monthlyAmount * (installments - 1);
             amount = installmentableAmount - totalPaid;
           }
-          
+
           allPayments.push({
             amount: amount,
             dueDate: dueDate,
@@ -394,26 +351,12 @@ export class ContractService {
           });
         }
       } else {
-        // Per certificazioni o pagamento unico: usa il calcolo standard
-        const monthlyAmount = totalAmount / installments;
-        
-        for (let i = 0; i < installments; i++) {
-          const dueDate = new Date(today);
-          dueDate.setMonth(today.getMonth() + i + 1);
-          
-          // Calcola importo per ultima rata (remainder)
-          let amount = monthlyAmount;
-          if (i === installments - 1) {
-            // Ultima rata: aggiusta per eventuali differenze di arrotondamento
-            const totalPaid = monthlyAmount * (installments - 1);
-            amount = totalAmount - totalPaid;
-          }
-          
-          allPayments.push({
-            amount: amount,
-            dueDate: dueDate
-          });
-        }
+        // Per pagamento unico: senza acconto
+        allPayments.push({
+          amount: totalAmount,
+          dueDate: new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000), // 30 giorni dopo
+          paymentNumber: 1
+        });
       }
     }
 

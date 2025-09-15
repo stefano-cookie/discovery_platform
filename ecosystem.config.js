@@ -25,7 +25,7 @@ module.exports = {
       name: 'discovery-frontend',
       script: 'npx',
       cwd: './frontend',
-      args: 'serve -s build -l 3000',
+      args: 'serve -s build -p 3000',
       instances: 1,
       autorestart: true,
       watch: false,
@@ -49,7 +49,7 @@ module.exports = {
       repo: 'git@github.com:username/discovery_platform.git',
       path: '/var/www/discovery_platform',
       'pre-deploy-local': '',
-      'post-deploy': 'npm install && npm run build && pm2 reload ecosystem.config.js --env production',
+      'post-deploy': 'npm install && cd frontend && npm ci && npm run build && cd ../backend && npm ci && npm run build && npx prisma generate && cd .. && pm2 reload ecosystem.config.js --env production',
       'pre-setup': ''
     }
   }

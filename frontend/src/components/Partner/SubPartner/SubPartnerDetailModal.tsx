@@ -166,7 +166,7 @@ const SubPartnerDetailModal: React.FC<SubPartnerDetailModalProps> = ({
                       <div className="flex items-center">
                         <UsersIcon className="h-8 w-8 text-green-500" />
                         <div className="ml-3">
-                          <p className="text-sm font-medium text-green-800">Collaboratori</p>
+                          <p className="text-sm font-medium text-green-800">Dipendenti</p>
                           <p className="text-2xl font-bold text-green-900">{currentData.stats.employeeCount}</p>
                         </div>
                       </div>
@@ -194,7 +194,7 @@ const SubPartnerDetailModal: React.FC<SubPartnerDetailModalProps> = ({
                   <div className="mb-6">
                     <h4 className="text-sm font-medium text-gray-900 mb-3">👥 Team Aziendale</h4>
                     {currentData.employees.length === 0 ? (
-                      <p className="text-sm text-gray-500 italic">Nessun collaboratore presente</p>
+                      <p className="text-sm text-gray-500 italic">Nessun dipendente presente</p>
                     ) : (
                       <div className="space-y-2">
                         {currentData.employees.map((employee) => (

@@ -119,6 +119,7 @@ model PartnerEmployee {
   partnerCompany  PartnerCompany @relation(fields: [partnerCompanyId], references: [id], onDelete: Cascade)
   sessions        PartnerSession[]
   activityLogs    PartnerActivityLog[]
+  requestedRegistrations Registration[] @relation("EmployeeRequests")
   
   @@index([partnerCompanyId])
   @@index([email])
@@ -363,6 +364,7 @@ model Registration {
   partnerId              String   // Partner che ha portato l'iscrizione (LEGACY)
   partnerCompanyId       String?  // NEW: Azienda proprietaria (per commissioni)
   sourcePartnerCompanyId String?  // NEW: Azienda che ha generato l'iscrizione (per tracking)
+  requestedByEmployeeId  String?  // NEW: ID dipendente che ha effettuato la registrazione
   isDirectRegistration   Boolean  @default(true) // false se da azienda figlia
   courseId               String
   partnerOfferId         String?
@@ -461,6 +463,7 @@ model Registration {
   // NEW: Partner company relations
   partnerCompany          PartnerCompany?  @relation("CompanyRegistrations", fields: [partnerCompanyId], references: [id])
   sourcePartnerCompany    PartnerCompany?  @relation("SourceCompanyRegistrations", fields: [sourcePartnerCompanyId], references: [id])
+  requestedByEmployee     PartnerEmployee? @relation("EmployeeRequests", fields: [requestedByEmployeeId], references: [id])
   offer                   PartnerOffer? @relation(fields: [partnerOfferId], references: [id])
   userDocuments           UserDocument[] // Unified document system
   payments                Payment[]
@@ -471,6 +474,7 @@ model Registration {
   @@unique([userId, courseId, partnerId, status])
   @@index([partnerCompanyId])
   @@index([sourcePartnerCompanyId])
+  @@index([requestedByEmployeeId])
   @@index([isDirectRegistration])
 }
 

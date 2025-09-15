@@ -7,7 +7,7 @@ import InviteEmployeeForm from './InviteEmployeeForm';
 import LoadingSpinner from '../../UI/LoadingSpinner';
 import Modal from '../../UI/Modal';
 
-const CollaboratorsManagement: React.FC = () => {
+const EmployeesManagement: React.FC = () => {
   const { employees, loading, error, inviteEmployee, updateEmployee, resendInvite, removeEmployee } = usePartnerEmployees();
   const { partnerEmployee, partnerCompany } = usePartnerAuth();
   const [showInviteForm, setShowInviteForm] = useState(false);
@@ -93,7 +93,7 @@ const CollaboratorsManagement: React.FC = () => {
           <h3 className="text-lg font-semibold text-red-800">Errore di Caricamento</h3>
         </div>
         <p className="text-sm text-red-700 mb-4">{error}</p>
-        <button 
+        <button
           onClick={() => window.location.reload()}
           className="w-full bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors font-medium"
         >
@@ -109,7 +109,7 @@ const CollaboratorsManagement: React.FC = () => {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
         <div className="flex-1">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 bg-clip-text text-transparent">
-            Gestione Collaboratori
+            Gestione Dipendenti
           </h1>
           <p className="text-slate-600 mt-2 text-lg font-medium">
             Gestisci il team di <span className="font-semibold text-slate-900">{partnerCompany?.name}</span>
@@ -119,10 +119,10 @@ const CollaboratorsManagement: React.FC = () => {
           <div className="flex items-center px-4 py-2 bg-blue-50 border border-blue-200 rounded-full">
             <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
             <span className="text-sm font-medium text-blue-700">
-              {employees.length} Collaborator{employees.length !== 1 ? 'i' : 'e'}
+              {employees.length} Dipendent{employees.length !== 1 ? 'i' : 'e'}
             </span>
           </div>
-          <button 
+          <button
             onClick={() => setShowInviteForm(true)}
             disabled={actionLoading === 'invite'}
             className="group relative overflow-hidden bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-medium py-3 px-6 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
@@ -141,7 +141,7 @@ const CollaboratorsManagement: React.FC = () => {
                   <svg className="w-5 h-5 mr-3 group-hover:rotate-12 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                   </svg>
-                  Invita Collaboratore
+                  Invita Dipendente
                 </>
               )}
             </div>
@@ -185,13 +185,13 @@ const CollaboratorsManagement: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
           </div>
-          <h3 className="text-xl font-semibold text-slate-900 mb-2">Nessun Collaboratore</h3>
-          <p className="text-slate-600 mb-6">Invita il tuo primo collaboratore per iniziare a gestire il team.</p>
-          <button 
+          <h3 className="text-xl font-semibold text-slate-900 mb-2">Nessun Dipendente</h3>
+          <p className="text-slate-600 mb-6">Invita il tuo primo dipendente per iniziare a gestire il team.</p>
+          <button
             onClick={() => setShowInviteForm(true)}
             className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
           >
-            Invita Primo Collaboratore
+            Invita Primo Dipendente
           </button>
         </div>
       ) : (
@@ -204,8 +204,8 @@ const CollaboratorsManagement: React.FC = () => {
               onResendInvite={() => handleResendInvite(employee.id)}
               onRemove={() => handleRemoveEmployee(employee.id)}
               loading={
-                actionLoading === `update-${employee.id}` || 
-                actionLoading === `resend-${employee.id}` || 
+                actionLoading === `update-${employee.id}` ||
+                actionLoading === `resend-${employee.id}` ||
                 actionLoading === `remove-${employee.id}`
               }
             />
@@ -215,7 +215,7 @@ const CollaboratorsManagement: React.FC = () => {
 
       {/* Invite Form Modal */}
       {showInviteForm && (
-        <InviteEmployeeForm 
+        <InviteEmployeeForm
           onClose={() => setShowInviteForm(false)}
           onSubmit={handleInviteEmployee}
           loading={actionLoading === 'invite'}
@@ -240,9 +240,9 @@ const CollaboratorsManagement: React.FC = () => {
                 </svg>
               </div>
               <div className="ml-4">
-                <h3 className="text-lg font-medium text-gray-900">Rimuovi collaboratore</h3>
+                <h3 className="text-lg font-medium text-gray-900">Rimuovi dipendente</h3>
                 <p className="mt-1 text-sm text-gray-500">
-                  Sei sicuro di voler rimuovere questo collaboratore? Questa azione non può essere annullata.
+                  Sei sicuro di voler rimuovere questo dipendente? Questa azione non può essere annullata.
                 </p>
               </div>
             </div>
@@ -281,4 +281,4 @@ const CollaboratorsManagement: React.FC = () => {
   );
 };
 
-export default CollaboratorsManagement;
+export default EmployeesManagement;

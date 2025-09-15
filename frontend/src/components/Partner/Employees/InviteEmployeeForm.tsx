@@ -28,36 +28,36 @@ const InviteEmployeeForm: React.FC<InviteEmployeeFormProps> = ({
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    
+
     if (!formData.email.trim()) {
       newErrors.email = 'Email è obbligatoria';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Email non valida';
     }
-    
+
     if (!formData.firstName.trim()) {
       newErrors.firstName = 'Nome è obbligatorio';
     }
-    
+
     if (!formData.lastName.trim()) {
       newErrors.lastName = 'Cognome è obbligatorio';
     }
-    
+
     if (!formData.role) {
       newErrors.role = 'Ruolo è obbligatorio';
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
-    
+
     try {
       await onSubmit(formData);
     } catch (error) {
@@ -77,7 +77,7 @@ const InviteEmployeeForm: React.FC<InviteEmployeeFormProps> = ({
     <Modal
       isOpen={true}
       onClose={onClose}
-      title="Invita Collaboratore"
+      title="Invita Dipendente"
       size="md"
       closeOnOverlayClick={!loading}
       closeOnEscape={!loading}
@@ -99,7 +99,7 @@ const InviteEmployeeForm: React.FC<InviteEmployeeFormProps> = ({
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors disabled:bg-slate-50 disabled:opacity-50 ${
                 errors.email ? 'border-red-300' : 'border-slate-300'
               }`}
-              placeholder="collaboratore@example.com"
+              placeholder="dipendente@example.com"
             />
             {errors.email && (
               <p className="mt-1 text-sm text-red-600">{errors.email}</p>
@@ -168,15 +168,15 @@ const InviteEmployeeForm: React.FC<InviteEmployeeFormProps> = ({
             {errors.role && (
               <p className="mt-1 text-sm text-red-600">{errors.role}</p>
             )}
-            
+
             {/* Role descriptions */}
             <div className="mt-2 p-3 bg-slate-50 rounded-lg">
               <div className="text-xs text-slate-600">
                 <div className="mb-1">
-                  <span className="font-medium">COMMERCIAL:</span> Può visualizzare registrazioni e gestire utenti, ma non può vedere dati finanziari o gestire collaboratori.
+                  <span className="font-medium">COMMERCIAL:</span> Può visualizzare registrazioni e gestire utenti, ma non può vedere dati finanziari o gestire dipendenti.
                 </div>
                 <div>
-                  <span className="font-medium">ADMINISTRATIVE:</span> Accesso completo inclusi dati finanziari, gestione collaboratori e aziende figlie.
+                  <span className="font-medium">ADMINISTRATIVE:</span> Accesso completo inclusi dati finanziari, gestione dipendenti e aziende collaboratrici.
                 </div>
               </div>
             </div>
@@ -222,7 +222,7 @@ const InviteEmployeeForm: React.FC<InviteEmployeeFormProps> = ({
             <div>
               <p className="text-sm text-blue-800 font-medium mb-1">Come funziona l'invito</p>
               <p className="text-xs text-blue-700">
-                Il collaboratore riceverà un'email con un link per attivare il proprio account. 
+                Il dipendente riceverà un'email con un link per attivare il proprio account.
                 L'invito scadrà dopo 7 giorni se non accettato.
               </p>
             </div>

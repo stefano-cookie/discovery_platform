@@ -276,16 +276,16 @@ const UsersView: React.FC<UsersViewProps> = ({ onNavigateToEnrollmentDetail }) =
           </div>
           
           <div className="flex flex-col lg:flex-row items-start lg:items-center space-y-3 lg:space-y-0 lg:space-x-6">
-            {/* Sub-Partner Filter (solo per parent companies) */}
+            {/* Collaboratori Filter (solo per parent companies) */}
             {!isSubPartner && subPartners.length > 0 && (
               <div className="flex items-center space-x-3">
-                <span className="text-sm text-gray-500">Sub-Partner:</span>
+                <span className="text-sm text-gray-500">Collaboratore:</span>
                 <select
                   value={selectedSubPartner}
                   onChange={(e) => setSelectedSubPartner(e.target.value)}
                   className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="">Tutti i sub-partner</option>
+                  <option value="">Tutti i collaboratori</option>
                   {subPartners.map((subPartner) => (
                     <option key={subPartner.id} value={subPartner.id}>
                       {subPartner.name} ({subPartner.stats.totalRegistrations})
@@ -339,7 +339,7 @@ const UsersView: React.FC<UsersViewProps> = ({ onNavigateToEnrollmentDetail }) =
             )}
             {selectedSubPartner && (
               <div className="text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">
-                Filtrando per sub-partner: {subPartners.find(sp => sp.id === selectedSubPartner)?.name}
+                Filtrando per collaboratore: {subPartners.find(sp => sp.id === selectedSubPartner)?.name}
                 <button
                   onClick={() => setSelectedSubPartner('')}
                   className="ml-2 text-blue-700 hover:text-blue-800 font-medium"
