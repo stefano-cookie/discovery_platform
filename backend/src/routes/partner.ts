@@ -30,6 +30,37 @@ async function isUserOrphaned(userId: string, partnerCompanyId: string): Promise
 }
 const contractService = new ContractService();
 
+/**
+ * Calculate the project root directory
+ * Works in both development and production environments
+ */
+function getProjectRoot(): string {
+  // In development: __dirname is like /path/to/project/backend/src/routes
+  // In production: __dirname is like /path/to/project/backend/dist/routes
+
+  let currentDir = __dirname;
+
+  // Walk up the directory tree to find the project root
+  // Look for package.json or backend directory to identify project root
+  while (currentDir !== path.dirname(currentDir)) { // Not at filesystem root
+    const parentDir = path.dirname(currentDir);
+
+    // Check if parent contains backend directory (indicating project root)
+    if (require('fs').existsSync(path.join(parentDir, 'backend')) &&
+        (require('fs').existsSync(path.join(parentDir, 'package.json')) ||
+         require('fs').existsSync(path.join(parentDir, 'frontend')))) {
+      console.log(`[ROUTES] Found project root: ${parentDir}`);
+      return parentDir;
+    }
+
+    currentDir = parentDir;
+  }
+
+  // Fallback: assume current working directory is project root
+  console.log(`[ROUTES] Using fallback project root: ${process.cwd()}`);
+  return process.cwd();
+}
+
 // Helper function to check if a partner company can manage a registration
 const canManageRegistration = async (partnerCompanyId: string, registrationId: string): Promise<{ canManage: boolean, isReadOnly: boolean }> => {
   const registration = await prisma.registration.findUnique({
@@ -74,10 +105,11 @@ const canDeleteRegistration = (partnerCompanyId: string, registration: any): boo
   return false;
 };
 
-// Configure multer for contract uploads - Use process.cwd() for consistency
+// Configure multer for contract uploads - Use project root for consistency
 const contractStorage = multer.diskStorage({
   destination: (req: any, file: any, cb: any) => {
-    const signedContractsDir = path.join(process.cwd(), 'uploads/signed-contracts');
+    const projectRoot = getProjectRoot();
+    const signedContractsDir = path.join(projectRoot, 'backend/uploads/signed-contracts');
     // Ensure directory exists
     if (!require('fs').existsSync(signedContractsDir)) {
       require('fs').mkdirSync(signedContractsDir, { recursive: true });
@@ -1618,8 +1650,9 @@ router.get('/download-contract/:registrationId', authenticateUnified, async (req
       }
     }
 
-    // If contract already exists, serve the file - Use process.cwd() for consistency
-    const contractPath = path.join(process.cwd(), registration.contractTemplateUrl.substring(1)); // Remove leading slash
+    // If contract already exists, serve the file - Use project root for consistency
+    const projectRoot = getProjectRoot();
+    const contractPath = path.join(projectRoot, 'backend', registration.contractTemplateUrl.substring(1)); // Remove leading slash
     console.log(`[CONTRACT_DOWNLOAD] Attempting to serve existing contract from: ${contractPath}`);
     
     if (!require('fs').existsSync(contractPath)) {
@@ -1699,8 +1732,9 @@ router.get('/preview-contract/:registrationId', authenticateUnified, async (req:
       }
     }
 
-    // If contract already exists, serve the file for inline display - Use process.cwd() for consistency
-    const contractPath = path.join(process.cwd(), registration.contractTemplateUrl.substring(1));
+    // If contract already exists, serve the file for inline display - Use project root for consistency
+    const projectRoot = getProjectRoot();
+    const contractPath = path.join(projectRoot, 'backend', registration.contractTemplateUrl.substring(1));
     console.log(`[CONTRACT_PREVIEW] Serving existing contract from: ${contractPath}`);
     
     if (!require('fs').existsSync(contractPath)) {
@@ -1914,8 +1948,9 @@ router.get('/download-signed-contract/:registrationId', authenticateUnified, asy
       return res.status(404).json({ error: 'Contratto firmato non disponibile' });
     }
 
-    // Serve the signed contract file - Use process.cwd() for consistency
-    const contractPath = path.join(process.cwd(), registration.contractSignedUrl.substring(1)); // Remove leading slash
+    // Serve the signed contract file - Use project root for consistency
+    const projectRoot = getProjectRoot();
+    const contractPath = path.join(projectRoot, 'backend', registration.contractSignedUrl.substring(1)); // Remove leading slash
     console.log(`[SIGNED_CONTRACT_DOWNLOAD] Serving signed contract from: ${contractPath}`);
     
     if (!require('fs').existsSync(contractPath)) {
@@ -3048,7 +3083,8 @@ router.get('/registrations/:registrationId/cnred/download', authenticateUnified,
       return res.status(404).json({ error: 'Documento CNRed non trovato' });
     }
 
-    const filePath = path.join(process.cwd(), registration.cnredUrl.substring(1));
+    const projectRoot = getProjectRoot();
+    const filePath = path.join(projectRoot, 'backend', registration.cnredUrl.substring(1));
     
     if (!require('fs').existsSync(filePath)) {
       return res.status(404).json({ error: 'File non trovato sul server' });
@@ -3081,7 +3117,8 @@ router.get('/registrations/:registrationId/adverintia/download', authenticateUni
       return res.status(404).json({ error: 'Documento Adverintia non trovato' });
     }
 
-    const filePath = path.join(process.cwd(), registration.adverintiaUrl.substring(1));
+    const projectRoot = getProjectRoot();
+    const filePath = path.join(projectRoot, 'backend', registration.adverintiaUrl.substring(1));
     
     if (!require('fs').existsSync(filePath)) {
       return res.status(404).json({ error: 'File non trovato sul server' });

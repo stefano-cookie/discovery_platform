@@ -37,14 +37,48 @@ interface ContractData {
 export class ContractService {
   private templatePath: string;
 
+  /**
+   * Calculate the project root directory
+   * Works in both development and production environments
+   */
+  private getProjectRoot(): string {
+    // In development: __dirname is like /path/to/project/backend/src/services
+    // In production: __dirname is like /path/to/project/backend/dist/services
+
+    let currentDir = __dirname;
+
+    // Walk up the directory tree to find the project root
+    // Look for package.json or backend directory to identify project root
+    while (currentDir !== path.dirname(currentDir)) { // Not at filesystem root
+      const parentDir = path.dirname(currentDir);
+
+      // Check if parent contains backend directory (indicating project root)
+      if (fs.existsSync(path.join(parentDir, 'backend')) &&
+          (fs.existsSync(path.join(parentDir, 'package.json')) ||
+           fs.existsSync(path.join(parentDir, 'frontend')))) {
+        console.log(`[CONTRACT_SERVICE] Found project root: ${parentDir}`);
+        return parentDir;
+      }
+
+      currentDir = parentDir;
+    }
+
+    // Fallback: assume current working directory is project root
+    console.log(`[CONTRACT_SERVICE] Using fallback project root: ${process.cwd()}`);
+    return process.cwd();
+  }
+
   constructor() {
+    // Calculate project root directory - works in both development and production
+    const projectRoot = this.getProjectRoot();
+
     // In development: src/services -> templates/
     // In production: dist/services -> dist/templates/
     const templatePaths = [
       path.join(__dirname, '../../templates/contract-template.html'), // Development
       path.join(__dirname, '../templates/contract-template.html'),    // Production (dopo build)
-      path.join(process.cwd(), 'templates/contract-template.html'),    // Fallback root
-      path.join(process.cwd(), 'backend/templates/contract-template.html') // Docker fallback
+      path.join(projectRoot, 'backend/templates/contract-template.html'), // Production from project root
+      path.join(process.cwd(), 'templates/contract-template.html'),    // Fallback current dir
     ];
 
     this.templatePath = templatePaths.find(templatePath => {
@@ -436,9 +470,11 @@ export class ContractService {
       console.log(`[CONTRACT_SAVE] __dirname: ${__dirname}`);
       console.log(`[CONTRACT_SAVE] process.cwd(): ${process.cwd()}`);
 
-      // UNIFIED PATH LOGIC: Use process.cwd() for both development and production
-      const contractsDir = path.join(process.cwd(), 'uploads/contracts');
-      console.log(`[CONTRACT_SAVE] Contracts directory (unified): ${contractsDir}`);
+      // Calculate project root directory for consistent path resolution
+      const projectRoot = this.getProjectRoot();
+      const contractsDir = path.join(projectRoot, 'backend/uploads/contracts');
+      console.log(`[CONTRACT_SAVE] Project root: ${projectRoot}`);
+      console.log(`[CONTRACT_SAVE] Contracts directory: ${contractsDir}`);
 
       if (!fs.existsSync(contractsDir)) {
         console.log(`[CONTRACT_SAVE] Creating directory: ${contractsDir}`);

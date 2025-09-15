@@ -31,8 +31,40 @@ app.use(helmet());
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(process.cwd(), 'uploads');
+/**
+ * Calculate the project root directory
+ * Works in both development and production environments
+ */
+function getProjectRoot(): string {
+  // In development: __dirname is like /path/to/project/backend/src
+  // In production: __dirname is like /path/to/project/backend/dist
+
+  let currentDir = __dirname;
+
+  // Walk up the directory tree to find the project root
+  // Look for package.json or backend directory to identify project root
+  while (currentDir !== path.dirname(currentDir)) { // Not at filesystem root
+    const parentDir = path.dirname(currentDir);
+
+    // Check if parent contains backend directory (indicating project root)
+    if (fs.existsSync(path.join(parentDir, 'backend')) &&
+        (fs.existsSync(path.join(parentDir, 'package.json')) ||
+         fs.existsSync(path.join(parentDir, 'frontend')))) {
+      console.log(`[SERVER] Found project root: ${parentDir}`);
+      return parentDir;
+    }
+
+    currentDir = parentDir;
+  }
+
+  // Fallback: assume current working directory is project root
+  console.log(`[SERVER] Using fallback project root: ${process.cwd()}`);
+  return process.cwd();
+}
+
+// Ensure uploads directory exists - Use consistent project root path
+const projectRoot = getProjectRoot();
+const uploadsDir = path.join(projectRoot, 'backend/uploads');
 const contractsDir = path.join(uploadsDir, 'contracts');
 const documentsDir = path.join(uploadsDir, 'documents');
 
