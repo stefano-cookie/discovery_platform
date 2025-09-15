@@ -10,10 +10,15 @@ const router = Router();
 const prisma = new PrismaClient();
 const contractService = new ContractService();
 
-// Configure multer for contract uploads
+// Configure multer for contract uploads - Use process.cwd() for consistency
 const contractStorage = multer.diskStorage({
   destination: (req: any, file: any, cb: any) => {
-    cb(null, path.join(__dirname, '../../uploads/signed-contracts'));
+    const signedContractsDir = path.join(process.cwd(), 'uploads/signed-contracts');
+    // Ensure directory exists
+    if (!fs.existsSync(signedContractsDir)) {
+      fs.mkdirSync(signedContractsDir, { recursive: true });
+    }
+    cb(null, signedContractsDir);
   },
   filename: (req: any, file: any, cb: any) => {
     cb(null, `signed_contract_temp_${Date.now()}.pdf`);
@@ -92,8 +97,8 @@ router.get('/download-contract/:registrationId', authenticatePartner, async (req
       }
     }
 
-    // If contract already exists, serve the file
-    const contractPath = path.resolve(__dirname, '../..', registration.contractTemplateUrl.substring(1)); // Remove leading slash
+    // If contract already exists, serve the file - Use process.cwd() for consistency
+    const contractPath = path.join(process.cwd(), registration.contractTemplateUrl.substring(1)); // Remove leading slash
     console.log(`[CONTRACT_DOWNLOAD] Attempting to serve existing contract from: ${contractPath}`);
     
     if (!fs.existsSync(contractPath)) {
@@ -173,8 +178,8 @@ router.get('/preview-contract/:registrationId', authenticatePartner, async (req:
       }
     }
 
-    // If contract already exists, serve the file for preview
-    const contractPath = path.resolve(__dirname, '../..', registration.contractTemplateUrl.substring(1));
+    // If contract already exists, serve the file for preview - Use process.cwd() for consistency
+    const contractPath = path.join(process.cwd(), registration.contractTemplateUrl.substring(1));
     console.log(`[CONTRACT_PREVIEW] Attempting to serve existing contract from: ${contractPath}`);
     
     if (!fs.existsSync(contractPath)) {
@@ -260,9 +265,9 @@ router.post('/upload-signed-contract', authenticatePartner, uploadContract.singl
 
     console.log(`[SIGNED_CONTRACT_UPLOAD] Registration found - Status: ${registration.status}, User: ${registration.user.email}`);
 
-    // Generate final filename and move file
+    // Generate final filename and move file - Use process.cwd() for consistency
     const fileName = `signed_contract_${registrationId}_${Date.now()}.pdf`;
-    const finalPath = path.join(__dirname, '../../uploads/signed-contracts', fileName);
+    const finalPath = path.join(process.cwd(), 'uploads/signed-contracts', fileName);
     const relativePath = `/uploads/signed-contracts/${fileName}`;
 
     try {
@@ -346,7 +351,7 @@ router.get('/download-signed-contract/:registrationId', authenticatePartner, asy
       return res.status(404).json({ error: 'Contratto firmato non disponibile' });
     }
 
-    const contractPath = path.resolve(__dirname, '../..', registration.contractSignedUrl.substring(1));
+    const contractPath = path.join(process.cwd(), registration.contractSignedUrl.substring(1));
     console.log(`[SIGNED_CONTRACT_DOWNLOAD] Contract path: ${contractPath}`);
     
     if (!fs.existsSync(contractPath)) {
@@ -391,7 +396,7 @@ router.delete('/reset-contract/:registrationId', authenticatePartner, async (req
 
     // Delete signed contract file if exists
     if (registration.contractSignedUrl) {
-      const contractPath = path.resolve(__dirname, '../..', registration.contractSignedUrl.substring(1));
+      const contractPath = path.join(process.cwd(), registration.contractSignedUrl.substring(1));
       if (fs.existsSync(contractPath)) {
         try {
           fs.unlinkSync(contractPath);
