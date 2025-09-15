@@ -74,10 +74,15 @@ const canDeleteRegistration = (partnerCompanyId: string, registration: any): boo
   return false;
 };
 
-// Configure multer for contract uploads
+// Configure multer for contract uploads - Use process.cwd() for consistency
 const contractStorage = multer.diskStorage({
   destination: (req: any, file: any, cb: any) => {
-    cb(null, path.join(__dirname, '../../uploads/signed-contracts'));
+    const signedContractsDir = path.join(process.cwd(), 'uploads/signed-contracts');
+    // Ensure directory exists
+    if (!require('fs').existsSync(signedContractsDir)) {
+      require('fs').mkdirSync(signedContractsDir, { recursive: true });
+    }
+    cb(null, signedContractsDir);
   },
   filename: (req: any, file: any, cb: any) => {
     cb(null, `signed_contract_temp_${Date.now()}.pdf`);
@@ -1613,8 +1618,8 @@ router.get('/download-contract/:registrationId', authenticateUnified, async (req
       }
     }
 
-    // If contract already exists, serve the file
-    const contractPath = path.resolve(__dirname, '../..', registration.contractTemplateUrl.substring(1)); // Remove leading slash
+    // If contract already exists, serve the file - Use process.cwd() for consistency
+    const contractPath = path.join(process.cwd(), registration.contractTemplateUrl.substring(1)); // Remove leading slash
     console.log(`[CONTRACT_DOWNLOAD] Attempting to serve existing contract from: ${contractPath}`);
     
     if (!require('fs').existsSync(contractPath)) {
@@ -1694,8 +1699,8 @@ router.get('/preview-contract/:registrationId', authenticateUnified, async (req:
       }
     }
 
-    // If contract already exists, serve the file for inline display
-    const contractPath = path.resolve(__dirname, '../..', registration.contractTemplateUrl.substring(1));
+    // If contract already exists, serve the file for inline display - Use process.cwd() for consistency
+    const contractPath = path.join(process.cwd(), registration.contractTemplateUrl.substring(1));
     console.log(`[CONTRACT_PREVIEW] Serving existing contract from: ${contractPath}`);
     
     if (!require('fs').existsSync(contractPath)) {
@@ -1909,8 +1914,8 @@ router.get('/download-signed-contract/:registrationId', authenticateUnified, asy
       return res.status(404).json({ error: 'Contratto firmato non disponibile' });
     }
 
-    // Serve the signed contract file
-    const contractPath = path.resolve(__dirname, '../..', registration.contractSignedUrl.substring(1)); // Remove leading slash
+    // Serve the signed contract file - Use process.cwd() for consistency
+    const contractPath = path.join(process.cwd(), registration.contractSignedUrl.substring(1)); // Remove leading slash
     console.log(`[SIGNED_CONTRACT_DOWNLOAD] Serving signed contract from: ${contractPath}`);
     
     if (!require('fs').existsSync(contractPath)) {
@@ -3043,7 +3048,7 @@ router.get('/registrations/:registrationId/cnred/download', authenticateUnified,
       return res.status(404).json({ error: 'Documento CNRed non trovato' });
     }
 
-    const filePath = path.resolve(__dirname, '../..', registration.cnredUrl.substring(1));
+    const filePath = path.join(process.cwd(), registration.cnredUrl.substring(1));
     
     if (!require('fs').existsSync(filePath)) {
       return res.status(404).json({ error: 'File non trovato sul server' });
@@ -3076,7 +3081,7 @@ router.get('/registrations/:registrationId/adverintia/download', authenticateUni
       return res.status(404).json({ error: 'Documento Adverintia non trovato' });
     }
 
-    const filePath = path.resolve(__dirname, '../..', registration.adverintiaUrl.substring(1));
+    const filePath = path.join(process.cwd(), registration.adverintiaUrl.substring(1));
     
     if (!require('fs').existsSync(filePath)) {
       return res.status(404).json({ error: 'File non trovato sul server' });
