@@ -434,11 +434,12 @@ export class ContractService {
     try {
       console.log(`[CONTRACT_SAVE] Starting save for registration: ${registrationId}`);
       console.log(`[CONTRACT_SAVE] __dirname: ${__dirname}`);
-      
-      // Crea directory per i contratti se non exists
-      const contractsDir = path.join(__dirname, '../../uploads/contracts');
-      console.log(`[CONTRACT_SAVE] Contracts directory: ${contractsDir}`);
-      
+      console.log(`[CONTRACT_SAVE] process.cwd(): ${process.cwd()}`);
+
+      // UNIFIED PATH LOGIC: Use process.cwd() for both development and production
+      const contractsDir = path.join(process.cwd(), 'uploads/contracts');
+      console.log(`[CONTRACT_SAVE] Contracts directory (unified): ${contractsDir}`);
+
       if (!fs.existsSync(contractsDir)) {
         console.log(`[CONTRACT_SAVE] Creating directory: ${contractsDir}`);
         fs.mkdirSync(contractsDir, { recursive: true });
@@ -450,7 +451,7 @@ export class ContractService {
       const fileName = `contract_${registrationId}.pdf`;
       const filePath = path.join(contractsDir, fileName);
       console.log(`[CONTRACT_SAVE] Saving file to: ${filePath}`);
-      
+
       fs.writeFileSync(filePath, pdfBuffer);
       console.log(`[CONTRACT_SAVE] File saved successfully, size: ${pdfBuffer.length} bytes`);
 

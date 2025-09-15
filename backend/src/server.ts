@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import path from 'path';
+import fs from 'fs';
 
 // Load environment variables based on NODE_ENV
 const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env';
@@ -29,6 +30,27 @@ const corsOptions = {
 app.use(helmet());
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(process.cwd(), 'uploads');
+const contractsDir = path.join(uploadsDir, 'contracts');
+const documentsDir = path.join(uploadsDir, 'documents');
+
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log('Created uploads directory:', uploadsDir);
+}
+if (!fs.existsSync(contractsDir)) {
+  fs.mkdirSync(contractsDir, { recursive: true });
+  console.log('Created contracts directory:', contractsDir);
+}
+if (!fs.existsSync(documentsDir)) {
+  fs.mkdirSync(documentsDir, { recursive: true });
+  console.log('Created documents directory:', documentsDir);
+}
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(uploadsDir));
 
 // Basic health check
 app.get('/api/health', (_req, res) => {
