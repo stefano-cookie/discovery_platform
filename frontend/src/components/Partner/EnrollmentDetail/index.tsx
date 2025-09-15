@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { partnerService } from '../../../services/partner';
 import { PartnerUser } from '../../../types/partner';
+import { usePartnerAuth } from '../../../hooks/usePartnerAuth';
 import UserInfo from './UserInfo';
 import EnrollmentFlow from './EnrollmentFlow';
 import EnhancedDocumentsSection from './EnhancedDocumentsSection';
@@ -16,10 +17,11 @@ interface EnrollmentDetailProps {
   onBackToUsers: () => void;
 }
 
-const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({ 
-  registrationId, 
-  onBackToUsers 
+const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
+  registrationId,
+  onBackToUsers
 }) => {
+  const { partnerEmployee } = usePartnerAuth();
   const [user, setUser] = useState<PartnerUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -157,13 +159,18 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
             {/* Left Column - User Info & Documents */}
             <div className="lg:col-span-2 space-y-6">
               <UserInfo user={user} />
-              <PaymentSection 
-                registrationId={registrationId}
-                courseName={user.course}
-                finalAmount={user.finalAmount}
-                offerType={user.offerType || undefined}
-                installments={user.installments}
-              />
+
+              {/* Payment Section - visibile solo per ADMINISTRATIVE */}
+              {partnerEmployee?.role === 'ADMINISTRATIVE' && (
+                <PaymentSection
+                  registrationId={registrationId}
+                  courseName={user.course}
+                  finalAmount={user.finalAmount}
+                  offerType={user.offerType || undefined}
+                  installments={user.installments}
+                />
+              )}
+
               <EnhancedDocumentsSection user={user} />
               
               {/* Steps Management */}

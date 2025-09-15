@@ -228,9 +228,10 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
   };
 
   const canCreateOffers = (): boolean => {
-    // Solo partner ADMINISTRATIVE e solo se è una company parent (non figlio)
-    return partnerEmployee?.role === PartnerEmployeeRole.ADMINISTRATIVE && 
-           !partnerCompany?.parentId; // Solo se non ha un parent (quindi è root o parent) 
+    // Sia ADMINISTRATIVE che COMMERCIAL possono creare offerte, solo se è una company parent (non figlio)
+    return (partnerEmployee?.role === PartnerEmployeeRole.ADMINISTRATIVE ||
+            partnerEmployee?.role === PartnerEmployeeRole.COMMERCIAL) &&
+           !partnerCompany?.parentId; // Solo se non ha un parent (quindi è root o parent)
   };
 
   // ========================================

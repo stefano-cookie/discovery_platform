@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { usePartnerAuth } from '../../hooks/usePartnerAuth';
 import { usePartnerStats } from '../../hooks/usePartnerStats';
 import { usePartnerAnalytics } from '../../hooks/usePartnerAnalytics';
 import { partnerService } from '../../services/partner';
@@ -15,6 +16,7 @@ import ErrorModal from '../UI/ErrorModal';
 
 const ImprovedPartnerDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { partnerEmployee } = usePartnerAuth();
   const { stats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = usePartnerStats();
   const { analytics, isLoading: analyticsLoading, error: analyticsError } = usePartnerAnalytics();
   const [users, setUsers] = useState<PartnerUser[]>([]);
@@ -190,7 +192,7 @@ const ImprovedPartnerDashboard: React.FC = () => {
         <PriorityAlerts analytics={analytics} stats={stats} />
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+        <div className={`grid grid-cols-1 sm:grid-cols-2 ${partnerEmployee?.role === 'ADMINISTRATIVE' ? 'xl:grid-cols-4' : 'xl:grid-cols-3'} gap-6 mb-8`}>
           <StatsCard
             title="Utenti Totali"
             value={statsLoading ? '...' : stats?.totalRegistrations || 0}
@@ -204,18 +206,21 @@ const ImprovedPartnerDashboard: React.FC = () => {
             }
           />
 
-          <StatsCard
-            title="Ricavi Mensili"
-            value={statsLoading ? '...' : formatCurrency(stats?.monthlyRevenue || 0)}
-            color="emerald"
-            subtitle="Entrate del mese corrente"
-            trend={analytics?.metrics?.growthRate ? `${analytics.metrics?.growthRate > 0 ? '+' : ''}${analytics.metrics?.growthRate}% crescita` : undefined}
-            icon={
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-              </svg>
-            }
-          />
+          {/* Ricavi visibili solo per ADMINISTRATIVE */}
+          {partnerEmployee?.role === 'ADMINISTRATIVE' && (
+            <StatsCard
+              title="Ricavi Mensili"
+              value={statsLoading ? '...' : formatCurrency(stats?.monthlyRevenue || 0)}
+              color="emerald"
+              subtitle="Entrate del mese corrente"
+              trend={analytics?.metrics?.growthRate ? `${analytics.metrics?.growthRate > 0 ? '+' : ''}${analytics.metrics?.growthRate}% crescita` : undefined}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                </svg>
+              }
+            />
+          )}
 
           <StatsCard
             title="Utenti Diretti"
@@ -245,20 +250,57 @@ const ImprovedPartnerDashboard: React.FC = () => {
         </div>
 
         {/* Charts Section */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
-          {/* Revenue Chart */}
-          <div className="xl:col-span-2">
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 h-full">
-              <RevenueChart analytics={analytics} loading={analyticsLoading} />
+        {partnerEmployee?.role === 'ADMINISTRATIVE' ? (
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
+            {/* Revenue Chart */}
+            <div className="xl:col-span-2">
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 h-full">
+                <RevenueChart analytics={analytics} loading={analyticsLoading} />
+              </div>
+            </div>
+
+            {/* Sidebar with metrics and charts */}
+            <div className="space-y-6">
+              <UserGrowthChart analytics={analytics} loading={analyticsLoading} />
+              <QuickMetrics stats={stats} analytics={analytics} loading={statsLoading || analyticsLoading} formatCurrency={formatCurrency} />
             </div>
           </div>
-
-          {/* Sidebar with metrics and charts */}
-          <div className="space-y-6">
-            <UserGrowthChart analytics={analytics} loading={analyticsLoading} />
-            <QuickMetrics stats={stats} analytics={analytics} loading={statsLoading || analyticsLoading} formatCurrency={formatCurrency} />
+        ) : (
+          // Layout per COMMERCIAL - solo crescita utenti e metriche (senza ricavi)
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 p-6">
+              <UserGrowthChart analytics={analytics} loading={analyticsLoading} />
+            </div>
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Metriche Rapide</h3>
+              {(statsLoading || analyticsLoading) ? (
+                <div className="space-y-3">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="animate-pulse flex items-center text-sm">
+                      <div className="w-2 h-2 bg-slate-300 rounded-full mr-3"></div>
+                      <div className="h-4 bg-slate-200 rounded flex-1"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Utenti Attivi</span>
+                    <span className="font-semibold text-gray-900">{stats?.totalRegistrations || 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Tasso Conversione</span>
+                    <span className="font-semibold text-gray-900">{analytics?.metrics?.conversionRate || 0}%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Iscrizioni Dirette</span>
+                    <span className="font-semibold text-gray-900">{stats?.directRegistrations || 0}</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Actions & Management Panel */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">

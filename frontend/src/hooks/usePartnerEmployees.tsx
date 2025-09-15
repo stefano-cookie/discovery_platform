@@ -15,6 +15,27 @@ class PartnerEmployeeService {
     };
   }
 
+  private async handleError(response: Response, defaultMessage: string): Promise<never> {
+    let errorMessage = defaultMessage;
+
+    // Clone response before attempting to read it
+    const responseClone = response.clone();
+
+    try {
+      const errorData = await response.json();
+      errorMessage = errorData.error || defaultMessage;
+    } catch (parseError) {
+      // If JSON parsing fails, try to get text from the cloned response
+      try {
+        errorMessage = await responseClone.text() || defaultMessage;
+      } catch (textError) {
+        errorMessage = defaultMessage;
+      }
+    }
+
+    throw new Error(errorMessage);
+  }
+
   // Lista collaboratori
   async getEmployees(): Promise<{ collaborators: PartnerEmployee[] }> {
     const response = await fetch('/api/partner-employees/collaborators', {
@@ -22,8 +43,7 @@ class PartnerEmployeeService {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(error || 'Errore nel caricamento collaboratori');
+      await this.handleError(response, 'Errore nel caricamento collaboratori');
     }
 
     return response.json();
@@ -43,8 +63,7 @@ class PartnerEmployeeService {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(error || 'Errore nell\'invito collaboratore');
+      await this.handleError(response, 'Errore nell\'invito collaboratore');
     }
 
     return response.json();
@@ -58,8 +77,7 @@ class PartnerEmployeeService {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(error || 'Errore nel reinvio invito');
+      await this.handleError(response, 'Errore nel reinvio invito');
     }
 
     return response.json();
@@ -77,8 +95,7 @@ class PartnerEmployeeService {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(error || 'Errore nell\'aggiornamento collaboratore');
+      await this.handleError(response, 'Errore nell\'aggiornamento collaboratore');
     }
 
     return response.json();
@@ -92,8 +109,7 @@ class PartnerEmployeeService {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(error || 'Errore nella rimozione collaboratore');
+      await this.handleError(response, 'Errore nella rimozione collaboratore');
     }
 
     return response.json();

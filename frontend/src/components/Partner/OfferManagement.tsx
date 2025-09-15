@@ -421,7 +421,7 @@ const OfferManagement: React.FC = () => {
           </svg>
         </div>
         <h3 className="text-xl font-semibold text-gray-900 mb-2">Accesso non autorizzato</h3>
-        <p className="text-gray-600 mb-4">Solo gli utenti con ruolo ADMINISTRATIVE possono gestire le offerte.</p>
+        <p className="text-gray-600 mb-4">Solo gli utenti con ruolo ADMINISTRATIVE o COMMERCIAL possono gestire le offerte.</p>
         <div className="flex items-center text-sm text-gray-500">
           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 mr-2">
             Il tuo ruolo: {partnerEmployee?.role || 'COMMERCIAL'}
@@ -500,7 +500,7 @@ const OfferManagement: React.FC = () => {
             onClick={() => setShowCreateModal(true)}
             disabled={!canCreateOffers()}
             className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl flex items-center group disabled:opacity-50 disabled:cursor-not-allowed"
-            title={!canCreateOffers() ? 'Solo gli utenti ADMINISTRATIVE delle società padre possono creare offerte' : 'Crea una nuova offerta'}
+            title={!canCreateOffers() ? 'Solo gli utenti ADMINISTRATIVE o COMMERCIAL delle società padre possono creare offerte' : 'Crea una nuova offerta'}
           >
             <svg className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -532,7 +532,7 @@ const OfferManagement: React.FC = () => {
               onClick={() => setShowCreateModal(true)}
               disabled={!canCreateOffers()}
               className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl inline-flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-              title={!canCreateOffers() ? 'Solo gli utenti ADMINISTRATIVE delle società padre possono creare offerte' : 'Crea la tua prima offerta'}
+              title={!canCreateOffers() ? 'Solo gli utenti ADMINISTRATIVE o COMMERCIAL delle società padre possono creare offerte' : 'Crea la tua prima offerta'}
             >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -643,7 +643,7 @@ const OfferManagement: React.FC = () => {
                       onClick={() => handleEditOffer(offer)}
                       disabled={!canManageOffers()}
                       className="bg-white border border-green-200 text-green-700 px-4 py-2.5 rounded-lg hover:bg-green-50 hover:border-green-300 transition-all duration-200 font-medium text-sm flex items-center justify-center group disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={!canManageOffers() ? 'Solo gli utenti ADMINISTRATIVE possono modificare offerte' : 'Modifica offerta'}
+                      title={!canManageOffers() ? 'Solo gli utenti ADMINISTRATIVE o COMMERCIAL possono modificare offerte' : 'Modifica offerta'}
                     >
                       <svg className="w-4 h-4 mr-1.5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -659,7 +659,7 @@ const OfferManagement: React.FC = () => {
                           ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                           : 'bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 group'
                       }`}
-                      title={!canManageOffers() ? 'Solo gli utenti ADMINISTRATIVE possono eliminare offerte' : (offer._count?.registrations || 0) > 0 ? 'Non è possibile eliminare offerte con iscrizioni' : 'Elimina offerta'}
+                      title={!canManageOffers() ? 'Solo gli utenti ADMINISTRATIVE o COMMERCIAL possono eliminare offerte' : (offer._count?.registrations || 0) > 0 ? 'Non è possibile eliminare offerte con iscrizioni' : 'Elimina offerta'}
                     >
                       <svg className={`w-4 h-4 mr-1.5 transition-transform ${(offer._count?.registrations || 0) === 0 ? 'group-hover:scale-110' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

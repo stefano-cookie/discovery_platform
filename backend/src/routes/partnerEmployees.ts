@@ -608,16 +608,22 @@ router.post('/invite', authenticatePartner, async (req: AuthRequest, res) => {
       return res.status(403).json({ error: 'Solo gli utenti ADMINISTRATIVE possono invitare collaboratori' });
     }
 
-    // Check if email already exists in company
-    const existingCollaborator = await prisma.partnerEmployee.findFirst({
-      where: {
-        email,
-        partnerCompanyId: employee.partnerCompanyId
-      }
-    });
+    // Check if email already exists in the system
+    const [existingUser, existingPartnerEmployee] = await Promise.all([
+      prisma.user.findUnique({ where: { email } }),
+      prisma.partnerEmployee.findFirst({ where: { email } })
+    ]);
 
-    if (existingCollaborator) {
-      return res.status(400).json({ error: 'Un collaboratore con questa email esiste già in azienda' });
+    if (existingUser) {
+      return res.status(400).json({ error: 'Questa email è già registrata come utente nel sistema' });
+    }
+
+    if (existingPartnerEmployee) {
+      if (existingPartnerEmployee.partnerCompanyId === employee.partnerCompanyId) {
+        return res.status(400).json({ error: 'Un collaboratore con questa email esiste già in questa azienda' });
+      } else {
+        return res.status(400).json({ error: 'Questa email è già registrata come dipendente di un\'altra azienda partner' });
+      }
     }
 
     // Generate secure invite token
@@ -629,33 +635,43 @@ router.post('/invite', authenticatePartner, async (req: AuthRequest, res) => {
     const tempPassword = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
 
     // Create pending collaborator
-    const newCollaborator = await prisma.partnerEmployee.create({
-      data: {
-        partnerCompanyId: employee.partnerCompanyId,
-        email,
-        password: tempPassword,
-        firstName,
-        lastName,
-        role,
-        isActive: false, // Will be activated when invite is accepted
-        inviteToken,
-        inviteExpiresAt,
-        invitedBy: employeeId
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        createdAt: true,
-        partnerCompany: {
-          select: {
-            name: true
+    let newCollaborator;
+    try {
+      newCollaborator = await prisma.partnerEmployee.create({
+        data: {
+          partnerCompanyId: employee.partnerCompanyId,
+          email,
+          password: tempPassword,
+          firstName,
+          lastName,
+          role,
+          isActive: false, // Will be activated when invite is accepted
+          inviteToken,
+          inviteExpiresAt,
+          invitedBy: employeeId
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          createdAt: true,
+          partnerCompany: {
+            select: {
+              name: true
+            }
           }
         }
+      });
+    } catch (createError: any) {
+      // Handle specific database errors
+      if (createError.code === 'P2002' && createError.meta?.target?.includes('email')) {
+        return res.status(400).json({ error: 'Questa email è già in uso nel sistema' });
       }
-    });
+      console.error('Error creating collaborator:', createError);
+      return res.status(500).json({ error: 'Errore nella creazione del collaboratore' });
+    }
 
     // Send invite email
     const inviteUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/partner/accept-invite/${inviteToken}`;
