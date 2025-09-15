@@ -35,9 +35,26 @@ interface ContractData {
 }
 
 export class ContractService {
-  private templatePath = path.join(__dirname, '../../templates/contract-template.html');
+  private templatePath: string;
 
   constructor() {
+    // In development: src/services -> templates/
+    // In production: dist/services -> dist/templates/
+    const templatePaths = [
+      path.join(__dirname, '../../templates/contract-template.html'), // Development
+      path.join(__dirname, '../templates/contract-template.html'),    // Production (dopo build)
+      path.join(process.cwd(), 'templates/contract-template.html'),    // Fallback root
+      path.join(process.cwd(), 'backend/templates/contract-template.html') // Docker fallback
+    ];
+
+    this.templatePath = templatePaths.find(templatePath => {
+      const exists = fs.existsSync(templatePath);
+      console.log(`[CONTRACT_SERVICE] Checking template path: ${templatePath} - ${exists ? 'EXISTS' : 'NOT FOUND'}`);
+      return exists;
+    }) || templatePaths[0]; // Default to first path if none found
+
+    console.log(`[CONTRACT_SERVICE] Using template path: ${this.templatePath}`);
+
     // Registra helper Handlebars
     Handlebars.registerHelper('formatCurrency', (amount: number) => {
       return new Intl.NumberFormat('it-IT', {
