@@ -23,9 +23,8 @@ module.exports = {
     },
     {
       name: 'discovery-frontend',
-      script: 'npx',
-      cwd: './frontend',
-      args: 'serve -s build -p 3000',
+      script: 'frontend-proxy-server.js',
+      cwd: './',
       instances: 1,
       autorestart: true,
       watch: false,

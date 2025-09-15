@@ -87,12 +87,16 @@ npm ci --omit=dev
 # Fix security vulnerabilities
 npm audit fix --omit=dev || echo -e "${YELLOW}⚠️ Some vulnerabilities could not be automatically fixed${NC}"
 
-# 5.1 Installa serve per frontend se non presente
-echo -e "${YELLOW}📦 Installing frontend serve dependency...${NC}"
-cd "$DEPLOY_DIR/frontend"
-if [ ! -f "package.json" ] || [ ! -d "node_modules" ]; then
-    echo '{"devDependencies": {"serve": "^14.2.5"}}' > package.json
-    npm install --omit=prod
+# 5.1 Installa dipendenze proxy per frontend
+echo -e "${YELLOW}📦 Installing frontend proxy dependencies...${NC}"
+cd "$DEPLOY_DIR"
+if [ ! -f "package.json" ]; then
+    echo '{"dependencies": {"express": "^4.18.2", "http-proxy-middleware": "^2.0.6"}}' > package.json
+    npm install --omit=dev
+else
+    # Installa solo se non già presenti
+    npm list express > /dev/null 2>&1 || npm install express --omit=dev
+    npm list http-proxy-middleware > /dev/null 2>&1 || npm install http-proxy-middleware --omit=dev
 fi
 
 # 6. Esegui migrazioni database
