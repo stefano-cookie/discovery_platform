@@ -156,7 +156,58 @@ cd "$BACKUP_DIR"
 ls -t discovery_backup_*.tar.gz | tail -n +6 | xargs -r rm
 ls -t uploads_backup_* | tail -n +6 | xargs -r rm -rf
 
-# 11. Verify deployment
+# 11. Configure nginx proxy (if not already configured)
+echo -e "${YELLOW}🌐 Configuring nginx API proxy...${NC}"
+NGINX_CONF_DIR="/etc/nginx/sites-available"
+NGINX_ENABLED_DIR="/etc/nginx/sites-enabled"
+SITE_CONF="discovery.cfoeducation.it"
+
+if [ -f "$NGINX_CONF_DIR/$SITE_CONF" ]; then
+    # Check if API proxy is already configured
+    if ! grep -q "location /api/" "$NGINX_CONF_DIR/$SITE_CONF"; then
+        echo -e "${YELLOW}Adding API proxy configuration to nginx...${NC}"
+
+        # Backup current config
+        cp "$NGINX_CONF_DIR/$SITE_CONF" "$NGINX_CONF_DIR/$SITE_CONF.backup_$(date +%Y%m%d_%H%M%S)"
+
+        # Add API proxy configuration before the main location block
+        sed -i '/location \/ {/i\
+    # API Proxy for backend\
+    location /api/ {\
+        proxy_pass http://localhost:3010/api/;\
+        proxy_http_version 1.1;\
+        proxy_set_header Upgrade $http_upgrade;\
+        proxy_set_header Connection '"'"'upgrade'"'"';\
+        proxy_set_header Host $host;\
+        proxy_set_header X-Real-IP $remote_addr;\
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\
+        proxy_set_header X-Forwarded-Proto $scheme;\
+        proxy_cache_bypass $http_upgrade;\
+        proxy_connect_timeout 60s;\
+        proxy_send_timeout 60s;\
+        proxy_read_timeout 60s;\
+        client_max_body_size 50M;\
+        proxy_buffering off;\
+        proxy_request_buffering off;\
+    }\
+' "$NGINX_CONF_DIR/$SITE_CONF"
+
+        # Test nginx configuration
+        if nginx -t; then
+            systemctl reload nginx
+            echo -e "${GREEN}✓ Nginx configuration updated and reloaded${NC}"
+        else
+            echo -e "${RED}❌ Nginx configuration test failed, rolling back...${NC}"
+            cp "$NGINX_CONF_DIR/$SITE_CONF.backup_$(date +%Y%m%d_%H%M%S)" "$NGINX_CONF_DIR/$SITE_CONF"
+        fi
+    else
+        echo -e "${GREEN}✓ API proxy already configured${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠️ Nginx site config not found at $NGINX_CONF_DIR/$SITE_CONF${NC}"
+fi
+
+# 12. Verify deployment
 echo -e "${YELLOW}🔍 Verifying deployment...${NC}"
 
 # Check if PM2 process is running
@@ -179,9 +230,16 @@ fi
 # Quick API health check
 sleep 5
 if curl -s -f "http://localhost:3010/api/health" > /dev/null 2>&1; then
-    echo -e "${GREEN}✓ API health check passed${NC}"
+    echo -e "${GREEN}✓ API health check passed (direct)${NC}"
 else
-    echo -e "${YELLOW}⚠️ API health check failed (might be starting up)${NC}"
+    echo -e "${YELLOW}⚠️ API health check failed on direct port 3010${NC}"
+fi
+
+# Test API through nginx proxy
+if curl -s -f "https://discovery.cfoeducation.it/api/health" > /dev/null 2>&1; then
+    echo -e "${GREEN}✓ API proxy health check passed${NC}"
+else
+    echo -e "${YELLOW}⚠️ API proxy health check failed${NC}"
 fi
 
 echo -e "${GREEN}✅ Deployment completed successfully!${NC}"
