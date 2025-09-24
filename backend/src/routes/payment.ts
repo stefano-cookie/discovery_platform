@@ -49,7 +49,7 @@ router.post('/add', authenticate, requireRole(['PARTNER', 'ADMIN']), async (req:
     });
 
   } catch (error) {
-    console.error('Add payment error:', error);
+    // Console output removed
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -132,7 +132,7 @@ router.put('/confirm/:paymentId', authenticate, requireRole(['PARTNER', 'ADMIN']
     });
 
   } catch (error) {
-    console.error('Confirm payment error:', error);
+    // Console output removed
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -169,7 +169,7 @@ router.get('/registration/:registrationId', authenticate, requireRole(['PARTNER'
     });
 
   } catch (error) {
-    console.error('Get payments error:', error);
+    // Console output removed
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });

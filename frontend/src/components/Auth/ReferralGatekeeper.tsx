@@ -20,6 +20,7 @@ const ReferralGatekeeper: React.FC<ReferralGatekeeperProps> = ({
   const [referralInfo, setReferralInfo] = useState<{ valid: boolean; partnerEmail?: string } | null>(null);
   const [isValidating, setIsValidating] = useState(true);
   const [hasSpecialParams, setHasSpecialParams] = useState(false);
+  const [employeeId, setEmployeeId] = useState<string | undefined>(undefined); // 🎯 Employee tracking state
 
   useEffect(() => {
     validateReferralAndCheckAccess();
@@ -44,6 +45,13 @@ const ReferralGatekeeper: React.FC<ReferralGatekeeperProps> = ({
       const verificationCode = urlParams.get('code');
       const secureToken = urlParams.get('token');
       const email = urlParams.get('email'); // Aggiunto per gestire redirect da verifica email
+      const refParam = urlParams.get('ref'); // 🎯 Extract employee ID parameter
+
+      // Store employee ID for registration
+      if (refParam) {
+        setEmployeeId(refParam);
+        console.log(`🔗 [ReferralGatekeeper] Employee ID extracted: ${refParam}`);
+      }
 
       // Determina se ci sono parametri speciali nell'URL
       const hasParams = !!(secureToken || verificationCode || emailVerified === 'true' || email);
@@ -241,6 +249,7 @@ const ReferralGatekeeper: React.FC<ReferralGatekeeperProps> = ({
           setShowRegistrationModal(false);
         }}
         referralCode={referralCode}
+        employeeId={employeeId} // 🎯 Pass employee ID to registration modal
         onSuccess={handleRegistrationSuccess}
       />
     </>

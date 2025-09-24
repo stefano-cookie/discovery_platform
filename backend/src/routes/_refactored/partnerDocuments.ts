@@ -1,17 +1,17 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authenticatePartner, AuthRequest } from '../../middleware/auth';
+import { authenticateUnified, AuthRequest } from '../../middleware/auth';
 import { DocumentService } from '../../services/documentService';
 import UnifiedDocumentService from '../../services/unifiedDocumentService';
 import emailService from '../../services/emailService';
 import * as fs from 'fs';
-import * as path from 'path';
+import { DocumentPathResolver } from '../../config/storage';
 
 const router = Router();
 const prisma = new PrismaClient();
 
 // Get pending documents for verification
-router.get('/documents/pending', authenticatePartner, async (req: AuthRequest, res) => {
+router.get('/documents/pending', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const partnerId = req.partner?.id;
     
@@ -51,7 +51,7 @@ router.get('/documents/pending', authenticatePartner, async (req: AuthRequest, r
 });
 
 // Get documents for a specific registration
-router.get('/registrations/:registrationId/documents', authenticatePartner, async (req: AuthRequest, res) => {
+router.get('/registrations/:registrationId/documents', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const partnerId = req.partner?.id;
     const { registrationId } = req.params;
@@ -226,7 +226,7 @@ router.get('/registrations/:registrationId/documents', authenticatePartner, asyn
 });
 
 // Get unified documents for a registration
-router.get('/registrations/:registrationId/documents/unified', authenticatePartner, async (req: AuthRequest, res) => {
+router.get('/registrations/:registrationId/documents/unified', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const partnerId = req.partner?.id;
     const { registrationId } = req.params;
@@ -253,7 +253,7 @@ router.get('/registrations/:registrationId/documents/unified', authenticatePartn
 });
 
 // Download document
-router.get('/documents/:documentId/download', authenticatePartner, async (req: AuthRequest, res) => {
+router.get('/documents/:documentId/download', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const partnerId = req.partner?.id;
     const { documentId } = req.params;
@@ -284,7 +284,8 @@ router.get('/documents/:documentId/download', authenticatePartner, async (req: A
       return res.status(403).json({ error: 'Non autorizzato a scaricare questo documento' });
     }
 
-    const filePath = path.join(__dirname, '../../uploads', document.url);
+    // 🔥 FIX CRITICO: Usa DocumentPathResolver per path standardizzato
+    const filePath = DocumentPathResolver.resolvePath(document.url);
     
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'File non trovato sul server' });
@@ -298,7 +299,7 @@ router.get('/documents/:documentId/download', authenticatePartner, async (req: A
 });
 
 // Get document audit logs
-router.get('/documents/:documentId/audit', authenticatePartner, async (req: AuthRequest, res) => {
+router.get('/documents/:documentId/audit', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const partnerId = req.partner?.id;
     const { documentId } = req.params;
@@ -345,7 +346,7 @@ router.get('/documents/:documentId/audit', authenticatePartner, async (req: Auth
 });
 
 // Approve document
-router.post('/documents/:documentId/approve', authenticatePartner, async (req: AuthRequest, res) => {
+router.post('/documents/:documentId/approve', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const partnerId = req.partner?.id;
     const { documentId } = req.params;
@@ -402,7 +403,7 @@ router.post('/documents/:documentId/approve', authenticatePartner, async (req: A
 });
 
 // Reject document
-router.post('/documents/:documentId/reject', authenticatePartner, async (req: AuthRequest, res) => {
+router.post('/documents/:documentId/reject', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const partnerId = req.partner?.id;
     const { documentId } = req.params;
@@ -460,7 +461,7 @@ router.post('/documents/:documentId/reject', authenticatePartner, async (req: Au
 });
 
 // Verify document (generic status update)
-router.post('/documents/:documentId/verify', authenticatePartner, async (req: AuthRequest, res) => {
+router.post('/documents/:documentId/verify', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const partnerId = req.partner?.id;
     const { documentId } = req.params;
@@ -520,7 +521,7 @@ router.post('/documents/:documentId/verify', authenticatePartner, async (req: Au
 });
 
 // Notify user about document status
-router.post('/documents/:documentId/notify', authenticatePartner, async (req: AuthRequest, res) => {
+router.post('/documents/:documentId/notify', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const { documentId } = req.params;
     

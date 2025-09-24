@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import path from 'path';
 import fs from 'fs';
+import { StorageConfig } from './config/storage';
 
 // Load environment variables based on NODE_ENV
 const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env';
@@ -106,7 +107,8 @@ import documentsRoutes from './routes/documents';
 import partnerEmployeesRoutes from './routes/partnerEmployees';
 import subPartnersRoutes from './routes/subPartners';
 import offerInheritanceRoutes from './routes/offerInheritance';
-// import partnerCouponsRoutes from './routes/_refactored/partnerCoupons'; // Disabled due to compilation errors
+import partnerCouponsRoutes from './routes/_refactored/partnerCoupons';
+import partnerUsersRoutes from './routes/_refactored/partnerUsers';
 
 // Health check endpoint
 app.get('/api/health', (_req, res) => {
@@ -123,7 +125,8 @@ app.use('/api/partners', partnerRoutes); // Main partner routes (fixed)
 app.use('/api/partner-employees', partnerEmployeesRoutes); // NEW: Simplified partner routes
 app.use('/api/sub-partners', subPartnersRoutes); // NEW: Sub-partner management for premium accounts
 app.use('/api/offer-inheritance', offerInheritanceRoutes); // NEW: Offer inheritance system for sub-partners
-// app.use('/api/partners', partnerCouponsRoutes); // NEW: Refactored coupon management - Disabled due to compilation errors
+app.use('/api/partners', partnerCouponsRoutes); // NEW: Refactored coupon management
+app.use('/api/partners', partnerUsersRoutes); // NEW: Refactored partner users management
 app.use('/api/registration', registrationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/offers', offerRoutes);
@@ -138,9 +141,14 @@ app.use('/api/admin', adminRoutes);
 
 const PORT = parseInt(process.env.PORT || '8000', 10);
 
+// 🔥 ANTI-DEPLOYMENT BREAKAGE: Inizializza directory storage
+console.log('🏗️ Initializing storage directories...');
+StorageConfig.initializeDirectories();
+
 const server = app.listen(PORT, () => {
   const host = process.env.HOST || 'localhost';
-  console.log(`Server running on http://${host}:${PORT}`);
+  console.log(`✅ Server running on http://${host}:${PORT}`);
+  console.log(`📁 Upload base path: ${StorageConfig.uploadBasePath}`);
 });
 
 server.on('error', (err) => {

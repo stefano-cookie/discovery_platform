@@ -5,6 +5,7 @@ export interface RegisterRequest {
   email: string;
   password: string;
   referralCode?: string;
+  employeeId?: string; // 🎯 Employee tracking parameter
   // Dati profilo
   cognome: string;
   nome: string;

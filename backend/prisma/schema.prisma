@@ -59,7 +59,6 @@ model PartnerCompany {
   // Sistema Gerarchico
   parentId          String?  // Partner padre (NULL = root)
   canCreateChildren Boolean  @default(false)
-  hierarchyLevel    Int      @default(0)
   isActive          Boolean  @default(true)
   isPremium         Boolean  @default(false)  // NEW: Premium status for sub-partner creation
   
@@ -87,10 +86,12 @@ model PartnerCompany {
   
   // Sub-Partner System
   companyInvites    PartnerCompanyInvite[] @relation("CompanyInvites")
+
+  // Action Tokens
+  actionTokens      ActionToken[]
   
   @@index([parentId])
   @@index([referralCode])
-  @@index([hierarchyLevel])
 }
 
 model PartnerEmployee {
@@ -120,6 +121,8 @@ model PartnerEmployee {
   sessions        PartnerSession[]
   activityLogs    PartnerActivityLog[]
   requestedRegistrations Registration[] @relation("EmployeeRequests")
+  createdOffers   PartnerOffer[] @relation("CreatedOffers")
+  actionTokens    ActionToken[]
   
   @@index([partnerCompanyId])
   @@index([email])
@@ -266,27 +269,33 @@ model PartnerOffer {
   referralLink            String   @unique
   isActive                Boolean  @default(true)
   createdAt               DateTime @default(now())
-  
+
+  // Partner Employee Tracking
+  createdByEmployeeId     String?  // Tracks which partner employee created/activated this offer
+
   // Sub-Partner Inheritance System
   isInherited             Boolean  @default(false)  // True se offerta ereditata da parent
   parentOfferId           String?  // ID dell'offerta parent da cui deriva
   inheritedBy             PartnerOffer[] @relation("OfferInheritance")
-  
+
   // Legacy relation (manteniamo per compatibilità)
   partner                 Partner  @relation(fields: [partnerId], references: [id])
   // NEW: Partner company relation
   partnerCompany          PartnerCompany? @relation("CompanyOffers", fields: [partnerCompanyId], references: [id])
+  // NEW: Created by employee relation
+  createdByEmployee       PartnerEmployee? @relation("CreatedOffers", fields: [createdByEmployeeId], references: [id])
   course                  Course   @relation(fields: [courseId], references: [id])
   registrations           Registration[]
   visibilities            OfferVisibility[]
   userAccess              UserOfferAccess[]
-  
+
   // Inheritance relation
   parentOffer             PartnerOffer? @relation("OfferInheritance", fields: [parentOfferId], references: [id])
-  
+
   @@index([partnerCompanyId])
   @@index([parentOfferId])
   @@index([isInherited])
+  @@index([createdByEmployeeId])
 }
 
 enum OfferType {
@@ -749,4 +758,32 @@ model UserTransfer {
   
   @@index([fromPartnerCompanyId])
   @@index([toPartnerCompanyId])
+}
+
+// Action Token per tracking delle azioni partner
+model ActionToken {
+  id                String   @id @default(uuid())
+  token             String   @unique
+  partnerEmployeeId String
+  partnerCompanyId  String
+  actionType        ActionType
+  targetUserId      String?
+  targetOfferId     String?
+  isUsed            Boolean  @default(false)
+  usedAt            DateTime?
+  expiresAt         DateTime
+  createdAt         DateTime @default(now())
+
+  // Relations
+  partnerEmployee   PartnerEmployee @relation(fields: [partnerEmployeeId], references: [id])
+  partnerCompany    PartnerCompany  @relation(fields: [partnerCompanyId], references: [id])
+
+  @@index([token])
+  @@index([partnerEmployeeId])
+  @@index([isUsed])
+}
+
+enum ActionType {
+  GRANT_ACCESS      // Concessione accesso offerta
+  REACTIVATE_USER   // Riattivazione utente orfano
 }

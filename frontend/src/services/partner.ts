@@ -130,4 +130,69 @@ export const partnerService = {
     });
   },
 
+  // ==================================================
+  // ACTION TOKEN SYSTEM for tracking partner actions
+  // ==================================================
+
+  // Create action token for tracking
+  async createActionToken(actionType: 'GRANT_ACCESS' | 'REACTIVATE_USER', targetUserId?: string, targetOfferId?: string): Promise<{
+    success: boolean;
+    token: string;
+    expiresAt: string;
+    actionType: string;
+  }> {
+    return partnerApiRequest<{
+      success: boolean;
+      token: string;
+      expiresAt: string;
+      actionType: string;
+    }>({
+      method: 'POST',
+      url: '/partners/actions/create-token',
+      data: {
+        actionType,
+        targetUserId,
+        targetOfferId
+      }
+    });
+  },
+
+  // Grant user access with token tracking
+  async grantUserOfferAccessWithToken(userId: string, offerId: string, actionToken?: string): Promise<{ success: boolean; message: string }> {
+    return partnerApiRequest<{ success: boolean; message: string }>({
+      method: 'POST',
+      url: `/partners/users/${userId}/offers/${offerId}/grant`,
+      data: actionToken ? { actionToken } : undefined
+    });
+  },
+
+  // Reactivate user with token tracking
+  async reactivateUserWithToken(userId: string, offerId: string, finalAmount: number, actionToken?: string): Promise<{
+    message: string;
+    registration: {
+      id: string;
+      status: string;
+      courseName: string;
+      finalAmount: number;
+    };
+  }> {
+    return partnerApiRequest<{
+      message: string;
+      registration: {
+        id: string;
+        status: string;
+        courseName: string;
+        finalAmount: number;
+      };
+    }>({
+      method: 'POST',
+      url: `/partners/users/${userId}/reactivate`,
+      data: {
+        offerId,
+        finalAmount,
+        ...(actionToken && { actionToken })
+      }
+    });
+  },
+
 };

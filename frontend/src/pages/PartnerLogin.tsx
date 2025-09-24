@@ -107,7 +107,7 @@ const PartnerLogin: React.FC = () => {
               </div>
               <div className="relative flex justify-center text-sm">
                 <span className="px-2 bg-white text-gray-500">
-                  Sei un utente normale?
+                  Sei un utente?
                 </span>
               </div>
             </div>

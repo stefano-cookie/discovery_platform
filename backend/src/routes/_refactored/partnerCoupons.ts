@@ -225,7 +225,7 @@ router.delete('/coupons/:id', authenticatePartner, async (req: AuthRequest, res)
   try {
     const employeeId = req.partnerEmployee?.id;
     const { id } = req.params;
-    
+
     if (!employeeId) {
       return res.status(400).json({ error: 'Partner employee non trovato' });
     }
@@ -274,6 +274,86 @@ router.delete('/coupons/:id', authenticatePartner, async (req: AuthRequest, res)
     res.json({ success: true });
   } catch (error) {
     console.error('Delete coupon error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Reactivate coupon with reset
+router.post('/coupons/:id/reactivate', authenticatePartner, async (req: AuthRequest, res) => {
+  try {
+    const employeeId = req.partnerEmployee?.id;
+    const { id } = req.params;
+
+    if (!employeeId) {
+      return res.status(400).json({ error: 'Partner employee non trovato' });
+    }
+
+    // Get employee with company info
+    const employee = await prisma.partnerEmployee.findUnique({
+      where: { id: employeeId },
+      include: {
+        partnerCompany: true
+      }
+    });
+
+    if (!employee || !employee.partnerCompany) {
+      return res.status(400).json({ error: 'Azienda partner non trovata' });
+    }
+
+    // Only ADMINISTRATIVE can reactivate coupons
+    if (employee.role !== 'ADMINISTRATIVE') {
+      return res.status(403).json({ error: 'Solo gli utenti ADMINISTRATIVE possono riattivare coupon' });
+    }
+
+    // Get accessible company IDs
+    const companyIds = await getCompanyHierarchyIds(employee.partnerCompanyId);
+
+    // Find the coupon to reactivate
+    const existingCoupon = await prisma.coupon.findFirst({
+      where: {
+        id,
+        partnerCompanyId: { in: companyIds }
+      }
+    });
+
+    if (!existingCoupon) {
+      return res.status(404).json({ error: 'Coupon non trovato o non autorizzato' });
+    }
+
+    // Perform reactivation with reset in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Delete all coupon usage records
+      await tx.couponUse.deleteMany({
+        where: { couponId: id }
+      });
+
+      // Reset coupon usedCount and reactivate
+      const reactivatedCoupon = await tx.coupon.update({
+        where: { id },
+        data: {
+          usedCount: 0,
+          isActive: true
+        },
+        include: {
+          partnerCompany: {
+            select: {
+              name: true,
+              referralCode: true
+            }
+          }
+        }
+      });
+
+      return reactivatedCoupon;
+    });
+
+    res.json({
+      success: true,
+      message: 'Coupon riattivato e resettato con successo',
+      coupon: result
+    });
+  } catch (error) {
+    console.error('Reactivate coupon error:', error);
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });

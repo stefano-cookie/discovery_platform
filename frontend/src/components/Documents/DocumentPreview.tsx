@@ -19,6 +19,7 @@ export interface UserDocument {
 interface DocumentPreviewProps {
   document: UserDocument;
   mode: 'inline' | 'modal' | 'fullscreen';
+  source?: 'user' | 'partner'; // Add source to determine which API endpoints to use
   allowDownload?: boolean;
   allowApproval?: boolean;
   onApprove?: (documentId: string, notes?: string) => Promise<void>;
@@ -30,6 +31,7 @@ interface DocumentPreviewProps {
 const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   document,
   mode = 'modal',
+  source = 'user',
   allowDownload = true,
   allowApproval = false,
   onApprove,
@@ -57,24 +59,29 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     
     const loadDocument = async () => {
       try {
+        // Determine the correct API endpoint based on source
+        const baseUrl = source === 'partner'
+          ? `/api/partners/documents/${document.id}`
+          : `/api/documents/${document.id}`;
+
         // Use preview endpoint for better compatibility
-        const response = await fetch(`/api/documents/${document.id}/preview`, {
+        const response = await fetch(`${baseUrl}/preview`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
-        
+
         if (!response.ok) {
           // Fallback to download endpoint if preview fails
-          const downloadResponse = await fetch(`/api/documents/${document.id}/download`, {
+          const downloadResponse = await fetch(`${baseUrl}/download`, {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
           });
-          
+
           if (!downloadResponse.ok) {
             throw new Error('Failed to load document');
           }
-          
+
           const blob = await downloadResponse.blob();
           const url = URL.createObjectURL(blob);
-          
+
           if (mounted) {
             setDocumentUrl(url);
           } else {
@@ -83,7 +90,7 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
         } else {
           const blob = await response.blob();
           const url = URL.createObjectURL(blob);
-          
+
           if (mounted) {
             setDocumentUrl(url);
           } else {
@@ -103,7 +110,7 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
         URL.revokeObjectURL(documentUrl);
       }
     };
-  }, [document.id]);
+  }, [document.id, source]);
 
   const handleZoomIn = () => setZoom(prev => Math.min(prev + 25, 300));
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 25, 25));

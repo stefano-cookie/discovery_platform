@@ -56,7 +56,7 @@ export class ContractService {
       if (fs.existsSync(path.join(parentDir, 'backend')) &&
           (fs.existsSync(path.join(parentDir, 'package.json')) ||
            fs.existsSync(path.join(parentDir, 'frontend')))) {
-        console.log(`[CONTRACT_SERVICE] Found project root: ${parentDir}`);
+        // Found project root
         return parentDir;
       }
 
@@ -64,7 +64,7 @@ export class ContractService {
     }
 
     // Fallback: assume current working directory is project root
-    console.log(`[CONTRACT_SERVICE] Using fallback project root: ${process.cwd()}`);
+    // Using fallback project root
     return process.cwd();
   }
 
@@ -83,11 +83,11 @@ export class ContractService {
 
     this.templatePath = templatePaths.find(templatePath => {
       const exists = fs.existsSync(templatePath);
-      console.log(`[CONTRACT_SERVICE] Checking template path: ${templatePath} - ${exists ? 'EXISTS' : 'NOT FOUND'}`);
+      // Checking template path
       return exists;
     }) || templatePaths[0]; // Default to first path if none found
 
-    console.log(`[CONTRACT_SERVICE] Using template path: ${this.templatePath}`);
+    // Using template path set
 
     // Registra helper Handlebars
     Handlebars.registerHelper('formatCurrency', (amount: number) => {
@@ -104,7 +104,7 @@ export class ContractService {
 
   async generateContract(registrationId: string): Promise<Buffer> {
     try {
-      console.log(`[CONTRACT_SERVICE] Starting contract generation for: ${registrationId}`);
+      // Starting contract generation
       
       // Recupera i dati dell'iscrizione dal database
       const registration = await prisma.registration.findUnique({
@@ -125,49 +125,39 @@ export class ContractService {
       });
 
       if (!registration) {
-        console.log(`[CONTRACT_SERVICE] Error: Registration not found: ${registrationId}`);
+        // Registration not found
         throw new Error('Registrazione non trovata');
       }
       
-      console.log(`[CONTRACT_SERVICE] Registration data loaded for user: ${registration.user?.email}`);
+      // Registration data loaded
 
-      console.log('Registration data:', {
-        id: registration.id,
-        user: registration.user?.email,
-        profile: registration.user?.profile ? 'PRESENT' : 'MISSING',
-        profileData: registration.user?.profile,
-        offer: registration.offer?.name,
-        originalAmount: registration.originalAmount,
-        finalAmount: registration.finalAmount,
-        installments: registration.installments
-      });
+      // Registration data logged
 
       // Prepara i dati per il template
       const contractData = this.prepareContractData(registration);
       
-      console.log('Contract data prepared:', JSON.stringify(contractData, null, 2));
+      // Contract data prepared
 
       // Legge il template HTML
-      console.log(`[CONTRACT_SERVICE] Reading template from: ${this.templatePath}`);
+      // Reading template
       if (!fs.existsSync(this.templatePath)) {
-        console.log(`[CONTRACT_SERVICE] Error: Template file not found: ${this.templatePath}`);
+        // Template file not found
         throw new Error(`Template file not found: ${this.templatePath}`);
       }
       const templateHtml = fs.readFileSync(this.templatePath, 'utf8');
-      console.log(`[CONTRACT_SERVICE] Template loaded, length: ${templateHtml.length}`);
+      // Template loaded
       
       // Compila il template con Handlebars
       const template = Handlebars.compile(templateHtml);
       const html = template(contractData);
 
       // Genera il PDF usando Puppeteer
-      console.log('[CONTRACT_SERVICE] Launching Puppeteer...');
-      console.log('[CONTRACT_SERVICE] Puppeteer executable path:', puppeteer.executablePath());
+      // Launching Puppeteer
       
       // Verifica se Chrome esiste e può essere eseguito
       const chromeExecutable = puppeteer.executablePath();
       if (!fs.existsSync(chromeExecutable)) {
-        console.error('[CONTRACT_SERVICE] Chrome executable not found at:', chromeExecutable);
+        // Chrome executable not found
         throw new Error('Chrome/Chromium non è installato sul server. Contattare l\'amministratore di sistema.');
       }
       
@@ -186,22 +176,20 @@ export class ContractService {
             '--disable-gpu'
           ]
         });
-        console.log('[CONTRACT_SERVICE] Puppeteer browser launched successfully');
+        // Puppeteer browser launched successfully
       } catch (puppeteerError) {
-        console.error('[CONTRACT_SERVICE] Puppeteer launch failed:', puppeteerError);
+        // Puppeteer launch failed
         const errorMessage = puppeteerError instanceof Error ? puppeteerError.message : String(puppeteerError);
         
         // Check if it's a missing library error
         if (errorMessage.includes('error while loading shared libraries')) {
-          console.error('[CONTRACT_SERVICE] Missing system libraries detected');
-          console.error('[CONTRACT_SERVICE] The following packages need to be installed:');
-          console.error('[CONTRACT_SERVICE] sudo apt-get install -y libatk1.0-0 libatk-bridge2.0-0 libcups2 libatspi2.0-0 libxdamage1 libasound2');
+          // Missing system libraries detected
           
           // Provide a user-friendly error message
           throw new Error('Il server non ha le librerie necessarie per generare i PDF. Contattare l\'amministratore di sistema per installare le dipendenze richieste.');
         }
         
-        console.error('[CONTRACT_SERVICE] Puppeteer error stack:', puppeteerError instanceof Error ? puppeteerError.stack : 'No stack trace');
+        // Puppeteer error occurred
         
         // Try alternative configurations
         const alternativePaths = [
@@ -215,7 +203,7 @@ export class ContractService {
         let alternativeFound = false;
         for (const altPath of alternativePaths) {
           if (fs.existsSync(altPath)) {
-            console.log(`[CONTRACT_SERVICE] Trying alternative browser at: ${altPath}`);
+            // Trying alternative browser
             try {
               browser = await puppeteer.launch({
                 headless: true,
@@ -228,11 +216,11 @@ export class ContractService {
                 ],
                 executablePath: altPath
               });
-              console.log(`[CONTRACT_SERVICE] Successfully launched with ${altPath}`);
+              // Successfully launched with alternative browser
               alternativeFound = true;
               break;
             } catch (altError) {
-              console.log(`[CONTRACT_SERVICE] Failed with ${altPath}: ${altError instanceof Error ? altError.message : String(altError)}`);
+              // Failed with alternative browser
             }
           }
         }
@@ -247,9 +235,9 @@ export class ContractService {
       }
 
       const page = await browser.newPage();
-      console.log('[CONTRACT_SERVICE] Setting page content...');
+      // Setting page content
       await page.setContent(html, { waitUntil: 'networkidle0' });
-      console.log('[CONTRACT_SERVICE] Generating PDF...');
+      // Generating PDF
 
       const pdfBuffer = Buffer.from(await page.pdf({
         format: 'A4',
@@ -262,14 +250,14 @@ export class ContractService {
         }
       }));
       
-      console.log(`[CONTRACT_SERVICE] PDF generated, buffer size: ${pdfBuffer.length}`);
+      // PDF generated successfully
       await browser.close();
-      console.log('[CONTRACT_SERVICE] Browser closed');
+      // Browser closed
 
       return pdfBuffer;
 
     } catch (error) {
-      console.error('Errore generazione contratto:', error);
+      // Error generating contract
       throw new Error('Errore durante la generazione del contratto');
     }
   }
@@ -294,12 +282,7 @@ export class ContractService {
     
     const totalAmount = finalAmount || offerPrice || originalAmount || 1500;
     
-    console.log('Amount calculation:', {
-      finalAmount,
-      originalAmount, 
-      offerPrice,
-      totalAmount
-    });
+    // Amount calculation completed
 
     // Prepara servizi selezionati basati sul tipo di offerta
     const selectedServices = this.prepareServices(registration, offer, totalAmount);
@@ -466,37 +449,33 @@ export class ContractService {
 
   async saveContract(registrationId: string, pdfBuffer: Buffer): Promise<string> {
     try {
-      console.log(`[CONTRACT_SAVE] Starting save for registration: ${registrationId}`);
-      console.log(`[CONTRACT_SAVE] __dirname: ${__dirname}`);
-      console.log(`[CONTRACT_SAVE] process.cwd(): ${process.cwd()}`);
+      // Starting contract save
 
       // Calculate project root directory for consistent path resolution
       const projectRoot = this.getProjectRoot();
       const contractsDir = path.join(projectRoot, 'backend/uploads/contracts');
-      console.log(`[CONTRACT_SAVE] Project root: ${projectRoot}`);
-      console.log(`[CONTRACT_SAVE] Contracts directory: ${contractsDir}`);
+      // Project root and contracts directory set
 
       if (!fs.existsSync(contractsDir)) {
-        console.log(`[CONTRACT_SAVE] Creating directory: ${contractsDir}`);
+        // Creating contracts directory
         fs.mkdirSync(contractsDir, { recursive: true });
       } else {
-        console.log(`[CONTRACT_SAVE] Directory already exists: ${contractsDir}`);
+        // Contracts directory already exists
       }
 
       // Salva il file PDF
       const fileName = `contract_${registrationId}.pdf`;
       const filePath = path.join(contractsDir, fileName);
-      console.log(`[CONTRACT_SAVE] Saving file to: ${filePath}`);
+      // Saving contract file
 
       fs.writeFileSync(filePath, pdfBuffer);
-      console.log(`[CONTRACT_SAVE] File saved successfully, size: ${pdfBuffer.length} bytes`);
+      // File saved successfully
 
       const returnPath = `/uploads/contracts/${fileName}`;
-      console.log(`[CONTRACT_SAVE] Returning URL path: ${returnPath}`);
+      // Returning URL path
       return returnPath;
     } catch (error) {
-      console.error('[CONTRACT_SAVE] Error saving contract:', error);
-      console.error('[CONTRACT_SAVE] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      // Error saving contract
       throw new Error('Errore durante il salvataggio del contratto');
     }
   }

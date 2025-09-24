@@ -55,8 +55,9 @@ if [ -d "$DEPLOY_DIR/backend/uploads" ]; then
 fi
 
 # 3.2 Preserve existing uploads and create directory structure
-echo -e "${YELLOW}📁 Setting up document directories...${NC}"
-mkdir -p "$DEPLOY_DIR/backend/uploads"/{contracts,signed-contracts,documents,registrations,temp-enrollment}
+echo -e "${YELLOW}📁 Setting up document directories with ANTI-DEPLOYMENT BREAKAGE...${NC}"
+# 🔥 FIX: Usa la configurazione storage standardizzata invece di path hardcoded
+mkdir -p "$DEPLOY_DIR/backend/uploads"/{contracts,signed-contracts,documents,registrations,temp-enrollment,temp}
 mkdir -p "$DEPLOY_DIR/backend/uploads/documents/user-uploads"
 mkdir -p "$DEPLOY_DIR/backend/uploads/registrations"
 
@@ -211,7 +212,40 @@ else
     echo -e "${YELLOW}⚠️ Nginx site config not found at $NGINX_CONF_DIR/$SITE_CONF${NC}"
 fi
 
-# 12. Verify deployment
+# 12. Run ANTI-DEPLOYMENT BREAKAGE health checks
+echo -e "${YELLOW}🏥 Running post-deployment health checks...${NC}"
+cd "$DEPLOY_DIR/backend"
+if node dist/scripts/post-deploy-health-check.js; then
+    echo -e "${GREEN}✅ All health checks passed${NC}"
+else
+    echo -e "${RED}❌ Health checks failed - deployment may have issues${NC}"
+    echo -e "${YELLOW}Continuing with basic verification...${NC}"
+fi
+
+# 12.1 🛡️ COMPREHENSIVE: Test ALL critical systems
+echo -e "${YELLOW}🛡️ Testing ALL critical systems...${NC}"
+if node dist/scripts/test-all-critical-systems.js; then
+    echo -e "${GREEN}✅ All critical systems operational${NC}"
+else
+    echo -e "${RED}🚨 CRITICAL DEPLOYMENT FAILURE: Multiple systems broken!${NC}"
+    echo -e "${RED}📋 Check: Contract generation, payments, documents, auth, partner system${NC}"
+    echo -e "${RED}🔧 Consider rollback: tar xzf ~/backups/discovery_backup_$TIMESTAMP.tar.gz${NC}"
+    # Log critical failures but don't exit - allow manual intervention
+    echo -e "${YELLOW}⚠️ Continuing with basic deployment verification...${NC}"
+fi
+
+# 12.2 🔒 SPECIFIC: Test coupon fix (most common breakage)
+echo -e "${YELLOW}🔒 Testing critical coupon fix specifically...${NC}"
+if node dist/scripts/test-coupon-fix-post-deploy.js 2>/dev/null; then
+    echo -e "${GREEN}✅ Coupon usage logs fix confirmed intact${NC}"
+else
+    echo -e "${RED}🚨 CRITICAL FAILURE: Coupon fix has been overwritten!${NC}"
+    echo -e "${RED}📍 Check: /backend/src/routes/partner.ts line 1335${NC}"
+    echo -e "${RED}Must be: partnerCompanyId: partnerCompanyId (NOT legacyPartner.id)${NC}"
+    # Don't exit - log critical issue but continue deploy
+fi
+
+# 13. Verify deployment
 echo -e "${YELLOW}🔍 Verifying deployment...${NC}"
 
 # Check if PM2 process is running

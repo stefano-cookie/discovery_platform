@@ -65,6 +65,16 @@ router.get('/users', authenticatePartner, async (req: AuthRequest, res) => {
         },
         offer: {
           include: { course: true }
+        },
+        requestedByEmployee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            partnerCompany: {
+              select: { name: true }
+            }
+          }
         }
       },
       orderBy: { createdAt: 'desc' }
@@ -81,9 +91,12 @@ router.get('/users', authenticatePartner, async (req: AuthRequest, res) => {
       courseId: reg.offer?.courseId || '',
       offerType: reg.offer?.offerType || 'TFA_ROMANIA',
       isDirectUser: reg.isDirectRegistration,
-      partnerName: reg.isDirectRegistration 
+      partnerName: reg.isDirectRegistration
         ? reg.partnerCompany?.name || 'Diretta'
         : reg.sourcePartnerCompany?.name || 'Partner figlio',
+      requestedByEmployee: reg.requestedByEmployee
+        ? `${reg.requestedByEmployee.firstName} ${reg.requestedByEmployee.lastName}`
+        : null,
       canManagePayments: req.partnerEmployee?.role === 'ADMINISTRATIVE',
       // Date importanti
       createdAt: reg.user.createdAt, // Data registrazione utente

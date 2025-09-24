@@ -72,6 +72,29 @@ const OffersSection: React.FC<OffersSectionProps> = ({ user }) => {
             </div>
           </div>
 
+          {/* Partner Responsabile */}
+          <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+            <div className="flex items-center">
+              <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center mr-3">
+                <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">Partner Responsabile</p>
+                <p className="text-xs text-gray-600">
+                  {user.requestedByEmployee || user.partnerName || 'Non specificato'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center text-indigo-600">
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-xs font-medium">Info</span>
+            </div>
+          </div>
+
           {/* Placeholder per offerte aggiuntive */}
           <div className="text-center py-4">
             <div className="text-sm text-gray-500 mb-2">Offerte Aggiuntive</div>

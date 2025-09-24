@@ -5,7 +5,6 @@ export interface SubPartner {
   name: string;
   referralCode: string;
   isActive: boolean;
-  hierarchyLevel: number;
   createdAt: string;
   employees: {
     id: string;

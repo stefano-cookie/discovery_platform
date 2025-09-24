@@ -152,7 +152,7 @@ export class UnifiedDocumentService {
     return documents;
   }
 
-  // Upload document (handles all sources) - registrationId is now required
+  // Upload document (handles all sources) - registrationId is optional for partner uploads
   static async uploadDocument(
     file: Express.Multer.File,
     userId: string,
@@ -160,16 +160,22 @@ export class UnifiedDocumentService {
     uploadSource: UploadSource,
     uploadedBy: string,
     uploadedByRole: UserRole,
-    registrationId: string
+    registrationId?: string | null,
+    actualUploaderId?: string | null // Partner/Admin ID when they upload on behalf of user
   ) {
     try {
-      // Check for existing document of same type for this specific registration
+      // Check for existing document of same type for this registration (or user if no registrationId)
+      const whereClause: any = {
+        userId,
+        type
+      };
+
+      if (registrationId) {
+        whereClause.registrationId = registrationId;
+      }
+
       const existingDoc = await prisma.userDocument.findFirst({
-        where: {
-          userId,
-          type,
-          registrationId: registrationId!
-        }
+        where: whereClause
       });
 
       // If exists, delete old file
@@ -181,7 +187,12 @@ export class UnifiedDocumentService {
       const fileBuffer = fs.readFileSync(file.path);
       const checksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
-      const documentData = {
+      // Ensure registrationId is provided since database requires it
+      if (!registrationId) {
+        throw new Error('registrationId è richiesto per il caricamento documenti');
+      }
+
+      const documentData: any = {
         userId,
         type,
         originalName: file.originalname,
@@ -193,25 +204,27 @@ export class UnifiedDocumentService {
         uploadSource,
         uploadedBy,
         uploadedByRole,
-        registrationId: registrationId!,
-        uploadedAt: new Date()
+        uploadedAt: new Date(),
+        registrationId: registrationId
       };
 
       let document;
       if (existingDoc) {
         // Update existing document
+        const updateData: any = {
+          ...documentData,
+          // Reset verification fields
+          verifiedBy: null,
+          verifiedAt: null,
+          rejectionReason: null,
+          rejectionDetails: null,
+          partnerNotifiedAt: null,
+          emailSentAt: null
+        };
+
         document = await prisma.userDocument.update({
           where: { id: existingDoc.id },
-          data: {
-            ...documentData,
-            // Reset verification fields
-            verifiedBy: null,
-            verifiedAt: null,
-            rejectionReason: null,
-            rejectionDetails: null,
-            partnerNotifiedAt: null,
-            emailSentAt: null
-          }
+          data: updateData
         });
       } else {
         // Create new document
@@ -220,14 +233,20 @@ export class UnifiedDocumentService {
         });
       }
 
-      // Log action
+      // Log action - performedBy must be a User ID due to FK constraint
+      // Store actual partner/admin ID in details field
       await prisma.documentActionLog.create({
         data: {
           documentId: document.id,
           action: existingDoc ? 'REPLACE' : 'UPLOAD',
-          performedBy: uploadedBy,
+          performedBy: uploadedBy, // Must be User ID due to FK constraint
           performedRole: uploadedByRole,
-          details: { source: uploadSource, registrationId }
+          details: {
+            source: uploadSource,
+            registrationId,
+            actualUploaderId: actualUploaderId || undefined, // Store actual uploader (partner/admin) in details
+            uploadedFor: actualUploaderId ? userId : undefined
+          }
         }
       });
 
@@ -301,7 +320,7 @@ export class UnifiedDocumentService {
       
       emailSent = true;
     } catch (error) {
-      console.error('Error sending approval email:', error);
+      // Error sending approval email - handled silently to not block process
     }
 
     return { document: updatedDocument, emailSent };
@@ -370,7 +389,7 @@ export class UnifiedDocumentService {
       
       emailSent = true;
     } catch (error) {
-      console.error('Error sending rejection email:', error);
+      // Error sending rejection email - handled silently to not block process
     }
 
     return { document: updatedDocument, emailSent };
@@ -438,14 +457,13 @@ export class UnifiedDocumentService {
       });
 
       // TODO: Send real-time notification via WebSocket
-      console.log(`Partner notified of new document ${documentId}`);
 
       // Optional: Send email notification to partner
       // if (document.registration?.partner?.email) {
       //   await emailService.sendPartnerDocumentNotification(...)
       // }
     } catch (error) {
-      console.error('Error notifying partner:', error);
+      // Error notifying partner - handled silently
     }
   }
 

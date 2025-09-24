@@ -82,7 +82,7 @@ export class OfferInheritanceService {
             parentOffer.offerType
           );
           
-          console.log(`🔗 Generated unique referral link: ${referralLink} for ${childCompany.name}`);
+          // Generated unique referral link for child company
 
           // Create inherited offer
           await prisma.partnerOffer.create({
@@ -99,20 +99,21 @@ export class OfferInheritanceService {
               referralLink: referralLink,
               isActive: true,
               isInherited: true,
-              parentOfferId: parentOffer.id
+              parentOfferId: parentOffer.id,
+              createdByEmployeeId: parentOffer.createdByEmployeeId
             }
           });
 
           inheritedCount++;
-          console.log(`✅ Created inherited offer: ${referralLink} for ${childCompany.name}`);
+          // Created inherited offer for child company
         }
       }
 
-      console.log(`🎯 Created ${inheritedCount} inherited offers for ${childCompany.name}`);
+      // Created inherited offers for child company
       return inheritedCount;
 
     } catch (error) {
-      console.error('Error creating inherited offers:', error);
+      // Error creating inherited offers
       throw error;
     }
   }
@@ -132,9 +133,9 @@ export class OfferInheritanceService {
         await this.createInheritedOffers(parentCompanyId, child.id);
       }
 
-      console.log(`🔄 Synced inherited offers for ${childCompanies.length} sub-partners`);
+      // Synced inherited offers for sub-partners
     } catch (error) {
-      console.error('Error syncing inherited offers:', error);
+      // Error syncing inherited offers
       throw error;
     }
   }
@@ -168,7 +169,7 @@ export class OfferInheritanceService {
       const childCode = childCodeParts.join('-');
       const hash = parts.slice(typeIndex + 1).join('-');
       
-      console.log(`📋 Parsed sub-partner referral: parent=${parentCode}, child=${childCode}, type=${parts[typeIndex]}`);
+      // Parsed sub-partner referral
       return {
         parentCode: parentCode,
         childCode: childCode,
@@ -236,7 +237,7 @@ export class OfferInheritanceService {
       });
 
       if (!childCompany) {
-        console.warn(`Child company not found for code: ${parsed.childCode}, treating as direct registration`);
+        // Child company not found, treating as direct registration
         return {
           parentCompany,
           isSubPartnerRegistration: false

@@ -539,6 +539,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
         <DocumentPreview
           document={selectedDocument}
           mode="modal"
+          source={source === 'partner' ? 'partner' : 'user'}
           allowDownload={true}
           allowApproval={allowApproval}
           onApprove={allowApproval ? handleApprove : undefined}

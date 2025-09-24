@@ -10,6 +10,15 @@ API_URL="https://discovery.cfoeducation.it/api"
 
 echo "🔍 Verifying deployment..."
 
+# 0. Run ANTI-DEPLOYMENT BREAKAGE health checks
+echo "🏥 Running automated health checks..."
+cd "$DEPLOY_DIR/backend"
+if node dist/scripts/post-deploy-health-check.js 2>/dev/null; then
+    echo "✅ Automated health checks passed"
+else
+    echo "⚠️ Automated health checks failed, running manual verification..."
+fi
+
 # 1. Verifica directory uploads
 echo "📁 Checking upload directories..."
 REQUIRED_DIRS=(
@@ -18,6 +27,7 @@ REQUIRED_DIRS=(
     "$DEPLOY_DIR/backend/uploads/documents/user-uploads"
     "$DEPLOY_DIR/backend/uploads/registrations"
     "$DEPLOY_DIR/backend/uploads/temp-enrollment"
+    "$DEPLOY_DIR/backend/uploads/temp"
 )
 
 for DIR in "${REQUIRED_DIRS[@]}"; do

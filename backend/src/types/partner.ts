@@ -10,7 +10,6 @@ export interface PartnerCompany {
   // Sistema Gerarchico
   parentId?: string;
   canCreateChildren: boolean;
-  hierarchyLevel: number;
   isActive: boolean;
   
   // Business Data
@@ -141,7 +140,6 @@ export interface PartnerLoginResponse {
     name: string;
     referralCode: string;
     canCreateChildren: boolean;
-    hierarchyLevel: number;
   };
 }
 

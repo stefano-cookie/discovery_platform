@@ -311,7 +311,6 @@ router.post('/accept-invite/:token', async (req: Request, res: Response) => {
           name: invite.companyName,
           referralCode,
           parentId: invite.parentCompanyId,
-          hierarchyLevel: invite.parentCompany.hierarchyLevel + 1,
           canCreateChildren: false, // Le aziende figlie non possono creare altre aziende
           isPremium: false,
           isActive: true

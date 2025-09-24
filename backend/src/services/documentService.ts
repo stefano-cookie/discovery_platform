@@ -389,18 +389,27 @@ export class DocumentService {
 
   // Finalize enrollment documents from temporary uploads
   static async finalizeEnrollmentDocuments(
-    registrationId: string, 
-    userId: string, 
-    tempDocuments: any[], 
+    registrationId: string,
+    userId: string,
+    tempDocuments: any[],
     tx: any
   ) {
+    console.log('🔄 DocumentService.finalizeEnrollmentDocuments called with:', {
+      registrationId,
+      userId,
+      tempDocumentsCount: tempDocuments.length,
+      tempDocuments
+    });
+
     const finalizedDocuments = [];
     const baseUploadDir = path.join(process.cwd(), 'uploads');
 
     for (const tempDoc of tempDocuments) {
       try {
+        console.log(`📁 Processing temp document:`, tempDoc);
+
         // Check if temp file still exists
-        const tempFileExists = fs.existsSync(tempDoc.filePath);
+        const tempFileExists = tempDoc.filePath ? fs.existsSync(tempDoc.filePath) : false;
         
         if (!tempFileExists) {
           console.warn(`Temp file not found: ${tempDoc.filePath}`);

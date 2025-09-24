@@ -211,7 +211,19 @@ const OfferManagement: React.FC = () => {
 
   const copyReferralLink = (offer: PartnerOffer) => {
     const baseUrl = window.location.origin;
-    const link = `${baseUrl}/registration/${offer.referralLink}`;
+    // Add partner employee ID as referral parameter for tracking
+    const employeeId = partnerEmployee?.id;
+    const link = employeeId
+      ? `${baseUrl}/registration/${offer.referralLink}?ref=${employeeId}`
+      : `${baseUrl}/registration/${offer.referralLink}`;
+
+    console.log('🔗 PARTNER REFERRAL DEBUG:', {
+      employeeId,
+      partnerEmployee: partnerEmployee,
+      originalLink: `${baseUrl}/registration/${offer.referralLink}`,
+      finalLink: link
+    });
+
     navigator.clipboard.writeText(link);
     showNotification('success', 'Link copiato negli appunti!');
   };

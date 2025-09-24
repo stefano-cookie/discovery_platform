@@ -137,6 +137,7 @@ interface RegistrationModalProps {
   isOpen: boolean;
   onClose: () => void;
   referralCode?: string;
+  employeeId?: string; // 🎯 Employee tracking parameter
   onSuccess: () => void;
 }
 
@@ -144,10 +145,12 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
   isOpen,
   onClose,
   referralCode,
+  employeeId,
   onSuccess
 }) => {
   const [formData, setFormData] = useState<Partial<RegisterRequest>>({
     referralCode: referralCode || '',
+    employeeId: employeeId || undefined, // 🎯 Include employee ID in form data
     privacyPolicy: false,
   });
   const [currentStep, setCurrentStep] = useState(1);

@@ -101,6 +101,10 @@ const CouponManagement: React.FC = () => {
   const [couponToDelete, setCouponToDelete] = useState<Coupon | null>(null);
   const [deletingCoupon, setDeletingCoupon] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [reactivatingCoupon, setReactivatingCoupon] = useState<string | null>(null);
+  const [showReactivateModal, setShowReactivateModal] = useState(false);
+  const [couponToReactivate, setCouponToReactivate] = useState<Coupon | null>(null);
+  const [reactivateError, setReactivateError] = useState<string | null>(null);
 
   const {
     register,
@@ -303,19 +307,80 @@ const CouponManagement: React.FC = () => {
     setDeleteError(null);
   };
 
-  // Handle ESC key press to close delete modal
+  const showReactivateConfirmation = (coupon: Coupon) => {
+    setCouponToReactivate(coupon);
+    setReactivateError(null);
+    setShowReactivateModal(true);
+  };
+
+  const cancelReactivateCoupon = () => {
+    setShowReactivateModal(false);
+    setCouponToReactivate(null);
+    setReactivateError(null);
+  };
+
+  const confirmReactivateCoupon = async () => {
+    if (!couponToReactivate) return;
+
+    setReactivatingCoupon(couponToReactivate.id);
+    try {
+      if (!token) {
+        throw new Error('No partner token available');
+      }
+
+      const response = await fetch(`/api/partners/coupons/${couponToReactivate.id}/reactivate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Errore nella riattivazione del coupon');
+      }
+
+      await response.json();
+
+      // Update local state - reset usage count and reactivate
+      setCoupons(prev =>
+        prev.map(coupon =>
+          coupon.id === couponToReactivate.id
+            ? { ...coupon, usedCount: 0, isActive: true }
+            : coupon
+        )
+      );
+
+      // Close modal and reset state
+      setShowReactivateModal(false);
+      setCouponToReactivate(null);
+    } catch (error) {
+      console.error('Errore nella riattivazione del coupon:', error);
+      setReactivateError(error instanceof Error ? error.message : 'Errore nella riattivazione del coupon');
+    } finally {
+      setReactivatingCoupon(null);
+    }
+  };
+
+  // Handle ESC key press to close modals
   useEffect(() => {
     const handleEscKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && showDeleteModal && !deletingCoupon) {
-        cancelDeleteCoupon();
+      if (event.key === 'Escape') {
+        if (showDeleteModal && !deletingCoupon) {
+          cancelDeleteCoupon();
+        }
+        if (showReactivateModal && !reactivatingCoupon) {
+          cancelReactivateCoupon();
+        }
       }
     };
 
-    if (showDeleteModal) {
+    if (showDeleteModal || showReactivateModal) {
       document.addEventListener('keydown', handleEscKey);
       return () => document.removeEventListener('keydown', handleEscKey);
     }
-  }, [showDeleteModal, deletingCoupon]);
+  }, [showDeleteModal, deletingCoupon, showReactivateModal, reactivatingCoupon]);
 
   const loadCouponUsage = async (couponId: string) => {
     setLoadingUsage(true);
@@ -915,6 +980,19 @@ const CouponManagement: React.FC = () => {
                          coupon.isActive ? 'Disattiva' : 'Attiva'}
                       </button>
                       
+                      {/* Reactivate button - only show for used exhausted coupons */}
+                      {(isMaxUsesReached(coupon) || coupon.usedCount > 0) && (
+                        <button
+                          onClick={() => showReactivateConfirmation(coupon)}
+                          className="px-3 py-1 text-sm bg-purple-100 text-purple-800 rounded hover:bg-purple-200 transition-colors flex items-center"
+                        >
+                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          Riattiva
+                        </button>
+                      )}
+
                       <button
                         onClick={() => deleteCoupon(coupon)}
                         className="px-3 py-1 text-sm bg-red-100 text-red-800 rounded hover:bg-red-200 transition-colors"
@@ -1060,6 +1138,144 @@ const CouponManagement: React.FC = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
                     Elimina Definitivamente
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reactivate Confirmation Modal */}
+      {showReactivateModal && couponToReactivate && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !reactivatingCoupon) {
+              cancelReactivateCoupon();
+            }
+          }}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl transform transition-all animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header with success styling */}
+            <div className="bg-gradient-to-r from-purple-500 to-purple-600 px-6 py-4 text-white">
+              <div className="flex items-center space-x-3">
+                <div className="flex-shrink-0">
+                  <svg className="w-8 h-8 text-purple-100" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold">Riattiva Coupon</h3>
+                  <p className="text-purple-100 text-sm">Resetta completamente il coupon</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-6">
+              <div className="text-center mb-6">
+                <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-purple-100 mb-4">
+                  <svg className="h-8 w-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </div>
+                <p className="text-gray-900 text-lg font-semibold mb-2">
+                  Sei sicuro di voler riattivare questo coupon?
+                </p>
+                <p className="text-gray-600 text-sm">
+                  Il coupon verrà completamente resettato:
+                </p>
+              </div>
+
+              {/* Coupon Info Card */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6 border-l-4 border-purple-400">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center space-x-2 mb-2">
+                      <span className="font-mono text-lg font-bold text-gray-900 bg-white px-2 py-1 rounded border">
+                        {couponToReactivate.code}
+                      </span>
+                      <span className="text-blue-600 font-semibold">
+                        {formatDiscount(couponToReactivate)}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      <span>Utilizzi attuali: {couponToReactivate.usedCount}</span>
+                      {couponToReactivate.maxUses && <span>/{couponToReactivate.maxUses}</span>}
+                      <span className="ml-3">
+                        Scadenza: {new Date(couponToReactivate.validUntil).toLocaleDateString('it-IT')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Reset information */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <div className="flex">
+                  <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                  <div className="ml-3">
+                    <p className="text-sm text-blue-800">
+                      <strong>Cosa succederà:</strong>
+                      <br />• Il contatore utilizzi verrà azzerato
+                      <br />• Lo storico degli utilizzi verrà cancellato
+                      <br />• Il coupon verrà riattivato automaticamente
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Error message */}
+              {reactivateError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                  <div className="flex">
+                    <svg className="w-5 h-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <div className="ml-3">
+                      <p className="text-sm text-red-800">
+                        <strong>Errore:</strong> {reactivateError}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer with action buttons */}
+            <div className="bg-gray-50 px-6 py-4 flex flex-col sm:flex-row sm:justify-end space-y-3 sm:space-y-0 sm:space-x-3">
+              <button
+                onClick={cancelReactivateCoupon}
+                disabled={!!reactivatingCoupon}
+                className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 font-medium transition-colors disabled:opacity-50"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={confirmReactivateCoupon}
+                disabled={!!reactivatingCoupon}
+                className="w-full sm:w-auto px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 font-medium transition-colors disabled:opacity-50 flex items-center justify-center"
+              >
+                {reactivatingCoupon ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin mr-2" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Riattivazione...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Riattiva Coupon
                   </>
                 )}
               </button>

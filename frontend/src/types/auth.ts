@@ -39,7 +39,6 @@ export interface PartnerCompany {
   referralCode: string;
   parentId: string | null;
   canCreateChildren: boolean;
-  hierarchyLevel: number;
   isPremium: boolean;
 }
 

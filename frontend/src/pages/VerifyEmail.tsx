@@ -11,14 +11,26 @@ const VerifyEmail: React.FC = () => {
   
   const generateSecureAccess = async (email: string, referralCode: string) => {
     try {
+      // Extract employee ID from referral code if present (format: REFERRALCODE?ref=EMPLOYEEID)
+      const url = new URL(window.location.origin + '/dummy');
+      url.search = referralCode.includes('?') ? referralCode.split('?')[1] : '';
+      const employeeId = url.searchParams.get('ref');
+      const cleanReferralCode = referralCode.split('?')[0];
+
+      console.log('🔗 [FRONTEND] Extracted employeeId:', employeeId, 'from referralCode:', referralCode);
+
       const response = await apiRequest<{accessToken: string}>({
         method: 'POST',
         url: '/auth/generate-access-token',
-        data: { email, referralCode }
+        data: {
+          email,
+          referralCode: cleanReferralCode,
+          employeeId
+        }
       });
       
       // Redirect al form di iscrizione con token sicuro
-      navigate(`/registration/${referralCode}?token=${response.accessToken}`);
+      navigate(`/registration/${cleanReferralCode}?token=${response.accessToken}`);
     } catch (error: any) {
       console.error('Error generating secure access:', error);
       // Fallback to login if token generation fails
@@ -58,7 +70,8 @@ const VerifyEmail: React.FC = () => {
             } catch (error) {
               console.error('Fallback: unable to generate secure token, redirecting to registration directly');
               // Fallback: redirect diretto al form di registrazione senza token sicuro
-              navigate(`/registration/${referralCode}?email=${encodeURIComponent(email)}`);
+              const cleanReferralCode = referralCode.split('?')[0];
+              navigate(`/registration/${cleanReferralCode}?email=${encodeURIComponent(email)}`);
             }
           } else {
             // Redirect normale al login
@@ -176,7 +189,8 @@ const VerifyEmail: React.FC = () => {
                       await generateSecureAccess(email, referralCode);
                     } catch (error) {
                       console.error('Fallback: unable to generate secure token, redirecting to registration directly');
-                      navigate(`/registration/${referralCode}?email=${encodeURIComponent(email)}`);
+                      const cleanReferralCode = referralCode.split('?')[0];
+                      navigate(`/registration/${cleanReferralCode}?email=${encodeURIComponent(email)}`);
                     }
                   } else {
                     navigate('/login');

@@ -103,10 +103,6 @@ const UserTable: React.FC<UserTableProps> = ({
     }).filter((info): info is NonNullable<typeof info> => info !== null);
   };
 
-  const handleManageOffers = (user: PartnerUser) => {
-    setUserForOffers(user);
-    setShowOffersModal(true);
-  };
 
   const handleOffersUpdated = () => {
     setShowOffersModal(false);
@@ -220,10 +216,7 @@ const UserTable: React.FC<UserTableProps> = ({
                 📊 Status
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                🤝 Partner
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                👤 Richiedente
+                🤝 Partner Responsabile
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 📅 Data Iscrizione
@@ -286,13 +279,18 @@ const UserTable: React.FC<UserTableProps> = ({
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
                   {user.isDirectUser ? (
-                    <span className="text-green-600 font-medium">Diretto</span>
+                    <div>
+                      <span className="text-green-600 font-medium">{user.requestedByEmployee || user.partnerName || 'Diretto'}</span>
+                      <div className="text-xs text-gray-500">(Iscrizione diretta)</div>
+                    </div>
                   ) : (
-                    <span className="text-blue-600">{user.partnerName}</span>
+                    <div>
+                      <span className="text-blue-600 font-medium">
+                        {user.requestedByEmployee || user.partnerName}
+                      </span>
+                      <div className="text-xs text-gray-500">(Da sub-partner)</div>
+                    </div>
                   )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                  {user.requestedByEmployee || 'N/A'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   <div>
@@ -347,57 +345,63 @@ const UserTable: React.FC<UserTableProps> = ({
 
       {/* Modale di conferma eliminazione */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true" onClick={() => setShowDeleteConfirm(false)}>
-              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
-            </div>
+        <div className="fixed inset-0 z-[9999] overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center">
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" onClick={() => !isDeleting && setShowDeleteConfirm(false)}></div>
 
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+            <div className="relative inline-block align-middle bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all max-w-lg w-full">
+              <div className="bg-white px-6 pt-6 pb-4">
+                <div className="text-center">
+                  <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
                     <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.884-.833-2.664 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
                     </svg>
                   </div>
-                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">
-                      Conferma eliminazione
-                    </h3>
-                    <div className="mt-2">
-                      <p className="text-sm text-gray-500">
-                        Stai per eliminare {selectedRegistrations.length} iscrizioni:
-                      </p>
-                      <div className="mt-3 max-h-32 overflow-y-auto">
-                        {getSelectedRegistrationsInfo().map((info) => (
-                          <div key={info.registrationId} className="text-sm py-1 border-b border-gray-100">
-                            <span className="font-medium">{info.userName}</span> - {info.course} ({info.status})
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-sm text-red-600 mt-3 font-medium">
+                  <h3 className="text-lg leading-6 font-semibold text-gray-900 mb-2">
+                    Conferma eliminazione
+                  </h3>
+                  <div className="text-left">
+                    <p className="text-sm text-gray-600 mb-3">
+                      Stai per eliminare {selectedRegistrations.length} iscrizioni:
+                    </p>
+                    <div className="max-h-32 overflow-y-auto mb-4 bg-gray-50 rounded-lg p-3">
+                      {getSelectedRegistrationsInfo().map((info) => (
+                        <div key={info.registrationId} className="text-sm py-1 border-b border-gray-200 last:border-b-0">
+                          <span className="font-medium text-gray-900">{info.userName}</span>
+                          <span className="text-gray-500"> - {info.course} ({info.status})</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <p className="text-sm text-red-700 font-medium">
                         ⚠️ Questa azione eliminerà definitivamente le iscrizioni, inclusi pagamenti e documenti correlati. I profili utente rimarranno intatti.
                       </p>
                     </div>
                   </div>
                 </div>
               </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <Button
-                  onClick={handleDeleteRegistrations}
-                  disabled={isDeleting}
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 sm:ml-3 sm:w-auto sm:text-sm"
-                >
-                  {isDeleting ? 'Eliminando...' : 'Elimina'}
-                </Button>
+              <div className="bg-gray-50 px-6 py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
                 <Button
                   variant="outline"
                   onClick={() => setShowDeleteConfirm(false)}
                   disabled={isDeleting}
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="flex-1 sm:flex-none"
                 >
                   Annulla
+                </Button>
+                <Button
+                  onClick={handleDeleteRegistrations}
+                  disabled={isDeleting}
+                  className="flex-1 sm:flex-none bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {isDeleting ? (
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                      Eliminando...
+                    </div>
+                  ) : (
+                    'Elimina'
+                  )}
                 </Button>
               </div>
             </div>

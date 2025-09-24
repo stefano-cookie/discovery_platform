@@ -253,6 +253,13 @@ router.get('/offers', authenticatePartner, async (req: AuthRequest, res) => {
       where: { partnerCompanyId: employee.partnerCompanyId },
       include: {
         course: true,
+        createdByEmployee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true
+          }
+        },
         _count: {
           select: { registrations: true }
         }
@@ -349,7 +356,8 @@ router.post('/offers', authenticatePartner, async (req: AuthRequest, res) => {
         installmentFrequency,
         customPaymentPlan,
         referralLink,
-        isActive: true
+        isActive: true,
+        createdByEmployeeId: req.partnerEmployee?.id || null
       },
       include: {
         course: true,

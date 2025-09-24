@@ -34,24 +34,24 @@ router.post('/login', async (req, res) => {
     if (user && await bcrypt.compare(password, user.password)) {
       // Verifica che l'account sia attivato
       if (!user.emailVerified) {
-        return res.status(401).json({ 
+        return res.status(401).json({
           error: 'Account non attivato. Controlla la tua email per il link di attivazione.',
           needsEmailVerification: true
         });
       }
-      
+
       // Aggiorna ultimo login
       await prisma.user.update({
         where: { id: user.id },
         data: { lastLoginAt: new Date() }
       });
-      
+
       const token = jwt.sign(
         { id: user.id, type: 'user', role: user.role },
         process.env.JWT_SECRET!,
         { expiresIn: '7d' }
       );
-      
+
       return res.json({
         token,
         type: 'user',
@@ -132,7 +132,6 @@ router.post('/login', async (req, res) => {
           referralCode: partnerEmployee.partnerCompany.referralCode,
           parentId: partnerEmployee.partnerCompany.parentId,
           canCreateChildren: partnerEmployee.partnerCompany.canCreateChildren,
-          hierarchyLevel: partnerEmployee.partnerCompany.hierarchyLevel,
           isPremium: partnerEmployee.partnerCompany.isPremium
         }
       });
@@ -142,7 +141,7 @@ router.post('/login', async (req, res) => {
     return res.status(401).json({ error: 'Credenziali non valide' });
     
   } catch (error) {
-    console.error('Login error:', error);
+// Console output removed
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -188,7 +187,7 @@ router.post('/change-password', authenticate, async (req: AuthRequest, res) => {
     
     res.json({ success: true });
   } catch (error) {
-    console.error('Change password error:', error);
+// Console output removed
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -222,7 +221,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
       } : null
     });
   } catch (error) {
-    console.error('Get current user error:', error);
+// Console output removed
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -290,7 +289,7 @@ router.post('/send-email-verification', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Send email verification error:', error);
+// Console output removed
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -352,7 +351,7 @@ router.post('/verify-email', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Verify email error:', error);
+// Console output removed
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -360,8 +359,8 @@ router.post('/verify-email', async (req, res) => {
 // Generate secure access token for enrollment form
 router.post('/generate-access-token', async (req, res) => {
   try {
-    const { email, referralCode } = req.body;
-    
+    const { email, referralCode, employeeId } = req.body;
+
     if (!email || !referralCode) {
       return res.status(400).json({ error: 'Email e referral code sono obbligatori' });
     }
@@ -398,7 +397,7 @@ router.post('/generate-access-token', async (req, res) => {
     }
     
     // Genera token sicuro
-    const token = await SecureTokenService.createAccessToken(user.id, referralCode);
+    const token = await SecureTokenService.createAccessToken(user.id, referralCode, employeeId);
     
     res.json({
       success: true,
@@ -407,21 +406,78 @@ router.post('/generate-access-token', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Generate access token error:', error);
+// Console output removed
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
 
 // Register new user (complete registration)
+// 🆕 CLEAN USER REGISTRATION - No partner dependencies
+router.post('/register-clean', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({
+        error: 'Email e password sono richiesti'
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (existingUser) {
+      return res.status(409).json({
+        error: 'Un utente con questa email esiste già'
+      });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 ore
+
+    // Create user WITHOUT partner association
+    const user = await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        emailVerificationToken: verificationToken,
+        emailVerificationTokenExpiry: tokenExpiry,
+        // NO assignedPartnerId - completely clean registration
+      }
+    });
+
+    // Send verification email
+    const verificationLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}`;
+    await emailService.sendEmailVerification(email, verificationLink);
+
+    res.status(201).json({
+      message: 'Account creato con successo. Controlla la tua email per la verifica.',
+      userId: user.id,
+      emailSent: true
+    });
+
+  } catch (error) {
+// Console output removed
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Legacy registration endpoint - with partner association
 router.post('/register', async (req, res) => {
   try {
-    const { 
-      email, 
+    const {
+      email,
       password,
       referralCode,
+      employeeId, // 🎯 New parameter for employee tracking
       // Dati profilo
       cognome,
-      nome, 
+      nome,
       dataNascita,
       luogoNascita,
       provinciaNascita,
@@ -447,6 +503,8 @@ router.post('/register', async (req, res) => {
     console.log('Registration data received:', {
       email,
       hasPassword: !!password,
+      referralCode,
+      employeeId, // 🎯 Track employee parameter
       cognome,
       nome,
       dataNascita,
@@ -463,7 +521,6 @@ router.post('/register', async (req, res) => {
       // Optional fields
       nomePadre,
       nomeMadre,
-      referralCode,
       hasDifferentDomicilio
     });
     
@@ -494,60 +551,138 @@ router.post('/register', async (req, res) => {
       });
     }
     
-    console.log('✅ Campi obbligatori validati');
+// Console output removed
     
     // Verifica password sicura (min 8 caratteri, almeno 1 maiuscola, 1 minuscola, 1 numero)
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/;
     if (!passwordRegex.test(password)) {
-      console.log('❌ Password validation failed');
+// Console output removed
       return res.status(400).json({ 
         error: 'La password deve essere di almeno 8 caratteri e contenere almeno una maiuscola, una minuscola e un numero' 
       });
     }
     
-    console.log('✅ Password validata');
+// Console output removed
     
-    // Trova il partner dal referral code se fornito
+    // Find partner from referral code and validate employee ID
     let assignedPartnerId = null;
+    let validatedEmployeeId = null;
+
     if (referralCode) {
-      console.log(`🔍 Cercando partner con referral code: ${referralCode}`);
-      
-      // Il referral code può avere un suffisso (es: MAIN001-CERT)
-      // Estrai la parte base del referral code
-      const baseReferralCode = referralCode.split('-')[0];
-      console.log(`🔍 Referral code base estratto: ${baseReferralCode}`);
-      
-      const partner = await prisma.partner.findUnique({
-        where: { referralCode: baseReferralCode }
+// Console output removed
+// Console output removed
+
+      // Find partner by referral code (clean code without employee suffix)
+      const cleanReferralCode = referralCode.split('-')[0];
+
+      // Check both Partner and PartnerCompany tables
+      const partner = await prisma.partner.findFirst({
+        where: { referralCode: cleanReferralCode }
       });
-      
+
+      const partnerCompany = await prisma.partnerCompany.findFirst({
+        where: { referralCode: cleanReferralCode }
+      });
+
       if (partner) {
         assignedPartnerId = partner.id;
-        console.log(`✅ Partner trovato: ${partner.id} per referral code base: ${baseReferralCode}`);
+// Console output removed: ${cleanReferralCode} → Partner ID: ${partner.id}`);
+
+        // Validate employee ID if provided
+        if (employeeId) {
+          try {
+            const employee = await prisma.partnerEmployee.findUnique({
+              where: { id: employeeId },
+              include: { partnerCompany: true }
+            });
+
+            if (employee && employee.isActive) {
+              validatedEmployeeId = employee.id;
+// Console output removed from ${employee.partnerCompany.name}`);
+            } else if (employee) {
+// Console output removed
+            } else {
+// Console output removed
+            }
+          } catch (error) {
+// Console output removed
+          }
+        }
+      } else if (partnerCompany) {
+        // For PartnerCompany system, we don't assign to legacy assignedPartnerId
+        // but we still validate the employee
+// Console output removed
+
+        // Validate employee ID if provided
+        if (employeeId) {
+          try {
+            const employee = await prisma.partnerEmployee.findUnique({
+              where: { id: employeeId },
+              include: { partnerCompany: true }
+            });
+
+            // Check if employee belongs to this company OR any of its children
+            let isValidEmployee = false;
+            if (employee && employee.isActive) {
+              if (employee.partnerCompanyId === partnerCompany.id) {
+                // Employee belongs directly to this company
+                isValidEmployee = true;
+              } else {
+                // Check if employee belongs to a child company
+                const childCompany = await prisma.partnerCompany.findUnique({
+                  where: {
+                    id: employee.partnerCompanyId,
+                    parentId: partnerCompany.id // Must be child of this parent
+                  }
+                });
+                if (childCompany) {
+                  isValidEmployee = true;
+                }
+              }
+            }
+
+            if (!employee) {
+// Console output removed
+            } else {
+              if (isValidEmployee) {
+                validatedEmployeeId = employee.id;
+// Console output removed from ${employee.partnerCompany?.name || 'Unknown'}`);
+              } else if (employee.partnerCompanyId !== partnerCompany.id) {
+// Console output removed`);
+              } else {
+// Console output removed
+              }
+            }
+          } catch (error) {
+// Console output removed
+          }
+        }
       } else {
-        console.log(`❌ Partner non trovato per referral code base: ${baseReferralCode}`);
-        // Potrebbe essere utile logare tutti i partner disponibili per debug
+// Console output removed
+        // Debug: show all available partners from both tables
         const allPartners = await prisma.partner.findMany({ select: { id: true, referralCode: true } });
-        console.log(`🔍 Partner disponibili nel database:`, allPartners);
+        const allPartnerCompanies = await prisma.partnerCompany.findMany({ select: { id: true, referralCode: true } });
+// Console output removed disponibili:`, allPartners);
+// Console output removed
       }
     }
     
     // Verifica se email già registrata - CONTROLLO SEMPLICE
-    console.log(`🔍 Verificando se email esiste: ${email}`);
+// Console output removed
     const existingUser = await prisma.user.findUnique({
       where: { email }
     });
     
     // Se l'email esiste già, blocca sempre la registrazione
     if (existingUser) {
-      console.log(`❌ Email già registrata`);
+// Console output removed
       return res.status(400).json({ 
         error: 'Utente già registrato',
         code: 'EMAIL_ALREADY_EXISTS'
       });
     }
     
-    console.log(`✅ Email verificata - nuova registrazione consentita`);
+// Console output removed
     
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -598,10 +733,16 @@ router.post('/register', async (req, res) => {
       });
     });
     
-    // Invia email di conferma con referral code se presente
+    // Invia email di conferma con referral code e employee ID se presenti
     let verificationLink = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
     if (referralCode) {
-      verificationLink += `&referralCode=${encodeURIComponent(referralCode)}`;
+      let fullReferralCode = referralCode;
+      // Add employee ID as parameter if present
+      if (validatedEmployeeId) {
+        fullReferralCode += `?ref=${validatedEmployeeId}`;
+// Console output removed
+      }
+      verificationLink += `&referralCode=${encodeURIComponent(fullReferralCode)}`;
     }
     await emailService.sendEmailVerification(email, verificationLink);
     
@@ -611,7 +752,7 @@ router.post('/register', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Register error:', error);
+// Console output removed
     const prismaError = error as any;
     if (prismaError.code === 'P2002') {
       if (prismaError.meta?.target?.includes('codiceFiscale')) {
@@ -676,7 +817,7 @@ router.post('/set-password', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Set password error:', error);
+// Console output removed
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -783,7 +924,7 @@ router.get('/check-referral/:code', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Check referral error:', error);
+// Console output removed
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -827,7 +968,7 @@ router.post('/verify-code', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Verify code error:', error);
+// Console output removed
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -837,7 +978,7 @@ router.get('/check-email-verification/:email', async (req, res) => {
   try {
     const { email } = req.params;
     
-    console.log(`🔍 EMAIL CHECK REQUEST for: ${email}`);
+// Console output removed
     
     const user = await prisma.user.findUnique({
       where: { email },
@@ -868,7 +1009,7 @@ router.get('/check-email-verification/:email', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Check email verification error:', error);
+// Console output removed
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -948,7 +1089,7 @@ if (process.env.NODE_ENV === 'development') {
         message: `User ${email} and all related data cleaned successfully` 
       });
     } catch (error) {
-      console.error('Clean user error:', error);
+// Console output removed
       res.status(500).json({ error: 'Errore durante la pulizia' });
     }
   });
@@ -999,7 +1140,7 @@ router.post('/check-password-status', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Check password status error:', error);
+// Console output removed
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });

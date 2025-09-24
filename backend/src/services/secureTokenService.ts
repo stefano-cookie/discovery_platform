@@ -11,10 +11,17 @@ export class SecureTokenService {
   }
 
   // Crea o aggiorna token per un utente verificato
-  static async createAccessToken(userId: string, referralCode: string): Promise<string> {
+  static async createAccessToken(userId: string, referralCode: string, employeeId?: string | null): Promise<string> {
     const token = this.generateSecureToken();
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24); // Token valido 24 ore
+
+
+    // Use provided employee ID directly
+    let potentialEmployeeId = employeeId;
+    if (employeeId) {
+      // Using provided employee ID
+    }
 
     // Find the offer from referral code to get basic info
     const offer = await prisma.partnerOffer.findUnique({
@@ -43,6 +50,30 @@ export class SecureTokenService {
       });
     }
 
+    // Validate employee ID if present
+    let validatedEmployeeId = null;
+    if (potentialEmployeeId) {
+      try {
+        const employee = await prisma.partnerEmployee.findUnique({
+          where: { id: potentialEmployeeId },
+          include: { partnerCompany: true }
+        });
+
+        // For secureTokenService, we accept any active employee since the referral link
+        // already determines the correct company context
+        if (employee && employee.isActive) {
+          validatedEmployeeId = employee.id;
+          // Valid employee found
+        } else if (employee) {
+          // Employee found but inactive
+        } else {
+          // Employee ID not found
+        }
+      } catch (error) {
+        // Error validating employee ID
+      }
+    }
+
     // Check if there's already a PENDING registration for this user and offer
     // If yes, just update the token. If no, create a placeholder registration
     let registration = await prisma.registration.findFirst({
@@ -68,16 +99,16 @@ export class SecureTokenService {
           partnerCompanyId = parentCompany.id;
           sourcePartnerCompanyId = childCompany.id;
           isDirectRegistration = false;
-          console.log(`🎯 Sub-partner registration: parent=${parentCompany.name}, source=${childCompany.name}`);
+          // Sub-partner registration
         } else {
           // Direct parent registration
           partnerCompanyId = parentCompany.id;
           sourcePartnerCompanyId = parentCompany.id;
           isDirectRegistration = true;
-          console.log(`🎯 Direct registration: parent=${parentCompany.name}`);
+          // Direct registration
         }
       } catch (error) {
-        console.error('Error calculating partner tracking fields:', error);
+        // Error calculating partner tracking fields
         // Fallback to offer's company
         partnerCompanyId = offer.partnerCompanyId;
         sourcePartnerCompanyId = offer.partnerCompanyId;
@@ -90,6 +121,7 @@ export class SecureTokenService {
           partnerId: offer.partnerId,
           partnerCompanyId: partnerCompanyId,
           sourcePartnerCompanyId: sourcePartnerCompanyId,
+          requestedByEmployeeId: validatedEmployeeId, // 🎯 Track referring employee
           isDirectRegistration: isDirectRegistration,
           courseId: offer.courseId,
           partnerOfferId: offer.id,
@@ -103,17 +135,18 @@ export class SecureTokenService {
           tokenExpiresAt: expiresAt
         }
       });
-      console.log(`Created placeholder registration ${registration.id} with token for user ${userId}`);
+      // Created placeholder registration with token
     } else {
-      // Update existing registration with new token
+      // Update existing registration with new token and employee info
       registration = await prisma.registration.update({
         where: { id: registration.id },
         data: {
           accessToken: token,
-          tokenExpiresAt: expiresAt
+          tokenExpiresAt: expiresAt,
+          requestedByEmployeeId: validatedEmployeeId // 🎯 Update employee tracking
         }
       });
-      console.log(`Updated existing registration ${registration.id} with new token for user ${userId}`);
+      // Updated existing registration with new token
     }
 
     return token;

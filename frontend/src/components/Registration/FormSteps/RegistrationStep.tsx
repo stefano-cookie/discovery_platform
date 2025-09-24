@@ -14,15 +14,17 @@ interface RegistrationStepProps {
   onChange?: (data: Partial<RegistrationForm>) => void;
   offerInfo?: OfferInfo | null;
   userProfile?: any; // Profile data from MultiStepForm
+  requestedByEmployeeId?: string | null; // Track referring partner employee
 }
 
-const RegistrationStep: React.FC<RegistrationStepProps> = ({ 
-  data, 
-  formData, 
-  onNext, 
+const RegistrationStep: React.FC<RegistrationStepProps> = ({
+  data,
+  formData,
+  onNext,
   onChange,
   offerInfo,
-  userProfile: passedUserProfile
+  userProfile: passedUserProfile,
+  requestedByEmployeeId
 }) => {
   const { user } = useAuth();
   const location = useLocation();
@@ -375,8 +377,17 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
             return [];
           }
         })(),
+
+        // Partner referral tracking
+        requestedByEmployeeId: requestedByEmployeeId
       };
-      
+
+      console.log('🔗 PARTNER TRACKING DEBUG:', {
+        requestedByEmployeeId,
+        hasRequestedBy: !!requestedByEmployeeId,
+        payloadIncludesRef: !!registrationPayload.requestedByEmployeeId
+      });
+
       // DEBUG: Document upload analysis
       console.log('📁 Document upload analysis:', {
         cartaIdentita: !!registrationPayload.cartaIdentita,

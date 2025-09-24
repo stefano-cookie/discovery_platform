@@ -1,11 +1,13 @@
 import React from 'react';
 import { PartnerUser } from '../../../types/partner';
+import { usePartnerAuth } from '../../../hooks/usePartnerAuth';
 
 interface UserInfoProps {
   user: PartnerUser;
 }
 
 const UserInfo: React.FC<UserInfoProps> = ({ user }) => {
+  const { partnerEmployee } = usePartnerAuth();
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('it-IT', {
       style: 'currency',
@@ -100,14 +102,15 @@ const UserInfo: React.FC<UserInfoProps> = ({ user }) => {
           <div>
             <label className="block text-sm font-medium text-gray-700">Partner</label>
             <p className="mt-1 text-sm text-gray-900">
-              {user.isDirectUser ? 'Diretto' : user.partnerName}
+              {user.requestedByEmployee || user.partnerName || 'Non specificato'}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Dettagli Pagamento */}
-      <div className="bg-white rounded-xl shadow-sm border p-6">
+      {/* Dettagli Pagamento - visibile solo per ADMINISTRATIVE */}
+      {partnerEmployee?.role === 'ADMINISTRATIVE' && (
+        <div className="bg-white rounded-xl shadow-sm border p-6">
         <div className="flex items-center mb-4">
           <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center mr-3">
             <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -149,7 +152,8 @@ const UserInfo: React.FC<UserInfoProps> = ({ user }) => {
         )}
 
         {/* Payment deadlines section moved to PaymentSection component */}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

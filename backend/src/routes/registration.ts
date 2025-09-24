@@ -10,6 +10,38 @@ import fs from 'fs';
 const router = Router();
 const prisma = new PrismaClient();
 
+// 🔥 FIX CRITICO COUPON: Helper per trovare company IDs associate al partner legacy
+async function getPartnerCompanyIdsForLegacyPartner(partnerId: string, tx: any): Promise<string[]> {
+  try {
+    // Trova il partner legacy
+    const partner = await tx.partner.findUnique({
+      where: { id: partnerId }
+    });
+
+    if (!partner) {
+      return [];
+    }
+
+    // 🔥 FIX: Match tramite referralCode invece di email (più affidabile)
+    const companies = await tx.partnerCompany.findMany({
+      where: {
+        OR: [
+          { referralCode: partner.referralCode }, // Match diretto referralCode
+          { referralCode: partner.referralCode.replace('-LEGACY', '') } // Rimuovi suffix -LEGACY se presente
+        ]
+      },
+      select: { id: true }
+    });
+
+    console.log(`🔍 Partner ${partnerId} (${partner.referralCode}) -> Companies found: ${companies.length}`);
+
+    return companies.map((c: { id: string }) => c.id);
+  } catch (error) {
+    console.error('Error finding partner company IDs:', error);
+    return [];
+  }
+}
+
 // Helper function to process documents for a registration
 async function processDocumentsForRegistration(tx: any, registrationId: string, userId: string, documents: any[]) {
   const documentTypeMap: Record<string, string> = {
@@ -115,18 +147,16 @@ const enrollmentUpload = multer({
 
 // Helper function to apply coupon and record usage
 async function applyCouponAndRecordUsage(
-  couponCode: string, 
-  partnerId: string, 
-  registrationId: string, 
+  couponCode: string,
+  partnerId: string,
+  registrationId: string,
   baseAmount: number,
   tx: any // Prisma transaction client
 ): Promise<{ finalAmount: number; couponApplied: boolean; discountApplied: number }> {
   try {
-    // Find active coupon for this partner
     const coupon = await tx.coupon.findFirst({
       where: {
         code: couponCode,
-        partnerId: partnerId,
         isActive: true,
         validFrom: { lte: new Date() },
         validUntil: { gte: new Date() }
@@ -169,7 +199,7 @@ async function applyCouponAndRecordUsage(
     // Increment usage counter
     const updatedCoupon = await tx.coupon.update({
       where: { id: coupon.id },
-      data: { 
+      data: {
         usedCount: { increment: 1 }
       }
     });
@@ -499,18 +529,26 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
     const userId = req.user?.id;
     const { 
       courseId, 
-      partnerOfferId, 
-      paymentPlan, 
+      partnerOfferId,
+      paymentPlan,
       couponCode,
       documents = [],
       tempDocuments = [], // Also accept tempDocuments
       courseData = {},
-      referralCode  // Add referralCode to help identify partner if user doesn't have one assigned
+      referralCode,  // Add referralCode to help identify partner if user doesn't have one assigned
+      requestedByEmployeeId // Track which partner employee requested this enrollment
     } = req.body;
-    
+
     // Use tempDocuments if documents is empty
     const documentsToProcess = documents.length > 0 ? documents : tempDocuments;
-    
+
+    console.log('📄 Documents received in additional-enrollment:', {
+      documentsCount: documents.length,
+      tempDocumentsCount: tempDocuments.length,
+      documentsToProcessCount: documentsToProcess.length,
+      documentsToProcess: documentsToProcess
+    });
+
     if (!userId) {
       return res.status(401).json({ error: 'Utente non autenticato' });
     }
@@ -770,14 +808,65 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
         }
       }
       
+      // 🎯 FIX: Check if user has existing offer access and infer partner employee
+      let inferredEmployeeId = requestedByEmployeeId;
+
+      console.log(`🔍 DEBUG PARTNER ASSIGNMENT (additional-enrollment) - User: ${userId}, Offer: ${partnerOfferId}, Provided employeeId: ${requestedByEmployeeId}`);
+
+      // If no requestedByEmployeeId provided, check if user has been granted access by a partner
+      if (!inferredEmployeeId && partnerOfferId) {
+        console.log(`📊 No requestedByEmployeeId provided, checking UserOfferAccess...`);
+
+        const userOfferAccess = await prisma.userOfferAccess.findUnique({
+          where: {
+            userId_offerId: {
+              userId: userId,
+              offerId: partnerOfferId
+            }
+          },
+          include: {
+            partnerCompany: {
+              include: {
+                employees: {
+                  where: { role: 'ADMINISTRATIVE' },
+                  take: 1 // Get first administrative employee as fallback
+                }
+              }
+            }
+          }
+        });
+
+        console.log(`🔎 UserOfferAccess found:`, {
+          found: !!userOfferAccess,
+          partnerCompanyId: userOfferAccess?.partnerCompanyId,
+          companyName: userOfferAccess?.partnerCompany?.name,
+          adminEmployeesCount: userOfferAccess?.partnerCompany?.employees?.length || 0
+        });
+
+        // If user has offer access, use the partner company's first admin employee as responsible
+        if (userOfferAccess && userOfferAccess.partnerCompany) {
+          if (userOfferAccess.partnerCompany.employees.length > 0) {
+            inferredEmployeeId = userOfferAccess.partnerCompany.employees[0].id;
+            console.log(`🎯 PARTNER ASSIGNMENT SUCCESS: Inferred employee ${inferredEmployeeId} (${userOfferAccess.partnerCompany.employees[0].firstName} ${userOfferAccess.partnerCompany.employees[0].lastName}) from company ${userOfferAccess.partnerCompany.name}`);
+          } else {
+            console.log(`⚠️ PARTNER ASSIGNMENT FAILED: No administrative employees found in company ${userOfferAccess.partnerCompany.name}`);
+          }
+        } else {
+          console.log(`⚠️ PARTNER ASSIGNMENT FAILED: No UserOfferAccess or partner company found`);
+        }
+      } else {
+        console.log(`✅ Using provided requestedByEmployeeId: ${requestedByEmployeeId}`);
+      }
+
       // Log final tracking values before creating registration
       console.log(`📋 Final tracking values:`, {
         partnerCompanyId,
         sourcePartnerCompanyId,
         isDirectRegistration,
-        offerReferralLink: offer?.referralLink
+        offerReferralLink: offer?.referralLink,
+        inferredEmployeeId
       });
-      
+
       // Create new registration with course-specific data
       const registration = await tx.registration.create({
         data: {
@@ -785,7 +874,7 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
           partnerId: partnerId || 'default-partner-id',
           partnerCompanyId: partnerCompanyId,
           sourcePartnerCompanyId: sourcePartnerCompanyId,
-          requestedByEmployeeId: null, // User self-registration, not by partner employee
+          requestedByEmployeeId: inferredEmployeeId || null, // 🎯 THIS IS THE KEY CHANGE - Use inferred employee ID
           isDirectRegistration: isDirectRegistration,
           courseId: courseId,
           partnerOfferId: partnerOfferId,
@@ -818,7 +907,13 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
           scuolaProvincia: courseData.scuolaProvincia || null
         }
       });
-      
+
+      console.log(`✅ Registration created successfully (additional-enrollment):`, {
+        registrationId: registration.id,
+        requestedByEmployeeId: registration.requestedByEmployeeId,
+        partnerCompanyId: registration.partnerCompanyId
+      });
+
       const installments = paymentPlan.installments || 1;
       let finalAmount = Number(paymentPlan.finalAmount) || 0;
       const registrationOfferType = offer?.course?.templateType === 'CERTIFICATION' ? 'CERTIFICATION' : 'TFA_ROMANIA';
@@ -834,9 +929,9 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
       if (couponCode && partnerId) {
         const originalAmount = Number(paymentPlan.originalAmount) || offerAmount;
         const couponResult = await applyCouponAndRecordUsage(
-          couponCode, 
-          partnerId, 
-          registration.id, 
+          couponCode,
+          partnerId,
+          registration.id,
           originalAmount,
           tx
         );
@@ -886,14 +981,20 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
           });
           
           console.log(`Created TFA Romania down payment deadline: €1500`);
-          
+
           // Recalculate custom payment amounts for TFA Romania (subtract €1500 from total)
           const remainingAmount = finalAmount - 1500;
           const amountPerInstallment = remainingAmount / customPayments.length;
-          
+
           for (let i = 0; i < customPayments.length; i++) {
             const payment = customPayments[i];
-            const dueDate = new Date(payment.dueDate);
+
+            // Ensure installment dates are after down payment date
+            const originalDueDate = new Date(payment.dueDate);
+            const minDate = new Date(downPaymentDate);
+            minDate.setDate(minDate.getDate() + 30 + (i * 30)); // 30 days after down payment + 30 days per installment
+
+            const dueDate = originalDueDate < minDate ? minDate : originalDueDate;
             
             await tx.paymentDeadline.create({
               data: {
@@ -1005,13 +1106,19 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
       if (documentsToProcess && documentsToProcess.length > 0) {
         try {
           const documentsToFinalize = Array.isArray(documentsToProcess) ? documentsToProcess : [];
-          
+
+          console.log('📝 Attempting to finalize documents:', {
+            registrationId: registration.id,
+            documentsToFinalizeCount: documentsToFinalize.length,
+            documentsToFinalize
+          });
+
           if (documentsToFinalize.length > 0) {
             const { DocumentService } = await import('../services/documentService');
             const finalizedDocs = await DocumentService.finalizeEnrollmentDocuments(
-              registration.id, 
-              userId, 
-              documentsToFinalize, 
+              registration.id,
+              userId,
+              documentsToFinalize,
               tx
             );
             console.log(`✅ Finalized ${finalizedDocs.length} enrollment documents for registration ${registration.id}`);
@@ -1034,18 +1141,18 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
       const courseInfo = await prisma.course.findUnique({
         where: { id: courseId }
       });
-      
+
       const partnerInfo = await prisma.partner.findUnique({
         where: { id: partnerId },
         include: {
           user: { select: { email: true } }
         }
       });
-      
-      await emailService.sendEnrollmentConfirmation(user.email, {
-        nome: user.profile.nome,
-        cognome: user.profile.cognome,
-        email: user.email,
+
+      await emailService.sendEnrollmentConfirmation(user!.email, {
+        nome: user!.profile!.nome,
+        cognome: user!.profile!.cognome,
+        email: user!.email,
         registrationId: result.id,
         courseName: courseInfo?.name || 'Corso selezionato',
         offerType: offer?.offerType || 'TFA_ROMANIA',
@@ -1055,7 +1162,7 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
       console.error('Failed to send enrollment confirmation email:', emailError);
       // Don't fail the registration if email fails
     }
-    
+
     res.json({
       success: true,
       registrationId: result.id,
@@ -1081,6 +1188,7 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
       tempDocuments = [], // Also accept tempDocuments
       courseData = {},
       referralCode,
+      requestedByEmployeeId, // Track which partner employee requested this enrollment
       // All the other enrollment data
       ...enrollmentData
     } = req.body;
@@ -1529,12 +1637,62 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
           }
         }
       }
-      
+
+      // 🎯 FIX: Check if user has existing offer access and infer partner employee
+      let inferredEmployeeId = requestedByEmployeeId;
+
+      console.log(`🔍 DEBUG PARTNER ASSIGNMENT (verified-user-enrollment) - User: ${user.id}, Offer: ${partnerOfferId}, Provided employeeId: ${requestedByEmployeeId}`);
+
+      // If no requestedByEmployeeId provided, check if user has been granted access by a partner
+      if (!inferredEmployeeId && partnerOfferId) {
+        console.log(`📊 No requestedByEmployeeId provided, checking UserOfferAccess...`);
+
+        const userOfferAccess = await prisma.userOfferAccess.findUnique({
+          where: {
+            userId_offerId: {
+              userId: user.id,
+              offerId: partnerOfferId
+            }
+          },
+          include: {
+            partnerCompany: {
+              include: {
+                employees: {
+                  where: { role: 'ADMINISTRATIVE' },
+                  take: 1 // Get first administrative employee as fallback
+                }
+              }
+            }
+          }
+        });
+
+        console.log(`🔎 UserOfferAccess found:`, {
+          found: !!userOfferAccess,
+          partnerCompanyId: userOfferAccess?.partnerCompanyId,
+          companyName: userOfferAccess?.partnerCompany?.name,
+          adminEmployeesCount: userOfferAccess?.partnerCompany?.employees?.length || 0
+        });
+
+        // If user has offer access, use the partner company's first admin employee as responsible
+        if (userOfferAccess && userOfferAccess.partnerCompany) {
+          if (userOfferAccess.partnerCompany.employees.length > 0) {
+            inferredEmployeeId = userOfferAccess.partnerCompany.employees[0].id;
+            console.log(`🎯 PARTNER ASSIGNMENT SUCCESS: Inferred employee ${inferredEmployeeId} (${userOfferAccess.partnerCompany.employees[0].firstName} ${userOfferAccess.partnerCompany.employees[0].lastName}) from company ${userOfferAccess.partnerCompany.name}`);
+          } else {
+            console.log(`⚠️ PARTNER ASSIGNMENT FAILED: No administrative employees found in company ${userOfferAccess.partnerCompany.name}`);
+          }
+        } else {
+          console.log(`⚠️ PARTNER ASSIGNMENT FAILED: No UserOfferAccess or partner company found`);
+        }
+      } else {
+        console.log(`✅ Using provided requestedByEmployeeId: ${requestedByEmployeeId}`);
+      }
+
       // Determine default amounts based on offer type
       const isCertification = offer?.course?.templateType === 'CERTIFICATION';
       const defaultAmount = isCertification ? 1500 : 4500;
       const offerAmount = Number(offer?.totalAmount) || defaultAmount;
-      
+
       // Create new registration
       const registration = await tx.registration.create({
         data: {
@@ -1542,7 +1700,7 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
           partnerId: partnerId || 'default-partner-id',
           partnerCompanyId: partnerCompanyId,
           sourcePartnerCompanyId: sourcePartnerCompanyId,
-          requestedByEmployeeId: null, // User self-registration, not by partner employee
+          requestedByEmployeeId: inferredEmployeeId || null, // 🎯 THIS IS THE KEY CHANGE - Use inferred employee ID
           isDirectRegistration: isDirectRegistration,
           courseId: courseId,
           partnerOfferId: partnerOfferId,
@@ -1573,19 +1731,52 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
           scuolaProvincia: courseData.scuolaProvincia || null
         }
       });
-      
+
+      console.log(`✅ Registration created successfully (verified-user-enrollment):`, {
+        registrationId: registration.id,
+        requestedByEmployeeId: registration.requestedByEmployeeId,
+        partnerCompanyId: registration.partnerCompanyId
+      });
+
       // Create payment deadlines based on offer's custom payment plan or standard logic
       const installments = paymentPlan.installments || 1;
       let finalAmount = Number(paymentPlan.finalAmount) || 0;
       const registrationOfferType = offer?.course?.templateType === 'CERTIFICATION' ? 'CERTIFICATION' : 'TFA_ROMANIA';
-      
+
       // FALLBACK: If finalAmount is 0, use offer's totalAmount
       if (finalAmount === 0 && offer && offer.totalAmount) {
         finalAmount = Number(offer.totalAmount);
         console.log(`⚠️ FinalAmount was 0, using offer totalAmount: ${finalAmount}`);
       }
-      
-      
+
+      // Apply coupon if provided
+      if (couponCode && partnerId) {
+        const originalAmount = Number(paymentPlan.originalAmount) || Number(offer?.totalAmount) || finalAmount;
+        const couponResult = await applyCouponAndRecordUsage(
+          couponCode,
+          partnerId,
+          registration.id,
+          originalAmount,
+          tx
+        );
+
+        if (couponResult.couponApplied) {
+          finalAmount = couponResult.finalAmount;
+
+          // Update registration with corrected amounts
+          await tx.registration.update({
+            where: { id: registration.id },
+            data: {
+              originalAmount: originalAmount,
+              finalAmount: finalAmount,
+              remainingAmount: finalAmount
+            }
+          });
+
+          console.log(`Coupon applied to verified user registration ${registration.id}: ${originalAmount} -> ${finalAmount}`);
+        }
+      }
+
       console.log(`Creating payment deadlines for registration ${registration.id}:`, {
         installments,
         finalAmount,
@@ -1615,14 +1806,20 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
           });
           
           console.log(`Created TFA Romania down payment deadline: €1500`, downPaymentDeadline);
-          
+
           // Recalculate custom payment amounts for TFA Romania (subtract €1500 from total)
           const remainingAmount = finalAmount - 1500;
           const amountPerInstallment = remainingAmount / customPayments.length;
-          
+
           for (let i = 0; i < customPayments.length; i++) {
             const payment = customPayments[i];
-            const dueDate = new Date(payment.dueDate);
+
+            // Ensure installment dates are after down payment date
+            const originalDueDate = new Date(payment.dueDate);
+            const minDate = new Date(downPaymentDate);
+            minDate.setDate(minDate.getDate() + 30 + (i * 30)); // 30 days after down payment + 30 days per installment
+
+            const dueDate = originalDueDate < minDate ? minDate : originalDueDate;
             
             const customDeadline = await tx.paymentDeadline.create({
               data: {
@@ -1787,7 +1984,7 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
     } catch (emailError) {
       console.error('Failed to send enrollment confirmation email:', emailError);
     }
-    
+
     res.json({
       success: true,
       registrationId: result.id,
@@ -1812,11 +2009,10 @@ router.post('/validate-coupon', async (req, res) => {
       });
     }
 
-    // Find active coupon for this partner
+    // Find coupon globally (no partner restriction)
     const coupon = await prisma.coupon.findFirst({
       where: {
         code: couponCode,
-        partnerId: partnerId,
         isActive: true,
         validFrom: { lte: new Date() },
         validUntil: { gte: new Date() }
@@ -1875,6 +2071,7 @@ router.post('/token-enrollment', async (req: Request, res: Response) => {
       tempDocuments = [], // Also accept tempDocuments
       courseData = {},
       referralCode,
+      requestedByEmployeeId, // Track which partner employee requested this enrollment
       // All the other enrollment data
       ...enrollmentData
     } = req.body;
@@ -1907,6 +2104,26 @@ router.post('/token-enrollment', async (req: Request, res: Response) => {
         return existingRegistration; // Return the existing registration instead of updating again
       }
       
+      // Determine initial amounts before coupon
+      let originalAmount = paymentPlan.originalAmount || existingRegistration.originalAmount;
+      let finalAmount = paymentPlan.finalAmount || existingRegistration.finalAmount;
+
+      // Apply coupon if provided
+      if (couponCode && existingRegistration.partnerId) {
+        const couponResult = await applyCouponAndRecordUsage(
+          couponCode,
+          existingRegistration.partnerId,
+          existingRegistration.id,
+          originalAmount,
+          tx
+        );
+
+        if (couponResult.couponApplied) {
+          finalAmount = couponResult.finalAmount;
+          console.log(`Coupon applied to token enrollment ${existingRegistration.id}: ${originalAmount} -> ${finalAmount}`);
+        }
+      }
+
       // Update registration with enrollment details
       const updatedRegistration = await tx.registration.update({
         where: { id: existingRegistration.id },
@@ -1930,15 +2147,16 @@ router.post('/token-enrollment', async (req: Request, res: Response) => {
           scuolaDenominazione: courseData.scuolaDenominazione || null,
           scuolaCitta: courseData.scuolaCitta || null,
           scuolaProvincia: courseData.scuolaProvincia || null,
-          
-          // Payment information (might be updated from frontend)
-          originalAmount: paymentPlan.originalAmount || existingRegistration.originalAmount,
-          finalAmount: paymentPlan.finalAmount || existingRegistration.finalAmount,
+
+          // Payment information (might be updated from frontend or coupon)
+          originalAmount: originalAmount,
+          finalAmount: finalAmount,
+          remainingAmount: finalAmount,
           installments: paymentPlan.installments || existingRegistration.installments,
-          
+
           // Mark as completed
           status: 'PENDING', // Will be updated to appropriate status
-          
+
           // Clear token since enrollment is complete
           accessToken: null,
           tokenExpiresAt: null
@@ -2043,7 +2261,7 @@ router.post('/token-enrollment', async (req: Request, res: Response) => {
       console.error('Failed to send enrollment confirmation email:', emailError);
       // Don't fail the registration if email fails
     }
-    
+
     res.json({
       success: true,
       registrationId: result.id,
@@ -2056,5 +2274,315 @@ router.post('/token-enrollment', async (req: Request, res: Response) => {
   }
 });
 
+// 🆕 CLEAN COURSE ENROLLMENT - Separate from user registration
+// This endpoint is for enrolling an existing user to a specific course
+// with proper partner employee tracking
+router.post('/course-enrollment', async (req: Request, res: Response) => {
+  try {
+    const {
+      userId, // Existing user ID (from clean registration)
+      partnerOfferId, // Course offer ID
+      requestedByEmployeeId, // Partner employee who is doing the enrollment
+      couponCode, // Optional coupon
+      paymentPlan, // Payment plan details
+      courseData = {}, // Additional course-specific data
+      documents = [] // Course-related documents
+    } = req.body;
+
+    // Validate required fields
+    if (!userId || !partnerOfferId) {
+      return res.status(400).json({
+        error: 'userId e partnerOfferId sono richiesti'
+      });
+    }
+
+    // Check if user exists
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        profile: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        error: 'Utente non trovato'
+      });
+    }
+
+    // Get partner offer details
+    const partnerOffer = await prisma.partnerOffer.findUnique({
+      where: { id: partnerOfferId },
+      include: {
+        course: true,
+        partnerCompany: true,
+        createdByEmployee: true
+      }
+    });
+
+    if (!partnerOffer || !partnerOffer.isActive) {
+      return res.status(404).json({
+        error: 'Offerta corso non trovata o non attiva'
+      });
+    }
+
+    // 🎯 FIX: Check if user has existing offer access and infer partner employee
+    let inferredEmployeeId = requestedByEmployeeId;
+    let requestingEmployee = null;
+
+    console.log(`🔍 DEBUG PARTNER ASSIGNMENT - User: ${userId}, Offer: ${partnerOfferId}, Provided employeeId: ${requestedByEmployeeId}`);
+
+    // If no requestedByEmployeeId provided, check if user has been granted access by a partner
+    if (!inferredEmployeeId) {
+      console.log(`📊 No requestedByEmployeeId provided, checking UserOfferAccess...`);
+
+      const userOfferAccess = await prisma.userOfferAccess.findUnique({
+        where: {
+          userId_offerId: {
+            userId: userId,
+            offerId: partnerOfferId
+          }
+        },
+        include: {
+          partnerCompany: {
+            include: {
+              employees: {
+                where: { role: 'ADMINISTRATIVE' },
+                take: 1 // Get first administrative employee as fallback
+              }
+            }
+          }
+        }
+      });
+
+      console.log(`🔎 UserOfferAccess found:`, {
+        found: !!userOfferAccess,
+        partnerCompanyId: userOfferAccess?.partnerCompanyId,
+        companyName: userOfferAccess?.partnerCompany?.name,
+        adminEmployeesCount: userOfferAccess?.partnerCompany?.employees?.length || 0
+      });
+
+      // If user has offer access, use the partner company's first admin employee as responsible
+      if (userOfferAccess && userOfferAccess.partnerCompany) {
+        if (userOfferAccess.partnerCompany.employees.length > 0) {
+          inferredEmployeeId = userOfferAccess.partnerCompany.employees[0].id;
+          console.log(`🎯 PARTNER ASSIGNMENT SUCCESS: Inferred employee ${inferredEmployeeId} (${userOfferAccess.partnerCompany.employees[0].firstName} ${userOfferAccess.partnerCompany.employees[0].lastName}) from company ${userOfferAccess.partnerCompany.name}`);
+        } else {
+          console.log(`⚠️ PARTNER ASSIGNMENT FAILED: No administrative employees found in company ${userOfferAccess.partnerCompany.name}`);
+        }
+      } else {
+        console.log(`⚠️ PARTNER ASSIGNMENT FAILED: No UserOfferAccess or partner company found`);
+      }
+    } else {
+      console.log(`✅ Using provided requestedByEmployeeId: ${requestedByEmployeeId}`);
+    }
+
+    // Validate partner employee if provided or inferred
+    if (inferredEmployeeId) {
+      requestingEmployee = await prisma.partnerEmployee.findUnique({
+        where: { id: inferredEmployeeId },
+        include: {
+          partnerCompany: true
+        }
+      });
+
+      if (!requestingEmployee) {
+        return res.status(404).json({
+          error: 'Dipendente partner non trovato'
+        });
+      }
+
+      // Verify employee belongs to the same company as the offer
+      if (requestingEmployee.partnerCompanyId !== partnerOffer.partnerCompanyId) {
+        return res.status(403).json({
+          error: 'Il dipendente non appartiene alla stessa azienda dell\'offerta'
+        });
+      }
+    }
+
+    // Check if user is already enrolled in this course
+    const existingRegistration = await prisma.registration.findFirst({
+      where: {
+        userId: userId,
+        partnerOfferId: partnerOfferId,
+        status: {
+          notIn: ['COMPLETED'] // Allow re-enrollment only if not completed
+        }
+      }
+    });
+
+    if (existingRegistration) {
+      return res.status(409).json({
+        error: 'L\'utente è già iscritto a questo corso'
+      });
+    }
+
+    // Handle coupon if provided
+    let coupon = null;
+    let discountAmount = 0;
+
+    if (couponCode) {
+      coupon = await prisma.coupon.findFirst({
+        where: {
+          code: couponCode,
+          isActive: true
+        }
+      });
+
+      if (!coupon || !coupon.isActive) {
+        return res.status(400).json({
+          error: 'Codice coupon non valido'
+        });
+      }
+
+      if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) {
+        return res.status(400).json({
+          error: 'Codice coupon già utilizzato il numero massimo di volte'
+        });
+      }
+
+      // Calculate discount
+      if (coupon.discountType === 'PERCENTAGE') {
+        discountAmount = (Number(partnerOffer.totalAmount) * Number(coupon.discountPercent || 0)) / 100;
+      } else {
+        discountAmount = Number(coupon.discountAmount || 0);
+      }
+    }
+
+    // Calculate final amounts
+    const originalAmount = Number(partnerOffer.totalAmount);
+    const finalAmount = Math.max(0, originalAmount - discountAmount);
+
+    // Start transaction for enrollment
+    await prisma.$transaction(async (tx) => {
+      // Create the registration with proper partner tracking
+      console.log(`📝 Creating registration with:`, {
+        userId,
+        requestedByEmployeeId: inferredEmployeeId,
+        partnerCompanyId: partnerOffer.partnerCompanyId,
+        partnerOfferId,
+        finalAmount
+      });
+
+      const registration = await tx.registration.create({
+        data: {
+          userId: userId,
+          partnerId: partnerOffer.partnerId, // Legacy field
+          partnerCompanyId: partnerOffer.partnerCompanyId,
+          sourcePartnerCompanyId: partnerOffer.partnerCompanyId,
+          requestedByEmployeeId: inferredEmployeeId, // 🎯 THIS IS THE KEY CHANGE - Use inferred employee ID
+          isDirectRegistration: true,
+          courseId: partnerOffer.courseId,
+          partnerOfferId: partnerOfferId,
+          couponId: coupon?.id,
+          offerType: partnerOffer.offerType,
+          originalAmount: originalAmount,
+          finalAmount: finalAmount,
+          installments: paymentPlan?.installments || partnerOffer.installments,
+          status: 'PENDING',
+          // Course-specific data
+          ...courseData
+        }
+      });
+
+      console.log(`✅ Registration created successfully:`, {
+        registrationId: registration.id,
+        requestedByEmployeeId: registration.requestedByEmployeeId,
+        partnerCompanyId: registration.partnerCompanyId
+      });
+
+      // Increment coupon usage if used
+      if (coupon) {
+        // Create CouponUse record for tracking
+        await tx.couponUse.create({
+          data: {
+            couponId: coupon.id,
+            registrationId: registration.id,
+            discountApplied: discountAmount,
+            usedAt: new Date()
+          }
+        });
+
+        // Increment usage counter
+        const updatedCoupon = await tx.coupon.update({
+          where: { id: coupon.id },
+          data: {
+            usedCount: {
+              increment: 1
+            }
+          }
+        });
+
+        // Check if coupon should be deactivated (reached max uses)
+        if (updatedCoupon.maxUses && updatedCoupon.usedCount >= updatedCoupon.maxUses) {
+          await tx.coupon.update({
+            where: { id: coupon.id },
+            data: { isActive: false }
+          });
+          console.log(`Coupon ${coupon.code} deactivated after reaching usage limit: ${updatedCoupon.usedCount}/${updatedCoupon.maxUses}`);
+        }
+
+        console.log(`Applied coupon ${coupon.code}: ${originalAmount} -> ${finalAmount} (discount: ${discountAmount})`);
+      }
+
+      // Process documents if provided
+      if (documents.length > 0) {
+        await processDocumentsForRegistration(tx, registration.id, userId, documents);
+      }
+
+      // Create payment deadlines based on payment plan
+      const installmentAmount = finalAmount / (paymentPlan?.installments || 1);
+      const baseDate = new Date();
+
+      for (let i = 0; i < (paymentPlan?.installments || 1); i++) {
+        const dueDate = new Date(baseDate);
+        dueDate.setMonth(baseDate.getMonth() + i * partnerOffer.installmentFrequency);
+
+        await tx.paymentDeadline.create({
+          data: {
+            registrationId: registration.id,
+            amount: installmentAmount,
+            dueDate: dueDate,
+            paymentNumber: i + 1,
+            isPaid: false
+          }
+        });
+      }
+
+      console.log(`🎯 Course enrollment completed: User ${userId} enrolled by employee ${requestedByEmployeeId || 'DIRECT'}`);
+    });
+
+    // Send enrollment confirmation email
+    try {
+      await emailService.sendEnrollmentConfirmation(user.email, {
+        courseName: partnerOffer.course.name,
+        offerName: partnerOffer.name
+      });
+    } catch (emailError) {
+      console.error('Failed to send enrollment confirmation email:', emailError);
+    }
+
+    res.json({
+      success: true,
+      message: 'Iscrizione al corso completata con successo',
+      enrollment: {
+        userId: userId,
+        courseName: partnerOffer.course.name,
+        offerName: partnerOffer.name,
+        finalAmount: finalAmount,
+        discountApplied: discountAmount,
+        requestedByEmployee: requestingEmployee ? {
+          id: requestingEmployee.id,
+          name: `${requestingEmployee.firstName} ${requestingEmployee.lastName}`,
+          company: requestingEmployee.partnerCompany?.name
+        } : null
+      }
+    });
+
+  } catch (error) {
+    console.error('Course enrollment error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
 
 export default router;

@@ -20,9 +20,10 @@ import { verifyCode } from '../../services/api';
 
 interface MultiStepFormProps {
   referralCode?: string;
+  requestedByEmployeeId?: string | null;
 }
 
-const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
+const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode, requestedByEmployeeId }) => {
   const { user: currentUser } = useAuth();
   const location = useLocation();
   const [enrollmentCompleted, setEnrollmentCompleted] = useState(false);
@@ -704,6 +705,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode }) => {
             onChange={updateFormData}
             offerInfo={offerInfo}
             userProfile={userProfile}
+            requestedByEmployeeId={requestedByEmployeeId}
           />
         );
       default:

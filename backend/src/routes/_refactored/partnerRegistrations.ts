@@ -1,6 +1,6 @@
 import { Router, Response as ExpressResponse } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authenticatePartner, AuthRequest } from '../../middleware/auth';
+import { authenticatePartner, requirePartnerRole, AuthRequest } from '../../middleware/auth';
 import { DocumentService, upload as documentUpload } from '../../services/documentService';
 import emailService from '../../services/emailService';
 import * as path from 'path';
@@ -91,7 +91,7 @@ router.delete('/registrations/:registrationId', authenticatePartner, async (req:
 });
 
 // Get payment deadlines for a registration
-router.get('/registrations/:registrationId/deadlines', authenticatePartner, async (req: AuthRequest, res) => {
+router.get('/registrations/:registrationId/deadlines', authenticatePartner, requirePartnerRole(['ADMINISTRATIVE']), async (req: AuthRequest, res) => {
   try {
     const partnerId = req.partner?.id;
     const { registrationId } = req.params;
@@ -125,7 +125,7 @@ router.get('/registrations/:registrationId/deadlines', authenticatePartner, asyn
 });
 
 // Mark payment as paid
-router.post('/registrations/:registrationId/payments/:deadlineId/mark-paid', authenticatePartner, async (req: AuthRequest, res) => {
+router.post('/registrations/:registrationId/payments/:deadlineId/mark-paid', authenticatePartner, requirePartnerRole(['ADMINISTRATIVE']), async (req: AuthRequest, res) => {
   try {
     const partnerId = req.partner?.id;
     const { registrationId, deadlineId } = req.params;
@@ -180,7 +180,7 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-paid', aut
 });
 
 // Mark payment as partially paid
-router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-paid', authenticatePartner, async (req: AuthRequest, res) => {
+router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-paid', authenticatePartner, requirePartnerRole(['ADMINISTRATIVE']), async (req: AuthRequest, res) => {
   try {
     const partnerId = req.partner?.id;
     const { registrationId, deadlineId } = req.params;

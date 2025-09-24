@@ -77,6 +77,13 @@ router.get('/', authenticateUnified, async (req: AuthRequest, res) => {
               }
             }
           },
+          createdByEmployee: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true
+            }
+          },
           _count: {
             select: { registrations: true }
           }
@@ -98,7 +105,7 @@ router.get('/', authenticateUnified, async (req: AuthRequest, res) => {
 
       // Get offers from this company and all parents
       offers = await prisma.partnerOffer.findMany({
-        where: { 
+        where: {
           partnerCompanyId: { in: companyIds },
           isActive: true
         },
@@ -109,6 +116,13 @@ router.get('/', authenticateUnified, async (req: AuthRequest, res) => {
               id: true,
               name: true,
               referralCode: true
+            }
+          },
+          createdByEmployee: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true
             }
           },
           _count: {
@@ -174,6 +188,13 @@ router.get('/:id', authenticateUnified, async (req: AuthRequest, res) => {
                 email: true
               }
             }
+          }
+        },
+        createdByEmployee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true
           }
         }
       }
@@ -290,7 +311,8 @@ router.post('/', authenticateUnified, async (req: AuthRequest, res) => {
         installments: validatedData.installments,
         installmentFrequency: validatedData.installmentFrequency,
         customPaymentPlan: validatedData.customPaymentPlan,
-        referralLink: referralLink
+        referralLink: referralLink,
+        createdByEmployeeId: req.partnerEmployee?.id || null
       },
       include: {
         course: true

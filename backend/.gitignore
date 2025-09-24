@@ -1,1 +1,24 @@
 CONTRACT_FIX.md
+*.md
+test-*.pdf
+test-*.txt
+backend/test-*.pdf
+backend/scripts/test-*.ts
+backend/scripts/clean-*.ts
+backend/scripts/fix-*.ts
+backend/scripts/create-*.ts
+verify-*.sh
+debug-*.sh
+*.log
+
+# Development and testing files
+COMPREHENSIVE_DEPLOY_PROTECTION.md
+DEPLOYMENT_SAFETY_CHECKLIST.md
+backend/scripts/clean-*
+backend/scripts/create-*  
+backend/scripts/fix-*
+backend/scripts/test-*
+backend/src/config/
+backend/src/scripts/
+test-document.*
+verify-critical-fixes.sh

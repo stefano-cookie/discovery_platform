@@ -33,6 +33,7 @@ const UserOffersModal: React.FC<UserOffersModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [updatingOfferId, setUpdatingOfferId] = useState<string | null>(null);
+  const [actionToken, setActionToken] = useState<string | null>(null);
 
   const fetchUserOffers = useCallback(async () => {
     if (!user) return;
@@ -52,8 +53,22 @@ const UserOffersModal: React.FC<UserOffersModalProps> = ({
   useEffect(() => {
     if (isOpen && user) {
       fetchUserOffers();
+      createActionToken();
     }
   }, [isOpen, user, fetchUserOffers]);
+
+  const createActionToken = async () => {
+    if (!user) return;
+
+    try {
+      const tokenResponse = await partnerService.createActionToken('GRANT_ACCESS', user.id);
+      setActionToken(tokenResponse.token);
+      console.log('🔑 Action token created for user offers management:', tokenResponse.token);
+    } catch (err: any) {
+      console.error('Failed to create action token:', err);
+      // Continue without token - fallback to authenticated user
+    }
+  };
 
   const toggleOfferAccess = async (offerId: string, hasAccess: boolean) => {
     if (!user) return;
@@ -64,7 +79,12 @@ const UserOffersModal: React.FC<UserOffersModalProps> = ({
       if (hasAccess) {
         await partnerService.revokeUserOfferAccess(user.id, offerId);
       } else {
-        await partnerService.grantUserOfferAccess(user.id, offerId);
+        await partnerService.grantUserOfferAccessWithToken(user.id, offerId, actionToken || undefined);
+        console.log('✅ Grant access completed for user offers management:', {
+          userId: user.id,
+          offerId,
+          hasToken: !!actionToken
+        });
       }
       
       // Aggiorna lo stato locale

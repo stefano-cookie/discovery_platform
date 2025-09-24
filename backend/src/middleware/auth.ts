@@ -115,6 +115,17 @@ export const authenticateUnified = async (
 
       req.user = user;
       req.partner = user.partner;
+
+      // For legacy partners, find the corresponding PartnerCompany
+      if (user.role === 'PARTNER' && user.partner) {
+        const partnerCompany = await prisma.partnerCompany.findFirst({
+          where: { referralCode: user.partner.referralCode }
+        });
+
+        if (partnerCompany) {
+          req.partnerCompany = partnerCompany;
+        }
+      }
     } else if (decoded.type === 'partner') {
       const partnerEmployee = await prisma.partnerEmployee.findUnique({
         where: { id: decoded.id },

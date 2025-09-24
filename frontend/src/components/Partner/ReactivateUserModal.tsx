@@ -30,12 +30,27 @@ const ReactivateUserModal: React.FC<ReactivateUserModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionToken, setActionToken] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && user) {
       loadOffers();
+      createActionToken();
     }
   }, [isOpen, user]);
+
+  const createActionToken = async () => {
+    if (!user) return;
+
+    try {
+      const tokenResponse = await partnerService.createActionToken('GRANT_ACCESS', user.id);
+      setActionToken(tokenResponse.token);
+      console.log('🔑 Action token created for grant access:', tokenResponse.token);
+    } catch (err: any) {
+      console.error('Failed to create action token:', err);
+      // Continue without token - fallback to authenticated user
+    }
+  };
 
   const loadOffers = async () => {
     try {
@@ -60,14 +75,21 @@ const ReactivateUserModal: React.FC<ReactivateUserModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!user || !selectedOfferId) return;
 
     try {
       setIsSubmitting(true);
       setError(null);
 
-      await partnerService.grantUserOfferAccess(user.id, selectedOfferId);
+      // Use the new method with token tracking
+      await partnerService.grantUserOfferAccessWithToken(user.id, selectedOfferId, actionToken || undefined);
+
+      console.log('✅ Grant access completed with tracking:', {
+        userId: user.id,
+        offerId: selectedOfferId,
+        hasToken: !!actionToken
+      });
 
       onSuccess();
       onClose();
