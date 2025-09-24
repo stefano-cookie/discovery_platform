@@ -1357,7 +1357,7 @@ router.post('/coupons', authenticateUnified, async (req: AuthRequest, res) => {
     // Check if coupon code already exists for this partner
     const existingCoupon = await prisma.coupon.findFirst({
       where: {
-        partnerCompanyId: legacyPartner.id,
+        partnerCompanyId: partnerCompanyId,
         code
       }
     });
@@ -1428,7 +1428,7 @@ router.put('/coupons/:id/status', authenticateUnified, async (req: AuthRequest, 
     const coupon = await prisma.coupon.updateMany({
       where: {
         id,
-        partnerCompanyId: legacyPartner.id
+        partnerCompanyId: partnerCompanyId
       },
       data: { isActive }
     });
@@ -1540,7 +1540,7 @@ router.post('/coupons/validate', authenticateUnified, async (req: AuthRequest, r
     const coupon = await prisma.coupon.findFirst({
       where: {
         code,
-        partnerCompanyId: legacyPartner.id,
+        partnerCompanyId: partnerCompanyId,
         isActive: true,
         validFrom: { lte: new Date() },
         validUntil: { gte: new Date() }
@@ -1617,7 +1617,7 @@ router.get('/coupons/:couponId/usage-logs', authenticateUnified, async (req: Aut
     const coupon = await prisma.coupon.findFirst({
       where: {
         id: couponId,
-        partnerCompanyId: legacyPartner.id
+        partnerCompanyId: partnerCompanyId
       }
     });
 
