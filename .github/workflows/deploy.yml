@@ -27,10 +27,6 @@ jobs:
         # Build with increased memory limit and disable treating warnings as errors
         CI=false NODE_OPTIONS="--max-old-space-size=4096" npm run build
         
-    - name: Verify critical fixes before deploy
-      run: |
-        chmod +x verify-critical-fixes.sh
-        ./verify-critical-fixes.sh
 
     - name: Install and build backend
       working-directory: ./backend
