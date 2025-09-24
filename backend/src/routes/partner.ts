@@ -1369,7 +1369,7 @@ router.post('/coupons', authenticateUnified, async (req: AuthRequest, res) => {
     // Create coupon
     const coupon = await prisma.coupon.create({
       data: {
-        partnerId: legacyPartner.id, // Legacy field  
+        partnerId: legacyPartner.id, // Legacy field
         partnerCompanyId: partnerCompanyId, // Use actual partner company ID
         code,
         discountType,
