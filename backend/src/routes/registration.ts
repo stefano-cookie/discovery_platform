@@ -151,15 +151,19 @@ async function applyCouponAndRecordUsage(
   partnerId: string,
   registrationId: string,
   baseAmount: number,
-  tx: any // Prisma transaction client
+  tx: any, // Prisma transaction client
+  partnerCompanyId?: string
 ): Promise<{ finalAmount: number; couponApplied: boolean; discountApplied: number }> {
   try {
+    // Find coupon scoped to the partner company if available
     const coupon = await tx.coupon.findFirst({
       where: {
         code: couponCode,
         isActive: true,
         validFrom: { lte: new Date() },
-        validUntil: { gte: new Date() }
+        validUntil: { gte: new Date() },
+        // Filter by partnerCompanyId if provided, otherwise fall back to global/legacy search
+        ...(partnerCompanyId ? { partnerCompanyId: partnerCompanyId } : {})
       }
     });
 
@@ -933,7 +937,8 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
           partnerId,
           registration.id,
           originalAmount,
-          tx
+          tx,
+          partnerCompanyId
         );
         
         if (couponResult.couponApplied) {
@@ -1757,7 +1762,8 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
           partnerId,
           registration.id,
           originalAmount,
-          tx
+          tx,
+          partnerCompanyId
         );
 
         if (couponResult.couponApplied) {
@@ -2115,7 +2121,8 @@ router.post('/token-enrollment', async (req: Request, res: Response) => {
           existingRegistration.partnerId,
           existingRegistration.id,
           originalAmount,
-          tx
+          tx,
+          existingRegistration.partnerCompanyId
         );
 
         if (couponResult.couponApplied) {
