@@ -631,16 +631,27 @@ router.get('/users', authenticateUnified, async (req: AuthRequest, res) => {
         requestedByEmployee: (() => {
           const result = (() => {
             if (reg.requestedByEmployee) {
-              // Show the partner company name instead of individual employee name
-              if (reg.sourcePartnerCompanyId && reg.sourcePartnerCompany?.name) {
-                return reg.sourcePartnerCompany.name;
-              } else if (reg.partnerCompany?.name) {
-                return reg.partnerCompany.name;
-              } else if (reg.requestedByEmployee.firstName && reg.requestedByEmployee.lastName) {
-                // Fallback to employee name only if no company name available
-                return `${reg.requestedByEmployee.firstName} ${reg.requestedByEmployee.lastName}`;
+              // If both names exist, use them
+              if (reg.requestedByEmployee.firstName && reg.requestedByEmployee.lastName) {
+                // Check if it's a sub-company registration
+                if (reg.sourcePartnerCompanyId && reg.sourcePartnerCompany?.name) {
+                  return `${reg.sourcePartnerCompany.name} - ${reg.requestedByEmployee.firstName} ${reg.requestedByEmployee.lastName}`;
+                } else if (reg.partnerCompany?.name) {
+                  // Callback aggiunta: mostra azienda - dipendente anche per partnerCompany
+                  return `${reg.partnerCompany.name} - ${reg.requestedByEmployee.firstName} ${reg.requestedByEmployee.lastName}`;
+                } else {
+                  return `${reg.requestedByEmployee.firstName} ${reg.requestedByEmployee.lastName}`;
+                }
               } else {
-                return 'N/A';
+                // If employee exists but names are missing, show company or N/A
+                if (reg.sourcePartnerCompanyId && reg.sourcePartnerCompany?.name) {
+                  return reg.sourcePartnerCompany.name;
+                } else if (reg.partnerCompany?.name) {
+                  // Callback aggiunta: se non trova nome e cognome, mostra solo nome azienda
+                  return reg.partnerCompany.name;
+                } else {
+                  return 'N/A';
+                }
               }
             } else {
               // No employee found
