@@ -220,7 +220,7 @@ export const submitEnrollment = async (data: RegistrationData): Promise<Registra
         scuolaCitta: data.scuolaCitta,
         scuolaProvincia: data.scuolaProvincia
       },
-      // Include temporary documents for finalization
+      // CLAUDE_FIX_MARKER: Include temporary documents for finalization
       documents: data.documents || [],
       tempDocuments: data.tempDocuments || []
     });
