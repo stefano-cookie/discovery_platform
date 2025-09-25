@@ -35,6 +35,16 @@ rsync -av --delete \
     --exclude='*.log' \
     "$TEMP_DIR/frontend/build/" "$DEPLOY_DIR/"
 
+# 2.1 Deploy Frontend Proxy Server
+echo -e "${YELLOW}🔧 Deploying frontend proxy server...${NC}"
+if [ -f "$TEMP_DIR/frontend-proxy-server-production.js" ]; then
+    cp "$TEMP_DIR/frontend-proxy-server-production.js" "$DEPLOY_DIR/frontend-proxy-server.js"
+    echo -e "${GREEN}✓ Frontend proxy server deployed (production version)${NC}"
+else
+    cp "$TEMP_DIR/frontend-proxy-server.js" "$DEPLOY_DIR/"
+    echo -e "${YELLOW}⚠️  Using development version of proxy server${NC}"
+fi
+
 # 3. Deploy Backend
 echo -e "${YELLOW}⚙️ Deploying backend...${NC}"
 mkdir -p "$DEPLOY_DIR/backend"
@@ -143,11 +153,21 @@ npx prisma migrate deploy || {
 npx prisma db seed --preview-feature 2>/dev/null || true
 echo -e "${GREEN}✓ Database migrations completed${NC}"
 
-# 7. Copy ecosystem config and restart backend with PM2
-echo -e "${YELLOW}🔄 Restarting backend service...${NC}"
+# 7. Copy ecosystem config and restart services with PM2
+echo -e "${YELLOW}🔄 Restarting services...${NC}"
 cp "$TEMP_DIR/ecosystem.config.js" "$DEPLOY_DIR/"
 cd "$DEPLOY_DIR"
 pm2 restart ecosystem.config.js --update-env --env production || pm2 start ecosystem.config.js --env production
+
+# Ensure frontend proxy server is copied and accessible
+if [ ! -f "$DEPLOY_DIR/frontend-proxy-server.js" ]; then
+    echo -e "${RED}❌ Frontend proxy server missing after deploy!${NC}"
+    if [ -f "$TEMP_DIR/frontend-proxy-server-production.js" ]; then
+        cp "$TEMP_DIR/frontend-proxy-server-production.js" "$DEPLOY_DIR/frontend-proxy-server.js"
+    else
+        cp "$TEMP_DIR/frontend-proxy-server.js" "$DEPLOY_DIR/"
+    fi
+fi
 
 # 8. Salva configurazione PM2
 pm2 save
