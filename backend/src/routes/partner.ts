@@ -775,8 +775,16 @@ router.get('/registrations/:registrationId/documents', authenticateUnified, asyn
   try {
     const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.params;
-    
+
+    console.log('🔍 DOCUMENTS ENDPOINT 1 (partner.ts:774 - FIRST/ACTIVE) CALLED:', {
+      timestamp: new Date().toISOString(),
+      registrationId,
+      partnerCompanyId,
+      endpoint: '/registrations/:registrationId/documents (ACTIVE FIRST INSTANCE)'
+    });
+
     if (!partnerCompanyId) {
+      console.log('❌ ENDPOINT 1: Partner company non trovata');
       return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
@@ -3825,6 +3833,20 @@ router.get('/registrations/:registrationId/documents/unified', authenticateUnifi
 
     const uploadedCount = documents.filter(doc => doc.uploaded).length;
     const totalCount = documents.length;
+
+    console.log('🔍 ENDPOINT 1 RESPONSE:', {
+      endpoint: '/registrations/:registrationId/documents (ACTIVE FIRST INSTANCE)',
+      documentsFound: documents.length,
+      uploadedCount,
+      totalCount,
+      registrationFound: !!registration,
+      documentsPreview: documents.slice(0, 3).map(doc => ({
+        type: doc.type,
+        uploaded: doc.uploaded,
+        fileName: doc.fileName,
+        documentId: doc.documentId
+      }))
+    });
 
     res.json({
       documents,
