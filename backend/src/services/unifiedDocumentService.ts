@@ -62,7 +62,7 @@ export class UnifiedDocumentService {
   static async getRegistrationDocuments(registrationId: string) {
     const registration = await prisma.registration.findUnique({
       where: { id: registrationId },
-      include: { 
+      include: {
         user: true,
         offer: {
           include: {
@@ -76,9 +76,17 @@ export class UnifiedDocumentService {
       throw new Error('Registrazione non trovata');
     }
 
+    console.log('🔍 DEBUG getRegistrationDocuments:', {
+      registrationId,
+      userId: registration.userId,
+      offerType: registration.offer?.offerType
+    });
+
     // Get document types based on offer type
     const offerType = registration.offer?.offerType || 'TFA';
     const requiredDocumentTypes = this.getDocumentTypesForOffer(offerType);
+
+    console.log('📋 Required document types:', requiredDocumentTypes);
 
     // Get uploaded documents for this registration
     const uploadedDocuments = await prisma.userDocument.findMany({
@@ -96,9 +104,55 @@ export class UnifiedDocumentService {
       orderBy: { uploadedAt: 'desc' }
     });
 
+    console.log('📄 Found uploaded documents (by registrationId):', {
+      count: uploadedDocuments.length,
+      documents: uploadedDocuments.map(doc => ({
+        id: doc.id,
+        type: doc.type,
+        originalName: doc.originalName,
+        registrationId: doc.registrationId
+      }))
+    });
+
+    // FALLBACK: If no documents found by registrationId, try by userId
+    let fallbackDocuments: any[] = [];
+    if (uploadedDocuments.length === 0) {
+      fallbackDocuments = await prisma.userDocument.findMany({
+        where: {
+          userId: registration.userId,
+          type: {
+            in: requiredDocumentTypes as any[]
+          }
+        },
+        include: {
+          verifier: {
+            select: { id: true, email: true }
+          },
+          uploader: {
+            select: { id: true, email: true }
+          }
+        },
+        orderBy: { uploadedAt: 'desc' }
+      });
+
+      console.log('🔄 FALLBACK: Found documents by userId:', {
+        count: fallbackDocuments.length,
+        documents: fallbackDocuments.map(doc => ({
+          id: doc.id,
+          type: doc.type,
+          originalName: doc.originalName,
+          registrationId: doc.registrationId,
+          userId: doc.userId
+        }))
+      });
+    }
+
+    // Use fallback documents if main query returned empty
+    const documentsToUse = uploadedDocuments.length > 0 ? uploadedDocuments : fallbackDocuments;
+
     // Create unified document list
     const unifiedDocuments = requiredDocumentTypes.map(docType => {
-      const uploadedDoc = uploadedDocuments.find(doc => doc.type === docType);
+      const uploadedDoc = documentsToUse.find(doc => doc.type === docType);
       
       return {
         id: uploadedDoc ? uploadedDoc.id : `empty-${docType}`,
