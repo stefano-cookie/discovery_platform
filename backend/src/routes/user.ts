@@ -1124,8 +1124,16 @@ router.get('/registrations/:registrationId/documents', authenticate, async (req:
   try {
     const userId = req.user?.id;
     const { registrationId } = req.params;
-    
+
+    console.log('🔍 USER DOCUMENTS ENDPOINT CALLED:', {
+      timestamp: new Date().toISOString(),
+      registrationId,
+      userId,
+      endpoint: '/user/registrations/:registrationId/documents'
+    });
+
     if (!userId) {
+      console.log('❌ USER ENDPOINT: Utente non autenticato');
       return res.status(401).json({ error: 'Utente non autenticato' });
     }
     
@@ -1169,6 +1177,18 @@ router.get('/registrations/:registrationId/documents', authenticate, async (req:
       registrationId: registration.id,
       courseName: registration.offer?.course?.name || 'Corso non specificato'
     }));
+
+    console.log('🔍 USER ENDPOINT RESPONSE:', {
+      endpoint: '/user/registrations/:registrationId/documents',
+      registrationFound: !!registration,
+      documentsCount: documents.length,
+      documentsPreview: documents.map(doc => ({
+        id: doc.id,
+        type: doc.type,
+        fileName: doc.fileName,
+        uploadedAt: doc.uploadedAt
+      }))
+    });
 
     res.json({ documents });
   } catch (error) {

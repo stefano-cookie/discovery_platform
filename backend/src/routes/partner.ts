@@ -3067,8 +3067,16 @@ router.get('/registrations/:registrationId/documents', authenticateUnified, asyn
   try {
     const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.params;
-    
+
+    console.log('🔍 DOCUMENTS ENDPOINT 2 (partner.ts:3066) CALLED:', {
+      timestamp: new Date().toISOString(),
+      registrationId,
+      partnerCompanyId,
+      endpoint: '/registrations/:registrationId/documents (SECOND INSTANCE - UnifiedService)'
+    });
+
     if (!partnerCompanyId) {
+      console.log('❌ ENDPOINT 2: Partner company non trovata');
       return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
@@ -3078,14 +3086,29 @@ router.get('/registrations/:registrationId/documents', authenticateUnified, asyn
     });
 
     if (!registration) {
+      console.log('❌ ENDPOINT 2: Iscrizione non trovata', { registrationId, partnerCompanyId });
       return res.status(404).json({ error: 'Iscrizione non trovata' });
     }
 
+    console.log('🔍 ENDPOINT 2: Calling UnifiedDocumentService.getRegistrationDocuments');
     const documents = await UnifiedDocumentService.getRegistrationDocuments(registrationId);
     
     const uploadedCount = documents.filter((doc: any) => doc.uploaded).length;
     const totalCount = documents.length;
-    
+
+    console.log('🔍 ENDPOINT 2 RESPONSE:', {
+      endpoint: '/registrations/:registrationId/documents (SECOND INSTANCE)',
+      documentsFound: documents.length,
+      uploadedCount,
+      totalCount,
+      documentsPreview: documents.map((doc: any) => ({
+        type: doc.type,
+        uploaded: doc.uploaded,
+        filename: doc.filename,
+        id: doc.id
+      }))
+    });
+
     res.json({
       documents,
       uploadedCount,
