@@ -934,10 +934,43 @@ router.get('/registrations/:registrationId/documents', authenticateUnified, asyn
     ];
 
     console.log(`📄 All documents found: ${allDocuments.map(d => `${d.fileName} (${d.type}, ${d.source})`).join(', ')}`);
+    console.log(`🔍 Registration offer type: ${registration.offerType}`);
+    console.log(`🔍 Required document types: ${requiredDocuments.map(d => d.type).join(', ')}`);
 
-    // Map user documents to required ones (checking all document sources)
+    // Create mapping function between standard DB document types and offer-specific types
+    const mapDocumentType = (dbType: string, offerType: string) => {
+      // Map standard database types to offer-specific types
+      const typeMapping: { [key: string]: { [key: string]: string } } = {
+        'TFA_ROMANIA': {
+          'IDENTITY_CARD': 'CARTA_IDENTITA',
+          'BACHELOR_DEGREE': 'CERTIFICATO_TRIENNALE',
+          'MASTER_DEGREE': 'CERTIFICATO_MAGISTRALE',
+          'TRANSCRIPT': 'PIANO_STUDIO_TRIENNALE',
+          'DIPLOMA': 'DIPLOMA_SUPERIORE',
+          'TESSERA_SANITARIA': 'TESSERA_SANITARIA',
+          'BIRTH_CERT': 'CERTIFICATO_NASCITA',
+          'MEDICAL_CERT': 'CERTIFICATO_MEDICO'
+        },
+        'CERTIFICATION': {
+          'IDENTITY_CARD': 'CARTA_IDENTITA',
+          'TESSERA_SANITARIA': 'TESSERA_SANITARIA'
+        }
+      };
+
+      return typeMapping[offerType]?.[dbType] || dbType;
+    };
+
+    // Map user documents to required ones (checking all document sources with type mapping)
     const documentsWithStatus = requiredDocuments.map(reqDoc => {
-      const uploadedDoc = allDocuments.find(doc => doc.type === reqDoc.type);
+      // Look for documents that match either the exact type OR map to this type
+      const uploadedDoc = allDocuments.find(doc => {
+        const exactMatch = doc.type === reqDoc.type;
+        const mappedMatch = mapDocumentType(doc.type, registration.offerType || '') === reqDoc.type;
+        if (mappedMatch && !exactMatch) {
+          console.log(`🎯 Found document via mapping: ${doc.type} -> ${reqDoc.type} for ${doc.fileName}`);
+        }
+        return exactMatch || mappedMatch;
+      });
       
       return {
         id: reqDoc.type,
