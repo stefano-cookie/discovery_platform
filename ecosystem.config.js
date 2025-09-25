@@ -48,7 +48,7 @@ module.exports = {
       repo: 'git@github.com:username/discovery_platform.git',
       path: '/var/www/discovery_platform',
       'pre-deploy-local': '',
-      'post-deploy': 'npm install && cd frontend && npm ci && npm run build && cd ../backend && npm ci && npm run build && npx prisma generate && cd .. && pm2 reload ecosystem.config.js --env production',
+      'post-deploy': 'mkdir -p backend/uploads_backup && cp -r backend/uploads/* backend/uploads_backup/ 2>/dev/null || true && npm install && cd frontend && npm ci && npm run build && cd ../backend && npm ci && npm run build && npx prisma generate && mkdir -p uploads && cp -r uploads_backup/* uploads/ 2>/dev/null || true && rm -rf uploads_backup && cd .. && pm2 reload ecosystem.config.js --env production',
       'pre-setup': ''
     }
   }
