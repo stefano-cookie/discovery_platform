@@ -132,6 +132,10 @@ export interface RegistrationData {
   certificatoNascita?: File | null;
   diplomoLaurea?: File | null;
   pergamenaLaurea?: File | null;
+
+  // Document arrays for enrollment finalization
+  documents?: any[];
+  tempDocuments?: any[];
 }
 
 export interface RegistrationResponse {
@@ -215,7 +219,10 @@ export const submitEnrollment = async (data: RegistrationData): Promise<Registra
         scuolaDenominazione: data.scuolaDenominazione,
         scuolaCitta: data.scuolaCitta,
         scuolaProvincia: data.scuolaProvincia
-      }
+      },
+      // Include temporary documents for finalization
+      documents: data.documents || [],
+      tempDocuments: data.tempDocuments || []
     });
     
     return response.data;
