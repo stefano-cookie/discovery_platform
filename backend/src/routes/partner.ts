@@ -1038,21 +1038,44 @@ router.post('/users/:userId/offers/:offerId/grant', authenticateUnified, async (
     const partnerCompanyId = req.partnerCompany?.id;
     const { userId, offerId } = req.params;
     const { actionToken } = req.body;
-    
+
+    // DEBUG: Log all authentication data
+    console.log('🔍 GRANT ENDPOINT DEBUG:', {
+      timestamp: new Date().toISOString(),
+      userId,
+      offerId,
+      partnerCompanyId,
+      hasPartnerCompany: !!req.partnerCompany,
+      partnerCompany: req.partnerCompany,
+      hasPartnerEmployee: !!req.partnerEmployee,
+      partnerEmployee: req.partnerEmployee,
+      actionToken,
+      headers: {
+        authorization: req.headers.authorization?.substring(0, 20) + '...',
+        'content-type': req.headers['content-type']
+      },
+      body: req.body
+    });
+
     if (!partnerCompanyId) {
+      console.log('❌ GRANT ERROR: Partner company non trovata', { req_partnerCompany: req.partnerCompany });
       return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     // Verify the offer belongs to this partner
+    console.log('🔍 Checking offer:', { offerId, partnerCompanyId });
     const offer = await prisma.partnerOffer.findFirst({
-      where: { 
+      where: {
         id: offerId,
         partnerCompanyId,
-        isActive: true 
+        isActive: true
       }
     });
 
+    console.log('🔍 Offer result:', { found: !!offer, offer });
+
     if (!offer) {
+      console.log('❌ GRANT ERROR: Offerta non trovata', { offerId, partnerCompanyId });
       return res.status(404).json({ error: 'Offerta non trovata o non autorizzata' });
     }
 
@@ -1149,6 +1172,14 @@ router.post('/users/:userId/offers/:offerId/grant', authenticateUnified, async (
         legacyPartnerId = newLegacyPartner.id;
       }
       
+      console.log('🔍 Creating UserOfferAccess:', {
+        userId,
+        offerId,
+        partnerId: legacyPartnerId,
+        partnerCompanyId,
+        enabled: true
+      });
+
       const userOfferAccess = await prisma.userOfferAccess.create({
         data: {
           userId,
@@ -1159,18 +1190,27 @@ router.post('/users/:userId/offers/:offerId/grant', authenticateUnified, async (
         }
       });
 
-      console.log(`🎯 UserOfferAccess created for orphaned user:`, {
+      console.log(`✅ UserOfferAccess created successfully:`, {
         userId,
         offerId,
         partnerCompanyId,
         actionPerformedBy,
-        userOfferAccessId: userOfferAccess.id
+        userOfferAccessId: userOfferAccess.id,
+        createdRecord: userOfferAccess
       });
     }
 
+    console.log('✅ GRANT SUCCESS: Access granted successfully');
     res.json({ success: true, message: 'Accesso all\'offerta concesso' });
   } catch (error) {
-    console.error('Grant user offer access error:', error);
+    console.error('🚨 GRANT ENDPOINT ERROR:', {
+      timestamp: new Date().toISOString(),
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: req.params.userId,
+      offerId: req.params.offerId,
+      partnerCompanyId: req.partnerCompany?.id
+    });
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
