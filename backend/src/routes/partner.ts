@@ -1037,7 +1037,7 @@ router.post('/users/:userId/offers/:offerId/grant', authenticateUnified, async (
   try {
     const partnerCompanyId = req.partnerCompany?.id;
     const { userId, offerId } = req.params;
-    const { actionToken } = req.body;
+    const actionToken = req.body?.actionToken;
 
     // DEBUG: Log all authentication data
     console.log('🔍 GRANT ENDPOINT DEBUG:', {
