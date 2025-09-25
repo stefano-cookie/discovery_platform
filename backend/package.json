@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon src/server.ts",
-    "build": "tsc && cp -r templates dist/ && mkdir -p dist/uploads/contracts",
+    "build": "tsc && cp -r templates dist/ && mkdir -p dist/uploads && cp -r uploads/* dist/uploads/ 2>/dev/null || mkdir -p dist/uploads/contracts",
     "start": "node dist/server.js",
     "start:prod": "NODE_ENV=production node -r dotenv/config dist/server.js dotenv_config_path=.env.production",
     "postinstall": "npx prisma generate",
