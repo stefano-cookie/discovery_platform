@@ -232,6 +232,15 @@ else
     echo -e "${YELLOW}⚠️ Nginx site config not found at $NGINX_CONF_DIR/$SITE_CONF${NC}"
 fi
 
+# 11.5 Run R2 document migration if needed
+echo -e "${YELLOW}📦 Running R2 document migration if needed...${NC}"
+cd "$DEPLOY_DIR/backend"
+if [ -f "scripts/auto-migrate-on-deploy.js" ]; then
+    node scripts/auto-migrate-on-deploy.js || echo -e "${YELLOW}⚠️ R2 migration had issues, continuing...${NC}"
+else
+    echo -e "${YELLOW}⚠️ No R2 migration script found${NC}"
+fi
+
 # 12. Run ANTI-DEPLOYMENT BREAKAGE health checks
 echo -e "${YELLOW}🏥 Running post-deployment health checks...${NC}"
 cd "$DEPLOY_DIR/backend"
