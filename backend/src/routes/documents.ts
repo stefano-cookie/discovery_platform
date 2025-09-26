@@ -6,6 +6,7 @@ import path from 'path';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
 import emailService from '../services/emailService';
+import storageService from '../services/storageService';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -23,18 +24,8 @@ ensureDirectoryExists(baseUploadDir);
 ensureDirectoryExists(path.join(baseUploadDir, 'documents'));
 ensureDirectoryExists(path.join(baseUploadDir, 'documents', 'user-uploads'));
 
-// Multer configuration for user document uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const userUploadsDir = path.join(baseUploadDir, 'documents', 'user-uploads');
-    cb(null, userUploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const fileId = randomUUID();
-    const extension = path.extname(file.originalname);
-    cb(null, `${fileId}${extension}`);
-  }
-});
+// Multer configuration for memory storage (files go to R2)
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage: storage,
@@ -311,19 +302,15 @@ router.post('/upload', authenticate, upload.single('document'), async (req: Auth
 
     // Validate MIME type
     if (!docConfig.acceptedMimeTypes.includes(req.file.mimetype)) {
-      // Remove uploaded file
-      fs.unlinkSync(req.file.path);
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: `Il file è di un formato non supportato. Formati accettati: ${docConfig.acceptedMimeTypes.join(', ')}`
       });
     }
 
     // Validate file size
     if (req.file.size > docConfig.maxFileSize) {
-      // Remove uploaded file
-      fs.unlinkSync(req.file.path);
-      return res.status(400).json({ 
-        error: `File troppo grande. Dimensione massima: ${Math.round(docConfig.maxFileSize / (1024 * 1024))}MB` 
+      return res.status(400).json({
+        error: `File troppo grande. Dimensione massima: ${Math.round(docConfig.maxFileSize / (1024 * 1024))}MB`
       });
     }
 
@@ -337,23 +324,29 @@ router.post('/upload', authenticate, upload.single('document'), async (req: Auth
     });
 
     if (existingDoc) {
-      // Delete old file if it exists
-      const oldFilePath = path.isAbsolute(existingDoc.url) 
-        ? existingDoc.url 
-        : path.join(baseUploadDir, existingDoc.url);
-      if (fs.existsSync(oldFilePath)) {
-        fs.unlinkSync(oldFilePath);
+      // Delete old file from R2
+      try {
+        await storageService.deleteFile(existingDoc.url);
+      } catch (error) {
+        console.error('Error deleting old file from R2:', error);
+        // Continue with upload even if old file delete fails
       }
-      
-      // Store relative path instead of absolute
-      const relativePath = path.relative(baseUploadDir, req.file.path);
-      
+
+      // Upload new file to R2
+      const uploadResult = await storageService.uploadFile(
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype,
+        userId,
+        type
+      );
+
       // Update existing document record
       const updatedDocument = await prisma.userDocument.update({
         where: { id: existingDoc.id },
         data: {
           originalName: req.file.originalname,
-          url: relativePath,
+          url: uploadResult.key, // Store R2 key
           size: req.file.size,
           mimeType: req.file.mimetype,
           status: 'PENDING',
@@ -391,9 +384,15 @@ router.post('/upload', authenticate, upload.single('document'), async (req: Auth
         message: 'Documento aggiornato con successo'
       });
     } else {
-      // Store relative path instead of absolute
-      const relativePath = path.relative(baseUploadDir, req.file.path);
-      
+      // Upload file to R2
+      const uploadResult = await storageService.uploadFile(
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype,
+        userId,
+        type
+      );
+
       // Create new document record
       const newDocument = await prisma.userDocument.create({
         data: {
@@ -401,7 +400,7 @@ router.post('/upload', authenticate, upload.single('document'), async (req: Auth
           registrationId: registrationId || null,
           type: type as DocumentType,
           originalName: req.file.originalname,
-          url: relativePath,
+          url: uploadResult.key, // Store R2 key
           size: req.file.size,
           mimeType: req.file.mimetype,
           status: 'PENDING',
@@ -435,17 +434,11 @@ router.post('/upload', authenticate, upload.single('document'), async (req: Auth
 
   } catch (error) {
     console.error('Error uploading document:', error);
-    
-    // Clean up uploaded file on error
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-    
     res.status(500).json({ error: 'Errore nel caricamento del documento' });
   }
 });
 
-// GET /api/documents/:documentId/preview - Preview a document
+// GET /api/documents/:documentId/preview - Preview a document (redirect to R2)
 router.get('/:documentId/preview', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
@@ -462,33 +455,19 @@ router.get('/:documentId/preview', authenticate, async (req: AuthRequest, res: R
       return res.status(404).json({ error: 'Documento non trovato' });
     }
 
-    // Build the full file path
-    const filePath = path.isAbsolute(document.url) 
-      ? document.url 
-      : path.join(baseUploadDir, document.url);
+    // Get signed URL from R2
+    const signedUrl = await storageService.getSignedDownloadUrl(document.url);
 
-    if (!fs.existsSync(filePath)) {
-      console.error(`File not found for preview: ${filePath}`);
-      return res.status(404).json({ error: 'File non trovato sul server' });
-    }
+    // Redirect to signed URL
+    res.redirect(signedUrl);
 
-    const fileName = document.originalName;
-    const mimeType = document.mimeType;
-
-    // Set headers for inline display instead of download
-    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
-    res.setHeader('Content-Type', mimeType);
-
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.pipe(res);
-    
   } catch (error) {
     console.error('Error previewing document:', error);
     res.status(500).json({ error: 'Errore nella visualizzazione del documento' });
   }
 });
 
-// GET /api/documents/:documentId/download - Download a document
+// GET /api/documents/:documentId/download - Download a document (redirect to R2)
 router.get('/:documentId/download', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
@@ -505,25 +484,12 @@ router.get('/:documentId/download', authenticate, async (req: AuthRequest, res: 
       return res.status(404).json({ error: 'Documento non trovato' });
     }
 
-    // Build the full file path
-    const filePath = path.isAbsolute(document.url) 
-      ? document.url 
-      : path.join(baseUploadDir, document.url);
+    // Get signed URL from R2
+    const signedUrl = await storageService.getSignedDownloadUrl(document.url);
 
-    if (!fs.existsSync(filePath)) {
-      console.error(`File not found: ${filePath}`);
-      return res.status(404).json({ error: 'File non trovato sul server' });
-    }
+    // Redirect to signed URL for download
+    res.redirect(signedUrl);
 
-    const fileName = document.originalName;
-    const mimeType = document.mimeType;
-
-    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-    res.setHeader('Content-Type', mimeType);
-
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.pipe(res);
-    
   } catch (error) {
     console.error('Error downloading document:', error);
     res.status(500).json({ error: 'Errore nel download del documento' });
@@ -548,12 +514,12 @@ router.delete('/:documentId', authenticate, async (req: AuthRequest, res: Respon
       return res.status(404).json({ error: 'Documento non trovato o non eliminabile' });
     }
 
-    // Delete file from filesystem
-    const filePath = path.isAbsolute(document.url) 
-      ? document.url 
-      : path.join(baseUploadDir, document.url);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    // Delete file from R2
+    try {
+      await storageService.deleteFile(document.url);
+    } catch (error) {
+      console.error('Error deleting file from R2:', error);
+      // Continue with database deletion even if R2 delete fails
     }
 
     // Delete database record
@@ -562,7 +528,7 @@ router.delete('/:documentId', authenticate, async (req: AuthRequest, res: Respon
     });
 
     res.json({ success: true, message: 'Documento eliminato con successo' });
-    
+
   } catch (error) {
     console.error('Error deleting document:', error);
     res.status(500).json({ error: 'Errore nell\'eliminazione del documento' });

@@ -93,17 +93,16 @@ router.post('/', authenticate, upload.single('document'), async (req: AuthReques
   }
 });
 
-// Download document
+// Download document (redirect to R2 signed URL)
 router.get('/:documentId/download', authenticate, async (req: AuthRequest, res) => {
   try {
     const { documentId } = req.params;
     const userId = req.user!.id;
-    
+
     const fileInfo = await DocumentService.downloadDocument(documentId, userId);
-    
-    res.setHeader('Content-Disposition', `attachment; filename="${fileInfo.fileName}"`);
-    res.setHeader('Content-Type', fileInfo.mimeType);
-    res.sendFile(fileInfo.filePath);
+
+    // Redirect to signed URL
+    res.redirect(fileInfo.signedUrl);
   } catch (error: any) {
     console.error('Error downloading document:', error);
     res.status(404).json({ error: error.message || 'Documento non trovato' });
@@ -154,17 +153,16 @@ router.post('/migrate-enrollment', authenticate, async (req: AuthRequest, res) =
   }
 });
 
-// Download enrollment document
+// Download enrollment document (redirect to R2 signed URL)
 router.get('/enrollment-documents/:documentId/download', authenticate, async (req: AuthRequest, res) => {
   try {
     const { documentId } = req.params;
     const userId = req.user!.id;
-    
+
     const fileInfo = await DocumentService.downloadDocument(documentId, userId);
-    
-    res.setHeader('Content-Disposition', `attachment; filename="${fileInfo.fileName}"`);
-    res.setHeader('Content-Type', fileInfo.mimeType);
-    res.sendFile(fileInfo.filePath);
+
+    // Redirect to signed URL
+    res.redirect(fileInfo.signedUrl);
   } catch (error: any) {
     console.error('Error downloading enrollment document:', error);
     res.status(404).json({ error: error.message || 'Documento non trovato' });

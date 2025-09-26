@@ -6,6 +6,7 @@ import UnifiedDocumentService from '../../services/unifiedDocumentService';
 import emailService from '../../services/emailService';
 import * as fs from 'fs';
 import { DocumentPathResolver } from '../../config/storage';
+import storageService from '../../services/storageService';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -252,12 +253,12 @@ router.get('/registrations/:registrationId/documents/unified', authenticateUnifi
   }
 });
 
-// Download document
+// Download document (redirect to R2 signed URL)
 router.get('/documents/:documentId/download', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const partnerId = req.partner?.id;
     const { documentId } = req.params;
-    
+
     if (!partnerId) {
       return res.status(400).json({ error: 'Partner non trovato' });
     }
@@ -284,14 +285,11 @@ router.get('/documents/:documentId/download', authenticateUnified, async (req: A
       return res.status(403).json({ error: 'Non autorizzato a scaricare questo documento' });
     }
 
-    // 🔥 FIX CRITICO: Usa DocumentPathResolver per path standardizzato
-    const filePath = DocumentPathResolver.resolvePath(document.url);
-    
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'File non trovato sul server' });
-    }
+    // Get signed URL from R2
+    const signedUrl = await storageService.getSignedDownloadUrl(document.url);
 
-    res.download(filePath, document.originalName);
+    // Redirect to signed URL
+    res.redirect(signedUrl);
   } catch (error) {
     console.error('Download document error:', error);
     res.status(500).json({ error: 'Errore interno del server' });

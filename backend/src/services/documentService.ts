@@ -5,25 +5,13 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { promisify } from 'util';
 import emailService from './emailService';
+import storageService from './storageService';
 
 const prisma = new PrismaClient();
 const unlink = promisify(fs.unlink);
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../../uploads/documents');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    cb(null, `doc-${uniqueSuffix}${ext}`);
-  }
-});
+// Configure multer for memory storage (files go directly to R2)
+const storage = multer.memoryStorage();
 
 export const upload = multer({
   storage,
@@ -81,8 +69,8 @@ export class DocumentService {
 
   // Upload document with unified system - registrationId is now required
   static async uploadDocument(
-    userId: string, 
-    file: Express.Multer.File, 
+    userId: string,
+    file: Express.Multer.File,
     type: DocumentType,
     registrationId: string,
     uploadSource: UploadSource = UploadSource.USER_DASHBOARD,
@@ -90,8 +78,17 @@ export class DocumentService {
   ) {
     // Generate checksum for integrity
     const checksum = crypto.createHash('sha256')
-      .update(fs.readFileSync(file.path))
+      .update(file.buffer)
       .digest('hex');
+
+    // Upload to R2
+    const uploadResult = await storageService.uploadFile(
+      file.buffer,
+      file.originalname,
+      file.mimetype,
+      userId,
+      type
+    );
 
     const document = await prisma.userDocument.create({
       data: {
@@ -99,7 +96,7 @@ export class DocumentService {
         registrationId,
         type,
         originalName: file.originalname,
-        url: file.path,
+        url: uploadResult.key, // Store R2 key instead of local path
         size: file.size,
         mimeType: file.mimetype,
         status: DocumentStatus.PENDING,
@@ -129,7 +126,7 @@ export class DocumentService {
     return document;
   }
 
-  // Download document
+  // Download document - returns signed URL for R2
   static async downloadDocument(documentId: string, userId: string, isPartner: boolean = false) {
     const document = await prisma.userDocument.findFirst({
       where: {
@@ -142,12 +139,11 @@ export class DocumentService {
       throw new Error('Documento non trovato');
     }
 
-    if (!fs.existsSync(document.url)) {
-      throw new Error('File non trovato sul server');
-    }
+    // Generate signed URL for secure download
+    const signedUrl = await storageService.getSignedDownloadUrl(document.url);
 
     return {
-      filePath: document.url,
+      signedUrl,
       fileName: document.originalName,
       mimeType: document.mimeType
     };
@@ -174,9 +170,12 @@ export class DocumentService {
       }
     });
 
-    // Delete the file
-    if (fs.existsSync(document.url)) {
-      await unlink(document.url);
+    // Delete from R2
+    try {
+      await storageService.deleteFile(document.url);
+    } catch (error) {
+      console.error('Error deleting file from R2:', error);
+      // Continue with database deletion even if R2 delete fails
     }
 
     // Delete from database

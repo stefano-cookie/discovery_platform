@@ -3225,10 +3225,9 @@ router.get('/documents/:documentId/download', authenticateUnified, async (req: A
     }
 
     const fileInfo = await DocumentService.downloadDocument(documentId, '', true); // Partner has full access
-    
-    res.setHeader('Content-Disposition', `attachment; filename="${fileInfo.fileName}"`);
-    res.setHeader('Content-Type', fileInfo.mimeType);
-    res.sendFile(fileInfo.filePath);
+
+    // Redirect to signed URL
+    res.redirect(fileInfo.signedUrl);
   } catch (error: any) {
     console.error('Partner download document error:', error);
     res.status(404).json({ error: error.message || 'Documento non trovato' });
