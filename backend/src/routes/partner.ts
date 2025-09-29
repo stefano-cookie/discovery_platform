@@ -4,7 +4,7 @@ import { PrismaClient, DocumentStatus } from '@prisma/client';
 import { authenticate, authenticateUnified, requireRole, requirePartnerRole, AuthRequest } from '../middleware/auth';
 import { ContractService } from '../services/contractService';
 import { DocumentService, upload as documentUpload } from '../services/documentService';
-import UnifiedDocumentService from '../services/unifiedDocumentService';
+// import UnifiedDocumentService from '../services/unifiedDocumentService'; // OBSOLETO - ora usa DocumentService
 import multer from 'multer';
 import emailService from '../services/emailService';
 import * as path from 'path';
@@ -3137,8 +3137,8 @@ router.get('/registrations/:registrationId/documents', authenticateUnified, asyn
       return res.status(404).json({ error: 'Iscrizione non trovata' });
     }
 
-    console.log('🔍 ENDPOINT 2: Calling UnifiedDocumentService.getRegistrationDocuments');
-    const documents = await UnifiedDocumentService.getRegistrationDocuments(registrationId);
+    console.log('🔍 ENDPOINT 2: Calling DocumentService.getRegistrationDocuments');
+    const documents = await DocumentService.getRegistrationDocuments(registrationId);
     
     const uploadedCount = documents.filter((doc: any) => doc.uploaded).length;
     const totalCount = documents.length;
@@ -3190,7 +3190,7 @@ router.get('/users/:userId/documents/all', authenticateUnified, async (req: Auth
       return res.status(403).json({ error: 'Non autorizzato a visualizzare i documenti di questo utente' });
     }
 
-    const documents = await UnifiedDocumentService.getAllUserDocuments(userId);
+    const documents = await DocumentService.getAllUserDocuments(userId);
     
     const formattedDocs = documents.map((doc: any) => ({
       id: doc.id,
@@ -3245,7 +3245,7 @@ router.post('/documents/:documentId/approve', authenticateUnified, async (req: A
       return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
-    const result = await UnifiedDocumentService.approveDocument(documentId, req.user?.id || req.partnerEmployee?.id, notes);
+    const result = await DocumentService.approveDocument(documentId, req.user?.id || req.partnerEmployee?.id, notes);
     
     res.json({ 
       message: 'Documento approvato con successo',
@@ -3277,7 +3277,7 @@ router.post('/documents/:documentId/reject', authenticateUnified, async (req: Au
       return res.status(400).json({ error: 'Motivo del rifiuto obbligatorio' });
     }
 
-    const result = await UnifiedDocumentService.rejectDocument(documentId, req.user?.id || req.partnerEmployee?.id, reason, details);
+    const result = await DocumentService.rejectDocument(documentId, req.user?.id || req.partnerEmployee?.id, reason, details);
     
     res.json({ 
       message: 'Documento rifiutato con successo',
@@ -3317,8 +3317,8 @@ router.post('/documents/:documentId/verify', authenticateUnified, async (req: Au
 
     // Use new methods based on status
     const result = status === DocumentStatus.APPROVED 
-      ? await UnifiedDocumentService.approveDocument(documentId, req.user?.id || req.partnerEmployee?.id)
-      : await UnifiedDocumentService.rejectDocument(documentId, req.user?.id || req.partnerEmployee?.id, rejectionReason);
+      ? await DocumentService.approveDocument(documentId, req.user?.id || req.partnerEmployee?.id)
+      : await DocumentService.rejectDocument(documentId, req.user?.id || req.partnerEmployee?.id, rejectionReason);
     
     // Auto-progression logic for CERTIFICATION workflows (only when approving)
     if (status === DocumentStatus.APPROVED) {
@@ -3715,8 +3715,8 @@ router.post('/registrations/:registrationId/bulk-verify', authenticateUnified, a
       try {
         // Use new methods based on status
         const result = status === DocumentStatus.APPROVED 
-          ? await UnifiedDocumentService.approveDocument(documentId, req.user?.id || req.partnerEmployee?.id)
-          : await UnifiedDocumentService.rejectDocument(documentId, req.user?.id || req.partnerEmployee?.id, rejectionReason || 'Motivo non specificato');
+          ? await DocumentService.approveDocument(documentId, req.user?.id || req.partnerEmployee?.id)
+          : await DocumentService.rejectDocument(documentId, req.user?.id || req.partnerEmployee?.id, rejectionReason || 'Motivo non specificato');
         
         results.push({
           documentId,
@@ -4131,15 +4131,13 @@ router.post('/users/:userId/documents/upload', authenticateUnified, documentUplo
     // When partner uploads on behalf of user, uploadedBy should be the userId (since it has FK to User table)
     // The actual partner ID is stored separately for tracking
     const partnerId = req.user?.id || req.partnerEmployee?.id;
-    const document = await UnifiedDocumentService.uploadDocument(
-      req.file,
+    const document = await DocumentService.uploadDocument(
       userId, // Document belongs to the user
+      req.file,
       type,
+      registrationId, // Registration ID for document linkage
       'PARTNER_PANEL', // Upload source
-      userId, // uploadedBy must be a User ID due to FK constraint
-      'PARTNER', // uploadedByRole indicates it was partner-uploaded
-      registrationId,
-      partnerId // Pass partner ID for audit log
+      'USER' // User role
     );
 
     res.json({

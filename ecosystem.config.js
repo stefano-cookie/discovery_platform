@@ -15,9 +15,13 @@ module.exports = {
       env_production: {
         NODE_ENV: 'production',
         PORT: 3010,
-        DOTENV_CONFIG_PATH: '.env.production'
+        // Cloudflare R2 Configuration
+        CLOUDFLARE_ACCOUNT_ID: '96e7e20557789c11d012aca51dc21a27',
+        CLOUDFLARE_ACCESS_KEY_ID: 'd023a41ae650f8d50a9b6fae8d5fca4b',
+        CLOUDFLARE_SECRET_ACCESS_KEY: '4f06ca6eb449c17ccffbda239a3e5a3f4f1ea9390a257b964bff0c9f4e763760',
+        CLOUDFLARE_BUCKET_NAME: 'discovery-documents-prod',
+        CLOUDFLARE_ENDPOINT: 'https://96e7e20557789c11d012aca51dc21a27.r2.cloudflarestorage.com'
       },
-      node_args: '-r dotenv/config',
       log_date_format: 'YYYY-MM-DD HH:mm Z',
       error_file: './logs/backend-error.log',
       out_file: './logs/backend-out.log',
