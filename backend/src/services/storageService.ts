@@ -31,6 +31,12 @@ class StorageService {
       : 'discovery-documents-dev';
 
     this.bucketName = process.env.CLOUDFLARE_BUCKET_NAME || defaultBucket;
+
+    // Log configuration for debugging
+    console.log(`[StorageService] Initialized for ${env} environment`);
+    console.log(`[StorageService] Bucket: ${this.bucketName}`);
+    console.log(`[StorageService] Endpoint: ${process.env.CLOUDFLARE_ENDPOINT}`);
+    console.log(`[StorageService] Has credentials: ${!!process.env.CLOUDFLARE_ACCESS_KEY_ID}`);
   }
 
   /**

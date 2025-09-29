@@ -14,8 +14,10 @@ module.exports = {
       },
       env_production: {
         NODE_ENV: 'production',
-        PORT: 3010
+        PORT: 3010,
+        DOTENV_CONFIG_PATH: '.env.production'
       },
+      node_args: '-r dotenv/config',
       log_date_format: 'YYYY-MM-DD HH:mm Z',
       error_file: './logs/backend-error.log',
       out_file: './logs/backend-out.log',
