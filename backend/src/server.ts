@@ -109,6 +109,8 @@ import subPartnersRoutes from './routes/subPartners';
 import offerInheritanceRoutes from './routes/offerInheritance';
 import partnerCouponsRoutes from './routes/_refactored/partnerCoupons';
 import partnerUsersRoutes from './routes/_refactored/partnerUsers';
+import documentUploadUnifiedRoutes from './routes/documentUploadUnified';
+import partnerUnifiedRoutes from './routes/partnerUnified';
 
 // Health check endpoint
 app.get('/api/health', (_req, res) => {
@@ -138,6 +140,10 @@ app.use('/api/courses', courseRoutes);
 app.use('/api/enrollment', enrollmentRoutes);
 app.use('/api/offer-types', offerTypesRoutes);
 app.use('/api/admin', adminRoutes);
+
+// UNIFIED STORAGE ROUTES (Environment-aware: Local in dev, R2 in prod)
+app.use('/api/document-upload-unified', documentUploadUnifiedRoutes);
+app.use('/api/partners-unified', partnerUnifiedRoutes);
 
 const PORT = parseInt(process.env.PORT || '8000', 10);
 

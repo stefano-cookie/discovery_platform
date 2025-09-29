@@ -1,37 +1,14 @@
 import { Router, Request, Response } from 'express';
-import { PrismaClient, DocumentType } from '@prisma/client';
+import { PrismaClient, DocumentType, UploadSource, UserRole } from '@prisma/client';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import { randomUUID } from 'crypto';
+import storageManager from '../services/storageManager';
 
 const router = Router();
 const prisma = new PrismaClient();
 
-// Ensure upload directories exist
-const baseUploadDir = path.join(process.cwd(), 'uploads');
-const ensureDirectoryExists = (dir: string) => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-};
-
-// Create upload directories
-ensureDirectoryExists(baseUploadDir);
-ensureDirectoryExists(path.join(baseUploadDir, 'temp-enrollment'));
-
-// Multer configuration for temporary enrollment document uploads
-const tempStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const tempDir = path.join(baseUploadDir, 'temp-enrollment');
-    cb(null, tempDir);
-  },
-  filename: (req, file, cb) => {
-    const fileId = randomUUID();
-    const extension = path.extname(file.originalname);
-    cb(null, `${fileId}${extension}`);
-  }
-});
+// Multer configuration for memory storage (files go directly to R2)
+const tempStorage = multer.memoryStorage();
 
 const tempUpload = multer({
   storage: tempStorage,
@@ -48,7 +25,7 @@ const tempUpload = multer({
   }
 });
 
-// POST /api/document-upload/temp - Upload document temporarily during enrollment
+// POST /api/document-upload/temp - Upload document temporarily during enrollment (now directly to R2)
 router.post('/temp', tempUpload.single('document'), async (req: Request, res: Response) => {
   try {
     if (!req.file) {
@@ -61,25 +38,32 @@ router.post('/temp', tempUpload.single('document'), async (req: Request, res: Re
       return res.status(400).json({ error: 'Tipo documento richiesto' });
     }
 
-    // Store temporary file info that will be linked to registration later
+    // Upload directly to R2 with temporary prefix
+    const uploadResult = await storageManager.uploadFile(
+      req.file.buffer,
+      req.file.originalname,
+      req.file.mimetype,
+      tempUserId || 'temp-enrollment',
+      `temp-${type}`
+    );
+
+    // Return temp document info with R2 key
     const tempDocument = {
       id: randomUUID(),
       type,
-      fileName: req.file.filename,
+      fileName: req.file.originalname,
       originalFileName: req.file.originalname,
-      filePath: req.file.path,
+      r2Key: uploadResult.key, // Store R2 key instead of file path
       fileSize: req.file.size,
       mimeType: req.file.mimetype,
-      tempUserId: tempUserId || 'anonymous', // For tracking during enrollment
+      tempUserId: tempUserId || 'anonymous',
       uploadedAt: new Date().toISOString()
     };
 
-    // Store in session/temporary storage (in production, use Redis or similar)
-    // For now, we'll return the temp document info to be stored client-side
     res.json({
       success: true,
       document: tempDocument,
-      message: 'Documento caricato temporaneamente. Sarà salvato al completamento dell\'iscrizione.'
+      message: 'Documento caricato temporaneamente su R2. Sarà finalizzato al completamento dell\'iscrizione.'
     });
 
   } catch (error) {
@@ -88,7 +72,7 @@ router.post('/temp', tempUpload.single('document'), async (req: Request, res: Re
   }
 });
 
-// POST /api/document-upload/finalize - Finalize documents after enrollment completion
+// POST /api/document-upload/finalize - Finalize documents after enrollment completion (R2 version)
 router.post('/finalize', async (req: Request, res: Response) => {
   try {
     const { registrationId, userId, documents } = req.body;
@@ -120,49 +104,36 @@ router.post('/finalize', async (req: Request, res: Response) => {
 
     for (const tempDoc of documents) {
       try {
-        // Check if temp file still exists
-        if (!fs.existsSync(tempDoc.filePath)) {
-          console.warn(`Temp file not found: ${tempDoc.filePath}`);
+        // Check if R2 key exists
+        if (!tempDoc.r2Key) {
+          console.warn(`R2 key not found for document: ${tempDoc.originalFileName}`);
           continue;
         }
-
-        // Create permanent directory structure
-        const docTypeFolder = getDocumentTypeFolder(tempDoc.type);
-        const permanentDir = path.join(baseUploadDir, 'documents', docTypeFolder);
-        ensureDirectoryExists(permanentDir);
-
-        // Generate permanent filename
-        const extension = path.extname(tempDoc.originalFileName);
-        const permanentFileName = `${registration.id}_${tempDoc.type}_${Date.now()}${extension}`;
-        const permanentPath = path.join(permanentDir, permanentFileName);
-
-        // Move file from temp to permanent location
-        fs.renameSync(tempDoc.filePath, permanentPath);
 
         // Convert document type to enum format
         const documentType = convertToDocumentType(tempDoc.type);
 
-        // Create UserDocument record
+        // Create UserDocument record with R2 key
         const userDocument = await prisma.userDocument.create({
           data: {
             userId: userId,
             registrationId: registrationId,
             type: documentType,
             originalName: tempDoc.originalFileName,
-            url: permanentPath,
+            url: tempDoc.r2Key, // Store R2 key
             size: tempDoc.fileSize,
             mimeType: tempDoc.mimeType,
-            status: 'PENDING' as any,
-            uploadSource: 'ENROLLMENT' as any,
+            status: 'PENDING',
+            uploadSource: UploadSource.ENROLLMENT,
             uploadedBy: userId,
-            uploadedByRole: 'USER' as any,
+            uploadedByRole: UserRole.USER,
             uploadedAt: new Date()
           }
         });
 
         finalizedDocuments.push(userDocument);
 
-        console.log(`Finalized document: ${tempDoc.originalFileName} -> ${permanentFileName}`);
+        console.log(`Finalized document: ${tempDoc.originalFileName} -> R2: ${tempDoc.r2Key}`);
 
       } catch (docError) {
         console.error(`Error finalizing document ${tempDoc.originalFileName}:`, docError);
@@ -173,7 +144,7 @@ router.post('/finalize', async (req: Request, res: Response) => {
     res.json({
       success: true,
       documents: finalizedDocuments,
-      message: `${finalizedDocuments.length} documenti salvati con successo`
+      message: `${finalizedDocuments.length} documenti salvati con successo su R2`
     });
 
   } catch (error) {
@@ -182,27 +153,6 @@ router.post('/finalize', async (req: Request, res: Response) => {
   }
 });
 
-// Helper function to get document type folder
-function getDocumentTypeFolder(type: string): string {
-  const folders: Record<string, string> = {
-    // Basic documents
-    'cartaIdentita': 'carte-identita',
-    'tessera_sanitaria': 'certificati-medici',
-    
-    // TFA specific documents
-    'certificatoTriennale': 'lauree',
-    'certificatoMagistrale': 'lauree',
-    'pianoStudioTriennale': 'piani-studio',
-    'pianoStudioMagistrale': 'piani-studio',
-    'certificatoMedico': 'certificati-medici',
-    'certificatoNascita': 'certificati-nascita',
-    'diplomoLaurea': 'diplomi',
-    'pergamenaLaurea': 'pergamene',
-    'diplomaMaturita': 'diplomi-maturita'
-  };
-  
-  return folders[type] || 'altri';
-}
 
 // Helper function to convert camelCase to DocumentType enum
 function convertToDocumentType(type: string): DocumentType {

@@ -5,7 +5,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { promisify } from 'util';
 import emailService from './emailService';
-import storageService from './storageService';
+import storageManager from './storageManager';
 
 const prisma = new PrismaClient();
 const unlink = promisify(fs.unlink);
@@ -82,7 +82,7 @@ export class DocumentService {
       .digest('hex');
 
     // Upload to R2
-    const uploadResult = await storageService.uploadFile(
+    const uploadResult = await storageManager.uploadFile(
       file.buffer,
       file.originalname,
       file.mimetype,
@@ -140,10 +140,10 @@ export class DocumentService {
     }
 
     // Generate signed URL for secure download
-    const signedUrl = await storageService.getSignedDownloadUrl(document.url);
+    const downloadResult = await storageManager.getDownloadUrl(document.url);
 
     return {
-      signedUrl,
+      signedUrl: downloadResult.signedUrl,
       fileName: document.originalName,
       mimeType: document.mimeType
     };
@@ -172,7 +172,7 @@ export class DocumentService {
 
     // Delete from R2
     try {
-      await storageService.deleteFile(document.url);
+      await storageManager.deleteFile(document.url);
     } catch (error) {
       console.error('Error deleting file from R2:', error);
       // Continue with database deletion even if R2 delete fails

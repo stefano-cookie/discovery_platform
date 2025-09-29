@@ -562,7 +562,7 @@ enum UploadSource {
 model UserDocument {
   id                String   @id @default(uuid())
   userId            String
-  registrationId    String
+  registrationId    String?
   
   // Tipo e contenuto documento
   type              DocumentType  // Enum per tipo documento
@@ -597,7 +597,7 @@ model UserDocument {
   
   // Relazioni
   user              User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  registration      Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  registration      Registration? @relation(fields: [registrationId], references: [id], onDelete: Cascade)
   verifier          User? @relation("DocumentVerifier", fields: [verifiedBy], references: [id])
   uploader          User @relation("DocumentUploader", fields: [uploadedBy], references: [id])
   auditLogs         DocumentAuditLog[]

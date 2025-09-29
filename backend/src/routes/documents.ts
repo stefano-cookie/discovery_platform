@@ -1,12 +1,13 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient, DocumentType } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import unifiedDownload from '../middleware/unifiedDownload';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
 import emailService from '../services/emailService';
-import storageService from '../services/storageService';
+import storageManager from '../services/storageManager';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -326,14 +327,14 @@ router.post('/upload', authenticate, upload.single('document'), async (req: Auth
     if (existingDoc) {
       // Delete old file from R2
       try {
-        await storageService.deleteFile(existingDoc.url);
+        await storageManager.deleteFile(existingDoc.url);
       } catch (error) {
         console.error('Error deleting old file from R2:', error);
         // Continue with upload even if old file delete fails
       }
 
       // Upload new file to R2
-      const uploadResult = await storageService.uploadFile(
+      const uploadResult = await storageManager.uploadFile(
         req.file.buffer,
         req.file.originalname,
         req.file.mimetype,
@@ -385,7 +386,7 @@ router.post('/upload', authenticate, upload.single('document'), async (req: Auth
       });
     } else {
       // Upload file to R2
-      const uploadResult = await storageService.uploadFile(
+      const uploadResult = await storageManager.uploadFile(
         req.file.buffer,
         req.file.originalname,
         req.file.mimetype,
@@ -455,11 +456,11 @@ router.get('/:documentId/preview', authenticate, async (req: AuthRequest, res: R
       return res.status(404).json({ error: 'Documento non trovato' });
     }
 
-    // Get signed URL from R2
-    const signedUrl = await storageService.getSignedDownloadUrl(document.url);
+    // Get signed URL from storage manager
+    const downloadResult = await storageManager.getDownloadUrl(document.url);
 
     // Redirect to signed URL
-    res.redirect(signedUrl);
+    res.redirect(downloadResult.signedUrl);
 
   } catch (error) {
     console.error('Error previewing document:', error);
@@ -468,32 +469,9 @@ router.get('/:documentId/preview', authenticate, async (req: AuthRequest, res: R
 });
 
 // GET /api/documents/:documentId/download - Download a document (redirect to R2)
-router.get('/:documentId/download', authenticate, async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user!.id;
-    const { documentId } = req.params;
-
-    const document = await prisma.userDocument.findFirst({
-      where: {
-        id: documentId,
-        userId: userId // User can only download their own documents
-      }
-    });
-
-    if (!document) {
-      return res.status(404).json({ error: 'Documento non trovato' });
-    }
-
-    // Get signed URL from R2
-    const signedUrl = await storageService.getSignedDownloadUrl(document.url);
-
-    // Redirect to signed URL for download
-    res.redirect(signedUrl);
-
-  } catch (error) {
-    console.error('Error downloading document:', error);
-    res.status(500).json({ error: 'Errore nel download del documento' });
-  }
+router.get('/:documentId/download', authenticate, unifiedDownload, async (req: AuthRequest, res: Response) => {
+  // This endpoint now uses UnifiedDownloadMiddleware for better security and performance
+  // The middleware handles document access control and R2 signed URL generation
 });
 
 // DELETE /api/documents/:documentId - Delete a document
@@ -516,7 +494,7 @@ router.delete('/:documentId', authenticate, async (req: AuthRequest, res: Respon
 
     // Delete file from R2
     try {
-      await storageService.deleteFile(document.url);
+      await storageManager.deleteFile(document.url);
     } catch (error) {
       console.error('Error deleting file from R2:', error);
       // Continue with database deletion even if R2 delete fails
