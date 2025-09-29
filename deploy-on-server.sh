@@ -51,7 +51,6 @@ mkdir -p "$DEPLOY_DIR/backend"
 rsync -av \
     --exclude='.git' \
     --exclude='node_modules' \
-    --exclude='uploads/*' \
     --exclude='.env' \
     --exclude='*.log' \
     "$TEMP_DIR/backend/" "$DEPLOY_DIR/backend/"
