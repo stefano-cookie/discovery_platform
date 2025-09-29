@@ -7,6 +7,7 @@ import { DocumentService, upload as documentUpload } from '../services/documentS
 // import UnifiedDocumentService from '../services/unifiedDocumentService'; // OBSOLETO - ora usa DocumentService
 import multer from 'multer';
 import emailService from '../services/emailService';
+import storageManager from '../services/storageManager';
 import * as path from 'path';
 import ExcelJS from 'exceljs';
 
@@ -3080,22 +3081,31 @@ router.get('/users/:userId/documents/:documentId/download', authenticateUnified,
 
     console.log(`📄 Partner download: Found document ${fileName} in ${documentSource} table`);
 
-    // Check if file exists
-    const fs = require('fs');
-    if (!fs.existsSync(filePath)) {
-      console.log(`❌ Partner download: File not found on disk: ${filePath}`);
-      return res.status(404).json({ error: 'File non trovato sul server' });
-    }
+    // 🚀 R2 INTEGRATION: Use unified storage system instead of fs.existsSync
+    try {
+      const downloadResult = await storageManager.getDownloadUrl(filePath); // filePath is actually R2 key
 
-    // Send file
-    res.download(filePath, fileName, (err) => {
-      if (err) {
-        console.error('Error downloading file:', err);
-        if (!res.headersSent) {
-          res.status(500).json({ error: 'Errore nel download del file' });
+      console.log(`✅ Partner download: Generated download URL for ${fileName}`);
+
+      // Check if it's a local file path or R2 signed URL
+      if (storageManager.getStorageType() === 'local') {
+        // Local development - use direct file download
+        const fs = require('fs');
+        if (fs.existsSync(downloadResult.signedUrl)) {
+          res.download(downloadResult.signedUrl, fileName);
+        } else {
+          console.log(`❌ Partner download: Local file not found: ${downloadResult.signedUrl}`);
+          return res.status(404).json({ error: 'File non trovato sul server' });
         }
+      } else {
+        // Production R2 - redirect to signed URL
+        res.redirect(downloadResult.signedUrl);
       }
-    });
+
+    } catch (storageError) {
+      console.error(`❌ Partner download: Storage error for ${filePath}:`, storageError);
+      return res.status(404).json({ error: 'File non trovato nello storage' });
+    }
 
   } catch (error) {
     console.error('Download user document error:', error);
