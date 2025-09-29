@@ -111,6 +111,7 @@ import partnerCouponsRoutes from './routes/_refactored/partnerCoupons';
 import partnerUsersRoutes from './routes/_refactored/partnerUsers';
 import documentUploadUnifiedRoutes from './routes/documentUploadUnified';
 import partnerUnifiedRoutes from './routes/partnerUnified';
+import documentDiagnosticsRoutes from './routes/documentDiagnostics';
 
 // Health check endpoint
 app.get('/api/health', (_req, res) => {
@@ -144,6 +145,9 @@ app.use('/api/admin', adminRoutes);
 // UNIFIED STORAGE ROUTES (Environment-aware: Local in dev, R2 in prod)
 app.use('/api/document-upload-unified', documentUploadUnifiedRoutes);
 app.use('/api/partners-unified', partnerUnifiedRoutes);
+
+// DIAGNOSTICS ROUTES (Admin tools for document troubleshooting)
+app.use('/api/document-diagnostics', documentDiagnosticsRoutes);
 
 const PORT = parseInt(process.env.PORT || '8000', 10);
 

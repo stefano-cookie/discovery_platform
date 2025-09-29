@@ -150,6 +150,26 @@ npx prisma migrate deploy || {
 
 # Verify database connection and run seed if needed
 npx prisma db seed --preview-feature 2>/dev/null || true
+
+# 🔒 PRODUCTION SAFETY: Verify we're not accidentally resetting production data
+if [ "$NODE_ENV" = "production" ]; then
+    echo -e "${YELLOW}🔒 Verifying production database safety...${NC}"
+
+    # Count existing documents to ensure we're not losing data
+    DOCUMENT_COUNT=$(npx prisma db execute --stdin <<'EOF'
+SELECT COUNT(*) as count FROM "UserDocument";
+EOF
+2>/dev/null | grep -o '[0-9]*' | tail -1 || echo "0")
+
+    if [ ! -z "$DOCUMENT_COUNT" ] && [ "$DOCUMENT_COUNT" -gt 0 ]; then
+        echo -e "${GREEN}✓ Production database verified: $DOCUMENT_COUNT documents preserved${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Production database appears empty (might be fresh setup)${NC}"
+    fi
+else
+    echo -e "${YELLOW}ℹ️  Development environment - database safety checks skipped${NC}"
+fi
+
 echo -e "${GREEN}✓ Database migrations completed${NC}"
 
 # 7. Copy ecosystem config and restart services with PM2
