@@ -39,6 +39,7 @@ model User {
   documentActions   DocumentActionLog[] @relation("DocumentActions") // Azioni sui documenti
   offerVisibilities OfferVisibility[]
   offerAccess     UserOfferAccess[] // Accesso alle offerte aggiuntive
+  discoveryActions  DiscoveryAdminLog[] @relation("DiscoveryActions") // Log azioni admin Discovery
 }
 
 enum UserRole {
@@ -65,7 +66,12 @@ model PartnerCompany {
   // Business Data
   commissionPerUser Decimal  @default(0)
   totalEarnings     Decimal  @default(0)
-  
+
+  // Discovery Commission System
+  discoveryCommissionType   CommissionType?  // PERCENTAGE, FIXED, or null (no commission)
+  discoveryCommissionValue  Decimal?         // % (0-100) or € fissi
+  discoveryTotalCommissions Decimal @default(0)  // Totale commissioni pagate a Discovery
+
   // Timestamps
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -417,7 +423,11 @@ model Registration {
   installments    Int
   remainingAmount Decimal?  // Importo residuo da pagare
   delayedAmount   Decimal?  // Importo totale in ritardo per pagamenti parziali
-  
+
+  // Discovery Commission System
+  discoveryCommission     Decimal?  // Commissione Discovery per questa iscrizione (€)
+  companyEarnings         Decimal?  // Guadagno netto company (finalAmount - discoveryCommission)
+
   status          RegistrationStatus @default(PENDING)
   
   // Contratti
@@ -786,4 +796,46 @@ model ActionToken {
 enum ActionType {
   GRANT_ACCESS      // Concessione accesso offerta
   REACTIVATE_USER   // Riattivazione utente orfano
+}
+
+// ========================================
+// DISCOVERY ADMIN SYSTEM
+// ========================================
+
+// Tipo commissione Discovery per company
+enum CommissionType {
+  PERCENTAGE  // Percentuale su importo iscrizione (0-100)
+  FIXED       // Importo fisso per iscrizione (€)
+}
+
+// Log azioni admin Discovery
+model DiscoveryAdminLog {
+  id            String   @id @default(uuid())
+  adminId       String   // User con role ADMIN
+  action        DiscoveryActionType
+  targetType    String   // COMPANY, REGISTRATION, USER
+  targetId      String
+  previousValue Json?
+  newValue      Json?
+  reason        String?
+  ipAddress     String?
+  createdAt     DateTime @default(now())
+
+  admin         User @relation("DiscoveryActions", fields: [adminId], references: [id])
+
+  @@index([adminId, createdAt])
+  @@index([targetType, targetId])
+  @@index([action])
+}
+
+enum DiscoveryActionType {
+  COMPANY_CREATE
+  COMPANY_EDIT
+  COMPANY_DISABLE
+  COMPANY_SET_PREMIUM
+  COMMISSION_CHANGE
+  USER_TRANSFER
+  REGISTRATION_TRANSFER
+  BULK_OPERATION
+  EXPORT_DATA
 }
