@@ -173,6 +173,12 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
         return;
       }
 
+      // For enrollment documents without authentication, disable preview
+      if (doc.uploadSource === 'ENROLLMENT' && mode === 'user') {
+        setError('L\'anteprima sarà disponibile dopo il completamento dell\'iscrizione');
+        return;
+      }
+
       let endpoint = '';
       if (mode === 'partner') {
         endpoint = `/partners/users/${userId}/documents/${doc.documentId}/download`;
@@ -182,18 +188,17 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
 
       const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
       const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
 
-      if (!response.ok) throw new Error('Errore nel caricamento');
+      // Check if token is available
+      if (!token) {
+        setError('Autenticazione richiesta per visualizzare il documento');
+        return;
+      }
 
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      // For R2 downloads, use direct window.open to avoid CORS issues
+      const downloadUrl = `${API_BASE_URL}${endpoint}?token=${encodeURIComponent(token)}`;
+      window.open(downloadUrl, '_blank');
+      return; // Exit early for direct downloads
     } catch (err: any) {
       setError('Errore nella preview del documento');
     }
@@ -207,6 +212,12 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
         return;
       }
 
+      // For enrollment documents without authentication, disable download
+      if (doc.uploadSource === 'ENROLLMENT' && mode === 'user') {
+        setError('Il download sarà disponibile dopo il completamento dell\'iscrizione');
+        return;
+      }
+
       let endpoint = '';
       if (mode === 'partner') {
         endpoint = `/partners/users/${userId}/documents/${doc.documentId}/download`;
@@ -216,6 +227,13 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
 
       const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
       const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
+
+      // Check if token is available
+      if (!token) {
+        setError('Autenticazione richiesta per scaricare il documento');
+        return;
+      }
+
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         headers: {
           'Authorization': `Bearer ${token}`

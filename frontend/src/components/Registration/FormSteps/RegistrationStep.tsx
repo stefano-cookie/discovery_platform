@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { registrationSchema, RegistrationForm } from '../../../utils/validation';
-import { submitEnrollment, submitVerifiedUserEnrollment, submitTokenEnrollment, getUserProfileByToken, RegistrationData, apiRequest } from '../../../services/api';
+import { submitEnrollment, submitVerifiedUserEnrollment, submitTokenEnrollment, getUserProfileByToken, apiRequest } from '../../../services/api';
 import { OfferInfo } from '../../../types/offers';
 import { useAuth } from '../../../hooks/useAuth';
 import { useLocation } from 'react-router-dom';
@@ -363,7 +363,8 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
             const mappedDocs = docs.map((doc: any) => ({
               fileName: doc.fileName, // Use actual fileName not originalFileName for temp file
               originalFileName: doc.originalFileName,
-              url: doc.filePath, // Backend expects url (path to file)
+              r2Key: doc.r2Key, // Add R2 key for backend processing
+              url: doc.r2Key || doc.url || doc.filePath, // Prioritize r2Key
               filePath: doc.filePath, // Include filePath as well for backward compatibility
               type: doc.type,
               fileSize: doc.fileSize,
@@ -425,9 +426,46 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
       }
       
       if (response.success) {
+        // Finalize documents if we have a registrationId and temp documents
+        if (response.registrationId) {
+          const tempDocs = localStorage.getItem('tempDocuments');
+          const userId = user?.id || userProfile?.user?.id;
+
+          if (tempDocs && userId) {
+            try {
+              const documents = JSON.parse(tempDocs);
+              if (documents.length > 0) {
+                console.log('📁 Finalizing documents for registration:', response.registrationId);
+
+                // Call finalize endpoint to move temp documents to permanent storage
+                const finalizeResponse = await fetch('/api/document-upload/finalize', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    registrationId: response.registrationId,
+                    userId: userId,
+                    documents: documents
+                  })
+                });
+
+                if (finalizeResponse.ok) {
+                  const result = await finalizeResponse.json();
+                  console.log('✅ Documents finalized:', result);
+                } else {
+                  console.error('❌ Failed to finalize documents');
+                }
+              }
+            } catch (error) {
+              console.error('❌ Error finalizing documents:', error);
+            }
+          }
+        }
+
         setSubmitStatus('success');
         setIsSubmitting(false); // Reset submitting state on success
-        
+
         // Clear all registration-related localStorage items
         localStorage.removeItem('registrationForm');
         localStorage.removeItem('registrationFormFiles');
@@ -437,7 +475,7 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
         localStorage.removeItem('isAdditionalEnrollment');
         localStorage.removeItem('tempDocuments');
         localStorage.removeItem('tempUserId');
-        
+
         onNext(finalData);
       } else {
         throw new Error(response.message || 'Errore durante la registrazione');
@@ -832,7 +870,8 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
               totalAmount: offerInfo.totalAmount
             } : 'Nessuna offerta caricata'
           };
-          
+
+          console.log('🔍 Riepilogo completo:', debugData);
           return null;
         })()}
         

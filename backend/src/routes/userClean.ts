@@ -7,28 +7,16 @@ import { ContractService } from '../services/contractService';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import unifiedDownload from '../middleware/unifiedDownload';
+import storageManager from '../services/storageManager';
 
 const contractService = new ContractService();
 const router = Router();
 const prisma = new PrismaClient();
 
-// Multer configuration for user document uploads
-const storage = multer.diskStorage({
-  destination: async (req, file, cb) => {
-    const uploadDir = path.join('uploads', 'documents');
-    await fs.promises.mkdir(uploadDir, { recursive: true });
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    const baseName = path.basename(file.originalname, ext);
-    cb(null, `${uniqueSuffix}-${baseName}${ext}`);
-  }
-});
-
+// Multer configuration for user document uploads - using memory storage for R2
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter: (req, file, cb) => {
     const allowedTypes = ['.pdf', '.jpg', '.jpeg', '.png'];
@@ -734,31 +722,39 @@ router.post('/documents', authenticate, upload.single('document'), async (req: A
     const userId = req.user?.id;
     const { type, registrationId } = req.body;
     const file = req.file;
-    
+
     if (!userId) {
       return res.status(401).json({ error: 'Utente non autenticato' });
     }
-    
+
     if (!file) {
       return res.status(400).json({ error: 'File non fornito' });
     }
-    
+
     if (!type) {
       return res.status(400).json({ error: 'Tipo documento non specificato' });
     }
-    
-    // Store the relative path
-    const relativePath = file.path;
-    
+
     console.log('📤 Upload request:', { userId, type, registrationId, fileName: file.originalname });
-    
-    // Create new document with registrationId
+
+    // Upload to R2
+    const uploadResult = await storageManager.uploadFile(
+      file.buffer,
+      file.originalname,
+      file.mimetype,
+      userId,
+      type
+    );
+
+    console.log('📤 File uploaded to R2:', uploadResult.key);
+
+    // Create new document with R2 key
     const newDoc = await prisma.userDocument.create({
       data: {
         userId,
         type: type as any,
         originalName: file.originalname,
-        url: relativePath,
+        url: uploadResult.key, // Store R2 key instead of file path
         size: file.size,
         mimeType: file.mimetype,
         status: 'PENDING' as any,
@@ -768,9 +764,9 @@ router.post('/documents', authenticate, upload.single('document'), async (req: A
         ...(registrationId && { registrationId })
       }
     });
-    
+
     console.log('📤 Document created:', { id: newDoc.id, type: newDoc.type, registrationId: newDoc.registrationId });
-    
+
     return res.json({
       success: true,
       document: {
@@ -780,9 +776,9 @@ router.post('/documents', authenticate, upload.single('document'), async (req: A
         uploadedAt: newDoc.uploadedAt,
         isVerified: newDoc.status === 'APPROVED'
       },
-      message: 'Documento caricato con successo'
+      message: 'Documento caricato con successo su R2'
     });
-    
+
   } catch (error) {
     console.error('Error uploading document:', error);
     res.status(500).json({ error: 'Errore interno del server' });
@@ -1315,51 +1311,9 @@ router.get('/certification-steps/:registrationId', authenticate, async (req: Aut
   }
 });
 
-// GET /api/user/documents/:documentId/download - Download user document  
-router.get('/documents/:documentId/download', authenticate, async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user!.id;
-    const { documentId } = req.params;
-
-    // Find document
-    const document = await prisma.userDocument.findFirst({
-      where: {
-        id: documentId,
-        userId: userId
-      }
-    });
-
-    if (!document) {
-      return res.status(404).json({ error: 'Documento non trovato' });
-    }
-
-    // Build file path
-    const filePath = path.isAbsolute(document.url) 
-      ? document.url 
-      : path.resolve(document.url);
-
-    console.log('📄 Download request:', {
-      documentId,
-      documentUrl: document.url,
-      resolvedPath: filePath,
-      exists: fs.existsSync(filePath)
-    });
-
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      console.error('📄 File not found:', filePath);
-      return res.status(404).json({ error: 'File non trovato sul filesystem' });
-    }
-
-    // Send file
-    res.setHeader('Content-Disposition', `attachment; filename="${document.originalName}"`);
-    res.setHeader('Content-Type', document.mimeType || 'application/octet-stream');
-    res.sendFile(path.resolve(filePath));
-
-  } catch (error) {
-    console.error('Error downloading document:', error);
-    res.status(500).json({ error: 'Errore nel download del documento' });
-  }
+// GET /api/user/documents/:documentId/download - Download user document using unified storage
+router.get('/documents/:documentId/download', authenticate, unifiedDownload, async (req: AuthRequest, res) => {
+  // This endpoint now uses UnifiedDownload middleware for R2/Local storage compatibility
 });
 
 export default router;

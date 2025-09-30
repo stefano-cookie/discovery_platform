@@ -47,7 +47,9 @@ class R2StorageManager implements IStorageManager {
       },
     });
 
-    this.bucketName = process.env.CLOUDFLARE_BUCKET_NAME || 'discovery-documents-prod';
+    // Use different buckets for dev and production
+    const isProduction = process.env.NODE_ENV === 'production';
+    this.bucketName = isProduction ? 'discovery-documents-prod' : 'discovery-documents-dev';
     console.log(`[R2Storage] Initialized - Bucket: ${this.bucketName}`);
   }
 
@@ -234,23 +236,15 @@ class LocalStorageManager implements IStorageManager {
 // Factory for creating appropriate storage manager
 export class StorageFactory {
   static createStorage(): IStorageManager {
-    const isProduction = process.env.NODE_ENV === 'production';
     const hasR2Config = process.env.CLOUDFLARE_ACCESS_KEY_ID &&
                        process.env.CLOUDFLARE_SECRET_ACCESS_KEY;
-    const forceLocal = process.env.FORCE_LOCAL_STORAGE === 'true';
 
-    // Force local storage if explicitly requested
-    if (forceLocal) {
-      console.log(`[StorageFactory] FORCING LocalStorage (FORCE_LOCAL_STORAGE=true)`);
-      return new LocalStorageManager();
-    }
-
-    if (isProduction && hasR2Config) {
-      console.log(`[StorageFactory] Using R2Storage for production`);
+    // Always use R2 - no more LocalStorage
+    if (hasR2Config) {
+      console.log(`[StorageFactory] Using R2Storage - Env: ${process.env.NODE_ENV}`);
       return new R2StorageManager();
     } else {
-      console.log(`[StorageFactory] Using LocalStorage - Env: ${process.env.NODE_ENV}, R2 Config: ${!!hasR2Config}`);
-      return new LocalStorageManager();
+      throw new Error('[StorageFactory] R2 configuration is required. Please set CLOUDFLARE_ACCESS_KEY_ID and CLOUDFLARE_SECRET_ACCESS_KEY in .env');
     }
   }
 }

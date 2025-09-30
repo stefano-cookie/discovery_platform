@@ -28,6 +28,15 @@ const tempUpload = multer({
 // POST /api/document-upload/temp - Upload document temporarily during enrollment (now directly to R2)
 router.post('/temp', tempUpload.single('document'), async (req: Request, res: Response) => {
   try {
+    console.log('📁 Document upload /temp endpoint called');
+    console.log('📁 Request body:', req.body);
+    console.log('📁 File info:', req.file ? {
+      fieldname: req.file.fieldname,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    } : 'No file');
+
     if (!req.file) {
       return res.status(400).json({ error: 'Nessun file caricato' });
     }
@@ -60,6 +69,8 @@ router.post('/temp', tempUpload.single('document'), async (req: Request, res: Re
       uploadedAt: new Date().toISOString()
     };
 
+    console.log('📁 Returning temp document:', tempDocument);
+
     res.json({
       success: true,
       document: tempDocument,
@@ -75,6 +86,9 @@ router.post('/temp', tempUpload.single('document'), async (req: Request, res: Re
 // POST /api/document-upload/finalize - Finalize documents after enrollment completion (R2 version)
 router.post('/finalize', async (req: Request, res: Response) => {
   try {
+    console.log('📁 Document finalize endpoint called');
+    console.log('📁 Request body:', JSON.stringify(req.body, null, 2));
+
     const { registrationId, userId, documents } = req.body;
 
     if (!registrationId || !userId || !documents || documents.length === 0) {

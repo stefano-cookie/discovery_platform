@@ -40,7 +40,8 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const [dragActive, setDragActive] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
 
-  // Function to upload file to backend during enrollment
+  // Function to upload file to backend during enrollment - reserved for future use
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const uploadFileToBackend = async (file: File): Promise<void> => {
     if (!userId) {
       console.warn('No userId provided for document upload');
@@ -160,6 +161,8 @@ const FileUpload: React.FC<FileUploadProps> = ({
       originalFileName: file.name,
       fileName: result.document?.fileName || file.name,
       filePath: result.document?.filePath || result.filePath,
+      r2Key: result.document?.r2Key, // Add R2 key for backend processing
+      url: result.document?.r2Key, // Also save as url for compatibility
       fileSize: file.size,
       mimeType: file.type,
       uploadedAt: new Date().toISOString()

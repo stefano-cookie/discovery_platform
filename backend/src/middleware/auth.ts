@@ -18,7 +18,8 @@ export const authenticate = async (
   next: NextFunction
 ) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
+    // Support token from Authorization header or query parameter (for downloads)
+    const token = req.headers.authorization?.split(' ')[1] || req.query.token as string;
     if (!token) {
       return res.status(401).json({ error: 'Token mancante' });
     }
@@ -54,7 +55,8 @@ export const authenticatePartner = async (
   next: NextFunction
 ) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
+    // Support token from Authorization header or query parameter (for downloads)
+    const token = req.headers.authorization?.split(' ')[1] || req.query.token as string;
     if (!token) {
       return res.status(401).json({ error: 'Token mancante' });
     }
@@ -96,7 +98,8 @@ export const authenticateUnified = async (
   next: NextFunction
 ) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
+    // Support token from Authorization header or query parameter (for downloads)
+    const token = req.headers.authorization?.split(' ')[1] || req.query.token as string;
     if (!token) {
       return res.status(401).json({ error: 'Token mancante' });
     }

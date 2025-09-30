@@ -44,6 +44,9 @@ async function getPartnerCompanyIdsForLegacyPartner(partnerId: string, tx: any):
 
 // Helper function to process documents for a registration
 async function processDocumentsForRegistration(tx: any, registrationId: string, userId: string, documents: any[]) {
+  console.log('📁 processDocumentsForRegistration called');
+  console.log('📁 Documents to process:', JSON.stringify(documents, null, 2));
+
   const documentTypeMap: Record<string, string> = {
     'cartaIdentita': 'IDENTITY_CARD',
     'certificatoTriennale': 'BACHELOR_DEGREE',
@@ -71,13 +74,20 @@ async function processDocumentsForRegistration(tx: any, registrationId: string, 
     
     if (!existingDoc) {
       // Create new document record
+      console.log(`📁 Creating UserDocument for ${doc.type}:`, {
+        r2Key: doc.r2Key,
+        url: doc.url,
+        filePath: doc.filePath,
+        originalFileName: doc.originalFileName
+      });
+
       await tx.userDocument.create({
         data: {
           userId,
           registrationId,
           type: documentType,
           originalName: doc.originalFileName || doc.fileName,
-          url: doc.url || doc.filePath,
+          url: doc.r2Key || doc.url || doc.filePath, // Prioritize r2Key first
           size: doc.fileSize || 0,
           mimeType: doc.mimeType || 'application/octet-stream',
           status: 'PENDING',
@@ -86,6 +96,8 @@ async function processDocumentsForRegistration(tx: any, registrationId: string, 
           uploadedByRole: 'USER'
         }
       });
+
+      console.log(`✅ UserDocument created for type: ${documentType}`);
     }
   }
 }

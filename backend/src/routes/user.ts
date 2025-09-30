@@ -6,6 +6,7 @@ import path from 'path';
 import fs from 'fs';
 import emailService from '../services/emailService';
 import SecureTokenService from '../services/secureTokenService';
+import unifiedDownload from '../middleware/unifiedDownload';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -1501,45 +1502,9 @@ router.get('/documents/unified', authenticate, async (req: AuthRequest, res: Res
 });
 
 
-// GET /api/user/documents/:documentId/download - Download user document  
-router.get('/documents/:documentId/download', authenticate, async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user!.id;
-    const { documentId } = req.params;
-
-    // Use documentId as parameter name for consistency
-    const document = await prisma.userDocument.findFirst({
-      where: {
-        id: documentId,
-        userId: userId
-      }
-    });
-
-    if (!document) {
-      return res.status(404).json({ error: 'Documento non trovato' });
-    }
-
-    // Build the full file path
-    const filePath = path.isAbsolute(document.url) 
-      ? document.url 
-      : path.join(process.cwd(), 'uploads', document.url);
-
-    if (!fs.existsSync(filePath)) {
-      console.error(`File not found: ${filePath}`);
-      return res.status(404).json({ error: 'File non trovato sul server' });
-    }
-
-    // Set headers for download
-    res.setHeader('Content-Disposition', `attachment; filename="${document.originalName}"`);
-    res.setHeader('Content-Type', document.mimeType);
-
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.pipe(res);
-    
-  } catch (error) {
-    console.error('Error downloading document:', error);
-    res.status(500).json({ error: 'Errore nel download del documento' });
-  }
+// GET /api/user/documents/:documentId/download - Download user document using unified storage
+router.get('/documents/:documentId/download', authenticate, unifiedDownload, async (req: AuthRequest, res) => {
+  // This endpoint now uses UnifiedDownload middleware for R2/Local storage compatibility
 });
 
 // GET /api/user/tfa-steps/:registrationId - Get TFA post-enrollment steps progress
