@@ -173,12 +173,6 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
         return;
       }
 
-      // For enrollment documents without authentication, disable preview
-      if (doc.uploadSource === 'ENROLLMENT' && mode === 'user') {
-        setError('L\'anteprima sarà disponibile dopo il completamento dell\'iscrizione');
-        return;
-      }
-
       let endpoint = '';
       if (mode === 'partner') {
         endpoint = `/partners/users/${userId}/documents/${doc.documentId}/download`;
@@ -209,12 +203,6 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
       // Check if document is actually uploaded
       if (!doc.uploaded || !doc.documentId || doc.id.startsWith('empty-')) {
         setError('Documento non ancora caricato');
-        return;
-      }
-
-      // For enrollment documents without authentication, disable download
-      if (doc.uploadSource === 'ENROLLMENT' && mode === 'user') {
-        setError('Il download sarà disponibile dopo il completamento dell\'iscrizione');
         return;
       }
 
