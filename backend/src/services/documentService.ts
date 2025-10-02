@@ -308,6 +308,256 @@ export class DocumentService {
     }
   }
 
+  // Partner: Check document (silenzioso, no email) - NUOVO WORKFLOW
+  static async checkDocument(
+    documentId: string,
+    partnerEmployeeId: string
+  ) {
+    const document = await prisma.userDocument.update({
+      where: { id: documentId },
+      data: {
+        partnerCheckedAt: new Date(),
+        partnerCheckedBy: partnerEmployeeId,
+        // Manteniamo lo status PENDING fino all'approvazione Discovery
+        status: DocumentStatus.PENDING
+      },
+      include: {
+        user: {
+          include: {
+            profile: true
+          }
+        },
+        registration: true
+      }
+    });
+
+    // Log check action (no email sent)
+    await prisma.documentActionLog.create({
+      data: {
+        documentId: document.id,
+        action: 'CHECK',
+        performedBy: partnerEmployeeId,
+        performedRole: UserRole.PARTNER,
+        details: {
+          notes: 'Documento checkato da partner (no email)',
+          previousStatus: 'PENDING'
+        }
+      }
+    });
+
+    return { document, emailSent: false };
+  }
+
+  // Discovery: Approve all documents for a registration (con email finale)
+  static async discoveryApproveRegistration(
+    registrationId: string,
+    adminId: string,
+    notes?: string
+  ) {
+    // Trova tutti i documenti della registrazione
+    const documents = await prisma.userDocument.findMany({
+      where: { registrationId },
+      include: {
+        user: {
+          include: {
+            profile: true
+          }
+        },
+        registration: {
+          include: {
+            offer: {
+              include: {
+                course: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (documents.length === 0) {
+      throw new Error('Nessun documento trovato per questa iscrizione');
+    }
+
+    // Approva tutti i documenti
+    await prisma.userDocument.updateMany({
+      where: { registrationId },
+      data: {
+        status: DocumentStatus.APPROVED,
+        discoveryApprovedAt: new Date(),
+        discoveryApprovedBy: adminId
+      }
+    });
+
+    // Log approvazione Discovery per ogni documento
+    for (const doc of documents) {
+      await prisma.documentActionLog.create({
+        data: {
+          documentId: doc.id,
+          action: 'APPROVE',
+          performedBy: adminId,
+          performedRole: UserRole.ADMIN,
+          details: {
+            notes: notes || 'Iscrizione approvata da Discovery',
+            previousStatus: doc.status
+          }
+        }
+      });
+    }
+
+    // Aggiorna lo status della registrazione
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        status: 'ENROLLED'
+      }
+    });
+
+    // Log azione admin Discovery
+    await prisma.discoveryAdminLog.create({
+      data: {
+        adminId,
+        action: 'DOCUMENT_APPROVAL',
+        targetType: 'REGISTRATION',
+        targetId: registrationId,
+        reason: notes
+      }
+    });
+
+    // Invia email finale di conferma all'utente
+    try {
+      const firstDoc = documents[0];
+      const userName = firstDoc.user.profile ?
+        `${firstDoc.user.profile.nome} ${firstDoc.user.profile.cognome}` :
+        firstDoc.user.email;
+
+      const courseName = firstDoc.registration?.offer?.course?.name || 'Corso';
+
+      const emailSent = await emailService.sendRegistrationApprovedEmail(
+        firstDoc.user.email,
+        userName,
+        courseName
+      );
+
+      return {
+        registration: await prisma.registration.findUnique({ where: { id: registrationId } }),
+        documentsApproved: documents.length,
+        emailSent
+      };
+    } catch (emailError) {
+      console.error('Failed to send approval email:', emailError);
+      return {
+        registration: await prisma.registration.findUnique({ where: { id: registrationId } }),
+        documentsApproved: documents.length,
+        emailSent: false
+      };
+    }
+  }
+
+  // Discovery: Reject registration with reason (con email)
+  static async discoveryRejectRegistration(
+    registrationId: string,
+    adminId: string,
+    reason: string
+  ) {
+    // Trova tutti i documenti della registrazione
+    const documents = await prisma.userDocument.findMany({
+      where: { registrationId },
+      include: {
+        user: {
+          include: {
+            profile: true
+          }
+        },
+        registration: {
+          include: {
+            offer: {
+              include: {
+                course: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (documents.length === 0) {
+      throw new Error('Nessun documento trovato per questa iscrizione');
+    }
+
+    // Marca documenti come rifiutati da Discovery
+    await prisma.userDocument.updateMany({
+      where: { registrationId },
+      data: {
+        discoveryRejectedAt: new Date(),
+        discoveryRejectionReason: reason
+      }
+    });
+
+    // Log rifiuto Discovery per ogni documento
+    for (const doc of documents) {
+      await prisma.documentActionLog.create({
+        data: {
+          documentId: doc.id,
+          action: 'REJECT',
+          performedBy: adminId,
+          performedRole: UserRole.ADMIN,
+          details: {
+            reason,
+            previousStatus: doc.status
+          }
+        }
+      });
+    }
+
+    // Torna status indietro a DOCUMENTS_UPLOADED per correzioni
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        status: 'DOCUMENTS_UPLOADED'
+      }
+    });
+
+    // Log azione admin Discovery
+    await prisma.discoveryAdminLog.create({
+      data: {
+        adminId,
+        action: 'DOCUMENT_REJECTION',
+        targetType: 'REGISTRATION',
+        targetId: registrationId,
+        reason
+      }
+    });
+
+    // Invia email rifiuto all'utente
+    try {
+      const firstDoc = documents[0];
+      const userName = firstDoc.user.profile ?
+        `${firstDoc.user.profile.nome} ${firstDoc.user.profile.cognome}` :
+        firstDoc.user.email;
+
+      const courseName = firstDoc.registration?.offer?.course?.name || 'Corso';
+
+      const emailSent = await emailService.sendRegistrationRejectedEmail(
+        firstDoc.user.email,
+        userName,
+        courseName,
+        reason
+      );
+
+      return {
+        registration: await prisma.registration.findUnique({ where: { id: registrationId } }),
+        emailSent
+      };
+    } catch (emailError) {
+      console.error('Failed to send rejection email:', emailError);
+      return {
+        registration: await prisma.registration.findUnique({ where: { id: registrationId } }),
+        emailSent: false
+      };
+    }
+  }
+
   // DEPRECATED: Associate all user documents to a registration (no longer needed)
   static async linkUserDocumentsToRegistration(userId: string, registrationId: string) {
     try {

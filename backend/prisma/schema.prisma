@@ -8,37 +8,38 @@ generator client {
 }
 
 model User {
-  id              String   @id @default(uuid())
-  email           String   @unique
-  password        String
-  role            UserRole @default(USER)
-  isActive        Boolean  @default(true)
-  emailVerified   Boolean  @default(false)
-  emailVerificationToken String?
+  id                           String    @id @default(uuid())
+  email                        String    @unique
+  password                     String
+  role                         UserRole  @default(USER)
+  isActive                     Boolean   @default(true)
+  emailVerified                Boolean   @default(false)
+  emailVerificationToken       String?
   emailVerificationTokenExpiry DateTime?
-  emailVerifiedAt DateTime?
-  lastLoginAt     DateTime?
-  createdAt       DateTime @default(now())
-  
+  emailVerifiedAt              DateTime?
+  lastLoginAt                  DateTime?
+  createdAt                    DateTime  @default(now())
+
   // Codice univoco per accesso sicuro al form iscrizione
-  verificationCode String? @unique
-  codeExpiresAt   DateTime?
-  
+  verificationCode String?   @unique
+  codeExpiresAt    DateTime?
+
   // Partner assignment (permanent association)
   assignedPartnerId String?
-  
+
   // Relazioni
-  partner         Partner?      // Solo per utenti che sono partner
-  assignedPartner Partner?      @relation("UserPartnerAssignment", fields: [assignedPartnerId], references: [id])
-  profile         UserProfile?  // Profilo con dati anagrafici
-  registrations   Registration[] // Iscrizioni ai corsi
-  documents       UserDocument[] // Repository documenti dell'utente
-  verifiedDocuments UserDocument[] @relation("DocumentVerifier") // Documenti verificati (per partner)
-  uploadedDocuments UserDocument[] @relation("DocumentUploader") // Documenti caricati
+  partner           Partner? // Solo per utenti che sono partner
+  assignedPartner   Partner?            @relation("UserPartnerAssignment", fields: [assignedPartnerId], references: [id])
+  profile           UserProfile? // Profilo con dati anagrafici
+  registrations     Registration[] // Iscrizioni ai corsi
+  documents         UserDocument[] // Repository documenti dell'utente
+  verifiedDocuments UserDocument[]      @relation("DocumentVerifier") // Documenti verificati (per partner)
+  uploadedDocuments UserDocument[]      @relation("DocumentUploader") // Documenti caricati
   documentAuditLogs DocumentAuditLog[] // Log audit documenti
   documentActions   DocumentActionLog[] @relation("DocumentActions") // Azioni sui documenti
   offerVisibilities OfferVisibility[]
-  offerAccess     UserOfferAccess[] // Accesso alle offerte aggiuntive
+  offerAccess       UserOfferAccess[] // Accesso alle offerte aggiuntive
+  discoveryActions  DiscoveryAdminLog[] @relation("DiscoveryActions") // Log azioni admin Discovery
 }
 
 enum UserRole {
@@ -52,86 +53,86 @@ enum UserRole {
 // ========================================
 
 model PartnerCompany {
-  id                String   @id @default(uuid())
-  name              String
-  referralCode      String   @unique
-  
+  id           String @id @default(uuid())
+  name         String
+  referralCode String @unique
+
   // Sistema Gerarchico
-  parentId          String?  // Partner padre (NULL = root)
-  canCreateChildren Boolean  @default(false)
-  isActive          Boolean  @default(true)
-  isPremium         Boolean  @default(false)  // NEW: Premium status for sub-partner creation
-  
+  parentId          String? // Partner padre (NULL = root)
+  canCreateChildren Boolean @default(false)
+  isActive          Boolean @default(true)
+  isPremium         Boolean @default(false) // NEW: Premium status for sub-partner creation
+
   // Business Data
-  commissionPerUser Decimal  @default(0)
-  totalEarnings     Decimal  @default(0)
-  
+  commissionPerUser Decimal @default(0) // Commissione TFA su sub-partner
+  totalEarnings     Decimal @default(0) // Guadagni totali da commissioni TFA
+
   // Timestamps
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relazioni Gerarchiche
-  parent            PartnerCompany?  @relation("CompanyHierarchy", fields: [parentId], references: [id])
-  children          PartnerCompany[] @relation("CompanyHierarchy")
-  
+  parent   PartnerCompany?  @relation("CompanyHierarchy", fields: [parentId], references: [id])
+  children PartnerCompany[] @relation("CompanyHierarchy")
+
   // Relazioni Business
-  employees         PartnerEmployee[]
-  offers            PartnerOffer[] @relation("CompanyOffers")
-  registrations     Registration[] @relation("CompanyRegistrations")
-  sourceRegistrations Registration[] @relation("SourceCompanyRegistrations")
-  coupons           Coupon[] @relation("CompanyCoupons")
-  transfersFrom     UserTransfer[] @relation("TransferFromCompany")
-  transfersTo       UserTransfer[] @relation("TransferToCompany")
-  userOfferAccess   UserOfferAccess[] @relation("CompanyOfferAccess")
-  
+  employees           PartnerEmployee[]
+  offers              PartnerOffer[]    @relation("CompanyOffers")
+  registrations       Registration[]    @relation("CompanyRegistrations")
+  sourceRegistrations Registration[]    @relation("SourceCompanyRegistrations")
+  coupons             Coupon[]          @relation("CompanyCoupons")
+  transfersFrom       UserTransfer[]    @relation("TransferFromCompany")
+  transfersTo         UserTransfer[]    @relation("TransferToCompany")
+  userOfferAccess     UserOfferAccess[] @relation("CompanyOfferAccess")
+
   // Sub-Partner System
-  companyInvites    PartnerCompanyInvite[] @relation("CompanyInvites")
+  companyInvites PartnerCompanyInvite[] @relation("CompanyInvites")
 
   // Action Tokens
-  actionTokens      ActionToken[]
-  
+  actionTokens ActionToken[]
+
   @@index([parentId])
   @@index([referralCode])
 }
 
 model PartnerEmployee {
-  id              String   @id @default(uuid())
+  id               String              @id @default(uuid())
   partnerCompanyId String
-  email           String   @unique
-  password        String
-  firstName       String
-  lastName        String
-  role            PartnerEmployeeRole
-  isActive        Boolean  @default(true)
-  isOwner         Boolean  @default(false) // Primo utente amministrativo
-  
+  email            String              @unique
+  password         String
+  firstName        String
+  lastName         String
+  role             PartnerEmployeeRole
+  isActive         Boolean             @default(true)
+  isOwner          Boolean             @default(false) // Primo utente amministrativo
+
   // Sistema inviti sicuri
-  inviteToken     String?  @unique
+  inviteToken     String?   @unique
   inviteExpiresAt DateTime?
-  invitedBy       String?  // ID di chi ha invitato
+  invitedBy       String? // ID di chi ha invitato
   acceptedAt      DateTime?
-  
+
   // Timestamps
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  lastLoginAt     DateTime?
-  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
   // Relazioni
-  partnerCompany  PartnerCompany @relation(fields: [partnerCompanyId], references: [id], onDelete: Cascade)
-  sessions        PartnerSession[]
-  activityLogs    PartnerActivityLog[]
-  requestedRegistrations Registration[] @relation("EmployeeRequests")
-  createdOffers   PartnerOffer[] @relation("CreatedOffers")
-  actionTokens    ActionToken[]
-  
+  partnerCompany         PartnerCompany       @relation(fields: [partnerCompanyId], references: [id], onDelete: Cascade)
+  sessions               PartnerSession[]
+  activityLogs           PartnerActivityLog[]
+  requestedRegistrations Registration[]       @relation("EmployeeRequests")
+  createdOffers          PartnerOffer[]       @relation("CreatedOffers")
+  actionTokens           ActionToken[]
+
   @@index([partnerCompanyId])
   @@index([email])
   @@index([inviteToken])
 }
 
 enum PartnerEmployeeRole {
-  ADMINISTRATIVE  // Accesso completo: crea collaboratori, aziende figlie, vede dati finanziari
-  COMMERCIAL      // Accesso limitato: NO dati finanziari, NO creazione utenti
+  ADMINISTRATIVE // Accesso completo: crea collaboratori, aziende figlie, vede dati finanziari
+  COMMERCIAL // Accesso limitato: NO dati finanziari, NO creazione utenti
 }
 
 // ========================================
@@ -139,39 +140,39 @@ enum PartnerEmployeeRole {
 // ========================================
 
 model PartnerCompanyInvite {
-  id                String   @id @default(uuid())
-  parentCompanyId   String   // Azienda premium che invia l'invito
-  inviteToken       String   @unique
-  email             String
-  companyName       String   // Nome della nuova azienda figlia
-  
+  id              String @id @default(uuid())
+  parentCompanyId String // Azienda premium che invia l'invito
+  inviteToken     String @unique
+  email           String
+  companyName     String // Nome della nuova azienda figlia
+
   // Stato dell'invito
-  status            CompanyInviteStatus @default(PENDING)
-  isActive          Boolean  @default(true)
-  expiresAt         DateTime
-  
+  status    CompanyInviteStatus @default(PENDING)
+  isActive  Boolean             @default(true)
+  expiresAt DateTime
+
   // Tracking
-  invitedBy         String   // ID dell'employee che ha inviato l'invito
-  acceptedAt        DateTime?
-  acceptedBy        String?  // ID dell'utente che ha accettato
-  
+  invitedBy  String // ID dell'employee che ha inviato l'invito
+  acceptedAt DateTime?
+  acceptedBy String? // ID dell'utente che ha accettato
+
   // Timestamps
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relazioni
-  parentCompany     PartnerCompany @relation("CompanyInvites", fields: [parentCompanyId], references: [id], onDelete: Cascade)
-  
+  parentCompany PartnerCompany @relation("CompanyInvites", fields: [parentCompanyId], references: [id], onDelete: Cascade)
+
   @@index([parentCompanyId])
   @@index([inviteToken])
   @@index([email])
 }
 
 enum CompanyInviteStatus {
-  PENDING    // Invito inviato, in attesa di accettazione
-  ACCEPTED   // Invito accettato, azienda creata
-  EXPIRED    // Invito scaduto
-  REVOKED    // Invito revocato dal parent
+  PENDING // Invito inviato, in attesa di accettazione
+  ACCEPTED // Invito accettato, azienda creata
+  EXPIRED // Invito scaduto
+  REVOKED // Invito revocato dal parent
 }
 
 // ========================================
@@ -179,33 +180,33 @@ enum CompanyInviteStatus {
 // ========================================
 
 model PartnerSession {
-  id            String   @id @default(uuid())
+  id                String   @id @default(uuid())
   partnerEmployeeId String
-  token         String   @unique
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  expiresAt     DateTime
-  lastUsedAt    DateTime @default(now())
-  ipAddress     String?
-  userAgent     String?
-  
+  token             String   @unique
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  expiresAt         DateTime
+  lastUsedAt        DateTime @default(now())
+  ipAddress         String?
+  userAgent         String?
+
   partnerEmployee PartnerEmployee @relation(fields: [partnerEmployeeId], references: [id], onDelete: Cascade)
-  
+
   @@index([partnerEmployeeId])
   @@index([token])
 }
 
 model PartnerActivityLog {
-  id              String   @id @default(uuid())
+  id                String   @id @default(uuid())
   partnerEmployeeId String
-  action          String   // "LOGIN", "CREATE_EMPLOYEE", "CREATE_CHILD_COMPANY", "VIEW_REGISTRATIONS"
-  details         Json?    // Dati aggiuntivi azione
-  ipAddress       String?
-  userAgent       String?
-  createdAt       DateTime @default(now())
-  
+  action            String // "LOGIN", "CREATE_EMPLOYEE", "CREATE_CHILD_COMPANY", "VIEW_REGISTRATIONS"
+  details           Json? // Dati aggiuntivi azione
+  ipAddress         String?
+  userAgent         String?
+  createdAt         DateTime @default(now())
+
   partnerEmployee PartnerEmployee @relation(fields: [partnerEmployeeId], references: [id], onDelete: Cascade)
-  
+
   @@index([partnerEmployeeId])
   @@index([action])
   @@index([createdAt])
@@ -217,37 +218,37 @@ model PartnerActivityLog {
 
 // TEMP: Manteniamo model Partner vuoto per compatibilità durante migrazione
 model Partner {
-  id                      String   @id @default(uuid())
-  userId                  String   @unique
-  parentId                String?
-  referralCode            String   @unique
-  canCreateChildren       Boolean  @default(false)
-  commissionPerUser       Decimal  @default(1000)
-  commissionToAdmin       Decimal  @default(3000)
-  promotedFromChild       Boolean  @default(false)
-  createdAt               DateTime @default(now())
-  
-  user                    User     @relation(fields: [userId], references: [id])
-  parent                  Partner? @relation("PartnerHierarchy", fields: [parentId], references: [id])
-  children                Partner[] @relation("PartnerHierarchy")
-  assignedUsers           User[]   @relation("UserPartnerAssignment")
-  registrations           Registration[]
-  offers                  PartnerOffer[]
-  coupons                 Coupon[]
-  transfersFrom           UserTransfer[] @relation("TransferFrom")
-  transfersTo             UserTransfer[] @relation("TransferTo")
-  userOfferAccess         UserOfferAccess[]
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  parentId          String?
+  referralCode      String   @unique
+  canCreateChildren Boolean  @default(false)
+  commissionPerUser Decimal  @default(1000)
+  commissionToAdmin Decimal  @default(3000)
+  promotedFromChild Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  user            User              @relation(fields: [userId], references: [id])
+  parent          Partner?          @relation("PartnerHierarchy", fields: [parentId], references: [id])
+  children        Partner[]         @relation("PartnerHierarchy")
+  assignedUsers   User[]            @relation("UserPartnerAssignment")
+  registrations   Registration[]
+  offers          PartnerOffer[]
+  coupons         Coupon[]
+  transfersFrom   UserTransfer[]    @relation("TransferFrom")
+  transfersTo     UserTransfer[]    @relation("TransferTo")
+  userOfferAccess UserOfferAccess[]
 }
 
 model Course {
-  id           String       @id @default(uuid())
+  id           String         @id @default(uuid())
   name         String
   description  String?
   templateType CourseTemplate @default(TFA)
-  isActive     Boolean      @default(true)
-  createdAt    DateTime     @default(now())
-  
-  offers       PartnerOffer[]
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+
+  offers PartnerOffer[]
 }
 
 enum CourseTemplate {
@@ -256,41 +257,41 @@ enum CourseTemplate {
 }
 
 model PartnerOffer {
-  id                      String   @id @default(uuid())
-  partnerId               String
-  partnerCompanyId        String?  // NEW: Reference to PartnerCompany
-  courseId                String
-  name                    String
-  offerType               OfferType @default(TFA_ROMANIA)
-  totalAmount             Decimal
-  installments            Int
-  installmentFrequency    Int      // months
-  customPaymentPlan       Json?    // For custom payment plans
-  referralLink            String   @unique
-  isActive                Boolean  @default(true)
-  createdAt               DateTime @default(now())
+  id                   String    @id @default(uuid())
+  partnerId            String
+  partnerCompanyId     String? // NEW: Reference to PartnerCompany
+  courseId             String
+  name                 String
+  offerType            OfferType @default(TFA_ROMANIA)
+  totalAmount          Decimal
+  installments         Int
+  installmentFrequency Int // months
+  customPaymentPlan    Json? // For custom payment plans
+  referralLink         String    @unique
+  isActive             Boolean   @default(true)
+  createdAt            DateTime  @default(now())
 
   // Partner Employee Tracking
-  createdByEmployeeId     String?  // Tracks which partner employee created/activated this offer
+  createdByEmployeeId String? // Tracks which partner employee created/activated this offer
 
   // Sub-Partner Inheritance System
-  isInherited             Boolean  @default(false)  // True se offerta ereditata da parent
-  parentOfferId           String?  // ID dell'offerta parent da cui deriva
-  inheritedBy             PartnerOffer[] @relation("OfferInheritance")
+  isInherited   Boolean        @default(false) // True se offerta ereditata da parent
+  parentOfferId String? // ID dell'offerta parent da cui deriva
+  inheritedBy   PartnerOffer[] @relation("OfferInheritance")
 
   // Legacy relation (manteniamo per compatibilità)
-  partner                 Partner  @relation(fields: [partnerId], references: [id])
+  partner           Partner           @relation(fields: [partnerId], references: [id])
   // NEW: Partner company relation
-  partnerCompany          PartnerCompany? @relation("CompanyOffers", fields: [partnerCompanyId], references: [id])
+  partnerCompany    PartnerCompany?   @relation("CompanyOffers", fields: [partnerCompanyId], references: [id])
   // NEW: Created by employee relation
-  createdByEmployee       PartnerEmployee? @relation("CreatedOffers", fields: [createdByEmployeeId], references: [id])
-  course                  Course   @relation(fields: [courseId], references: [id])
-  registrations           Registration[]
-  visibilities            OfferVisibility[]
-  userAccess              UserOfferAccess[]
+  createdByEmployee PartnerEmployee?  @relation("CreatedOffers", fields: [createdByEmployeeId], references: [id])
+  course            Course            @relation(fields: [courseId], references: [id])
+  registrations     Registration[]
+  visibilities      OfferVisibility[]
+  userAccess        UserOfferAccess[]
 
   // Inheritance relation
-  parentOffer             PartnerOffer? @relation("OfferInheritance", fields: [parentOfferId], references: [id])
+  parentOffer PartnerOffer? @relation("OfferInheritance", fields: [parentOfferId], references: [id])
 
   @@index([partnerCompanyId])
   @@index([parentOfferId])
@@ -304,25 +305,25 @@ enum OfferType {
 }
 
 model Coupon {
-  id                String   @id @default(uuid())
-  partnerId         String
-  partnerCompanyId  String?  // NEW: Reference to PartnerCompany
-  code              String
-  discountType      DiscountType
-  discountAmount    Decimal?
-  discountPercent   Decimal?
-  maxUses           Int?
-  usedCount         Int      @default(0)
-  validFrom         DateTime
-  validUntil        DateTime
-  isActive          Boolean  @default(true)
-  
+  id               String       @id @default(uuid())
+  partnerId        String
+  partnerCompanyId String? // NEW: Reference to PartnerCompany
+  code             String
+  discountType     DiscountType
+  discountAmount   Decimal?
+  discountPercent  Decimal?
+  maxUses          Int?
+  usedCount        Int          @default(0)
+  validFrom        DateTime
+  validUntil       DateTime
+  isActive         Boolean      @default(true)
+
   // Legacy relation
-  partner           Partner  @relation(fields: [partnerId], references: [id])
+  partner        Partner         @relation(fields: [partnerId], references: [id])
   // NEW: Partner company relation
-  partnerCompany    PartnerCompany? @relation("CompanyCoupons", fields: [partnerCompanyId], references: [id])
-  uses              CouponUse[]
-  
+  partnerCompany PartnerCompany? @relation("CompanyCoupons", fields: [partnerCompanyId], references: [id])
+  uses           CouponUse[]
+
   @@unique([partnerId, code])
   @@index([partnerCompanyId])
 }
@@ -333,152 +334,155 @@ enum DiscountType {
 }
 
 model UserProfile {
-  id                      String   @id @default(uuid())
-  userId                  String   @unique
-  
+  id     String @id @default(uuid())
+  userId String @unique
+
   // Anagrafica (compilata alla registrazione)
-  cognome                 String
-  nome                    String
-  dataNascita             DateTime
-  luogoNascita            String
-  provinciaNascita        String?
-  sesso                   String?
-  codiceFiscale           String   @unique
-  telefono                String
-  nomePadre               String? // Opzionale per Certificazioni
-  nomeMadre               String? // Opzionale per Certificazioni
-  
+  cognome          String
+  nome             String
+  dataNascita      DateTime
+  luogoNascita     String
+  provinciaNascita String?
+  sesso            String?
+  codiceFiscale    String   @unique
+  telefono         String
+  nomePadre        String? // Opzionale per Certificazioni
+  nomeMadre        String? // Opzionale per Certificazioni
+
   // Residenza (compilata alla registrazione)
-  residenzaVia            String
-  residenzaCitta          String
-  residenzaProvincia      String
-  residenzaCap            String
-  
+  residenzaVia       String
+  residenzaCitta     String
+  residenzaProvincia String
+  residenzaCap       String
+
   // Domicilio (opzionale)
-  hasDifferentDomicilio   Boolean  @default(false)
-  domicilioVia            String?
-  domicilioCitta          String?
-  domicilioProvincia      String?
-  domicilioCap            String?
-  
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  
-  user                    User     @relation(fields: [userId], references: [id])
+  hasDifferentDomicilio Boolean @default(false)
+  domicilioVia          String?
+  domicilioCitta        String?
+  domicilioProvincia    String?
+  domicilioCap          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
 }
 
 model Registration {
-  id                     String   @id @default(uuid())
+  id                     String    @id @default(uuid())
   userId                 String
-  partnerId              String   // Partner che ha portato l'iscrizione (LEGACY)
-  partnerCompanyId       String?  // NEW: Azienda proprietaria (per commissioni)
-  sourcePartnerCompanyId String?  // NEW: Azienda che ha generato l'iscrizione (per tracking)
-  requestedByEmployeeId  String?  // NEW: ID dipendente che ha effettuato la registrazione
-  isDirectRegistration   Boolean  @default(true) // false se da azienda figlia
+  partnerId              String // Partner che ha portato l'iscrizione (LEGACY)
+  partnerCompanyId       String? // NEW: Azienda proprietaria (per commissioni)
+  sourcePartnerCompanyId String? // NEW: Azienda che ha generato l'iscrizione (per tracking)
+  requestedByEmployeeId  String? // NEW: ID dipendente che ha effettuato la registrazione
+  isDirectRegistration   Boolean   @default(true) // false se da azienda figlia
   courseId               String
   partnerOfferId         String?
   couponId               String?
   offerType              OfferType @default(TFA_ROMANIA)
-  
+
   // Dati specifici iscrizione (non nel profilo)
   // Per TFA Romania:
-  tipoLaurea              String?
-  laureaConseguita        String?
-  laureaConseguitaCustom  String?
-  laureaUniversita        String?
-  laureaData              DateTime?
-  
+  tipoLaurea             String?
+  laureaConseguita       String?
+  laureaConseguitaCustom String?
+  laureaUniversita       String?
+  laureaData             DateTime?
+
   // Laurea Triennale (per magistrali)
-  tipoLaureaTriennale     String?
+  tipoLaureaTriennale       String?
   laureaConseguitaTriennale String?
   laureaUniversitaTriennale String?
-  laureaDataTriennale     DateTime?
-  
+  laureaDataTriennale       DateTime?
+
   // Dati pergamena (compilati dal partner)
-  numeroPergamena         String?
-  dataRilascioPergamena   DateTime?
-  
+  numeroPergamena       String?
+  dataRilascioPergamena DateTime?
+
   // Diploma Superiori (obbligatorio per TFA)
-  diplomaData             DateTime?  // Data conseguimento diploma
-  diplomaCitta            String?    // Città conseguimento
-  diplomaProvincia        String?    // Provincia conseguimento
-  diplomaIstituto         String?    // Nome istituto
-  diplomaVoto             String?    // Voto diploma
-  
+  diplomaData      DateTime? // Data conseguimento diploma
+  diplomaCitta     String? // Città conseguimento
+  diplomaProvincia String? // Provincia conseguimento
+  diplomaIstituto  String? // Nome istituto
+  diplomaVoto      String? // Voto diploma
+
   // Professione (solo TFA Romania)
-  tipoProfessione         String?
-  scuolaDenominazione     String?
-  scuolaCitta             String?
-  scuolaProvincia         String?
-  
+  tipoProfessione     String?
+  scuolaDenominazione String?
+  scuolaCitta         String?
+  scuolaProvincia     String?
+
   // Pagamenti
   originalAmount  Decimal
   finalAmount     Decimal
   installments    Int
-  remainingAmount Decimal?  // Importo residuo da pagare
-  delayedAmount   Decimal?  // Importo totale in ritardo per pagamenti parziali
-  
-  status          RegistrationStatus @default(PENDING)
-  
+  remainingAmount Decimal? // Importo residuo da pagare
+  delayedAmount   Decimal? // Importo totale in ritardo per pagamenti parziali
+
+  // TFA Commission System (solo tra partner premium e sub-partner)
+  partnerCommission Decimal? // Commissione che sub-partner paga a parent (solo TFA)
+
+  status RegistrationStatus @default(PENDING)
+
   // Contratti
-  contractTemplateUrl     String?   // URL contratto precompilato
-  contractSignedUrl       String?   // URL contratto firmato
-  contractGeneratedAt     DateTime? // Data generazione template
-  contractUploadedAt      DateTime? // Data upload firmato
-  
+  contractTemplateUrl String? // URL contratto precompilato
+  contractSignedUrl   String? // URL contratto firmato
+  contractGeneratedAt DateTime? // Data generazione template
+  contractUploadedAt  DateTime? // Data upload firmato
+
   // Documenti partner (non visibili a utente)
-  cnredUrl               String?
-  cnredUploadedAt        DateTime?
-  adverintiaUrl          String?
-  adverintiaUploadedAt   DateTime?
-  
+  cnredUrl             String?
+  cnredUploadedAt      DateTime?
+  adverintiaUrl        String?
+  adverintiaUploadedAt DateTime?
+
   // TFA Post-enrollment steps tracking
-  admissionTestDate      DateTime? // Data test d'ingresso
-  admissionTestBy        String?   // Partner che registra test
-  admissionTestPassed    Boolean?  // Esito test d'ingresso
-  
-  cnredReleasedAt        DateTime? // Data rilascio CNRED
-  cnredReleasedBy        String?   // Partner che registra rilascio
-  
-  finalExamDate          DateTime? // Data esame finale
-  finalExamRegisteredBy  String?   // Partner che registra esame
-  finalExamPassed        Boolean?  // Esito esame
-  
-  recognitionRequestDate     DateTime? // Data richiesta riconoscimento  
-  recognitionRequestBy       String?   // Partner che invia richiesta
-  recognitionDocumentUrl     String?   // URL documento riconoscimento
-  recognitionApprovalDate    DateTime? // Data approvazione riconoscimento
-  
+  admissionTestDate   DateTime? // Data test d'ingresso
+  admissionTestBy     String? // Partner che registra test
+  admissionTestPassed Boolean? // Esito test d'ingresso
+
+  cnredReleasedAt DateTime? // Data rilascio CNRED
+  cnredReleasedBy String? // Partner che registra rilascio
+
+  finalExamDate         DateTime? // Data esame finale
+  finalExamRegisteredBy String? // Partner che registra esame
+  finalExamPassed       Boolean? // Esito esame
+
+  recognitionRequestDate  DateTime? // Data richiesta riconoscimento  
+  recognitionRequestBy    String? // Partner che invia richiesta
+  recognitionDocumentUrl  String? // URL documento riconoscimento
+  recognitionApprovalDate DateTime? // Data approvazione riconoscimento
+
   // Certificazioni - workflow 5 step
-  examDate               DateTime? // Per workflow certificazioni 
-  examRegisteredBy       String?   // Partner che registra data
-  examCompletedDate      DateTime? // Data completamento esame
-  examCompletedBy        String?   // Partner che registra completamento
-  
+  examDate          DateTime? // Per workflow certificazioni 
+  examRegisteredBy  String? // Partner che registra data
+  examCompletedDate DateTime? // Data completamento esame
+  examCompletedBy   String? // Partner che registra completamento
+
   // Date workflow
-  dataVerifiedAt      DateTime?
-  contractSignedAt    DateTime?
-  enrolledAt          DateTime?
-  
+  dataVerifiedAt   DateTime?
+  contractSignedAt DateTime?
+  enrolledAt       DateTime?
+
   // Sistema accesso sicuro
-  accessToken         String?   @unique // Token sicuro per accesso form
-  tokenExpiresAt      DateTime? // Scadenza token
-  
-  createdAt       DateTime @default(now())
-  
-  user                    User         @relation(fields: [userId], references: [id])
+  accessToken    String?   @unique // Token sicuro per accesso form
+  tokenExpiresAt DateTime? // Scadenza token
+
+  createdAt DateTime @default(now())
+
+  user                 User              @relation(fields: [userId], references: [id])
   // Legacy relation
-  partner                 Partner      @relation(fields: [partnerId], references: [id])
+  partner              Partner           @relation(fields: [partnerId], references: [id])
   // NEW: Partner company relations
-  partnerCompany          PartnerCompany?  @relation("CompanyRegistrations", fields: [partnerCompanyId], references: [id])
-  sourcePartnerCompany    PartnerCompany?  @relation("SourceCompanyRegistrations", fields: [sourcePartnerCompanyId], references: [id])
-  requestedByEmployee     PartnerEmployee? @relation("EmployeeRequests", fields: [requestedByEmployeeId], references: [id])
-  offer                   PartnerOffer? @relation(fields: [partnerOfferId], references: [id])
-  userDocuments           UserDocument[] // Unified document system
-  payments                Payment[]
-  deadlines               PaymentDeadline[]
-  couponUses              CouponUse[]
-  
+  partnerCompany       PartnerCompany?   @relation("CompanyRegistrations", fields: [partnerCompanyId], references: [id])
+  sourcePartnerCompany PartnerCompany?   @relation("SourceCompanyRegistrations", fields: [sourcePartnerCompanyId], references: [id])
+  requestedByEmployee  PartnerEmployee?  @relation("EmployeeRequests", fields: [requestedByEmployeeId], references: [id])
+  offer                PartnerOffer?     @relation(fields: [partnerOfferId], references: [id])
+  userDocuments        UserDocument[] // Unified document system
+  payments             Payment[]
+  deadlines            PaymentDeadline[]
+  couponUses           CouponUse[]
+
   // Prevent duplicate registrations for same user, course and partner
   @@unique([userId, courseId, partnerId, status])
   @@index([partnerCompanyId])
@@ -492,19 +496,19 @@ model UserOfferAccess {
   id               String   @id @default(uuid())
   userId           String
   offerId          String
-  partnerId        String   // Partner che ha abilitato l'accesso (LEGACY)
-  partnerCompanyId String?  // NEW: Partner company che ha abilitato l'accesso
+  partnerId        String // Partner che ha abilitato l'accesso (LEGACY)
+  partnerCompanyId String? // NEW: Partner company che ha abilitato l'accesso
   enabled          Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-  
-  user           User         @relation(fields: [userId], references: [id])
-  offer          PartnerOffer @relation(fields: [offerId], references: [id])
+
+  user           User            @relation(fields: [userId], references: [id])
+  offer          PartnerOffer    @relation(fields: [offerId], references: [id])
   // Legacy relation
-  partner        Partner      @relation(fields: [partnerId], references: [id])
+  partner        Partner         @relation(fields: [partnerId], references: [id])
   // NEW: Partner company relation
   partnerCompany PartnerCompany? @relation("CompanyOfferAccess", fields: [partnerCompanyId], references: [id])
-  
+
   @@unique([userId, offerId])
   @@index([partnerCompanyId])
 }
@@ -512,97 +516,110 @@ model UserOfferAccess {
 enum RegistrationStatus {
   PENDING
   DATA_VERIFIED
+  DOCUMENTS_UPLOADED // Documenti caricati da utente
+  DOCUMENTS_PARTNER_CHECKED // Partner ha checkato documenti (no email)
   CONTRACT_GENERATED
   CONTRACT_SIGNED
+  AWAITING_DISCOVERY_APPROVAL // In attesa approvazione Discovery
+  DISCOVERY_APPROVED // Discovery ha approvato
   ENROLLED
-  
+
   // TFA Post-enrollment steps
-  CNRED_RELEASED       // Step 1: CNRED rilasciato
-  FINAL_EXAM           // Step 2: Esame finale sostenuto
-  RECOGNITION_REQUEST  // Step 3: Richiesta riconoscimento inviata
-  
+  CNRED_RELEASED // Step 1: CNRED rilasciato
+  FINAL_EXAM // Step 2: Esame finale sostenuto
+  RECOGNITION_REQUEST // Step 3: Richiesta riconoscimento inviata
+
   // Certificazioni - workflow 5 step
-  DOCUMENTS_APPROVED   // Step 3: Documenti approvati (carta identità + tessera sanitaria)
-  EXAM_REGISTERED      // Step 4: Iscritto all'esame
-  COMPLETED            // Step 5: Esame sostenuto (finale)
-  
+  DOCUMENTS_APPROVED // Step 3: Documenti approvati (carta identità + tessera sanitaria)
+  EXAM_REGISTERED // Step 4: Iscritto all'esame
+  COMPLETED // Step 5: Esame sostenuto (finale)
 }
 
 // Sistema Documenti Unificato - Enterprise Document Management
 enum DocumentStatus {
-  PENDING    // In attesa di verifica
-  APPROVED   // Approvato dal partner
-  REJECTED   // Rifiutato con motivazione
-  EXPIRED    // Scaduto (per doc temporanei)
+  PENDING // In attesa di verifica
+  APPROVED // Approvato dal partner
+  REJECTED // Rifiutato con motivazione
+  EXPIRED // Scaduto (per doc temporanei)
 }
 
 enum DocumentType {
-  IDENTITY_CARD        // Carta identità
-  PASSPORT            // Passaporto
-  DIPLOMA             // Diploma superiori
-  BACHELOR_DEGREE     // Laurea triennale
-  MASTER_DEGREE       // Laurea magistrale
-  TRANSCRIPT          // Transcript voti
-  CV                  // Curriculum
-  PHOTO               // Foto tessera
-  RESIDENCE_CERT      // Certificato residenza
-  BIRTH_CERT          // Certificato nascita
-  CONTRACT_SIGNED     // Contratto firmato
-  MEDICAL_CERT        // Certificato medico
-  TESSERA_SANITARIA   // Tessera sanitaria
-  OTHER               // Altri documenti
+  IDENTITY_CARD // Carta identità
+  PASSPORT // Passaporto
+  DIPLOMA // Diploma superiori
+  BACHELOR_DEGREE // Laurea triennale
+  MASTER_DEGREE // Laurea magistrale
+  TRANSCRIPT // Transcript voti
+  CV // Curriculum
+  PHOTO // Foto tessera
+  RESIDENCE_CERT // Certificato residenza
+  BIRTH_CERT // Certificato nascita
+  CONTRACT_SIGNED // Contratto firmato
+  MEDICAL_CERT // Certificato medico
+  TESSERA_SANITARIA // Tessera sanitaria
+  OTHER // Altri documenti
 }
 
 enum UploadSource {
-  ENROLLMENT       // Durante iscrizione
-  USER_DASHBOARD   // Da area personale
-  PARTNER_PANEL    // Da pannello partner
+  ENROLLMENT // Durante iscrizione
+  USER_DASHBOARD // Da area personale
+  PARTNER_PANEL // Da pannello partner
 }
 
 model UserDocument {
-  id                String   @id @default(uuid())
-  userId            String
-  registrationId    String?
-  
+  id             String  @id @default(uuid())
+  userId         String
+  registrationId String?
+
   // Tipo e contenuto documento
-  type              DocumentType  // Enum per tipo documento
-  originalName      String        // Nome file originale
-  mimeType          String        // MIME type per anteprima
-  size              Int           // Dimensione in bytes
-  url               String        // Path storage locale
-  signedUrl         String?       // URL firmato temporaneo per download
-  
+  type         DocumentType // Enum per tipo documento
+  originalName String // Nome file originale
+  mimeType     String // MIME type per anteprima
+  size         Int // Dimensione in bytes
+  url          String // Path storage locale
+  signedUrl    String? // URL firmato temporaneo per download
+
   // Gestione approvazione
-  status            DocumentStatus @default(PENDING)
-  verifiedBy        String?       // ID partner che verifica
-  verifiedAt        DateTime?
-  rejectionReason   String?       // Motivo specifico rifiuto
-  rejectionDetails  String?       // Note aggiuntive per utente
-  
+  status           DocumentStatus @default(PENDING)
+  verifiedBy       String? // ID partner che verifica (LEGACY - deprecato)
+  verifiedAt       DateTime? // LEGACY - deprecato
+  rejectionReason  String? // Motivo specifico rifiuto
+  rejectionDetails String? // Note aggiuntive per utente
+
+  // Partner Check (silenzioso, no email)
+  partnerCheckedAt DateTime? // Partner ha checkato (no email)
+  partnerCheckedBy String? // ID PartnerEmployee che ha checkato
+
+  // Discovery Approval (finale, con email)
+  discoveryApprovedAt      DateTime? // Discovery ha approvato
+  discoveryApprovedBy      String? // ID Admin Discovery
+  discoveryRejectedAt      DateTime? // Discovery ha rifiutato
+  discoveryRejectionReason String? // Motivo rifiuto Discovery
+
   // Tracking sorgente upload
-  uploadSource      UploadSource  // ENROLLMENT, USER_DASHBOARD, PARTNER_PANEL
-  uploadedBy        String        // ID utente o partner che carica
-  uploadedByRole    UserRole      // USER, PARTNER, ADMIN
-  uploadedAt        DateTime @default(now())
-  
+  uploadSource   UploadSource // ENROLLMENT, USER_DASHBOARD, PARTNER_PANEL
+  uploadedBy     String // ID utente o partner che carica
+  uploadedByRole UserRole // USER, PARTNER, ADMIN
+  uploadedAt     DateTime     @default(now())
+
   // Metadati sicurezza
-  checksum          String?       // Hash SHA-256 per integrità
-  encryptionKey     String?       // Per documenti sensibili
-  expiresAt         DateTime?     // Scadenza documento temporaneo
-  
+  checksum      String? // Hash SHA-256 per integrità
+  encryptionKey String? // Per documenti sensibili
+  expiresAt     DateTime? // Scadenza documento temporaneo
+
   // Notifiche
-  partnerNotifiedAt DateTime?     // Quando partner è stato notificato
-  userNotifiedAt    DateTime?     // Quando utente è stato notificato (per rifiuti)
-  emailSentAt       DateTime?     // Timestamp invio email
-  
+  partnerNotifiedAt DateTime? // Quando partner è stato notificato
+  userNotifiedAt    DateTime? // Quando utente è stato notificato (per rifiuti)
+  emailSentAt       DateTime? // Timestamp invio email
+
   // Relazioni
-  user              User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  registration      Registration? @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  verifier          User? @relation("DocumentVerifier", fields: [verifiedBy], references: [id])
-  uploader          User @relation("DocumentUploader", fields: [uploadedBy], references: [id])
-  auditLogs         DocumentAuditLog[]
-  actionLogs        DocumentActionLog[]
-  
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  registration Registration?       @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  verifier     User?               @relation("DocumentVerifier", fields: [verifiedBy], references: [id])
+  uploader     User                @relation("DocumentUploader", fields: [uploadedBy], references: [id])
+  auditLogs    DocumentAuditLog[]
+  actionLogs   DocumentActionLog[]
+
   // Indici per performance
   @@index([userId, status])
   @@index([registrationId, type])
@@ -611,18 +628,18 @@ model UserDocument {
 }
 
 model DocumentAuditLog {
-  id             String         @id @default(uuid())
+  id             String          @id @default(uuid())
   documentId     String
-  action         String         // UPLOADED, APPROVED, REJECTED, DELETED, REPLACED
+  action         String // UPLOADED, APPROVED, REJECTED, DELETED, REPLACED
   performedBy    String
   previousStatus DocumentStatus?
   newStatus      DocumentStatus?
   notes          String?
-  createdAt      DateTime       @default(now())
-  
-  document       UserDocument   @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  performer      User           @relation(fields: [performedBy], references: [id], onDelete: Restrict)
-  
+  createdAt      DateTime        @default(now())
+
+  document  UserDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  performer User         @relation(fields: [performedBy], references: [id], onDelete: Restrict)
+
   @@index([documentId])
   @@index([performedBy])
   @@index([createdAt])
@@ -632,17 +649,17 @@ model DocumentAuditLog {
 model DocumentActionLog {
   id            String   @id @default(uuid())
   documentId    String
-  action        String   // UPLOAD, APPROVE, REJECT, DELETE, VIEW, DOWNLOAD
+  action        String // UPLOAD, APPROVE, REJECT, DELETE, VIEW, DOWNLOAD
   performedBy   String
   performedRole UserRole
-  details       Json?    // Dettagli aggiuntivi azione
+  details       Json? // Dettagli aggiuntivi azione
   ipAddress     String?
   userAgent     String?
   timestamp     DateTime @default(now())
-  
-  document      UserDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  performer     User @relation("DocumentActions", fields: [performedBy], references: [id])
-  
+
+  document  UserDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  performer User         @relation("DocumentActions", fields: [performedBy], references: [id])
+
   @@index([documentId, timestamp])
   @@index([performedBy, action])
 }
@@ -664,44 +681,44 @@ model DocumentTypeConfig {
 // Legacy Document model removed - replaced by UserDocument
 
 model Payment {
-  id              String   @id @default(uuid())
-  registrationId  String
-  amount          Decimal
-  paymentDate     DateTime
-  paymentNumber   Int
-  isFirstPayment  Boolean  @default(false)
-  isConfirmed     Boolean  @default(false)
-  confirmedBy     String?
-  confirmedAt     DateTime?
-  notes           String?  // Note sul pagamento
-  createdBy       String
-  createdAt       DateTime @default(now())
-  
-  registration    Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  id             String    @id @default(uuid())
+  registrationId String
+  amount         Decimal
+  paymentDate    DateTime
+  paymentNumber  Int
+  isFirstPayment Boolean   @default(false)
+  isConfirmed    Boolean   @default(false)
+  confirmedBy    String?
+  confirmedAt    DateTime?
+  notes          String? // Note sul pagamento
+  createdBy      String
+  createdAt      DateTime  @default(now())
+
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
 }
 
 model PaymentDeadline {
-  id              String   @id @default(uuid())
-  registrationId  String
-  amount          Decimal
-  dueDate         DateTime
-  paymentNumber   Int
-  description     String?  // Descrizione pagamento
-  isPaid          Boolean  @default(false)
-  paidAt          DateTime? // Data effettivo pagamento
-  notes           String?   // Note sul pagamento
-  
+  id             String    @id @default(uuid())
+  registrationId String
+  amount         Decimal
+  dueDate        DateTime
+  paymentNumber  Int
+  description    String? // Descrizione pagamento
+  isPaid         Boolean   @default(false)
+  paidAt         DateTime? // Data effettivo pagamento
+  notes          String? // Note sul pagamento
+
   // Gestione pagamenti parziali
-  partialAmount   Decimal?  // Importo parziale pagato
-  paymentStatus   PaymentStatus @default(UNPAID)
-  
-  registration    Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  partialAmount Decimal? // Importo parziale pagato
+  paymentStatus PaymentStatus @default(UNPAID)
+
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
 }
 
 enum PaymentStatus {
-  UNPAID        // Non pagato
-  PARTIAL       // Pagato parzialmente  
-  PAID          // Pagato completamente
+  UNPAID // Non pagato
+  PARTIAL // Pagato parzialmente  
+  PAID // Pagato completamente
 }
 
 model CouponUse {
@@ -710,73 +727,72 @@ model CouponUse {
   registrationId  String
   discountApplied Decimal
   usedAt          DateTime @default(now())
-  
-  coupon          Coupon       @relation(fields: [couponId], references: [id])
-  registration    Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  coupon       Coupon       @relation(fields: [couponId], references: [id])
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
 }
 
-
 model ChatConversation {
-  id              String   @id @default(uuid())
-  userId          String
-  telegramChatId  String?
-  isActive        Boolean  @default(true)
-  messages        Json     @default("[]")
-  createdAt       DateTime @default(now())
+  id             String   @id @default(uuid())
+  userId         String
+  telegramChatId String?
+  isActive       Boolean  @default(true)
+  messages       Json     @default("[]")
+  createdAt      DateTime @default(now())
 }
 
 model OfferVisibility {
-  id              String   @id @default(uuid())
-  partnerOfferId  String
-  userId          String
-  isVisible       Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  
-  offer           PartnerOffer @relation(fields: [partnerOfferId], references: [id])
-  user            User         @relation(fields: [userId], references: [id])
-  
+  id             String   @id @default(uuid())
+  partnerOfferId String
+  userId         String
+  isVisible      Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  offer PartnerOffer @relation(fields: [partnerOfferId], references: [id])
+  user  User         @relation(fields: [userId], references: [id])
+
   @@unique([partnerOfferId, userId])
 }
 
 model UserTransfer {
-  id                     String   @id @default(uuid())
-  userId                 String
-  fromPartnerId          String?
-  toPartnerId            String
-  fromPartnerCompanyId   String?  // NEW: From partner company
-  toPartnerCompanyId     String?  // NEW: To partner company
-  transferredBy          String   // Admin user ID
-  reason                 String?
-  transferredAt          DateTime @default(now())
-  
+  id                   String   @id @default(uuid())
+  userId               String
+  fromPartnerId        String?
+  toPartnerId          String
+  fromPartnerCompanyId String? // NEW: From partner company
+  toPartnerCompanyId   String? // NEW: To partner company
+  transferredBy        String // Admin user ID
+  reason               String?
+  transferredAt        DateTime @default(now())
+
   // Legacy relations
-  toPartner              Partner  @relation("TransferTo", fields: [toPartnerId], references: [id])
-  fromPartner            Partner? @relation("TransferFrom", fields: [fromPartnerId], references: [id])
+  toPartner          Partner         @relation("TransferTo", fields: [toPartnerId], references: [id])
+  fromPartner        Partner?        @relation("TransferFrom", fields: [fromPartnerId], references: [id])
   // NEW: Partner company relations
-  toPartnerCompany       PartnerCompany? @relation("TransferToCompany", fields: [toPartnerCompanyId], references: [id])
-  fromPartnerCompany     PartnerCompany? @relation("TransferFromCompany", fields: [fromPartnerCompanyId], references: [id])
-  
+  toPartnerCompany   PartnerCompany? @relation("TransferToCompany", fields: [toPartnerCompanyId], references: [id])
+  fromPartnerCompany PartnerCompany? @relation("TransferFromCompany", fields: [fromPartnerCompanyId], references: [id])
+
   @@index([fromPartnerCompanyId])
   @@index([toPartnerCompanyId])
 }
 
 // Action Token per tracking delle azioni partner
 model ActionToken {
-  id                String   @id @default(uuid())
-  token             String   @unique
+  id                String     @id @default(uuid())
+  token             String     @unique
   partnerEmployeeId String
   partnerCompanyId  String
   actionType        ActionType
   targetUserId      String?
   targetOfferId     String?
-  isUsed            Boolean  @default(false)
+  isUsed            Boolean    @default(false)
   usedAt            DateTime?
   expiresAt         DateTime
-  createdAt         DateTime @default(now())
+  createdAt         DateTime   @default(now())
 
   // Relations
-  partnerEmployee   PartnerEmployee @relation(fields: [partnerEmployeeId], references: [id])
-  partnerCompany    PartnerCompany  @relation(fields: [partnerCompanyId], references: [id])
+  partnerEmployee PartnerEmployee @relation(fields: [partnerEmployeeId], references: [id])
+  partnerCompany  PartnerCompany  @relation(fields: [partnerCompanyId], references: [id])
 
   @@index([token])
   @@index([partnerEmployeeId])
@@ -784,6 +800,45 @@ model ActionToken {
 }
 
 enum ActionType {
-  GRANT_ACCESS      // Concessione accesso offerta
-  REACTIVATE_USER   // Riattivazione utente orfano
+  GRANT_ACCESS // Concessione accesso offerta
+  REACTIVATE_USER // Riattivazione utente orfano
+}
+
+// ========================================
+// DISCOVERY ADMIN SYSTEM
+// ========================================
+
+// Log azioni admin Discovery
+model DiscoveryAdminLog {
+  id            String              @id @default(uuid())
+  adminId       String // User con role ADMIN
+  action        DiscoveryActionType
+  targetType    String // COMPANY, REGISTRATION, USER
+  targetId      String
+  previousValue Json?
+  newValue      Json?
+  reason        String?
+  ipAddress     String?
+  createdAt     DateTime            @default(now())
+
+  admin User @relation("DiscoveryActions", fields: [adminId], references: [id])
+
+  @@index([adminId, createdAt])
+  @@index([targetType, targetId])
+  @@index([action])
+}
+
+enum DiscoveryActionType {
+  COMPANY_CREATE
+  COMPANY_EDIT
+  COMPANY_DISABLE
+  COMPANY_DELETE
+  COMPANY_SET_PREMIUM
+  COMMISSION_CHANGE
+  USER_TRANSFER
+  REGISTRATION_TRANSFER
+  BULK_OPERATION
+  EXPORT_DATA
+  DOCUMENT_APPROVAL // Discovery approva documenti
+  DOCUMENT_REJECTION // Discovery rifiuta documenti
 }

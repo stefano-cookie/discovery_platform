@@ -193,7 +193,11 @@ const CertificationSteps: React.FC<CertificationStepsProps> = ({ registrationId 
                   <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <p className="text-sm text-blue-700">
                       {step.step === 2 && 'In attesa del completamento del pagamento tramite bonifico bancario'}
-                      {step.step === 3 && 'Il partner sta verificando i tuoi documenti (carta d\'identità e tessera sanitaria)'}
+                      {step.step === 3 && (
+                        certificationData.currentStatus === 'ENROLLED'
+                          ? 'Il partner sta verificando i tuoi documenti (carta d\'identità e tessera sanitaria)'
+                          : 'I tuoi documenti sono in fase di approvazione finale da parte di Discovery'
+                      )}
                       {step.step === 4 && 'Il partner sta registrando la tua iscrizione all\'esame'}
                       {step.step === 5 && 'In attesa che tu sostenga l\'esame di certificazione'}
                     </p>
@@ -255,6 +259,54 @@ const CertificationSteps: React.FC<CertificationStepsProps> = ({ registrationId 
               </ul>
               <p className="text-xs text-yellow-700 mt-2">
                 Una volta caricati, il partner procederà con la verifica.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {certificationData.currentStatus === 'DOCUMENTS_PARTNER_CHECKED' && (
+        <div className="mt-8 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+          <div className="flex items-start">
+            <svg className="w-5 h-5 text-indigo-600 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <h4 className="text-sm font-medium text-indigo-900 mb-1">Documenti Verificati dal Partner</h4>
+              <p className="text-xs text-indigo-700">
+                Il partner ha controllato i tuoi documenti. Ora sono in fase di approvazione finale da parte di Discovery.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {certificationData.currentStatus === 'AWAITING_DISCOVERY_APPROVAL' && (
+        <div className="mt-8 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+          <div className="flex items-start">
+            <svg className="w-5 h-5 text-purple-600 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <h4 className="text-sm font-medium text-purple-900 mb-1">In Attesa Approvazione Discovery</h4>
+              <p className="text-xs text-purple-700">
+                La tua iscrizione è in fase di verifica finale da parte del team Discovery. Riceverai una notifica via email non appena l'approvazione sarà completata.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {certificationData.currentStatus === 'DISCOVERY_APPROVED' && (
+        <div className="mt-8 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-start">
+            <svg className="w-5 h-5 text-green-600 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <h4 className="text-sm font-medium text-green-900 mb-1">Iscrizione Approvata da Discovery!</h4>
+              <p className="text-xs text-green-700">
+                La tua iscrizione è stata approvata con successo. Il partner procederà ora con la registrazione all'esame di certificazione.
               </p>
             </div>
           </div>

@@ -2500,6 +2500,211 @@ Piattaforma Diamante
 
     return { html, text };
   }
+
+  // ==================== DISCOVERY APPROVAL EMAILS ====================
+
+  /**
+   * Send registration approved email (Discovery final approval)
+   */
+  async sendRegistrationApprovedEmail(
+    toEmail: string,
+    userName: string,
+    courseName: string
+  ): Promise<boolean> {
+    try {
+      const { html, text } = this.getRegistrationApprovedEmailTemplate(userName, courseName);
+
+      await this.transporter.sendMail({
+        from: this.fromEmail,
+        to: toEmail,
+        subject: '✅ Iscrizione Approvata - Discovery',
+        html,
+        text
+      });
+
+      console.log(`✅ Email approvazione iscrizione inviata a: ${toEmail}`);
+      return true;
+    } catch (error) {
+      console.error('❌ Errore invio email approvazione:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Send registration rejected email (Discovery rejection)
+   */
+  async sendRegistrationRejectedEmail(
+    toEmail: string,
+    userName: string,
+    courseName: string,
+    reason: string
+  ): Promise<boolean> {
+    try {
+      const { html, text } = this.getRegistrationRejectedEmailTemplate(userName, courseName, reason);
+
+      await this.transporter.sendMail({
+        from: this.fromEmail,
+        to: toEmail,
+        subject: '❌ Iscrizione Rifiutata - Richieste Modifiche',
+        html,
+        text
+      });
+
+      console.log(`✅ Email rifiuto iscrizione inviata a: ${toEmail}`);
+      return true;
+    } catch (error) {
+      console.error('❌ Errore invio email rifiuto:', error);
+      return false;
+    }
+  }
+
+  private getRegistrationApprovedEmailTemplate(userName: string, courseName: string) {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; }
+          .content { padding: 30px; }
+          .success-box { background-color: #d1fae5; border: 2px solid #10b981; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
+          .success-icon { font-size: 48px; margin-bottom: 10px; }
+          .footer { background-color: #f8fafc; padding: 20px; text-align: center; color: #64748b; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>✅ Iscrizione Approvata!</h1>
+          </div>
+
+          <div class="content">
+            <p>Gentile <strong>${userName}</strong>,</p>
+
+            <div class="success-box">
+              <div class="success-icon">🎉</div>
+              <h2 style="color: #059669; margin: 0;">La tua iscrizione è stata approvata!</h2>
+            </div>
+
+            <p>Siamo lieti di informarti che la tua iscrizione al corso <strong>${courseName}</strong> è stata verificata e approvata dal nostro team Discovery.</p>
+
+            <p><strong>Cosa succede adesso?</strong></p>
+            <ul>
+              <li>✅ Tutti i tuoi documenti sono stati verificati e approvati</li>
+              <li>📧 Riceverai ulteriori comunicazioni riguardo il proseguimento del corso</li>
+              <li>💼 Il tuo partner di riferimento ti contatterà per i prossimi step</li>
+            </ul>
+
+            <p>Per qualsiasi domanda, contatta il tuo partner di riferimento o il nostro supporto.</p>
+          </div>
+
+          <div class="footer">
+            <p>Piattaforma Discovery - Sistema di Gestione Iscrizioni</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Iscrizione Approvata!
+
+Gentile ${userName},
+
+Siamo lieti di informarti che la tua iscrizione al corso ${courseName} è stata verificata e approvata dal nostro team Discovery.
+
+Cosa succede adesso?
+- Tutti i tuoi documenti sono stati verificati e approvati
+- Riceverai ulteriori comunicazioni riguardo il proseguimento del corso
+- Il tuo partner di riferimento ti contatterà per i prossimi step
+
+Per qualsiasi domanda, contatta il tuo partner di riferimento o il nostro supporto.
+
+Piattaforma Discovery
+    `;
+
+    return { html, text };
+  }
+
+  private getRegistrationRejectedEmailTemplate(userName: string, courseName: string, reason: string) {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 30px; text-align: center; }
+          .content { padding: 30px; }
+          .warning-box { background-color: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 20px 0; }
+          .reason-box { background-color: #fee2e2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0; }
+          .footer { background-color: #f8fafc; padding: 20px; text-align: center; color: #64748b; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>⚠️ Richieste Modifiche</h1>
+          </div>
+
+          <div class="content">
+            <p>Gentile <strong>${userName}</strong>,</p>
+
+            <div class="warning-box">
+              <h3 style="color: #d97706; margin-top: 0;">La tua iscrizione richiede delle modifiche</h3>
+              <p>Il nostro team Discovery ha rilevato alcuni problemi con la tua iscrizione al corso <strong>${courseName}</strong>.</p>
+            </div>
+
+            <div class="reason-box">
+              <h4 style="margin-top: 0;">Motivo:</h4>
+              <p>${reason}</p>
+            </div>
+
+            <p><strong>Cosa devi fare?</strong></p>
+            <ul>
+              <li>📞 Contatta il tuo partner di riferimento per maggiori dettagli</li>
+              <li>📄 Apporta le modifiche richieste ai documenti o alle informazioni</li>
+              <li>🔄 Ricarica i documenti corretti attraverso il tuo partner</li>
+            </ul>
+
+            <p>Una volta apportate le correzioni, la tua iscrizione sarà nuovamente sottoposta a verifica.</p>
+          </div>
+
+          <div class="footer">
+            <p>Piattaforma Discovery - Sistema di Gestione Iscrizioni</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Richieste Modifiche - Iscrizione
+
+Gentile ${userName},
+
+Il nostro team Discovery ha rilevato alcuni problemi con la tua iscrizione al corso ${courseName}.
+
+Motivo:
+${reason}
+
+Cosa devi fare?
+- Contatta il tuo partner di riferimento per maggiori dettagli
+- Apporta le modifiche richieste ai documenti o alle informazioni
+- Ricarica i documenti corretti attraverso il tuo partner
+
+Una volta apportate le correzioni, la tua iscrizione sarà nuovamente sottoposta a verifica.
+
+Piattaforma Discovery
+    `;
+
+    return { html, text };
+  }
 }
 
 export default new EmailService();

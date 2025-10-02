@@ -24,6 +24,7 @@ const EnhancedDocumentsSection: React.FC<EnhancedDocumentsSectionProps> = ({ use
       allowUpload={true}
       allowApproval={true}
       onDocumentChange={handleDocumentChange}
+      registrationStatus={user.status}
     />
   );
 };

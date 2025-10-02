@@ -1217,20 +1217,14 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
                 <p className="font-medium text-gray-700 text-xs uppercase tracking-wide mb-2">Documenti Essenziali</p>
                 <div className="space-y-1">
                   <div className="flex justify-between">
-                    <span className="font-medium text-gray-500">Diploma di Laurea:</span>
-                    <span className={`${formData.diplomoLaurea || hasDocument('diplomoLaurea') ? 'text-green-600' : 'text-gray-400'}`}>
-                      {formatFileInfo(formData.diplomoLaurea, 'diplomoLaurea')}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-500">Pergamena di Laurea:</span>
-                    <span className={`${formData.pergamenaLaurea || hasDocument('pergamenaLaurea') ? 'text-green-600' : 'text-gray-400'}`}>
-                      {formatFileInfo(formData.pergamenaLaurea, 'pergamenaLaurea')}
+                    <span className="font-medium text-gray-500">Tessera Sanitaria:</span>
+                    <span className={`${hasDocument('tesseraSanitaria') ? 'text-green-600' : 'text-gray-400'}`}>
+                      {formatFileInfo(null, 'tesseraSanitaria')}
                     </span>
                   </div>
                 </div>
                 <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
-                  ℹ️ Per le certificazioni sono richiesti solo i documenti essenziali. Altri documenti possono essere caricati successivamente se necessario.
+                  ℹ️ Per le certificazioni sono richiesti solo carta d'identità e tessera sanitaria. Altri documenti possono essere caricati successivamente se necessario.
                 </div>
               </div>
             )}

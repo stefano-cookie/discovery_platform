@@ -16,28 +16,43 @@ import PartnerLogin from './pages/PartnerLogin';
 import AcceptPartnerInvite from './pages/AcceptPartnerInvite';
 import AcceptCompanyInvite from './pages/AcceptCompanyInvite';
 
+// Admin System - Discovery Routes
+import { AdminLayout } from './components/Admin/Layout/AdminLayout';
+import { AdminDashboard } from './pages/Admin/Dashboard';
+import { AdminCompanies } from './pages/Admin/Companies';
+import { AdminRegistrations } from './pages/Admin/Registrations';
+import { AdminUsers } from './pages/Admin/Users';
+import { AuditLogs } from './pages/Admin/AuditLogs';
+import { AdminExport } from './pages/Admin/Export';
+
 // Route Components to avoid IIFE issues
-const RootRoute: React.FC<{ isAuthenticated: boolean }> = ({ isAuthenticated }) => {
-  console.log('🏠 Root route accessed, isAuthenticated:', isAuthenticated);
-  
+const RootRoute: React.FC<{ isAuthenticated: boolean; userRole: string | null }> = ({ isAuthenticated, userRole }) => {
+  console.log('🏠 Root route accessed, isAuthenticated:', isAuthenticated, 'userRole:', userRole);
+
   if (isAuthenticated) {
     // Check if there's a pending referral after login
     const pendingReferral = localStorage.getItem('pendingReferral');
     const pendingReferralUrl = localStorage.getItem('pendingReferralUrl');
-    
+
     if (pendingReferral) {
       localStorage.removeItem('pendingReferral');
       localStorage.removeItem('pendingReferralUrl');
       console.log('➡️ Redirecting authenticated user to registration:', `/registration/${pendingReferral}`);
       return <Navigate to={`/registration/${pendingReferral}`} replace />;
     }
-    
+
     if (pendingReferralUrl && pendingReferralUrl.includes('/registration/')) {
       localStorage.removeItem('pendingReferralUrl');
       console.log('➡️ Redirecting authenticated user to stored URL:', pendingReferralUrl);
       return <Navigate to={pendingReferralUrl} replace />;
     }
-    
+
+    // Discovery ADMIN users go to admin panel
+    if (userRole === 'ADMIN') {
+      console.log('➡️ Redirecting ADMIN user to admin panel');
+      return <Navigate to="/admin" replace />;
+    }
+
     console.log('➡️ Redirecting authenticated user to dashboard');
     return <Navigate to="/dashboard" replace />;
   } else {
@@ -46,10 +61,15 @@ const RootRoute: React.FC<{ isAuthenticated: boolean }> = ({ isAuthenticated }) 
   }
 };
 
-const LoginRoute: React.FC<{ isAuthenticated: boolean }> = ({ isAuthenticated }) => {
-  console.log('🔑 Login route accessed, isAuthenticated:', isAuthenticated);
-  
+const LoginRoute: React.FC<{ isAuthenticated: boolean; userRole: string | null }> = ({ isAuthenticated, userRole }) => {
+  console.log('🔑 Login route accessed, isAuthenticated:', isAuthenticated, 'userRole:', userRole);
+
   if (isAuthenticated) {
+    // Discovery ADMIN users go to admin panel
+    if (userRole === 'ADMIN') {
+      console.log('➡️ Already authenticated ADMIN, redirecting to admin panel');
+      return <Navigate to="/admin" replace />;
+    }
     console.log('➡️ Already authenticated, redirecting to dashboard');
     return <Navigate to="/dashboard" replace />;
   } else {
@@ -123,17 +143,17 @@ const AppContent: React.FC = () => {
         {/* ========================================
             ROOT ROUTE
             ======================================== */}
-        <Route 
-          path="/" 
-          element={<RootRoute isAuthenticated={isAuthenticated} />}
+        <Route
+          path="/"
+          element={<RootRoute isAuthenticated={isAuthenticated} userRole={userRole} />}
         />
 
         {/* ========================================
-            AUTHENTICATION ROUTES  
+            AUTHENTICATION ROUTES
             ======================================== */}
-        <Route 
-          path="/login" 
-          element={<LoginRoute isAuthenticated={isAuthenticated} />}
+        <Route
+          path="/login"
+          element={<LoginRoute isAuthenticated={isAuthenticated} userRole={userRole} />}
         />
         
         <Route 
@@ -233,21 +253,40 @@ const AppContent: React.FC = () => {
             </ProtectedRoute>
           } 
         />
-        <Route 
-          path="/dashboard/chat" 
+        <Route
+          path="/dashboard/chat"
           element={
             <ProtectedRoute>
               <DashboardRoute userRole={userRole} />
             </ProtectedRoute>
-          } 
+          }
         />
+
+        {/* ========================================
+            ADMIN ROUTES - Discovery Super Admin
+            ======================================== */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <AdminLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<AdminDashboard />} />
+          <Route path="companies" element={<AdminCompanies />} />
+          <Route path="registrations" element={<AdminRegistrations />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="export" element={<AdminExport />} />
+          <Route path="logs" element={<AuditLogs />} />
+        </Route>
 
         {/* ========================================
             CATCH ALL
             ======================================== */}
-        <Route 
-          path="*" 
-          element={<CatchAllRoute />} 
+        <Route
+          path="*"
+          element={<CatchAllRoute />}
         />
       </Routes>
     </div>

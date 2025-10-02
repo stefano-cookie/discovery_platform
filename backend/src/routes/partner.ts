@@ -2498,12 +2498,20 @@ router.get('/registrations/:registrationId/deadlines', authenticateUnified, asyn
     const partnerCompanyId = req.partnerCompany?.id;
     const { registrationId } = req.params;
 
+    console.log('💰 GET /registrations/:registrationId/deadlines:', {
+      registrationId,
+      partnerCompanyId,
+      partnerEmployeeRole: req.partnerEmployee?.role
+    });
+
     if (!partnerCompanyId) {
+      console.log('❌ Partner company not found');
       return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     // Check partner employee role for payment management
     if (req.partnerEmployee && req.partnerEmployee.role !== 'ADMINISTRATIVE') {
+      console.log('❌ Access denied - not ADMINISTRATIVE role');
       return res.status(403).json({ error: 'Accesso negato - richiesto ruolo amministrativo' });
     }
 
@@ -2518,15 +2526,49 @@ router.get('/registrations/:registrationId/deadlines', authenticateUnified, asyn
       }
     });
 
+    console.log('💰 Registration found:', !!registration);
+
     if (!registration) {
+      console.log('❌ Registration not found for partner company');
       return res.status(404).json({ error: 'Registrazione non trovata' });
     }
 
     // Get all payment deadlines
-    const deadlines = await prisma.paymentDeadline.findMany({
+    let deadlines = await prisma.paymentDeadline.findMany({
       where: { registrationId },
       orderBy: { dueDate: 'asc' }
     });
+
+    console.log('💰 Deadlines found:', deadlines.length);
+
+    // 🔧 FIX: If no deadlines exist, create them automatically
+    const finalAmount = Number(registration.finalAmount);
+    if (deadlines.length === 0 && finalAmount > 0) {
+      console.log('⚠️ No deadlines found, creating default single payment deadline');
+
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 30); // 30 days from now
+
+      await prisma.paymentDeadline.create({
+        data: {
+          registrationId: registration.id,
+          amount: finalAmount,
+          dueDate: dueDate,
+          paymentNumber: 1,
+          description: 'Pagamento Unico',
+          isPaid: false,
+          paymentStatus: 'UNPAID'
+        }
+      });
+
+      // Re-fetch deadlines after creation
+      deadlines = await prisma.paymentDeadline.findMany({
+        where: { registrationId },
+        orderBy: { dueDate: 'asc' }
+      });
+
+      console.log('✅ Created default payment deadline:', deadlines.length);
+    }
 
     const formattedDeadlines = deadlines.map(d => ({
       id: d.id,
@@ -3244,20 +3286,53 @@ router.get('/documents/:documentId/download', authenticateUnified, async (req: A
   }
 });
 
-// Approve document
+// Check document (silenzioso, no email) - NUOVO WORKFLOW
+router.post('/documents/:documentId/check', authenticateUnified, async (req: AuthRequest, res) => {
+  try {
+    const partnerCompanyId = req.partnerCompany?.id;
+    const partnerEmployeeId = req.partnerEmployee?.id;
+    const { documentId } = req.params;
+
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
+    }
+
+    if (!partnerEmployeeId) {
+      return res.status(400).json({ error: 'Partner employee non trovato' });
+    }
+
+    const result = await DocumentService.checkDocument(documentId, partnerEmployeeId);
+
+    res.json({
+      message: 'Documento checkato con successo (no email inviata)',
+      document: {
+        id: result.document.id,
+        status: result.document.status,
+        partnerCheckedAt: result.document.partnerCheckedAt,
+        partnerCheckedBy: result.document.partnerCheckedBy
+      },
+      emailSent: result.emailSent
+    });
+  } catch (error: any) {
+    console.error('Check document error:', error);
+    res.status(500).json({ error: 'Errore nel check del documento' });
+  }
+});
+
+// Approve document (LEGACY - manteniamo per compatibilità, ma deprecato)
 router.post('/documents/:documentId/approve', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const partnerCompanyId = req.partnerCompany?.id;
     const { documentId } = req.params;
     const { notes } = req.body;
-    
+
     if (!partnerCompanyId) {
       return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     const result = await DocumentService.approveDocument(documentId, req.user?.id || req.partnerEmployee?.id, notes);
-    
-    res.json({ 
+
+    res.json({
       message: 'Documento approvato con successo',
       document: {
         id: result.document.id,
@@ -4379,22 +4454,9 @@ router.post('/registrations/:registrationId/certification-docs-approved', authen
       data: { status: 'DOCUMENTS_APPROVED' }
     });
 
-    // Send email notification to user
-    if (registration.user?.email) {
-      const userName = registration.user.profile?.nome || 'Utente';
-      const courseName = registration.offer?.name || 'Corso di Certificazione';
-      
-      try {
-        await emailService.sendCertificationDocsApprovedNotification(
-          registration.user.email,
-          userName,
-          courseName
-        );
-      } catch (emailError) {
-        console.error('Error sending docs approved email:', emailError);
-        // Don't fail the request if email fails
-      }
-    }
+    // NOTE: No email is sent here as per Discovery workflow
+    // Email will be sent only when Discovery finally approves the registration
+    console.log(`✅ Documents approved for registration ${registrationId} - no email sent (Discovery workflow)`);
 
     res.json({ success: true, message: 'Documenti approvati per certificazione' });
   } catch (error) {
@@ -4580,14 +4642,14 @@ router.get('/registrations/:registrationId/certification-steps', authenticateUni
       },
       documentsApproved: {
         step: 3,
-        title: 'Documenti Approvati',
-        description: 'Carta d\'identità e tessera sanitaria approvate',
-        completed: registration.status === 'DOCUMENTS_APPROVED' || 
-                   ['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status),
-        completedAt: registration.status === 'DOCUMENTS_APPROVED' ? new Date() : null,
-        status: registration.status === 'DOCUMENTS_APPROVED' ? 'completed' :
-                (['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 'completed' : 
-                (registration.status === 'ENROLLED' && allDeadlinesPaid ? 'current' : 'pending'))
+        title: 'Documenti Approvati da Discovery',
+        description: 'Documenti verificati e approvati da Discovery (necessario per iscrivere all\'esame)',
+        // ✅ NUOVO: I documenti sono approvati SOLO dopo che Discovery li ha confermati
+        completed: ['DISCOVERY_APPROVED', 'ENROLLED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status),
+        completedAt: ['DISCOVERY_APPROVED', 'ENROLLED', 'DOCUMENTS_APPROVED'].includes(registration.status) ? new Date() : null,
+        status: ['DISCOVERY_APPROVED', 'ENROLLED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 'completed' :
+                // In attesa approvazione Discovery
+                (['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL'].includes(registration.status) ? 'current' : 'pending')
       },
       examRegistered: {
         step: 4,
@@ -5855,6 +5917,85 @@ router.delete('/users/orphaned/all', authenticateUnified, async (req: AuthReques
 
   } catch (error) {
     console.error('Delete all orphaned users error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/**
+ * POST /registrations/:registrationId/documents/check-all
+ * NEW WORKFLOW: Partner checks all documents at once (no email sent)
+ * Updates status to DOCUMENTS_PARTNER_CHECKED
+ */
+router.post('/registrations/:registrationId/documents/check-all', authenticateUnified, async (req: AuthRequest, res) => {
+  try {
+    const { registrationId } = req.params;
+    const partnerCompany = req.partnerCompany;
+    const partnerEmployee = req.partnerEmployee;
+
+    if (!partnerCompany) {
+      return res.status(403).json({ error: 'Accesso negato' });
+    }
+
+    // Verify registration belongs to partner company
+    const registration = await prisma.registration.findUnique({
+      where: { id: registrationId },
+      include: {
+        userDocuments: {
+          where: {
+            registrationId
+          }
+        }
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Iscrizione non trovata' });
+    }
+
+    if (registration.partnerCompanyId !== partnerCompany.id) {
+      return res.status(403).json({ error: 'Non hai accesso a questa iscrizione' });
+    }
+
+    // Check if all required documents are uploaded
+    const pendingDocuments = registration.userDocuments.filter(doc =>
+      doc.status === 'PENDING' && doc.url
+    );
+
+    if (pendingDocuments.length === 0) {
+      return res.status(400).json({ error: 'Nessun documento da verificare' });
+    }
+
+    // Update all pending documents to APPROVED (checked by partner)
+    await prisma.userDocument.updateMany({
+      where: {
+        registrationId,
+        status: 'PENDING'
+      },
+      data: {
+        status: 'APPROVED',
+        partnerCheckedAt: new Date(),
+        partnerCheckedBy: partnerEmployee?.id || null
+      }
+    });
+
+    // Update registration status to DOCUMENTS_PARTNER_CHECKED
+    // (no email sent - Discovery will approve later)
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        status: 'DOCUMENTS_PARTNER_CHECKED'
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Tutti i documenti sono stati verificati',
+      checkedDocuments: pendingDocuments.length,
+      nextStatus: 'DOCUMENTS_PARTNER_CHECKED'
+    });
+
+  } catch (error) {
+    console.error('Check all documents error:', error);
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });

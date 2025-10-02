@@ -37,11 +37,29 @@ export const statusTranslations: Record<string, StatusConfig> = {
     bg: 'bg-green-100',
     text: 'text-green-800'
   },
-  DOCUMENTS_APPROVED: { 
-    label: 'Documenti Approvati', 
+  DOCUMENTS_APPROVED: {
+    label: 'Documenti Approvati',
     color: 'bg-blue-100 text-blue-800',
     bg: 'bg-blue-100',
     text: 'text-blue-800'
+  },
+  DOCUMENTS_PARTNER_CHECKED: {
+    label: 'Documenti Checkati Partner',
+    color: 'bg-indigo-100 text-indigo-800',
+    bg: 'bg-indigo-100',
+    text: 'text-indigo-800'
+  },
+  AWAITING_DISCOVERY_APPROVAL: {
+    label: 'In Attesa Approvazione Discovery',
+    color: 'bg-purple-100 text-purple-800',
+    bg: 'bg-purple-100',
+    text: 'text-purple-800'
+  },
+  DISCOVERY_APPROVED: {
+    label: 'Approvato da Discovery',
+    color: 'bg-green-100 text-green-800',
+    bg: 'bg-green-100',
+    text: 'text-green-800'
   },
   EXAM_REGISTERED: { 
     label: 'Iscritto all\'Esame', 
@@ -120,6 +138,12 @@ export const getCertificationStatusDisplay = (status: string): string => {
       return 'In Attesa';
     case 'ENROLLED':
       return 'Iscritto';
+    case 'DOCUMENTS_PARTNER_CHECKED':
+      return 'Documenti Checkati Partner';
+    case 'AWAITING_DISCOVERY_APPROVAL':
+      return 'In Attesa Approvazione Discovery';
+    case 'DISCOVERY_APPROVED':
+      return 'Approvato da Discovery';
     case 'DOCUMENTS_APPROVED':
       return 'Documenti Approvati';
     case 'EXAM_REGISTERED':
@@ -143,7 +167,13 @@ export const getPartnerStatusDisplay = (status: string): string => {
     case 'CONTRACT_SIGNED':
       return 'Contratto Firmato';
     case 'ENROLLED':
-      return 'Approva i documenti dell\'utente';
+      return 'Checka i documenti dell\'utente';
+    case 'DOCUMENTS_PARTNER_CHECKED':
+      return 'Documenti Checkati - In attesa Discovery';
+    case 'AWAITING_DISCOVERY_APPROVAL':
+      return 'In Attesa Approvazione Discovery';
+    case 'DISCOVERY_APPROVED':
+      return 'Approvato da Discovery';
     case 'DOCUMENTS_APPROVED':
       return 'Iscrivi l\'utente all\'esame';
     case 'EXAM_REGISTERED':
@@ -165,7 +195,7 @@ export const getPartnerStatusDisplay = (status: string): string => {
 
 export const getUserStatusDisplay = (status: string): string => {
   if (!status) return '';
-  
+
   switch (status) {
     case 'PENDING':
       return 'In Attesa';
@@ -177,6 +207,12 @@ export const getUserStatusDisplay = (status: string): string => {
       return 'Contratto Firmato';
     case 'ENROLLED':
       return 'Iscritto';
+    case 'DOCUMENTS_PARTNER_CHECKED':
+      return 'Documenti in Verifica';
+    case 'AWAITING_DISCOVERY_APPROVAL':
+      return 'In Approvazione';
+    case 'DISCOVERY_APPROVED':
+      return 'Approvato';
     case 'DOCUMENTS_APPROVED':
       return 'Documenti Approvati';
     case 'EXAM_REGISTERED':

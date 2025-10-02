@@ -1,4 +1,5 @@
 import React from 'react';
+import { getUserStatusMessage } from '../../../utils/statusMessages';
 
 interface UserEnrollmentFlowProps {
   status: string;
@@ -39,8 +40,8 @@ const UserEnrollmentFlow: React.FC<UserEnrollmentFlowProps> = ({ status, registr
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
             </svg>
           ),
-          status: status === 'PENDING' ? 'current' : 
-                 ['ENROLLED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(status) ? 'completed' : 'pending'
+          status: status === 'PENDING' ? 'current' :
+                 ['ENROLLED', 'DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(status) ? 'completed' : 'pending'
         },
         {
           id: 'documents_approved',
@@ -51,8 +52,10 @@ const UserEnrollmentFlow: React.FC<UserEnrollmentFlowProps> = ({ status, registr
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           ),
+          // NUOVO WORKFLOW: Quando status è ENROLLED, documenti ancora in verifica (current)
+          // Quando status è DOCUMENTS_PARTNER_CHECKED/AWAITING_DISCOVERY_APPROVAL/DISCOVERY_APPROVED, documenti verificati (completed)
           status: status === 'ENROLLED' ? 'current' :
-                 ['DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'EXAM_COMPLETED', 'COMPLETED'].includes(status) ? 'completed' : 'pending'
+                 ['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(status) ? 'completed' : 'pending'
         },
         {
           id: 'exam_registered',
@@ -63,8 +66,10 @@ const UserEnrollmentFlow: React.FC<UserEnrollmentFlowProps> = ({ status, registr
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           ),
-          status: status === 'EXAM_REGISTERED' ? 'completed' :
-                 ['EXAM_COMPLETED', 'COMPLETED'].includes(status) ? 'completed' : 'pending'
+          // NUOVO WORKFLOW: Dopo che documenti sono stati checkati dal partner e approvati da Discovery
+          // questo step diventa "current" (in attesa di iscrizione esame)
+          status: ['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED'].includes(status) ? 'current' :
+                 ['EXAM_REGISTERED', 'COMPLETED'].includes(status) ? 'completed' : 'pending'
         },
         {
           id: 'exam_completed',
@@ -241,15 +246,7 @@ const UserEnrollmentFlow: React.FC<UserEnrollmentFlowProps> = ({ status, registr
           <div>
             <h4 className="font-medium text-gray-900 mb-1">Stato Attuale</h4>
             <p className="text-sm text-gray-600">
-              {status === 'PENDING' && 'La tua iscrizione è stata ricevuta. Il partner sta preparando i documenti.'}
-              {status === 'CONTRACT_GENERATED' && 'Il partner sta preparando i contratti. Riceverai una notifica quando saranno pronti.'}
-              {status === 'CONTRACT_SIGNED' && 'I contratti sono disponibili per la visualizzazione. Procedi con il pagamento quando sei pronto.'}
-              {status === 'ENROLLED' && 'Il pagamento è stato ricevuto. I tuoi documenti sono in attesa di approvazione.'}
-              {status === 'DOCUMENTS_APPROVED' && 'I tuoi documenti sono stati approvati! Il partner procederà con l\'iscrizione all\'esame.'}
-              {status === 'EXAM_REGISTERED' && 'Sei stato iscritto all\'esame! Attendi la conferma del completamento.'}
-              {status === 'EXAM_COMPLETED' && 'Hai sostenuto l\'esame con successo! Il processo di certificazione è quasi completato.'}
-              {status === 'COMPLETED' && 'La tua certificazione è completata! Congratulazioni!'}
-              {!['PENDING', 'CONTRACT_GENERATED', 'CONTRACT_SIGNED', 'ENROLLED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'EXAM_COMPLETED', 'COMPLETED'].includes(status) && `Stato: ${status}`}
+              {getUserStatusMessage(status, registration?.offerType)}
             </p>
           </div>
         </div>

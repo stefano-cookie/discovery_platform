@@ -1,0 +1,2440 @@
+import express from 'express';
+import { PrismaClient, CommissionType, Prisma } from '@prisma/client';
+import { authenticate, AuthRequest } from '../middleware/auth';
+import crypto from 'crypto';
+import { ExcelExporter, ExcelFormatters } from '../utils/excelExport';
+
+const router = express.Router();
+const prisma = new PrismaClient();
+
+// ========================================
+// MIDDLEWARE: Require Admin Role
+// ========================================
+const requireAdmin = (req: AuthRequest, res: express.Response, next: express.NextFunction) => {
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({
+      error: 'Access denied. Admin role required.',
+      requiredRole: 'ADMIN',
+      currentRole: req.user?.role || 'none'
+    });
+  }
+  next();
+};
+
+// ========================================
+// DASHBOARD STATS
+// ========================================
+
+/**
+ * GET /api/admin/dashboard/stats
+ * Statistiche globali piattaforma per dashboard Discovery
+ */
+router.get('/dashboard/stats', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    // Fetch dati in parallelo per performance
+    const [
+      totalCompanies,
+      activeCompanies,
+      totalRegistrations,
+      totalUsers,
+      revenueData,
+      recentRegistrations
+    ] = await Promise.all([
+      // Totale company
+      prisma.partnerCompany.count(),
+
+      // Company attive
+      prisma.partnerCompany.count({
+        where: { isActive: true }
+      }),
+
+      // Totale iscrizioni
+      prisma.registration.count(),
+
+      // Totale utenti (role USER)
+      prisma.user.count({
+        where: { role: 'USER' }
+      }),
+
+      // Calcolo revenue totale e commissioni Discovery
+      prisma.registration.aggregate({
+        _sum: {
+          finalAmount: true,
+          discoveryCommission: true,
+          companyEarnings: true
+        }
+      }),
+
+      // Iscrizioni recenti (ultimi 7 giorni)
+      prisma.registration.count({
+        where: {
+          createdAt: {
+            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+          }
+        }
+      })
+    ]);
+
+    // Top 5 company per revenue
+    const topCompanies = await prisma.partnerCompany.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        referralCode: true,
+        totalEarnings: true,
+        discoveryTotalCommissions: true,
+        isPremium: true,
+        _count: {
+          select: {
+            registrations: true
+          }
+        }
+      },
+      orderBy: {
+        totalEarnings: 'desc'
+      },
+      take: 5
+    });
+
+    // Breakdown per tipo corso
+    const courseBreakdown = await prisma.registration.groupBy({
+      by: ['offerType'],
+      _count: {
+        id: true
+      },
+      _sum: {
+        finalAmount: true,
+        discoveryCommission: true
+      }
+    });
+
+    // Calcolo iscrizioni oggi, settimana, mese
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [registrationsToday, registrationsThisWeek, registrationsThisMonth] = await Promise.all([
+      prisma.registration.count({ where: { createdAt: { gte: startOfToday } } }),
+      prisma.registration.count({ where: { createdAt: { gte: startOfWeek } } }),
+      prisma.registration.count({ where: { createdAt: { gte: startOfMonth } } })
+    ]);
+
+    // Dati per grafico revenue mensile (ultimi 6 mesi)
+    const monthsAgo = new Date();
+    monthsAgo.setMonth(monthsAgo.getMonth() - 6);
+
+    const monthlyData = await prisma.registration.findMany({
+      where: {
+        createdAt: { gte: monthsAgo }
+      },
+      select: {
+        createdAt: true,
+        finalAmount: true,
+        discoveryCommission: true,
+        offerType: true
+      }
+    });
+
+    // Raggruppa per mese
+    const monthlyStats = new Map<string, { revenue: number; commissions: number; tfaCount: number; certCount: number }>();
+
+    monthlyData.forEach(reg => {
+      const monthKey = reg.createdAt.toISOString().substring(0, 7); // YYYY-MM
+      const existing = monthlyStats.get(monthKey) || { revenue: 0, commissions: 0, tfaCount: 0, certCount: 0 };
+
+      existing.revenue += Number(reg.finalAmount || 0);
+      existing.commissions += Number(reg.discoveryCommission || 0);
+
+      if (reg.offerType === 'TFA_ROMANIA') {
+        existing.tfaCount += 1;
+      } else if (reg.offerType === 'CERTIFICATION') {
+        existing.certCount += 1;
+      }
+
+      monthlyStats.set(monthKey, existing);
+    });
+
+    // Converti in array ordinato
+    const revenueChart = Array.from(monthlyStats.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, data]) => ({
+        month: new Date(month + '-01').toLocaleDateString('it-IT', { month: 'short', year: 'numeric' }),
+        revenue: data.revenue,
+        commissions: data.commissions
+      }));
+
+    const registrationsChart = Array.from(monthlyStats.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, data]) => ({
+        month: new Date(month + '-01').toLocaleDateString('it-IT', { month: 'short', year: 'numeric' }),
+        registrations: data.tfaCount + data.certCount,
+        tfaCount: data.tfaCount,
+        certCount: data.certCount
+      }));
+
+    // Status distribution
+    const statusDistribution = await prisma.registration.groupBy({
+      by: ['status'],
+      _count: {
+        id: true
+      }
+    });
+
+    res.json({
+      summary: {
+        totalCompanies,
+        activeCompanies,
+        totalRegistrations,
+        totalUsers,
+        totalRevenue: Number(revenueData._sum.finalAmount || 0),
+        discoveryCommissions: Number(revenueData._sum.discoveryCommission || 0),
+        totalCompanyEarnings: Number(revenueData._sum.companyEarnings || 0),
+        recentRegistrations,
+        registrationsToday,
+        registrationsThisWeek,
+        registrationsThisMonth
+      },
+      topCompanies: topCompanies.map(c => ({
+        id: c.id,
+        name: c.name,
+        registrations: c._count.registrations,
+        revenue: Number(c.totalEarnings),
+        commissions: Number(c.discoveryTotalCommissions),
+        isPremium: c.isPremium
+      })),
+      revenueChart,
+      registrationsChart,
+      statusDistribution: statusDistribution.map(s => ({
+        status: s.status,
+        count: s._count.id
+      })),
+      courseBreakdown: courseBreakdown.map(cb => ({
+        offerType: cb.offerType,
+        count: cb._count.id,
+        totalRevenue: Number(cb._sum.finalAmount || 0),
+        discoveryCommissions: Number(cb._sum.discoveryCommission || 0)
+      }))
+    });
+
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========================================
+// COMPANY MANAGEMENT
+// ========================================
+
+/**
+ * GET /api/admin/companies
+ * Lista tutte le company con statistiche
+ */
+router.get('/companies', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const companies = await prisma.partnerCompany.findMany({
+      include: {
+        _count: {
+          select: {
+            employees: true,
+            registrations: true,
+            children: true
+          }
+        },
+        parent: {
+          select: {
+            id: true,
+            name: true,
+            referralCode: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    const formattedCompanies = companies.map(company => ({
+      id: company.id,
+      name: company.name,
+      referralCode: company.referralCode,
+      isActive: company.isActive,
+      isPremium: company.isPremium,
+      canCreateChildren: company.canCreateChildren,
+
+      // Commissioni Discovery (totali calcolati dalle registrazioni)
+      discoveryTotalCommissions: Number(company.discoveryTotalCommissions),
+
+      // Business metrics
+      totalEarnings: Number(company.totalEarnings),
+      commissionPerUser: Number(company.commissionPerUser),
+
+      // Counts
+      employeesCount: company._count.employees,
+      registrationsCount: company._count.registrations,
+      subPartnersCount: company._count.children,
+
+      // Relations
+      parent: company.parent,
+
+      // Timestamps
+      createdAt: company.createdAt.toISOString(),
+      updatedAt: company.updatedAt.toISOString()
+    }));
+
+    res.json(formattedCompanies);
+
+  } catch (error) {
+    console.error('Error fetching companies:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/admin/companies/:id
+ * Dettaglio company singola con revenue breakdown
+ */
+router.get('/companies/:id', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    const company = await prisma.partnerCompany.findUnique({
+      where: { id },
+      include: {
+        employees: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            isActive: true,
+            isOwner: true,
+            createdAt: true
+          }
+        },
+        registrations: {
+          select: {
+            id: true,
+            createdAt: true,
+            status: true,
+            finalAmount: true,
+            discoveryCommission: true,
+            companyEarnings: true,
+            offerType: true,
+            user: {
+              select: {
+                email: true,
+                profile: {
+                  select: {
+                    nome: true,
+                    cognome: true
+                  }
+                }
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        },
+        children: {
+          select: {
+            id: true,
+            name: true,
+            referralCode: true,
+            isActive: true
+          }
+        },
+        parent: {
+          select: {
+            id: true,
+            name: true,
+            referralCode: true
+          }
+        },
+        _count: {
+          select: {
+            employees: true,
+            registrations: true,
+            children: true
+          }
+        }
+      }
+    });
+
+    if (!company) {
+      return res.status(404).json({ error: 'Company not found' });
+    }
+
+    // Revenue breakdown per tipo corso
+    const revenueByType = await prisma.registration.groupBy({
+      by: ['offerType'],
+      where: { partnerCompanyId: id },
+      _count: {
+        id: true
+      },
+      _sum: {
+        finalAmount: true,
+        discoveryCommission: true,
+        companyEarnings: true
+      }
+    });
+
+    // Status breakdown
+    const statusBreakdown = await prisma.registration.groupBy({
+      by: ['status'],
+      where: { partnerCompanyId: id },
+      _count: {
+        id: true
+      }
+    });
+
+    res.json({
+      id: company.id,
+      name: company.name,
+      referralCode: company.referralCode,
+      isActive: company.isActive,
+      isPremium: company.isPremium,
+      canCreateChildren: company.canCreateChildren,
+      discoveryCommissionType: company.discoveryCommissionType,
+      discoveryCommissionValue: company.discoveryCommissionValue ? Number(company.discoveryCommissionValue) : null,
+      totalEarnings: Number(company.totalEarnings),
+      discoveryTotalCommissions: Number(company.discoveryTotalCommissions),
+      createdAt: company.createdAt.toISOString(),
+      updatedAt: company.updatedAt.toISOString(),
+
+      // Employees
+      employees: company.employees.map(emp => ({
+        id: emp.id,
+        email: emp.email,
+        firstName: emp.firstName,
+        lastName: emp.lastName,
+        role: emp.role,
+        isActive: emp.isActive,
+        isOwner: emp.isOwner
+      })),
+
+      // Registrations breakdown
+      registrations: {
+        total: company._count.registrations,
+        byStatus: statusBreakdown.map(s => ({
+          status: s.status,
+          count: s._count.id
+        })),
+        byCourse: revenueByType.map(rb => ({
+          courseType: rb.offerType || 'UNKNOWN',
+          count: rb._count.id,
+          revenue: Number(rb._sum.finalAmount || 0)
+        }))
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching company details:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/admin/companies
+ * Crea nuova company + primo admin + invito email
+ */
+router.post('/companies', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const {
+      name,
+      referralCode,
+      isPremium = false,
+      commissionType,
+      commissionValue,
+      adminEmail,
+      adminFirstName,
+      adminLastName
+    } = req.body;
+
+    // Validazione input
+    if (!name || !referralCode || !adminEmail || !adminFirstName || !adminLastName) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        required: ['name', 'referralCode', 'adminEmail', 'adminFirstName', 'adminLastName']
+      });
+    }
+
+    // NOTE: Commissioni Discovery ora gestite a livello Course template, non company
+
+    // Verifica referral code univoco
+    const existingCompany = await prisma.partnerCompany.findUnique({
+      where: { referralCode }
+    });
+
+    if (existingCompany) {
+      return res.status(409).json({
+        error: 'Referral code already exists',
+        code: referralCode
+      });
+    }
+
+    // Verifica email admin univoca
+    const existingEmployee = await prisma.partnerEmployee.findUnique({
+      where: { email: adminEmail }
+    });
+
+    if (existingEmployee) {
+      return res.status(409).json({
+        error: 'Admin email already exists',
+        email: adminEmail
+      });
+    }
+
+    // Crea company + primo admin in transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Crea company (commissioni ora sono sul Course template, non sulla company)
+      const company = await tx.partnerCompany.create({
+        data: {
+          name,
+          referralCode,
+          isPremium,
+          canCreateChildren: isPremium, // Premium può creare sub-partner
+          isActive: true,
+          discoveryTotalCommissions: new Prisma.Decimal(0),
+          commissionPerUser: new Prisma.Decimal(0),
+          totalEarnings: new Prisma.Decimal(0)
+        }
+      });
+
+      // 2. Genera token invito sicuro
+      const inviteToken = crypto.randomBytes(32).toString('hex');
+      const inviteExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 giorni
+
+      // 3. Crea primo employee (owner)
+      const admin = await tx.partnerEmployee.create({
+        data: {
+          partnerCompanyId: company.id,
+          email: adminEmail,
+          firstName: adminFirstName,
+          lastName: adminLastName,
+          password: '', // Sarà impostata dall'admin al primo accesso
+          role: 'ADMINISTRATIVE',
+          isOwner: true,
+          isActive: true,
+          inviteToken,
+          inviteExpiresAt
+        }
+      });
+
+      // 4. Log azione admin Discovery
+      await tx.discoveryAdminLog.create({
+        data: {
+          adminId: req.user!.id,
+          action: 'COMPANY_CREATE',
+          targetType: 'COMPANY',
+          targetId: company.id,
+          newValue: {
+            name,
+            referralCode,
+            isPremium,
+            commissionType,
+            commissionValue,
+            adminEmail
+          },
+          reason: 'Company created by Discovery admin',
+          ipAddress: req.ip,
+          createdAt: new Date()
+        }
+      });
+
+      return { company, admin, inviteToken };
+    });
+
+    // TODO: Invia email invito con link accettazione
+    // const inviteLink = `${process.env.FRONTEND_URL}/accept-invite/${result.inviteToken}`;
+    // await emailService.sendCompanyInvite(adminEmail, {
+    //   companyName: name,
+    //   inviteLink,
+    //   expiresAt: result.admin.inviteExpiresAt
+    // });
+
+    res.status(201).json({
+      message: 'Company created successfully',
+      company: {
+        id: result.company.id,
+        name: result.company.name,
+        referralCode: result.company.referralCode,
+        isPremium: result.company.isPremium
+      },
+      admin: {
+        email: result.admin.email,
+        firstName: result.admin.firstName,
+        lastName: result.admin.lastName,
+        inviteToken: result.inviteToken,
+        inviteExpiresAt: result.admin.inviteExpiresAt?.toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('Error creating company:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * PATCH /api/admin/companies/:id
+ * Modifica company (nome, status, premium, commissioni)
+ */
+router.patch('/companies/:id', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      isActive,
+      isPremium,
+      canCreateChildren,
+      commissionType,
+      commissionValue
+    } = req.body;
+
+    // Fetch company corrente per confronto
+    const currentCompany = await prisma.partnerCompany.findUnique({
+      where: { id }
+    });
+
+    if (!currentCompany) {
+      return res.status(404).json({ error: 'Company not found' });
+    }
+
+    // Valida commissione se modificata
+    if (commissionType && !['PERCENTAGE', 'FIXED', null].includes(commissionType)) {
+      return res.status(400).json({
+        error: 'Invalid commission type. Must be PERCENTAGE, FIXED, or null'
+      });
+    }
+
+    // Prepara update data
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (isActive !== undefined) updateData.isActive = isActive;
+    if (isPremium !== undefined) {
+      updateData.isPremium = isPremium;
+      updateData.canCreateChildren = isPremium; // Sync premium status
+    }
+    if (canCreateChildren !== undefined) updateData.canCreateChildren = canCreateChildren;
+    if (commissionType !== undefined) {
+      updateData.discoveryCommissionType = commissionType;
+      if (commissionType === null) {
+        updateData.discoveryCommissionValue = null;
+      }
+    }
+    if (commissionValue !== undefined && commissionType) {
+      updateData.discoveryCommissionValue = new Prisma.Decimal(commissionValue);
+    }
+
+    // Update company + log azione
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedCompany = await tx.partnerCompany.update({
+        where: { id },
+        data: updateData
+      });
+
+      // Log azione admin
+      await tx.discoveryAdminLog.create({
+        data: {
+          adminId: req.user!.id,
+          action: 'COMPANY_EDIT',
+          targetType: 'COMPANY',
+          targetId: id,
+          previousValue: {
+            name: currentCompany.name,
+            isActive: currentCompany.isActive,
+            isPremium: currentCompany.isPremium,
+            commissionType: currentCompany.discoveryCommissionType,
+            commissionValue: currentCompany.discoveryCommissionValue ? Number(currentCompany.discoveryCommissionValue) : null
+          },
+          newValue: updateData,
+          reason: 'Company updated by Discovery admin',
+          ipAddress: req.ip
+        }
+      });
+
+      return updatedCompany;
+    });
+
+    res.json({
+      message: 'Company updated successfully',
+      company: {
+        ...result,
+        totalEarnings: Number(result.totalEarnings),
+        discoveryTotalCommissions: Number(result.discoveryTotalCommissions),
+        discoveryCommissionValue: result.discoveryCommissionValue ? Number(result.discoveryCommissionValue) : null,
+        commissionPerUser: Number(result.commissionPerUser)
+      }
+    });
+
+  } catch (error) {
+    console.error('Error updating company:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * DELETE /api/admin/companies/:id
+ * Disattiva company (soft delete)
+ */
+router.delete('/companies/:id', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    const company = await prisma.partnerCompany.findUnique({
+      where: { id }
+    });
+
+    if (!company) {
+      return res.status(404).json({ error: 'Company not found' });
+    }
+
+    if (!company.isActive) {
+      return res.status(400).json({ error: 'Company already inactive' });
+    }
+
+    // Soft delete + log
+    await prisma.$transaction(async (tx) => {
+      await tx.partnerCompany.update({
+        where: { id },
+        data: { isActive: false }
+      });
+
+      await tx.discoveryAdminLog.create({
+        data: {
+          adminId: req.user!.id,
+          action: 'COMPANY_DISABLE',
+          targetType: 'COMPANY',
+          targetId: id,
+          reason: 'Company disabled by Discovery admin',
+          ipAddress: req.ip
+        }
+      });
+    });
+
+    res.json({ message: 'Company disabled successfully' });
+
+  } catch (error) {
+    console.error('Error disabling company:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========================================
+// REGISTRATIONS (GLOBAL VIEW)
+// ========================================
+
+/**
+ * GET /api/admin/registrations
+ * Lista globale iscrizioni con filtri avanzati
+ */
+router.get('/registrations', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const {
+      companyId,
+      courseId,
+      status,
+      offerType,
+      dateFrom,
+      dateTo,
+      search,
+      statuses, // Multiple statuses (comma-separated)
+      amountMin,
+      amountMax,
+      hasCommission,
+      page = '1',
+      limit = '50'
+    } = req.query;
+
+    // Build where clause
+    const where: any = {};
+
+    // Company filter
+    if (companyId) where.partnerCompanyId = companyId as string;
+
+    // Course filter
+    if (courseId) where.courseId = courseId as string;
+
+    // Status filters (single or multiple)
+    if (statuses) {
+      const statusArray = (statuses as string).split(',').filter(Boolean);
+      if (statusArray.length > 0) {
+        where.status = { in: statusArray };
+      }
+    } else if (status) {
+      where.status = status as string;
+    }
+
+    // Offer type filter
+    if (offerType) where.offerType = offerType as string;
+
+    // Date range filter
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = new Date(dateFrom as string);
+      if (dateTo) where.createdAt.lte = new Date(dateTo as string);
+    }
+
+    // Amount range filter
+    if (amountMin || amountMax) {
+      where.finalAmount = {};
+      if (amountMin) where.finalAmount.gte = parseFloat(amountMin as string);
+      if (amountMax) where.finalAmount.lte = parseFloat(amountMax as string);
+    }
+
+    // Commission filter
+    if (hasCommission !== undefined) {
+      if (hasCommission === 'true') {
+        where.discoveryCommission = { not: null, gt: 0 };
+      } else if (hasCommission === 'false') {
+        where.OR = [
+          { discoveryCommission: null },
+          { discoveryCommission: 0 }
+        ];
+      }
+    }
+
+    // Search filter (email, nome, cognome, codice fiscale)
+    if (search) {
+      const searchTerm = (search as string).toLowerCase();
+      where.user = {
+        OR: [
+          { email: { contains: searchTerm, mode: 'insensitive' } },
+          {
+            profile: {
+              OR: [
+                { nome: { contains: searchTerm, mode: 'insensitive' } },
+                { cognome: { contains: searchTerm, mode: 'insensitive' } },
+                { codiceFiscale: { contains: searchTerm, mode: 'insensitive' } }
+              ]
+            }
+          }
+        ]
+      };
+    }
+
+    // Pagination
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    const [registrations, total] = await Promise.all([
+      prisma.registration.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              email: true,
+              profile: {
+                select: {
+                  nome: true,
+                  cognome: true,
+                  codiceFiscale: true
+                }
+              }
+            }
+          },
+          partnerCompany: {
+            select: {
+              id: true,
+              name: true,
+              referralCode: true,
+              discoveryCommissionType: true,
+              discoveryCommissionValue: true
+            }
+          },
+          offer: {
+            select: {
+              name: true,
+              course: {
+                select: {
+                  name: true,
+                  templateType: true
+                }
+              }
+            }
+          },
+          deadlines: {
+            select: {
+              isPaid: true,
+              amount: true,
+              dueDate: true
+            },
+            orderBy: {
+              dueDate: 'asc'
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        skip,
+        take: limitNum
+      }),
+      prisma.registration.count({ where })
+    ]);
+
+    const formattedRegistrations = registrations.map(reg => {
+      const paidDeadlines = reg.deadlines.filter(d => d.isPaid);
+      const unpaidDeadlines = reg.deadlines.filter(d => !d.isPaid);
+      const nextDeadline = unpaidDeadlines[0];
+
+      return {
+        id: reg.id,
+        createdAt: reg.createdAt.toISOString(),
+        status: reg.status,
+        offerType: reg.offerType,
+
+        // User info
+        user: {
+          email: reg.user.email,
+          nome: reg.user.profile?.nome,
+          cognome: reg.user.profile?.cognome,
+          codiceFiscale: reg.user.profile?.codiceFiscale
+        },
+
+        // Company info
+        company: reg.partnerCompany ? {
+          id: reg.partnerCompany.id,
+          name: reg.partnerCompany.name,
+          referralCode: reg.partnerCompany.referralCode,
+          commissionType: reg.partnerCompany.discoveryCommissionType,
+          commissionValue: reg.partnerCompany.discoveryCommissionValue ?
+            Number(reg.partnerCompany.discoveryCommissionValue) : null
+        } : null,
+
+        // Course info
+        course: reg.offer?.course ? {
+          name: reg.offer.course.name,
+          type: reg.offer.course.templateType
+        } : null,
+
+        // Financial data
+        originalAmount: Number(reg.originalAmount),
+        finalAmount: Number(reg.finalAmount),
+        discoveryCommission: reg.discoveryCommission ? Number(reg.discoveryCommission) : null,
+        companyEarnings: reg.companyEarnings ? Number(reg.companyEarnings) : null,
+
+        // Payment info
+        installments: reg.installments,
+        paidInstallments: paidDeadlines.length,
+        totalInstallments: reg.deadlines.length,
+        nextDeadline: nextDeadline ? {
+          dueDate: nextDeadline.dueDate.toISOString(),
+          amount: Number(nextDeadline.amount)
+        } : null
+      };
+    });
+
+    res.json({
+      registrations: formattedRegistrations,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum)
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching registrations:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========================================
+// USERS MANAGEMENT
+// ========================================
+
+/**
+ * GET /api/admin/users
+ * Lista tutti gli utenti della piattaforma
+ */
+router.get('/users', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        isActive: true,
+        emailVerified: true,
+        createdAt: true,
+        assignedPartnerId: true,
+        assignedPartner: {
+          select: {
+            id: true,
+            referralCode: true,
+            user: {
+              select: {
+                email: true
+              }
+            }
+          }
+        },
+        profile: {
+          select: {
+            nome: true,
+            cognome: true
+          }
+        },
+        _count: {
+          select: {
+            registrations: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    res.json(users);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/admin/users/:id
+ * Dettaglio utente singolo con iscrizioni
+ */
+router.get('/users/:id', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        isActive: true,
+        emailVerified: true,
+        createdAt: true,
+        assignedPartnerId: true,
+        assignedPartner: {
+          select: {
+            id: true,
+            referralCode: true,
+            user: {
+              select: {
+                email: true
+              }
+            }
+          }
+        },
+        profile: {
+          select: {
+            nome: true,
+            cognome: true,
+            codiceFiscale: true,
+            telefono: true,
+            dataNascita: true,
+            luogoNascita: true
+          }
+        },
+        registrations: {
+          select: {
+            id: true,
+            status: true,
+            finalAmount: true,
+            createdAt: true,
+            offer: {
+              select: {
+                course: {
+                  select: {
+                    name: true,
+                    templateType: true
+                  }
+                }
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      ...user,
+      registrations: user.registrations.map(r => ({
+        ...r,
+        finalAmount: Number(r.finalAmount)
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching user detail:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/admin/users/transfer
+ * Trasferisce un utente (e tutte le sue iscrizioni) a una nuova company
+ */
+router.post('/users/transfer', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { userId, toPartnerCompanyId, reason } = req.body;
+
+    // Validazione input
+    if (!userId || !toPartnerCompanyId || !reason) {
+      return res.status(400).json({
+        error: 'Missing required fields: userId, toPartnerCompanyId, reason'
+      });
+    }
+
+    if (reason.trim().length < 10) {
+      return res.status(400).json({
+        error: 'Reason must be at least 10 characters long'
+      });
+    }
+
+    // Verifica che l'utente esista
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        assignedPartnerId: true,
+        _count: {
+          select: {
+            registrations: true
+          }
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Verifica che la company di destinazione esista
+    const toCompany = await prisma.partnerCompany.findUnique({
+      where: { id: toPartnerCompanyId }
+    });
+
+    if (!toCompany) {
+      return res.status(404).json({ error: 'Destination company not found' });
+    }
+
+    // Esegui il trasferimento in una transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Aggiorna l'utente
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          assignedPartnerId: toPartnerCompanyId
+        }
+      });
+
+      // 2. Aggiorna tutte le iscrizioni dell'utente
+      const updatedRegistrations = await tx.registration.updateMany({
+        where: { userId },
+        data: {
+          partnerCompanyId: toPartnerCompanyId
+        }
+      });
+
+      // 3. Ricalcola le commissioni per ogni iscrizione
+      // (se la nuova company ha configurazione commissioni Discovery)
+      const registrations = await tx.registration.findMany({
+        where: { userId },
+        select: {
+          id: true,
+          finalAmount: true
+        }
+      });
+
+      for (const reg of registrations) {
+        let discoveryCommission = null;
+        let companyEarnings = null;
+
+        if (toCompany.discoveryCommissionType && toCompany.discoveryCommissionValue) {
+          if (toCompany.discoveryCommissionType === 'PERCENTAGE') {
+            discoveryCommission = (reg.finalAmount.toNumber() * toCompany.discoveryCommissionValue.toNumber()) / 100;
+          } else if (toCompany.discoveryCommissionType === 'FIXED') {
+            discoveryCommission = toCompany.discoveryCommissionValue.toNumber();
+          }
+
+          companyEarnings = reg.finalAmount.toNumber() - (discoveryCommission || 0);
+        }
+
+        await tx.registration.update({
+          where: { id: reg.id },
+          data: {
+            discoveryCommission: discoveryCommission ? new Prisma.Decimal(discoveryCommission) : null,
+            companyEarnings: companyEarnings ? new Prisma.Decimal(companyEarnings) : null
+          }
+        });
+      }
+
+      // 4. Log l'azione
+      await tx.discoveryAdminLog.create({
+        data: {
+          adminId: req.user!.id,
+          action: 'USER_TRANSFER',
+          targetType: 'USER',
+          targetId: userId,
+          previousValue: {
+            assignedPartnerId: user.assignedPartnerId,
+            registrationsCount: user._count.registrations
+          },
+          newValue: {
+            assignedPartnerId: toPartnerCompanyId,
+            toCompanyName: toCompany.name,
+            toCompanyReferralCode: toCompany.referralCode
+          },
+          reason: reason.trim(),
+          ipAddress: req.ip
+        }
+      });
+
+      return {
+        updatedUser: 1,
+        updatedRegistrations: updatedRegistrations.count
+      };
+    });
+
+    res.json({
+      message: 'User transferred successfully',
+      ...result
+    });
+
+  } catch (error) {
+    console.error('Error transferring user:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/admin/partners
+ * Lista tutti i partner (legacy system)
+ */
+router.get('/partners', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const partners = await prisma.partner.findMany({
+      select: {
+        id: true,
+        referralCode: true,
+        user: {
+          select: {
+            email: true,
+            id: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    res.json(partners);
+  } catch (error) {
+    console.error('Error fetching partners:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/admin/user-transfers
+ * Lista storico trasferimenti utenti tra partner
+ */
+router.get('/user-transfers', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const transfers = await prisma.userTransfer.findMany({
+      select: {
+        id: true,
+        userId: true,
+        fromPartnerId: true,
+        toPartnerId: true,
+        reason: true,
+        transferredAt: true,
+        transferredBy: true,
+        fromPartner: {
+          select: {
+            referralCode: true,
+            user: {
+              select: {
+                email: true
+              }
+            }
+          }
+        },
+        toPartner: {
+          select: {
+            referralCode: true,
+            user: {
+              select: {
+                email: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        transferredAt: 'desc'
+      }
+    });
+
+    // Arricchisco i dati con le informazioni utente
+    const transfersWithUsers = await Promise.all(
+      transfers.map(async (transfer) => {
+        const user = await prisma.user.findUnique({
+          where: { id: transfer.userId },
+          select: {
+            email: true,
+            profile: {
+              select: {
+                nome: true,
+                cognome: true
+              }
+            }
+          }
+        });
+
+        return {
+          ...transfer,
+          user
+        };
+      })
+    );
+
+    res.json(transfersWithUsers);
+  } catch (error) {
+    console.error('Error fetching user transfers:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========================================
+// REVENUE & COMMISSIONI
+// ========================================
+
+/**
+ * GET /api/admin/revenue/companies
+ * Revenue breakdown per company con commissioni Discovery
+ */
+router.get('/revenue/companies', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    // Fetch tutte le company con i loro dati di revenue
+    const companies = await prisma.partnerCompany.findMany({
+      where: {
+        isActive: true
+      },
+      select: {
+        id: true,
+        name: true,
+        referralCode: true,
+        isPremium: true,
+        discoveryCommissionType: true,
+        discoveryCommissionValue: true,
+        _count: {
+          select: {
+            registrations: true
+          }
+        }
+      },
+      orderBy: {
+        name: 'asc'
+      }
+    });
+
+    // Per ogni company, calcola revenue e commissioni
+    const revenueData = await Promise.all(
+      companies.map(async (company) => {
+        // Aggregazione registrazioni
+        const registrationData = await prisma.registration.aggregate({
+          where: {
+            partnerCompanyId: company.id
+          },
+          _sum: {
+            finalAmount: true,
+            discoveryCommission: true,
+            companyEarnings: true
+          }
+        });
+
+        // Breakdown per tipo offerta
+        const byOfferType = await prisma.registration.groupBy({
+          by: ['offerType'],
+          where: {
+            partnerCompanyId: company.id
+          },
+          _count: {
+            id: true
+          },
+          _sum: {
+            finalAmount: true
+          }
+        });
+
+        // Breakdown per corso
+        const byCourse = await prisma.registration.findMany({
+          where: {
+            partnerCompanyId: company.id
+          },
+          select: {
+            offer: {
+              select: {
+                course: {
+                  select: {
+                    name: true,
+                    templateType: true
+                  }
+                },
+                offerType: true
+              }
+            },
+            finalAmount: true
+          }
+        });
+
+        // Aggrega per corso
+        const courseMap = new Map<string, { courseName: string; courseType: string; count: number; revenue: number }>();
+
+        byCourse.forEach((reg) => {
+          if (reg.offer?.course) {
+            const key = reg.offer.course.name;
+            const existing = courseMap.get(key);
+
+            if (existing) {
+              existing.count++;
+              existing.revenue += reg.finalAmount.toNumber();
+            } else {
+              courseMap.set(key, {
+                courseName: reg.offer.course.name,
+                courseType: reg.offer.course.templateType,
+                count: 1,
+                revenue: reg.finalAmount.toNumber()
+              });
+            }
+          }
+        });
+
+        return {
+          company: {
+            id: company.id,
+            name: company.name,
+            referralCode: company.referralCode,
+            isPremium: company.isPremium,
+            discoveryCommissionType: company.discoveryCommissionType,
+            discoveryCommissionValue: company.discoveryCommissionValue
+          },
+          totalRegistrations: company._count.registrations,
+          totalRevenue: registrationData._sum.finalAmount?.toNumber() || 0,
+          discoveryCommissions: registrationData._sum.discoveryCommission?.toNumber() || 0,
+          companyEarnings: registrationData._sum.companyEarnings?.toNumber() || 0,
+          byOfferType: byOfferType.map(item => ({
+            offerType: item.offerType,
+            count: item._count.id,
+            revenue: item._sum.finalAmount?.toNumber() || 0
+          })),
+          byCourse: Array.from(courseMap.values())
+        };
+      })
+    );
+
+    // Filtra company con almeno 1 iscrizione
+    const filteredData = revenueData.filter(item => item.totalRegistrations > 0);
+
+    res.json(filteredData);
+  } catch (error) {
+    console.error('Error fetching revenue data:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========================================
+// AUDIT LOGS
+// ========================================
+
+/**
+ * GET /api/admin/logs
+ * Recupera audit logs con filtri avanzati
+ */
+router.get('/logs', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const {
+      action,
+      targetType,
+      adminId,
+      dateFrom,
+      dateTo,
+      page = '1',
+      limit = '50'
+    } = req.query;
+
+    const pageNum = parseInt(page as string, 10);
+    const limitNum = parseInt(limit as string, 10);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Build filters
+    const where: any = {};
+
+    if (action) {
+      where.action = action;
+    }
+
+    if (targetType) {
+      where.targetType = targetType;
+    }
+
+    if (adminId) {
+      where.adminId = adminId;
+    }
+
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) {
+        where.createdAt.gte = new Date(dateFrom as string);
+      }
+      if (dateTo) {
+        where.createdAt.lte = new Date(dateTo as string);
+      }
+    }
+
+    // Fetch logs con paginazione
+    const [logs, totalCount] = await Promise.all([
+      prisma.discoveryAdminLog.findMany({
+        where,
+        include: {
+          admin: {
+            select: {
+              id: true,
+              email: true,
+              role: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        skip,
+        take: limitNum
+      }),
+      prisma.discoveryAdminLog.count({ where })
+    ]);
+
+    // Enrich logs con target name
+    const enrichedLogs = await Promise.all(
+      logs.map(async (log) => {
+        let targetName = 'N/A';
+
+        try {
+          if (log.targetType === 'COMPANY' && log.targetId) {
+            const company = await prisma.partnerCompany.findUnique({
+              where: { id: log.targetId },
+              select: { name: true }
+            });
+            targetName = company?.name || 'Deleted Company';
+          } else if (log.targetType === 'USER' && log.targetId) {
+            const user = await prisma.user.findUnique({
+              where: { id: log.targetId },
+              select: { email: true }
+            });
+            targetName = user?.email || 'Deleted User';
+          } else if (log.targetType === 'REGISTRATION' && log.targetId) {
+            const registration = await prisma.registration.findUnique({
+              where: { id: log.targetId },
+              select: {
+                user: {
+                  select: { email: true }
+                }
+              }
+            });
+            targetName = registration?.user.email || 'Deleted Registration';
+          }
+        } catch (err) {
+          // Target potrebbe essere stato eliminato
+          targetName = `Deleted ${log.targetType}`;
+        }
+
+        return {
+          ...log,
+          targetName,
+          adminEmail: log.admin.email
+        };
+      })
+    );
+
+    res.json({
+      logs: enrichedLogs,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: totalCount,
+        pages: Math.ceil(totalCount / limitNum)
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching audit logs:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/admin/logs/stats
+ * Statistiche audit log (per dashboard)
+ */
+router.get('/logs/stats', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const now = new Date();
+    const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const [total, last24hCount, last7dCount, byAction, byAdmin] = await Promise.all([
+      // Totale log
+      prisma.discoveryAdminLog.count(),
+
+      // Azioni ultime 24h
+      prisma.discoveryAdminLog.count({
+        where: { createdAt: { gte: last24h } }
+      }),
+
+      // Azioni ultimi 7 giorni
+      prisma.discoveryAdminLog.count({
+        where: { createdAt: { gte: last7d } }
+      }),
+
+      // Group by action
+      prisma.discoveryAdminLog.groupBy({
+        by: ['action'],
+        _count: {
+          id: true
+        },
+        orderBy: {
+          _count: {
+            id: 'desc'
+          }
+        },
+        take: 10
+      }),
+
+      // Top admins
+      prisma.discoveryAdminLog.groupBy({
+        by: ['adminId'],
+        _count: {
+          id: true
+        },
+        orderBy: {
+          _count: {
+            id: 'desc'
+          }
+        },
+        take: 5
+      })
+    ]);
+
+    // Enrich admin data
+    const enrichedByAdmin = await Promise.all(
+      byAdmin.map(async (item) => {
+        const admin = await prisma.user.findUnique({
+          where: { id: item.adminId },
+          select: { email: true }
+        });
+        return {
+          adminId: item.adminId,
+          adminEmail: admin?.email || 'Unknown',
+          count: item._count.id
+        };
+      })
+    );
+
+    res.json({
+      total,
+      last24h: last24hCount,
+      last7d: last7dCount,
+      byAction: byAction.map(a => ({
+        action: a.action,
+        count: a._count.id
+      })),
+      byAdmin: enrichedByAdmin
+    });
+
+  } catch (error) {
+    console.error('Error fetching audit log stats:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========================================
+// EXPORT SYSTEM
+// ========================================
+
+/**
+ * POST /api/admin/export/registrations
+ * Esporta iscrizioni in Excel con filtri
+ */
+router.post('/export/registrations', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { filters } = req.body;
+
+    // Build where clause
+    const where: any = {};
+
+    if (filters?.companyId) {
+      where.partnerCompanyId = filters.companyId;
+    }
+
+    if (filters?.status && filters.status.length > 0) {
+      where.status = { in: filters.status };
+    }
+
+    if (filters?.courseType) {
+      where.offerType = filters.courseType;
+    }
+
+    if (filters?.dateFrom || filters?.dateTo) {
+      where.createdAt = {};
+      if (filters.dateFrom) where.createdAt.gte = new Date(filters.dateFrom);
+      if (filters.dateTo) where.createdAt.lte = new Date(filters.dateTo);
+    }
+
+    // Fetch registrations (simplified - fetch relations separately to avoid type issues)
+    const registrations = await prisma.registration.findMany({
+      where,
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    // Fetch related data
+    const enrichedRegistrations = await Promise.all(
+      registrations.map(async (reg) => {
+        const [user, company, offer, deadlines] = await Promise.all([
+          prisma.user.findUnique({
+            where: { id: reg.userId },
+            select: {
+              email: true,
+              profile: {
+                select: {
+                  nome: true,
+                  cognome: true,
+                  codiceFiscale: true
+                }
+              }
+            }
+          }),
+          reg.partnerCompanyId
+            ? prisma.partnerCompany.findUnique({
+                where: { id: reg.partnerCompanyId },
+                select: { name: true, referralCode: true }
+              })
+            : null,
+          reg.partnerOfferId
+            ? prisma.partnerOffer.findUnique({
+                where: { id: reg.partnerOfferId },
+                select: {
+                  course: {
+                    select: { name: true }
+                  }
+                }
+              })
+            : null,
+          prisma.paymentDeadline.findMany({
+            where: { registrationId: reg.id },
+            select: {
+              dueDate: true,
+              amount: true,
+              isPaid: true
+            },
+            orderBy: { dueDate: 'asc' }
+          })
+        ]);
+
+        return {
+          ...reg,
+          user,
+          partnerCompany: company,
+          partnerOffer: offer,
+          paymentDeadlines: deadlines
+        };
+      })
+    );
+
+    // Create Excel
+    const exporter = new ExcelExporter('Iscrizioni');
+
+    // Metadata
+    exporter.addMetadata([
+      { label: 'Report:', value: 'Esportazione Iscrizioni Discovery' },
+      { label: 'Data Export:', value: ExcelFormatters.datetime(new Date()) },
+      { label: 'Totale Record:', value: enrichedRegistrations.length.toString() },
+      { label: 'Filtri Applicati:', value: JSON.stringify(filters || {}) }
+    ]);
+
+    // Columns
+    exporter.setColumns([
+      { header: 'ID Iscrizione', key: 'id', width: 20 },
+      { header: 'Data Iscrizione', key: 'dataIscrizione', width: 18 },
+      { header: 'Status', key: 'status', width: 20 },
+      { header: 'Nome', key: 'nome', width: 20 },
+      { header: 'Cognome', key: 'cognome', width: 20 },
+      { header: 'Email', key: 'email', width: 30 },
+      { header: 'Codice Fiscale', key: 'codiceFiscale', width: 20 },
+      { header: 'Corso', key: 'corso', width: 30 },
+      { header: 'Tipo Corso', key: 'tipoCourse', width: 15 },
+      { header: 'Company', key: 'company', width: 25 },
+      { header: 'Referral Code', key: 'referralCode', width: 15 },
+      { header: 'Importo Originale', key: 'importoOriginale', width: 18 },
+      { header: 'Importo Finale', key: 'importoFinale', width: 18 },
+      { header: 'Commissione Discovery', key: 'commissioneDiscovery', width: 22 },
+      { header: 'Guadagno Company', key: 'guadagnoCompany', width: 20 },
+      { header: 'Rate Pagate', key: 'ratePagate', width: 15 },
+      { header: 'Rate Totali', key: 'rateTotali', width: 15 },
+      { header: 'Prossima Scadenza', key: 'prossimaScadenza', width: 20 },
+      { header: 'Importo Prossima Rata', key: 'importoProssimaRata', width: 22 }
+    ]);
+
+    // Rows
+    const rows = enrichedRegistrations.map(reg => {
+      const paidDeadlines = reg.paymentDeadlines.filter(pd => pd.isPaid).length;
+      const totalDeadlines = reg.paymentDeadlines.length;
+      const nextDeadline = reg.paymentDeadlines.find(pd => !pd.isPaid);
+
+      return {
+        id: reg.id.substring(0, 8),
+        dataIscrizione: ExcelFormatters.date(reg.createdAt),
+        status: reg.status,
+        nome: reg.user?.profile?.nome || 'N/A',
+        cognome: reg.user?.profile?.cognome || 'N/A',
+        email: reg.user?.email || 'N/A',
+        codiceFiscale: reg.user?.profile?.codiceFiscale || 'N/A',
+        corso: reg.partnerOffer?.course?.name || 'N/A',
+        tipoCourse: reg.offerType,
+        company: reg.partnerCompany?.name || 'N/A',
+        referralCode: reg.partnerCompany?.referralCode || 'N/A',
+        importoOriginale: ExcelFormatters.currency(Number(reg.originalAmount || 0)),
+        importoFinale: ExcelFormatters.currency(Number(reg.finalAmount || 0)),
+        commissioneDiscovery: ExcelFormatters.currency(Number(reg.discoveryCommission || 0)),
+        guadagnoCompany: ExcelFormatters.currency(Number(reg.companyEarnings || 0)),
+        ratePagate: paidDeadlines,
+        rateTotali: totalDeadlines,
+        prossimaScadenza: nextDeadline ? ExcelFormatters.date(nextDeadline.dueDate) : 'N/A',
+        importoProssimaRata: nextDeadline ? ExcelFormatters.currency(Number(nextDeadline.amount)) : 'N/A'
+      };
+    });
+
+    exporter.addRows(rows);
+    exporter.applyAlternatingRows();
+    exporter.applyBorders();
+
+    // Generate buffer
+    const buffer = await exporter.generate();
+
+    // Log export
+    await prisma.discoveryAdminLog.create({
+      data: {
+        adminId: req.user!.id,
+        action: 'EXPORT_DATA',
+        targetType: 'REGISTRATION',
+        targetId: 'bulk',
+        newValue: {
+          type: 'registrations',
+          count: enrichedRegistrations.length,
+          filters
+        }
+      }
+    });
+
+    // Send file
+    const filename = `Iscrizioni_${new Date().toISOString().split('T')[0]}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+
+  } catch (error) {
+    console.error('Error exporting registrations:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/admin/export/revenue
+ * Esporta revenue per company in Excel
+ */
+router.post('/export/revenue', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { filters } = req.body;
+
+    // Build where clause
+    const where: any = {};
+
+    if (filters?.onlyActive) {
+      where.isActive = true;
+    }
+
+    // Fetch companies con statistiche
+    const companies = await prisma.partnerCompany.findMany({
+      where,
+      include: {
+        registrations: {
+          where: {
+            ...(filters?.dateFrom || filters?.dateTo ? {
+              createdAt: {
+                ...(filters.dateFrom ? { gte: new Date(filters.dateFrom) } : {}),
+                ...(filters.dateTo ? { lte: new Date(filters.dateTo) } : {})
+              }
+            } : {})
+          },
+          select: {
+            finalAmount: true,
+            discoveryCommission: true,
+            companyEarnings: true,
+            offerType: true
+          }
+        }
+      },
+      orderBy: {
+        totalEarnings: 'desc'
+      }
+    });
+
+    // Create Excel
+    const exporter = new ExcelExporter('Revenue Companies');
+
+    // Metadata
+    exporter.addMetadata([
+      { label: 'Report:', value: 'Revenue per Company - Discovery' },
+      { label: 'Data Export:', value: ExcelFormatters.datetime(new Date()) },
+      { label: 'Totale Companies:', value: companies.length.toString() },
+      { label: 'Periodo:', value: filters?.dateFrom ? `${filters.dateFrom} - ${filters.dateTo || 'oggi'}` : 'Tutto' }
+    ]);
+
+    // Columns
+    const baseColumns = [
+      { header: 'Nome Company', key: 'nome', width: 30 },
+      { header: 'Referral Code', key: 'referralCode', width: 15 },
+      { header: 'Status', key: 'status', width: 12 },
+      { header: 'Premium', key: 'premium', width: 10 },
+      { header: 'Tipo Commissione', key: 'tipoCommissione', width: 18 },
+      { header: 'Valore Commissione', key: 'valoreCommissione', width: 20 },
+      { header: 'N° Iscrizioni', key: 'numIscrizioni', width: 15 },
+      { header: 'Revenue Totale', key: 'revenueTotale', width: 18 },
+      { header: 'Commissioni Discovery', key: 'commissioniDiscovery', width: 22 },
+      { header: 'Guadagno Company', key: 'guadagnoCompany', width: 20 }
+    ];
+
+    if (filters?.includeBreakdown) {
+      baseColumns.push(
+        { header: 'Iscrizioni TFA', key: 'iscrizioniTFA', width: 15 },
+        { header: 'Revenue TFA', key: 'revenueTFA', width: 18 },
+        { header: 'Iscrizioni Cert', key: 'iscrizioniCert', width: 15 },
+        { header: 'Revenue Cert', key: 'revenueCert', width: 18 }
+      );
+    }
+
+    exporter.setColumns(baseColumns);
+
+    // Rows
+    let totalRevenue = 0;
+    let totalCommissions = 0;
+    let totalCompanyEarnings = 0;
+
+    const rows = companies.map(company => {
+      const revenue = company.registrations.reduce((sum, r) => sum + Number(r.finalAmount || 0), 0);
+      const commissions = company.registrations.reduce((sum, r) => sum + Number(r.discoveryCommission || 0), 0);
+      const earnings = company.registrations.reduce((sum, r) => sum + Number(r.companyEarnings || 0), 0);
+
+      totalRevenue += revenue;
+      totalCommissions += commissions;
+      totalCompanyEarnings += earnings;
+
+      const row: any = {
+        nome: company.name,
+        referralCode: company.referralCode,
+        status: company.isActive ? 'Attiva' : 'Inattiva',
+        premium: company.isPremium ? 'Sì' : 'No',
+        tipoCommissione: company.discoveryCommissionType || 'N/A',
+        valoreCommissione: company.discoveryCommissionValue
+          ? (company.discoveryCommissionType === 'PERCENTAGE'
+            ? `${company.discoveryCommissionValue}%`
+            : ExcelFormatters.currency(Number(company.discoveryCommissionValue)))
+          : 'N/A',
+        numIscrizioni: company.registrations.length,
+        revenueTotale: ExcelFormatters.currency(revenue),
+        commissioniDiscovery: ExcelFormatters.currency(commissions),
+        guadagnoCompany: ExcelFormatters.currency(earnings)
+      };
+
+      if (filters?.includeBreakdown) {
+        const tfaRegs = company.registrations.filter(r => r.offerType === 'TFA_ROMANIA');
+        const certRegs = company.registrations.filter(r => r.offerType === 'CERTIFICATION');
+
+        row.iscrizioniTFA = tfaRegs.length;
+        row.revenueTFA = ExcelFormatters.currency(tfaRegs.reduce((sum, r) => sum + Number(r.finalAmount || 0), 0));
+        row.iscrizioniCert = certRegs.length;
+        row.revenueCert = ExcelFormatters.currency(certRegs.reduce((sum, r) => sum + Number(r.finalAmount || 0), 0));
+      }
+
+      return row;
+    });
+
+    exporter.addRows(rows);
+    exporter.applyAlternatingRows();
+    exporter.applyBorders();
+
+    // Totals row
+    const totalsRow: any = {
+      nome: 'TOTALE',
+      referralCode: '',
+      status: '',
+      premium: '',
+      tipoCommissione: '',
+      valoreCommissione: '',
+      numIscrizioni: companies.reduce((sum, c) => sum + c.registrations.length, 0),
+      revenueTotale: ExcelFormatters.currency(totalRevenue),
+      commissioniDiscovery: ExcelFormatters.currency(totalCommissions),
+      guadagnoCompany: ExcelFormatters.currency(totalCompanyEarnings)
+    };
+
+    exporter.addTotalRow(totalsRow);
+
+    // Generate buffer
+    const buffer = await exporter.generate();
+
+    // Log export
+    await prisma.discoveryAdminLog.create({
+      data: {
+        adminId: req.user!.id,
+        action: 'EXPORT_DATA',
+        targetType: 'COMPANY',
+        targetId: 'bulk',
+        newValue: {
+          type: 'revenue',
+          count: companies.length,
+          filters
+        }
+      }
+    });
+
+    // Send file
+    const filename = `Revenue_Companies_${new Date().toISOString().split('T')[0]}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+
+  } catch (error) {
+    console.error('Error exporting revenue:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========================================
+// GLOBAL SEARCH
+// ========================================
+
+/**
+ * GET /api/admin/search
+ * Ricerca globale attraverso companies, utenti, iscrizioni, dipendenti
+ */
+router.get('/search', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { q, category = 'all', limit = 5 } = req.query;
+
+    if (!q || typeof q !== 'string') {
+      return res.status(400).json({ error: 'Query parameter "q" is required' });
+    }
+
+    const query = q.trim().toLowerCase();
+    const searchLimit = Math.min(parseInt(limit as string) || 5, 20);
+
+    const results: any = {
+      companies: [],
+      users: [],
+      registrations: [],
+      employees: [],
+      courses: []
+    };
+
+    // Search Companies
+    if (category === 'all' || category === 'companies') {
+      const companies = await prisma.partnerCompany.findMany({
+        where: {
+          OR: [
+            { name: { contains: query, mode: 'insensitive' } },
+            { referralCode: { contains: query, mode: 'insensitive' } }
+          ]
+        },
+        select: {
+          id: true,
+          name: true,
+          referralCode: true,
+          isActive: true,
+          isPremium: true,
+          totalEarnings: true,
+          _count: {
+            select: {
+              registrations: true,
+              employees: true
+            }
+          }
+        },
+        take: searchLimit,
+        orderBy: { createdAt: 'desc' }
+      });
+
+      results.companies = companies.map(c => ({
+        id: c.id,
+        name: c.name,
+        referralCode: c.referralCode,
+        isActive: c.isActive,
+        isPremium: c.isPremium,
+        totalEarnings: Number(c.totalEarnings),
+        registrationsCount: c._count.registrations,
+        employeesCount: c._count.employees,
+        type: 'company'
+      }));
+    }
+
+    // Search Users
+    if (category === 'all' || category === 'users') {
+      const users = await prisma.user.findMany({
+        where: {
+          role: 'USER',
+          OR: [
+            { email: { contains: query, mode: 'insensitive' } },
+            { profile: { nome: { contains: query, mode: 'insensitive' } } },
+            { profile: { cognome: { contains: query, mode: 'insensitive' } } },
+            { profile: { codiceFiscale: { contains: query, mode: 'insensitive' } } }
+          ]
+        },
+        select: {
+          id: true,
+          email: true,
+          profile: {
+            select: {
+              nome: true,
+              cognome: true,
+              codiceFiscale: true
+            }
+          },
+          _count: {
+            select: {
+              registrations: true
+            }
+          }
+        },
+        take: searchLimit,
+        orderBy: { createdAt: 'desc' }
+      });
+
+      results.users = users.map(u => ({
+        id: u.id,
+        email: u.email,
+        nome: u.profile?.nome || '',
+        cognome: u.profile?.cognome || '',
+        codiceFiscale: u.profile?.codiceFiscale || '',
+        registrationsCount: u._count.registrations,
+        type: 'user'
+      }));
+    }
+
+    // Search Registrations
+    if (category === 'all' || category === 'registrations') {
+      const registrations = await prisma.registration.findMany({
+        where: {
+          OR: [
+            { id: { contains: query, mode: 'insensitive' } },
+            { user: { email: { contains: query, mode: 'insensitive' } } },
+            { user: { profile: { codiceFiscale: { contains: query, mode: 'insensitive' } } } }
+          ]
+        },
+        select: {
+          id: true,
+          status: true,
+          finalAmount: true,
+          offerType: true,
+          createdAt: true,
+          user: {
+            select: {
+              email: true,
+              profile: {
+                select: {
+                  nome: true,
+                  cognome: true
+                }
+              }
+            }
+          },
+          partnerCompany: {
+            select: {
+              name: true,
+              referralCode: true
+            }
+          }
+        },
+        take: searchLimit,
+        orderBy: { createdAt: 'desc' }
+      });
+
+      results.registrations = registrations.map(r => ({
+        id: r.id,
+        status: r.status,
+        finalAmount: Number(r.finalAmount),
+        offerType: r.offerType,
+        createdAt: r.createdAt.toISOString(),
+        userEmail: r.user.email,
+        userName: `${r.user.profile?.nome || ''} ${r.user.profile?.cognome || ''}`.trim(),
+        companyName: r.partnerCompany?.name || 'Nessuna company',
+        companyCode: r.partnerCompany?.referralCode || '',
+        type: 'registration'
+      }));
+    }
+
+    // Search Employees
+    if (category === 'all' || category === 'employees') {
+      const employees = await prisma.partnerEmployee.findMany({
+        where: {
+          OR: [
+            { email: { contains: query, mode: 'insensitive' } },
+            { firstName: { contains: query, mode: 'insensitive' } },
+            { lastName: { contains: query, mode: 'insensitive' } }
+          ]
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          isActive: true,
+          isOwner: true,
+          partnerCompany: {
+            select: {
+              id: true,
+              name: true,
+              referralCode: true
+            }
+          }
+        },
+        take: searchLimit,
+        orderBy: { createdAt: 'desc' }
+      });
+
+      results.employees = employees.map(e => ({
+        id: e.id,
+        email: e.email,
+        firstName: e.firstName,
+        lastName: e.lastName,
+        role: e.role,
+        isActive: e.isActive,
+        isOwner: e.isOwner,
+        companyId: e.partnerCompany.id,
+        companyName: e.partnerCompany.name,
+        companyCode: e.partnerCompany.referralCode,
+        type: 'employee'
+      }));
+    }
+
+    // Search Courses
+    if (category === 'all' || category === 'courses') {
+      const courses = await prisma.course.findMany({
+        where: {
+          OR: [
+            { name: { contains: query, mode: 'insensitive' } },
+            { description: { contains: query, mode: 'insensitive' } }
+          ]
+        },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          templateType: true,
+          _count: {
+            select: {
+              offers: true
+            }
+          }
+        },
+        take: searchLimit,
+        orderBy: { createdAt: 'desc' }
+      });
+
+      results.courses = courses.map(c => ({
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        templateType: c.templateType,
+        offersCount: c._count.offers,
+        type: 'course'
+      }));
+    }
+
+    // Calculate total results
+    const totalResults =
+      results.companies.length +
+      results.users.length +
+      results.registrations.length +
+      results.employees.length +
+      results.courses.length;
+
+    res.json({
+      query: q,
+      category,
+      totalResults,
+      results
+    });
+
+  } catch (error) {
+    console.error('Error in global search:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========================================
+// COURSE TEMPLATE COMMISSION MANAGEMENT
+// ========================================
+
+/**
+ * GET /api/admin/courses
+ * Lista tutti i course templates con commissioni Discovery
+ */
+router.get('/courses', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const courses = await prisma.course.findMany({
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        templateType: true,
+        isActive: true,
+        discoveryCommissionType: true,
+        discoveryCommissionValue: true,
+        createdAt: true,
+        _count: {
+          select: {
+            offers: true
+          }
+        }
+      },
+      orderBy: {
+        templateType: 'asc'
+      }
+    });
+
+    const formattedCourses = courses.map(course => ({
+      id: course.id,
+      name: course.name,
+      description: course.description,
+      templateType: course.templateType,
+      isActive: course.isActive,
+      discoveryCommissionType: course.discoveryCommissionType,
+      discoveryCommissionValue: course.discoveryCommissionValue ? Number(course.discoveryCommissionValue) : null,
+      offersCount: course._count.offers,
+      createdAt: course.createdAt.toISOString()
+    }));
+
+    res.json(formattedCourses);
+  } catch (error) {
+    console.error('Error fetching courses:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * PATCH /api/admin/courses/:id/commission
+ * Aggiorna le commissioni Discovery per un course template
+ * Body: { commissionType: 'PERCENTAGE' | 'FIXED' | null, commissionValue: number }
+ */
+router.patch('/courses/:id/commission', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { commissionType, commissionValue } = req.body;
+
+    // Validazione
+    if (commissionType && !['PERCENTAGE', 'FIXED'].includes(commissionType)) {
+      return res.status(400).json({
+        error: 'Invalid commission type. Must be PERCENTAGE, FIXED, or null'
+      });
+    }
+
+    if (commissionType && commissionValue === undefined) {
+      return res.status(400).json({
+        error: 'Commission value required when commission type is set'
+      });
+    }
+
+    // Verifica esistenza course
+    const existingCourse = await prisma.course.findUnique({
+      where: { id }
+    });
+
+    if (!existingCourse) {
+      return res.status(404).json({ error: 'Course not found' });
+    }
+
+    // Aggiorna commissioni
+    const updatedCourse = await prisma.course.update({
+      where: { id },
+      data: {
+        discoveryCommissionType: commissionType ? (commissionType as CommissionType) : null,
+        discoveryCommissionValue: commissionValue ? new Prisma.Decimal(commissionValue) : null
+      },
+      select: {
+        id: true,
+        name: true,
+        templateType: true,
+        discoveryCommissionType: true,
+        discoveryCommissionValue: true
+      }
+    });
+
+    // Log azione
+    await prisma.discoveryAdminLog.create({
+      data: {
+        adminId: req.user!.id,
+        action: 'COMMISSION_CHANGE',
+        targetType: 'COURSE',
+        targetId: id,
+        previousValue: {
+          commissionType: existingCourse.discoveryCommissionType,
+          commissionValue: existingCourse.discoveryCommissionValue ? Number(existingCourse.discoveryCommissionValue) : null
+        },
+        newValue: {
+          commissionType,
+          commissionValue
+        },
+        reason: 'Course template commission updated by Discovery admin',
+        ipAddress: req.ip
+      }
+    });
+
+    // 🔥 IMPORTANTE: Ricalcola commissioni per tutte le registrazioni esistenti di questo corso
+    // (import recalculateCourseCommissions from utils)
+    const { recalculateCourseCommissions } = await import('../utils/commissionCalculator');
+    await recalculateCourseCommissions(id);
+
+    res.json({
+      success: true,
+      course: {
+        id: updatedCourse.id,
+        name: updatedCourse.name,
+        templateType: updatedCourse.templateType,
+        discoveryCommissionType: updatedCourse.discoveryCommissionType,
+        discoveryCommissionValue: updatedCourse.discoveryCommissionValue ? Number(updatedCourse.discoveryCommissionValue) : null
+      },
+      message: 'Course commission updated and all registrations recalculated'
+    });
+
+  } catch (error) {
+    console.error('Error updating course commission:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+export default router;
