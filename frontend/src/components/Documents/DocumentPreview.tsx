@@ -162,7 +162,7 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'APPROVED': return 'Approvato';
+      case 'APPROVED': return 'Checkato';
       case 'REJECTED': return 'Rifiutato';
       default: return 'In attesa';
     }
@@ -332,7 +332,7 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                   onClick={() => setShowApprovalForm(true)}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex-1"
                 >
-                  Approva Documento
+                  Verifica Documento (no email)
                 </button>
                 <button
                   onClick={() => setShowRejectionForm(true)}
@@ -343,9 +343,15 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
               </div>
             )}
 
-            {/* Approval Form */}
+            {/* Check Form */}
             {showApprovalForm && (
               <div className="space-y-3">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                  <p className="text-sm text-blue-800">
+                    <strong>Nota:</strong> La verifica non invierà email all'utente.
+                    Discovery effettuerà l'approvazione finale.
+                  </p>
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Note (opzionale)
@@ -355,7 +361,7 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                     onChange={(e) => setApprovalNotes(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
                     rows={2}
-                    placeholder="Aggiungi note sull'approvazione..."
+                    placeholder="Aggiungi note sulla verifica..."
                   />
                 </div>
                 <div className="flex space-x-3">
@@ -364,7 +370,7 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                     disabled={isLoading}
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex-1"
                   >
-                    {isLoading ? 'Approvazione...' : 'Conferma Approvazione'}
+                    {isLoading ? 'Verifica in corso...' : 'Conferma Verifica'}
                   </button>
                   <button
                     onClick={() => setShowApprovalForm(false)}

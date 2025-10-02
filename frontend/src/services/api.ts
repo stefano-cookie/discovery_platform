@@ -13,10 +13,21 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     // Check for both user and partner tokens
-    const userToken = localStorage.getItem('token');
     const partnerToken = localStorage.getItem('partnerToken');
-    const token = userToken || partnerToken;
-    
+    const userToken = localStorage.getItem('token');
+
+    // Prioritize partner token if it exists (for partner routes)
+    // This ensures partner employees can access partner resources
+    const token = partnerToken || userToken;
+
+    console.log('🔐 API Request:', {
+      url: config.url,
+      method: config.method,
+      hasPartnerToken: !!partnerToken,
+      hasUserToken: !!userToken,
+      usingToken: partnerToken ? 'partner' : (userToken ? 'user' : 'none')
+    });
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -32,29 +43,56 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     // Don't redirect on 401 if it's a login attempt
-    const isLoginAttempt = error.config?.url?.includes('/auth/login') || 
+    const isLoginAttempt = error.config?.url?.includes('/auth/login') ||
                           error.config?.url?.includes('/auth/register');
-    
+
+    console.log('❌ API Error:', {
+      url: error.config?.url,
+      status: error.response?.status,
+      error: error.response?.data?.error,
+      isLoginAttempt
+    });
+
     if (error.response?.status === 401 && !isLoginAttempt) {
-      // Clear both user and partner auth data
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('partnerToken');
-      localStorage.removeItem('partnerEmployee');
-      localStorage.removeItem('partnerCompany');
-      
-      // Redirect to appropriate login page based on current path
-      const isPartnerArea = window.location.pathname.includes('/partner');
-      window.location.href = isPartnerArea ? '/partner/login' : '/login';
+      const errorMessage = error.response?.data?.error || '';
+
+      // Only redirect if token is truly invalid/expired (not permission issues)
+      const isAuthError = errorMessage.includes('Token') ||
+                         errorMessage.includes('mancante') ||
+                         errorMessage.includes('non valido') ||
+                         errorMessage.includes('scaduto');
+
+      console.log('🚨 401 Error Analysis:', {
+        errorMessage,
+        isAuthError,
+        willRedirect: isAuthError
+      });
+
+      if (isAuthError) {
+        console.log('🔄 Redirecting to login due to auth error');
+        // Clear both user and partner auth data
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('partnerToken');
+        localStorage.removeItem('partnerEmployee');
+        localStorage.removeItem('partnerCompany');
+
+        // Redirect to appropriate login page based on current path
+        const isPartnerArea = window.location.pathname.includes('/partner') ||
+                             window.location.pathname.includes('/dashboard');
+        window.location.href = isPartnerArea ? '/partner/login' : '/login';
+      } else {
+        console.log('⚠️ 401 but not redirecting - permission issue, not auth issue');
+      }
     }
-    
+
     // Extract meaningful error message from backend
     if (error.response?.data?.error) {
       const backendError = new Error(error.response.data.error);
       backendError.name = 'BackendError';
       return Promise.reject(backendError);
     }
-    
+
     return Promise.reject(error);
   }
 );

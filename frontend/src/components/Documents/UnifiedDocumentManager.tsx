@@ -31,6 +31,7 @@ interface UnifiedDocumentManagerProps {
   allowUpload?: boolean;
   allowApproval?: boolean;
   onDocumentChange?: () => void;
+  registrationStatus?: string;
 }
 
 const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
@@ -40,7 +41,8 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
   templateType = 'TFA',
   allowUpload = true,
   allowApproval = false,
-  onDocumentChange
+  onDocumentChange,
+  registrationStatus
 }) => {
   const [documents, setDocuments] = useState<UnifiedDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -167,6 +169,8 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
 
   const handlePreview = async (doc: UnifiedDocument) => {
     try {
+      console.log('👁️ Preview document:', { docId: doc.documentId, mode, userId });
+
       // Check if document is actually uploaded
       if (!doc.uploaded || !doc.documentId || doc.id.startsWith('empty-')) {
         setError('Documento non ancora caricato');
@@ -182,6 +186,12 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
 
       const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
       const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
+
+      console.log('👁️ Preview request:', {
+        endpoint,
+        hasToken: !!token,
+        tokenType: localStorage.getItem('partnerToken') ? 'partner' : 'user'
+      });
 
       // Check if token is available
       if (!token) {
@@ -189,17 +199,41 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
         return;
       }
 
-      // For R2 downloads, use direct window.open to avoid CORS issues
-      const downloadUrl = `${API_BASE_URL}${endpoint}?token=${encodeURIComponent(token)}`;
-      window.open(downloadUrl, '_blank');
-      return; // Exit early for direct downloads
+      // Use fetch to download the file as blob, then open it
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      console.log('👁️ Preview response:', {
+        status: response.status,
+        ok: response.ok
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Errore sconosciuto' }));
+        console.error('❌ Preview error:', errorData);
+        throw new Error(errorData.error || 'Errore nel caricamento del documento');
+      }
+
+      // Get the blob and open it in a new tab
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
+
+      // Clean up the URL after a short delay
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
     } catch (err: any) {
-      setError('Errore nella preview del documento');
+      console.error('❌ Preview exception:', err);
+      setError(err.message || 'Errore nella preview del documento');
     }
   };
 
   const handleDownload = async (doc: UnifiedDocument) => {
     try {
+      console.log('⬇️ Download document:', { docId: doc.documentId, mode, userId });
+
       // Check if document is actually uploaded
       if (!doc.uploaded || !doc.documentId || doc.id.startsWith('empty-')) {
         setError('Documento non ancora caricato');
@@ -215,6 +249,12 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
 
       const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
       const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
+
+      console.log('⬇️ Download request:', {
+        endpoint,
+        hasToken: !!token,
+        tokenType: localStorage.getItem('partnerToken') ? 'partner' : 'user'
+      });
 
       // Check if token is available
       if (!token) {
@@ -228,7 +268,16 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
         }
       });
 
-      if (!response.ok) throw new Error('Errore nel download');
+      console.log('⬇️ Download response:', {
+        status: response.status,
+        ok: response.ok
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Errore sconosciuto' }));
+        console.error('❌ Download error:', errorData);
+        throw new Error(errorData.error || 'Errore nel download');
+      }
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -239,28 +288,35 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+
+      console.log('✅ Download completed');
     } catch (err: any) {
-      setError('Errore nel download del documento');
+      console.error('❌ Download exception:', err);
+      setError(err.message || 'Errore nel download del documento');
     }
   };
 
   const handleApprove = async (doc: UnifiedDocument) => {
     try {
+      // Use documentId if available, otherwise use id
+      const docId = doc.documentId || doc.id;
+
       await apiRequest({
         method: 'POST',
-        url: `/partners/documents/${doc.id}/approve`,
+        url: `/partners/documents/${docId}/approve`,
         data: { notes: 'Documento approvato' }
       });
-      
+
       await fetchDocuments();
       if (onDocumentChange) {
         onDocumentChange();
       }
-      
+
       // Trigger global event for document approval
       window.dispatchEvent(new Event('documentsUpdated'));
     } catch (err: any) {
-      setError('Errore nell\'approvazione del documento');
+      console.error('Error approving document:', err);
+      setError(err.response?.data?.error || 'Errore nell\'approvazione del documento');
     }
   };
 
@@ -268,21 +324,67 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
     if (!documentToReject) return;
 
     try {
+      // Use documentId if available, otherwise use id
+      const docId = documentToReject.documentId || documentToReject.id;
+
       await apiRequest({
         method: 'POST',
-        url: `/partners/documents/${documentToReject.id}/reject`,
+        url: `/partners/documents/${docId}/reject`,
         data: { reason, details }
       });
-      
+
       await fetchDocuments();
       if (onDocumentChange) {
         onDocumentChange();
       }
-      
+
       // Trigger global event for document approval
       window.dispatchEvent(new Event('documentsUpdated'));
+
+      // Close modal after successful rejection
+      closeRejectModal();
     } catch (err: any) {
-      setError('Errore nel rifiuto del documento');
+      console.error('Error rejecting document:', err);
+      setError(err.response?.data?.error || 'Errore nel rifiuto del documento');
+    }
+  };
+
+  // NEW: Check all documents at once (no email sent)
+  const handleCheckAllDocuments = async () => {
+    if (!registrationId) {
+      setError('ID iscrizione mancante');
+      return;
+    }
+
+    const pendingDocs = filteredDocuments.filter(doc => doc.uploaded && doc.status === 'PENDING');
+
+    if (pendingDocs.length === 0) {
+      setError('Nessun documento da verificare');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await apiRequest({
+        method: 'POST',
+        url: `/partners/registrations/${registrationId}/documents/check-all`,
+        data: {}
+      });
+
+      await fetchDocuments();
+      if (onDocumentChange) {
+        onDocumentChange();
+      }
+
+      // Trigger global event for document check
+      window.dispatchEvent(new Event('documentsUpdated'));
+
+      // Refresh page to update status
+      window.location.reload();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Errore nella verifica dei documenti');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -460,24 +562,27 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
             </div>
           </div>
         
-          {/* Progress Badge */}
-          <div className="flex items-center">
+          {/* Progress Badge and Check All Button */}
+          <div className="flex items-center space-x-4">
             <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-              completionPercentage === 100 
-                ? 'bg-green-100 text-green-700' 
-                : completionPercentage >= 50 
-                  ? 'bg-blue-100 text-blue-700' 
+              completionPercentage === 100
+                ? 'bg-green-100 text-green-700'
+                : completionPercentage >= 50
+                  ? 'bg-blue-100 text-blue-700'
                   : 'bg-orange-100 text-orange-700'
             }`}>
               <div className={`w-2 h-2 rounded-full mr-2 ${
-                completionPercentage === 100 
-                  ? 'bg-green-500' 
-                  : completionPercentage >= 50 
-                    ? 'bg-blue-500' 
+                completionPercentage === 100
+                  ? 'bg-green-500'
+                  : completionPercentage >= 50
+                    ? 'bg-blue-500'
                     : 'bg-orange-500'
               }`}></div>
               {completionPercentage}% completato
             </div>
+
+            {/* Note: Document approval is now managed via CertificationStepsManagement component */}
+            {/* The "Conferma Documenti Approvati" button appears there when all documents are uploaded */}
           </div>
         </div>
       </div>
@@ -589,35 +694,14 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
                       )}
                       
                       {allowUpload && (
-                        <FileUploadButton 
-                          documentType={doc.type} 
+                        <FileUploadButton
+                          documentType={doc.type}
                           accept=".pdf,.jpg,.jpeg,.png"
                         />
                       )}
 
-                      {/* Partner approval buttons */}
-                      {allowApproval && doc.uploaded && doc.status === 'PENDING' && (
-                        <>
-                          <button
-                            onClick={() => handleApprove(doc)}
-                            className="inline-flex items-center px-3 py-1.5 border border-green-300 rounded-lg text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 transition-colors duration-200"
-                          >
-                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                            Approva
-                          </button>
-                          <button
-                            onClick={() => openRejectModal(doc)}
-                            className="inline-flex items-center px-3 py-1.5 border border-red-300 rounded-lg text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 transition-colors duration-200"
-                          >
-                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                            Rifiuta
-                          </button>
-                        </>
-                      )}
+                      {/* NUOVO WORKFLOW: Partner non approva più singoli documenti */}
+                      {/* Il check viene fatto con il pulsante unico "CHECK DOCUMENTI" in fondo */}
                     </div>
                   </div>
                 </div>
@@ -625,6 +709,93 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
             </div>
           ))}
         </div>
+
+        {/* NUOVO WORKFLOW: Pulsante CHECK DOCUMENTI per Partner */}
+        {/* Mostra solo se pagamento completato E documenti NON ancora checkati */}
+        {(() => {
+          const paymentCompleted = registrationStatus && [
+            'PAYMENT_COMPLETED',
+            'CONTRACT_GENERATED',
+            'CONTRACT_SIGNED',
+            'DATA_VERIFIED',
+            'DOCUMENTS_UPLOADED'
+          ].includes(registrationStatus);
+
+          const documentsNotChecked = !['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'EXAM_COMPLETED', 'COMPLETED'].includes(registrationStatus || '');
+
+          const canShowCheckButton = mode === 'partner' && allowApproval && registrationId && paymentCompleted && documentsNotChecked;
+
+          return canShowCheckButton ? (
+            <div className="mt-6 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-t border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                    ✓ Check Documenti
+                  </h4>
+                  <p className="text-sm text-gray-600">
+                    Verifica che tutti i documenti caricati siano corretti e conformi.
+                    Se i documenti sono ok, clicca "Check Documenti" per proseguire il workflow.
+                    <span className="block mt-1 text-xs text-gray-500">
+                      ⚠️ Non verrà inviata email all'utente - l'approvazione finale sarà fatta da Discovery
+                    </span>
+                  </p>
+                </div>
+                <button
+                  onClick={handleCheckAllDocuments}
+                  disabled={loading || uploadedCount < totalCount}
+                  className={`ml-6 inline-flex items-center px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                    uploadedCount >= totalCount
+                      ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 shadow-lg hover:shadow-xl'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Elaborazione...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Check Documenti
+                    </>
+                  )}
+                </button>
+              </div>
+              {uploadedCount < totalCount && (
+                <div className="mt-3 p-3 bg-orange-100 border border-orange-300 rounded-lg">
+                  <p className="text-sm text-orange-800">
+                    ⚠️ Impossibile procedere: mancano <strong>{totalCount - uploadedCount}</strong> documenti da caricare
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : null;
+        })()}
+
+        {/* Messaggio quando i documenti sono già stati checkati */}
+        {mode === 'partner' && allowApproval && registrationId &&
+         ['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED'].includes(registrationStatus || '') && (
+          <div className="mt-6 p-6 bg-gradient-to-r from-green-50 to-emerald-50 border-t border-green-200">
+            <div className="flex items-center">
+              <svg className="w-6 h-6 text-green-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="flex-1">
+                <h4 className="text-lg font-semibold text-green-900 mb-1">
+                  ✓ Documenti Verificati
+                </h4>
+                <p className="text-sm text-green-700">
+                  {registrationStatus === 'DOCUMENTS_PARTNER_CHECKED' && 'Hai già verificato i documenti. In attesa approvazione finale da Discovery.'}
+                  {registrationStatus === 'AWAITING_DISCOVERY_APPROVAL' && 'Documenti verificati. L\'iscrizione è in attesa di approvazione finale da Discovery.'}
+                  {registrationStatus === 'DISCOVERY_APPROVED' && 'Iscrizione approvata da Discovery! Puoi procedere con i prossimi step.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Reject Document Modal */}

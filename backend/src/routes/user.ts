@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { PrismaClient, DocumentType } from '@prisma/client';
-import { authenticate, AuthRequest } from '../middleware/auth';
+import { authenticate, authenticateUnified, AuthRequest } from '../middleware/auth';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -228,20 +228,25 @@ router.get('/profile', authenticate, async (req: AuthRequest, res: Response) => 
 });
 
 // GET /api/user/registrations/:id - Get specific registration details
-router.get('/registrations/:registrationId', authenticate, async (req: AuthRequest, res: Response) => {
+router.get('/registrations/:registrationId', authenticateUnified, async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.id;
     const { registrationId } = req.params;
-    
-    if (!userId) {
+
+    // Build where clause based on user type
+    let whereClause: any = { id: registrationId };
+
+    if (req.user) {
+      // Regular user: can only see their own registrations
+      whereClause.userId = req.user.id;
+    } else if (req.partnerEmployee && req.partnerCompany) {
+      // Partner employee: can see registrations of their company
+      whereClause.partnerCompanyId = req.partnerCompany.id;
+    } else {
       return res.status(401).json({ error: 'Utente non autenticato' });
     }
-    
+
     const registration = await prisma.registration.findFirst({
-      where: { 
-        id: registrationId,
-        userId 
-      },
+      where: whereClause,
       include: {
         partner: {
           include: {
@@ -1121,29 +1126,36 @@ router.get('/enrollment-documents/:id/download', authenticate, async (req: AuthR
 });
 
 // GET /api/user/registrations/:registrationId/documents - Get documents for specific registration
-router.get('/registrations/:registrationId/documents', authenticate, async (req: AuthRequest, res: Response) => {
+router.get('/registrations/:registrationId/documents', authenticateUnified, async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.id;
     const { registrationId } = req.params;
 
     console.log('🔍 USER DOCUMENTS ENDPOINT CALLED:', {
       timestamp: new Date().toISOString(),
       registrationId,
-      userId,
+      userId: req.user?.id,
+      partnerEmployeeId: req.partnerEmployee?.id,
+      partnerCompanyId: req.partnerCompany?.id,
       endpoint: '/user/registrations/:registrationId/documents'
     });
 
-    if (!userId) {
+    // Build where clause based on user type
+    let whereClause: any = { id: registrationId };
+
+    if (req.user) {
+      // Regular user: can only see their own registrations
+      whereClause.userId = req.user.id;
+    } else if (req.partnerEmployee && req.partnerCompany) {
+      // Partner employee: can see registrations of their company
+      whereClause.partnerCompanyId = req.partnerCompany.id;
+    } else {
       console.log('❌ USER ENDPOINT: Utente non autenticato');
       return res.status(401).json({ error: 'Utente non autenticato' });
     }
-    
-    // Verify that the registration belongs to this user
+
+    // Verify that the registration belongs to this user or partner company
     const registration = await prisma.registration.findFirst({
-      where: { 
-        id: registrationId,
-        userId 
-      },
+      where: whereClause,
       include: {
         userDocuments: {
           orderBy: {
@@ -1618,6 +1630,15 @@ router.get('/certification-steps/:registrationId', authenticate, async (req: Aut
     // Check if all payments are completed
     const allDeadlinesPaid = registration.deadlines.every(d => d.paymentStatus === 'PAID');
 
+    // Debug log
+    console.log('Certification steps debug:', {
+      registrationId: registration.id,
+      status: registration.status,
+      allDeadlinesPaid,
+      step3ShouldBeCompleted: ['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status),
+      step4ShouldBeCurrent: ['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED'].includes(registration.status)
+    });
+
     // Build certification steps
     const steps = {
       enrollment: {
@@ -1641,22 +1662,22 @@ router.get('/certification-steps/:registrationId', authenticate, async (req: Aut
         step: 3,
         title: 'Documenti Approvati',
         description: 'Carta d\'identità e tessera sanitaria verificate',
-        completed: registration.status === 'DOCUMENTS_APPROVED' || 
-                   ['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status),
-        completedAt: ['DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 
-                     registration.createdAt : null,
-        status: registration.status === 'DOCUMENTS_APPROVED' ? 'completed' as const :
-                (['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 'completed' as const : 
-                (registration.status === 'ENROLLED' && allDeadlinesPaid ? 'current' as const : 'pending' as const))
+        // NUOVO WORKFLOW: Include i nuovi status intermedi
+        completed: ['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status),
+        completedAt: ['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ?
+                     new Date() : null,
+        status: registration.status === 'ENROLLED' && allDeadlinesPaid ? 'current' as const :
+                (['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 'completed' as const : 'pending' as const)
       },
       examRegistered: {
         step: 4,
         title: 'Iscritto all\'Esame',
         description: 'Iscrizione all\'esame di certificazione confermata',
-        completed: registration.status === 'EXAM_REGISTERED' || !!registration.examDate,
+        // NUOVO WORKFLOW: Questo step è "current" dopo che Discovery ha approvato
+        completed: ['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) || !!registration.examDate,
         completedAt: registration.status === 'EXAM_REGISTERED' ? registration.createdAt : registration.examDate,
-        status: registration.status === 'EXAM_REGISTERED' ? 'completed' as const :
-                (!!registration.examDate ? 'completed' as const : 'pending' as const)
+        status: ['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED'].includes(registration.status) ? 'current' as const :
+                (['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) || !!registration.examDate ? 'completed' as const : 'pending' as const)
       },
       examCompleted: {
         step: 5,

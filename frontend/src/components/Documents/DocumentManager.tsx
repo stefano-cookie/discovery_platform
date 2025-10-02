@@ -237,10 +237,10 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
     }
   };
 
-  // Handle document approval (partner only)
-  const handleApprove = async (documentId: string, notes?: string) => {
+  // Handle document check (partner only - no email sent)
+  const handleCheck = async (documentId: string, notes?: string) => {
     try {
-      const response = await fetch(`/api/partners/documents/${documentId}/approve`, {
+      const response = await fetch(`/api/partner/documents/${documentId}/check`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -254,7 +254,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
         setShowPreview(false);
       }
     } catch (error) {
-      console.error('Error approving document:', error);
+      console.error('Error checking document:', error);
     }
   };
 
@@ -263,7 +263,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
     if (!documentToReject) return;
 
     try {
-      const response = await fetch(`/api/partners/documents/${documentToReject.id}/reject`, {
+      const response = await fetch(`/api/partner/documents/${documentToReject.id}/reject`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -448,14 +448,14 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
                         }`}>
                           {getStatusIcon(doc.status)}
                           <span className="ml-1">
-                            {doc.status === 'APPROVED' && 'Approvato dal Partner'}
+                            {doc.status === 'APPROVED' && 'Checkato dal Partner'}
                             {doc.status === 'REJECTED' && 'Rifiutato dal Partner'}
                             {doc.status === 'PENDING' && 'In attesa di verifica'}
                           </span>
                         </span>
                         {doc.status === 'APPROVED' && doc.verifiedAt && (
                           <p className="text-xs text-green-600 mt-1">
-                            Verificato il {new Date(doc.verifiedAt).toLocaleDateString('it-IT')}
+                            Checkato il {new Date(doc.verifiedAt).toLocaleDateString('it-IT')}
                           </p>
                         )}
                       </div>
@@ -508,9 +508,9 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
                     {allowApproval && doc.status === 'PENDING' && (
                       <>
                         <button
-                          onClick={() => handleApprove(doc.id)}
+                          onClick={() => handleCheck(doc.id)}
                           className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg"
-                          title="Approva"
+                          title="Verifica (no email)"
                         >
                           <CheckCircle className="w-4 h-4" />
                         </button>
@@ -542,7 +542,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
           source={source === 'partner' ? 'partner' : 'user'}
           allowDownload={true}
           allowApproval={allowApproval}
-          onApprove={allowApproval ? handleApprove : undefined}
+          onApprove={allowApproval ? handleCheck : undefined}
           onReject={allowApproval ? handleReject : undefined}
           onClose={() => {
             setShowPreview(false);

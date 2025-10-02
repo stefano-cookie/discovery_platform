@@ -20,8 +20,12 @@ class UnifiedDownloadMiddleware {
     mimeType?: string
   ): Promise<void> {
     try {
+      console.log('📦 UnifiedDownload sendFile:', { storageKey, filename, mimeType });
+
       const downloadResult = await storageManager.getDownloadUrl(storageKey);
       const storageType = storageManager.getStorageType();
+
+      console.log('📦 Download result:', { storageType, hasSignedUrl: !!downloadResult.signedUrl });
 
       // Set headers
       res.setHeader('Content-Disposition', `attachment; filename="${filename || downloadResult.fileName}"`);
@@ -29,14 +33,24 @@ class UnifiedDownloadMiddleware {
 
       if (storageType === 'local') {
         // Local: Use res.sendFile with absolute path
+        console.log('📦 Sending local file');
         res.sendFile(path.resolve(downloadResult.signedUrl));
       } else {
-        // R2: Redirect to signed URL
-        res.redirect(downloadResult.signedUrl);
+        // R2: Fetch file and stream it (proxy to avoid CORS)
+        console.log('📦 Proxying R2 file');
+        const fetch = (await import('node-fetch')).default;
+        const response = await fetch(downloadResult.signedUrl);
+
+        if (!response.ok) {
+          throw new Error(`R2 fetch failed: ${response.status}`);
+        }
+
+        // Stream the response body to client
+        response.body?.pipe(res);
       }
 
     } catch (error) {
-      console.error(`Unified download error (${storageManager.getStorageType()}):`, error);
+      console.error(`❌ Unified download error (${storageManager.getStorageType()}):`, error);
       res.status(404).json({
         error: 'File non trovato',
         storageType: storageManager.getStorageType(),
@@ -55,8 +69,12 @@ class UnifiedDownloadMiddleware {
     mimeType?: string
   ): Promise<void> {
     try {
+      console.log('🎬 UnifiedDownload streamFile:', { storageKey, filename, mimeType });
+
       const downloadResult = await storageManager.getDownloadUrl(storageKey);
       const storageType = storageManager.getStorageType();
+
+      console.log('🎬 Stream result:', { storageType, hasSignedUrl: !!downloadResult.signedUrl });
 
       // Set headers for inline display
       res.setHeader('Content-Disposition', `inline; filename="${filename || downloadResult.fileName}"`);
@@ -64,14 +82,24 @@ class UnifiedDownloadMiddleware {
 
       if (storageType === 'local') {
         // Local: Use res.sendFile
+        console.log('🎬 Streaming local file');
         res.sendFile(path.resolve(downloadResult.signedUrl));
       } else {
-        // R2: Redirect to signed URL
-        res.redirect(downloadResult.signedUrl);
+        // R2: Fetch file and stream it (proxy to avoid CORS)
+        console.log('🎬 Proxying R2 stream');
+        const fetch = (await import('node-fetch')).default;
+        const response = await fetch(downloadResult.signedUrl);
+
+        if (!response.ok) {
+          throw new Error(`R2 fetch failed: ${response.status}`);
+        }
+
+        // Stream the response body to client
+        response.body?.pipe(res);
       }
 
     } catch (error) {
-      console.error(`Unified stream error (${storageManager.getStorageType()}):`, error);
+      console.error(`❌ Unified stream error (${storageManager.getStorageType()}):`, error);
       res.status(404).json({
         error: 'File non trovato per preview',
         storageType: storageManager.getStorageType(),

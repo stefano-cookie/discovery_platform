@@ -161,6 +161,13 @@ const EnrollmentDetail: React.FC<EnrollmentDetailProps> = ({
               <UserInfo user={user} />
 
               {/* Payment Section - visibile solo per ADMINISTRATIVE */}
+              {(() => {
+                console.log('💳 Payment section check:', {
+                  partnerRole: partnerEmployee?.role,
+                  willShow: partnerEmployee?.role === 'ADMINISTRATIVE'
+                });
+                return null;
+              })()}
               {partnerEmployee?.role === 'ADMINISTRATIVE' && (
                 <PaymentSection
                   registrationId={registrationId}

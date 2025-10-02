@@ -57,6 +57,15 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode, requestedBy
     // Il course.templateType definisce quale form mostrare (TFA o CERTIFICATION)
     const courseTemplate = offerInfo?.course?.templateType || 'TFA';
     const isTfaRomania = courseTemplate === 'TFA';
+
+    console.log('🔍 StepConfig calculation:', {
+      offerInfo: offerInfo?.name,
+      courseTemplate,
+      isTfaRomania,
+      hasOfferInfo: !!offerInfo,
+      hasCourse: !!offerInfo?.course,
+      actualTemplateType: offerInfo?.course?.templateType
+    });
     
     
     if (!isTfaRomania) {
@@ -269,6 +278,7 @@ const MultiStepForm: React.FC<MultiStepFormProps> = ({ referralCode, requestedBy
         console.log('Loading offer for referralCode:', referralCode);
         const info = await OfferService.getOfferByLink(referralCode);
         console.log('Offer loaded successfully:', info);
+        console.log('Course templateType:', info?.course?.templateType);
         setOfferInfo(info);
         // Save partnerOfferId in formData when offer is loaded
         if (info && info.id) {

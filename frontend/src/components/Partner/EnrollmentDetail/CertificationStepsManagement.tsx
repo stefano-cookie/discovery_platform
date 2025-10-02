@@ -224,15 +224,12 @@ const CertificationStepsManagement: React.FC<CertificationStepsManagementProps> 
   const handleApproveDocuments = async () => {
     try {
       setActionLoading('documents');
-      
+
       const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
-      
-      // If documents are already approved, we're transitioning to next step
-      // Otherwise, we're approving the documents
-      const endpoint = allDocumentsApproved 
-        ? `/partners/registrations/${registrationId}/certification-docs-approved`  // This should transition status
-        : `/partners/registrations/${registrationId}/certification-docs-approved`; // This approves and transitions
-      
+
+      // Approve documents and transition status to DOCUMENTS_APPROVED
+      const endpoint = `/partners/registrations/${registrationId}/certification-docs-approved`;
+
       await axios.post(
         `${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}${endpoint}`,
         {},
@@ -527,48 +524,35 @@ const CertificationStepsManagement: React.FC<CertificationStepsManagementProps> 
           </div>
         )}
 
-        {/* Step 3: Documents Approval */}
+        {/* Step 3: Documents Checked (Nuovo Workflow) */}
         {certificationData.steps.payment.completed && !certificationData.steps.documentsApproved.completed && canManageSteps && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-center justify-between">
-              <div>
-                <h4 className="font-medium text-blue-900">3. Documenti Approvati</h4>
+              <div className="flex-1">
+                <h4 className="font-medium text-blue-900">3. Verifica Documenti</h4>
                 <p className="text-sm text-blue-700">
-                  Approva i documenti dell'utente
+                  Usa il pulsante "CHECK DOCUMENTI" nella sezione documenti sopra
                 </p>
               </div>
               <div className="flex items-center space-x-2">
-                {actionLoading === 'documents' ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                    <span className="text-sm text-blue-700">Approvando...</span>
-                  </>
-                ) : certificationData.currentStatus === 'ENROLLED' ? (
-                  allDocumentsApproved ? (
-                    <button
-                      onClick={handleApproveDocuments}
-                      disabled={actionLoading === 'documents'}
-                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
-                    >
-                      Conferma Documenti Approvati
-                    </button>
-                  ) : (
-                    <span className="text-sm text-orange-700 italic">
-                      {hasAllRequiredDocuments ? (
-                        <span>
-                          Documenti caricati - in attesa di approvazione
-                          <span className="block text-xs mt-1">
-                            Caricati: {requiredDocuments.map((doc: any) => `${doc.type === 'IDENTITY_CARD' ? 'Carta Identità' : 'Tessera Sanitaria'}: ${doc.status}`).join(', ')}
-                          </span>
-                        </span>
-                      ) : (
-                        `In attesa caricamento documenti utente (${requiredDocuments.length}/2 caricati)`
-                      )}
+                {['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED'].includes(certificationData.currentStatus) ? (
+                  <div className="flex items-center space-x-2">
+                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-sm text-green-700 font-medium">
+                      {certificationData.currentStatus === 'DOCUMENTS_PARTNER_CHECKED' && '✓ Documenti checkati - In attesa approvazione Discovery'}
+                      {certificationData.currentStatus === 'AWAITING_DISCOVERY_APPROVAL' && '✓ In attesa approvazione finale Discovery'}
+                      {certificationData.currentStatus === 'DISCOVERY_APPROVED' && '✓ Approvato da Discovery'}
                     </span>
-                  )
+                  </div>
                 ) : (
                   <span className="text-sm text-orange-700 italic">
-                    Completa prima il pagamento
+                    {hasAllRequiredDocuments ? (
+                      'Documenti caricati - clicca "CHECK DOCUMENTI" sopra'
+                    ) : (
+                      `In attesa caricamento documenti (${requiredDocuments.length}/2 caricati)`
+                    )}
                   </span>
                 )}
               </div>

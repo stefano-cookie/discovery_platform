@@ -76,19 +76,35 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
     try {
       setLoading(true);
       const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
+
+      console.log('💰 Fetching payment deadlines:', {
+        registrationId,
+        hasToken: !!token,
+        tokenType: localStorage.getItem('partnerToken') ? 'partner' : 'user',
+        url: `${process.env.REACT_APP_API_URL}/partners/registrations/${registrationId}/deadlines`
+      });
+
       const response = await axios.get(
         `${process.env.REACT_APP_API_URL}/partners/registrations/${registrationId}/deadlines`,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
       );
-      
+
+      console.log('💰 Payment deadlines response:', {
+        deadlinesCount: response.data.deadlines?.length || 0,
+        deadlines: response.data.deadlines,
+        remainingAmount: response.data.remainingAmount,
+        delayedAmount: response.data.delayedAmount
+      });
+
       setDeadlines(response.data.deadlines || []);
       const remaining = response.data.remainingAmount || finalAmount || 0;
       setRemainingAmount(typeof remaining === 'number' ? remaining : parseFloat(remaining) || 0);
       setDelayedAmount(response.data.delayedAmount || 0);
     } catch (error) {
-      console.error('Error fetching payment deadlines:', error);
+      console.error('❌ Error fetching payment deadlines:', error);
+      console.error('❌ Error details:', (error as any).response?.data);
     } finally {
       setLoading(false);
     }

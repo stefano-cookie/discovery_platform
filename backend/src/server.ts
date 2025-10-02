@@ -24,11 +24,27 @@ const corsOptions = {
   origin: process.env.FRONTEND_URL || '*', // Use wildcard in production if FRONTEND_URL not set
   credentials: true,
   optionsSuccessStatus: 200,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 };
 
-app.use(helmet());
+// Configure Helmet with relaxed CSP for document preview in iframes
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      frameSrc: ["'self'"],
+      // Allow this backend to be embedded in iframes from frontend
+      frameAncestors: ["'self'", process.env.FRONTEND_URL || 'http://localhost:3000'],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https:'],
+      fontSrc: ["'self'", 'https:', 'data:'],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: []
+    }
+  }
+}));
 app.use(cors(corsOptions));
 app.use(express.json());
 
@@ -112,6 +128,8 @@ import partnerUsersRoutes from './routes/_refactored/partnerUsers';
 import documentUploadUnifiedRoutes from './routes/documentUploadUnified';
 import partnerUnifiedRoutes from './routes/partnerUnified';
 import documentDiagnosticsRoutes from './routes/documentDiagnostics';
+// TODO: Fix partnerRegistrations.ts - has compilation errors with legacy partner system
+// import partnerRegistrationsRoutes from './routes/_refactored/partnerRegistrations';
 
 // Health check endpoint
 app.get('/api/health', (_req, res) => {
@@ -124,7 +142,14 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
-app.use('/api/partners', partnerRoutes); // Main partner routes (fixed)
+
+// UNIFIED STORAGE ROUTES - Must be BEFORE legacy routes for proper override
+app.use('/api/document-upload-unified', documentUploadUnifiedRoutes);
+app.use('/api/partners', partnerUnifiedRoutes); // ✅ Unified partner routes with proper R2 proxy
+// TODO: Fix and re-enable partnerRegistrations routes
+// app.use('/api/partners', partnerRegistrationsRoutes); // ✅ Refactored partner registration routes
+
+app.use('/api/partners', partnerRoutes); // Main partner routes (legacy - some endpoints still used)
 app.use('/api/partner-employees', partnerEmployeesRoutes); // NEW: Simplified partner routes
 app.use('/api/sub-partners', subPartnersRoutes); // NEW: Sub-partner management for premium accounts
 app.use('/api/offer-inheritance', offerInheritanceRoutes); // NEW: Offer inheritance system for sub-partners
@@ -141,10 +166,6 @@ app.use('/api/courses', courseRoutes);
 app.use('/api/enrollment', enrollmentRoutes);
 app.use('/api/offer-types', offerTypesRoutes);
 app.use('/api/admin', adminRoutes);
-
-// UNIFIED STORAGE ROUTES (Environment-aware: Local in dev, R2 in prod)
-app.use('/api/document-upload-unified', documentUploadUnifiedRoutes);
-app.use('/api/partners-unified', partnerUnifiedRoutes);
 
 // DIAGNOSTICS ROUTES (Admin tools for document troubleshooting)
 app.use('/api/document-diagnostics', documentDiagnosticsRoutes);
