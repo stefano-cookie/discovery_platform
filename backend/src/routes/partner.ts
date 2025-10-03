@@ -6025,6 +6025,15 @@ router.patch('/users/:userId/profile', authenticateUnified, async (req: AuthRequ
     // Check if user belongs to this partner or any of its sub-partners
     let hasAccess = user.assignedPartnerId === partnerCompanyId;
 
+    // Check for legacy Partner ID mapping (assignedPartnerId points to old Partner table)
+    if (!hasAccess && user.assignedPartnerId?.startsWith('legacy-partner-')) {
+      const legacyPartnerCompanyId = user.assignedPartnerId.replace('legacy-partner-', '');
+      if (legacyPartnerCompanyId === partnerCompanyId) {
+        hasAccess = true;
+        console.log('Access granted via legacy partner mapping');
+      }
+    }
+
     // If not direct access, check if partner is parent and user belongs to a child
     if (!hasAccess && req.partnerCompany?.canCreateChildren) {
       const userPartnerCompany = await prisma.partnerCompany.findUnique({
