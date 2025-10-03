@@ -5,6 +5,7 @@ import { partnerService } from '../../services/partner';
 import { getStatusBadge } from '../../utils/statusTranslations';
 import UserOffersModal from './UserOffersModal';
 import OrphanedUserModal from './OrphanedUserModal';
+import EditUserProfileModal from './EditUserProfileModal';
 
 interface UserTableProps {
   users: PartnerUser[];
@@ -31,6 +32,8 @@ const UserTable: React.FC<UserTableProps> = ({
   const [userForOffers, setUserForOffers] = useState<PartnerUser | null>(null);
   const [showOrphanedModal, setShowOrphanedModal] = useState(false);
   const [orphanedUser, setOrphanedUser] = useState<PartnerUser | null>(null);
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [userForEdit, setUserForEdit] = useState<PartnerUser | null>(null);
 
 
   const toggleRegistrationSelection = (registrationId: string) => {
@@ -128,6 +131,19 @@ const UserTable: React.FC<UserTableProps> = ({
   const handleOrphanedUserDeleted = () => {
     setShowOrphanedModal(false);
     setOrphanedUser(null);
+    if (onRegistrationsUpdated) {
+      onRegistrationsUpdated();
+    }
+  };
+
+  const handleEditProfile = (user: PartnerUser) => {
+    setUserForEdit(user);
+    setShowEditProfileModal(true);
+  };
+
+  const handleProfileUpdated = () => {
+    setShowEditProfileModal(false);
+    setUserForEdit(null);
     if (onRegistrationsUpdated) {
       onRegistrationsUpdated();
     }
@@ -303,19 +319,31 @@ const UserTable: React.FC<UserTableProps> = ({
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
-                  {user.isOrphaned ? (
-                    <button
-                      onClick={() => handleManageOrphanedUser(user)}
-                      className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors"
-                    >
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
-                      </svg>
-                      Gestisci
-                    </button>
-                  ) : (
-                    <span className="text-gray-400 text-xs">Attivo</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {user.isOrphaned ? (
+                      <button
+                        onClick={() => handleManageOrphanedUser(user)}
+                        className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors"
+                      >
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+                        </svg>
+                        Gestisci
+                      </button>
+                    ) : null}
+                    {user.profile && (
+                      <button
+                        onClick={() => handleEditProfile(user)}
+                        className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                        title="Modifica anagrafica"
+                      >
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Modifica
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             )) : (
@@ -488,6 +516,15 @@ const UserTable: React.FC<UserTableProps> = ({
         onUserUpdated={handleOrphanedUserUpdated}
         onUserDeleted={handleOrphanedUserDeleted}
       />
+
+      {/* Modal modifica anagrafica */}
+      {showEditProfileModal && userForEdit && (
+        <EditUserProfileModal
+          user={userForEdit}
+          onClose={() => setShowEditProfileModal(false)}
+          onUpdated={handleProfileUpdated}
+        />
+      )}
     </div>
   );
 };

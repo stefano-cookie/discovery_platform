@@ -195,4 +195,13 @@ export const partnerService = {
     });
   },
 
+  // Update user profile (anagrafica)
+  async updateUserProfile(userId: string, profileData: any): Promise<{ success: boolean; message: string; profile: any }> {
+    return partnerApiRequest<{ success: boolean; message: string; profile: any }>({
+      method: 'PATCH',
+      url: `/partners/users/${userId}/profile`,
+      data: profileData
+    });
+  },
+
 };

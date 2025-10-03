@@ -1128,4 +1128,244 @@ router.get('/export/registrations', authenticate, requireAdmin, async (req: Auth
   }
 });
 
+// ========================================
+// GLOBAL SEARCH
+// ========================================
+
+/**
+ * GET /api/admin/search
+ * Ricerca globale attraverso companies, utenti, iscrizioni, dipendenti, corsi
+ */
+router.get('/search', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { q, category = 'all', limit = 10 } = req.query;
+
+    if (!q || typeof q !== 'string') {
+      return res.status(400).json({ error: 'Query parameter "q" is required' });
+    }
+
+    const searchQuery = q.trim();
+    const searchLimit = parseInt(limit as string) || 10;
+
+    // Initialize results
+    const results: any = {
+      query: searchQuery,
+      category,
+      totalResults: 0,
+      results: {
+        companies: [],
+        users: [],
+        registrations: [],
+        employees: [],
+        courses: []
+      }
+    };
+
+    // Helper per aggiungere filtri di ricerca
+    const createSearchFilter = (fields: string[]) => ({
+      OR: fields.map(field => ({
+        [field]: {
+          contains: searchQuery,
+          mode: 'insensitive' as const
+        }
+      }))
+    });
+
+    // Search Companies
+    if (category === 'all' || category === 'companies') {
+      const companies = await prisma.partnerCompany.findMany({
+        where: createSearchFilter(['name', 'referralCode']),
+        take: searchLimit,
+        select: {
+          id: true,
+          name: true,
+          referralCode: true,
+          isPremium: true,
+          isActive: true,
+          _count: {
+            select: {
+              registrations: true,
+              employees: true
+            }
+          }
+        }
+      });
+
+      results.results.companies = companies.map(c => ({
+        type: 'company',
+        id: c.id,
+        name: c.name,
+        referralCode: c.referralCode,
+        isPremium: c.isPremium,
+        isActive: c.isActive,
+        registrationsCount: c._count.registrations,
+        employeesCount: c._count.employees
+      }));
+      results.totalResults += companies.length;
+    }
+
+    // Search Users
+    if (category === 'all' || category === 'users') {
+      const users = await prisma.userProfile.findMany({
+        where: {
+          OR: [
+            { cognome: { contains: searchQuery, mode: 'insensitive' } },
+            { nome: { contains: searchQuery, mode: 'insensitive' } },
+            { codiceFiscale: { contains: searchQuery, mode: 'insensitive' } },
+            { user: { email: { contains: searchQuery, mode: 'insensitive' } } }
+          ]
+        },
+        take: searchLimit,
+        select: {
+          userId: true,
+          cognome: true,
+          nome: true,
+          codiceFiscale: true,
+          user: {
+            select: {
+              email: true,
+              registrations: {
+                select: { id: true }
+              }
+            }
+          }
+        }
+      });
+
+      results.results.users = users.map(u => ({
+        type: 'user',
+        id: u.userId,
+        cognome: u.cognome,
+        nome: u.nome,
+        email: u.user.email,
+        codiceFiscale: u.codiceFiscale,
+        registrationsCount: u.user.registrations.length
+      }));
+      results.totalResults += users.length;
+    }
+
+    // Search Registrations
+    if (category === 'all' || category === 'registrations') {
+      const registrations = await prisma.registration.findMany({
+        where: {
+          OR: [
+            { id: { contains: searchQuery, mode: 'insensitive' } },
+            { user: { email: { contains: searchQuery, mode: 'insensitive' } } },
+            { user: { profile: { cognome: { contains: searchQuery, mode: 'insensitive' } } } },
+            { user: { profile: { nome: { contains: searchQuery, mode: 'insensitive' } } } }
+          ]
+        },
+        take: searchLimit,
+        select: {
+          id: true,
+          status: true,
+          finalAmount: true,
+          user: {
+            select: {
+              email: true,
+              profile: {
+                select: {
+                  nome: true,
+                  cognome: true
+                }
+              }
+            }
+          },
+          partnerCompany: {
+            select: {
+              name: true
+            }
+          },
+          partnerOffer: {
+            select: {
+              offerType: true
+            }
+          }
+        }
+      });
+
+      results.results.registrations = registrations.map(r => ({
+        type: 'registration',
+        id: r.id,
+        status: r.status,
+        finalAmount: r.finalAmount,
+        userEmail: r.user.email,
+        userName: r.user.profile ? `${r.user.profile.nome} ${r.user.profile.cognome}` : null,
+        companyName: r.partnerCompany.name,
+        offerType: r.partnerOffer.offerType
+      }));
+      results.totalResults += registrations.length;
+    }
+
+    // Search Employees
+    if (category === 'all' || category === 'employees') {
+      const employees = await prisma.partnerEmployee.findMany({
+        where: createSearchFilter(['firstName', 'lastName', 'email']),
+        take: searchLimit,
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          role: true,
+          isActive: true,
+          isOwner: true,
+          partnerCompany: {
+            select: {
+              name: true
+            }
+          }
+        }
+      });
+
+      results.results.employees = employees.map(e => ({
+        type: 'employee',
+        id: e.id,
+        firstName: e.firstName,
+        lastName: e.lastName,
+        email: e.email,
+        role: e.role,
+        isActive: e.isActive,
+        isOwner: e.isOwner,
+        companyName: e.partnerCompany.name
+      }));
+      results.totalResults += employees.length;
+    }
+
+    // Search Courses
+    if (category === 'all' || category === 'courses') {
+      const courses = await prisma.course.findMany({
+        where: createSearchFilter(['name', 'description']),
+        take: searchLimit,
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          templateType: true,
+          _count: {
+            select: {
+              partnerOffers: true
+            }
+          }
+        }
+      });
+
+      results.results.courses = courses.map(c => ({
+        type: 'course',
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        templateType: c.templateType,
+        offersCount: c._count.partnerOffers
+      }));
+      results.totalResults += courses.length;
+    }
+
+    res.json(results);
+  } catch (error) {
+    console.error('Error performing search:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

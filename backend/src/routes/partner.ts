@@ -6000,4 +6000,118 @@ router.post('/registrations/:registrationId/documents/check-all', authenticateUn
   }
 });
 
+// PATCH /api/partner/users/:userId/profile - Update user profile (anagrafica)
+router.patch('/users/:userId/profile', authenticateUnified, async (req: AuthRequest, res) => {
+  try {
+    const partnerCompanyId = req.partnerCompany?.id;
+    const { userId } = req.params;
+
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
+    }
+
+    // Verify user belongs to this partner
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        profile: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Utente non trovato' });
+    }
+
+    if (user.assignedPartnerId !== partnerCompanyId) {
+      return res.status(403).json({
+        error: 'Non hai accesso a questo utente'
+      });
+    }
+
+    // Extract updatable fields from request body
+    const {
+      cognome,
+      nome,
+      dataNascita,
+      luogoNascita,
+      provinciaNascita,
+      sesso,
+      codiceFiscale,
+      telefono,
+      nomePadre,
+      nomeMadre,
+      residenzaVia,
+      residenzaCitta,
+      residenzaProvincia,
+      residenzaCap,
+      hasDifferentDomicilio,
+      domicilioVia,
+      domicilioCitta,
+      domicilioProvincia,
+      domicilioCap
+    } = req.body;
+
+    // Validate required fields
+    if (!cognome || !nome || !codiceFiscale || !telefono) {
+      return res.status(400).json({
+        error: 'Campi obbligatori mancanti: cognome, nome, codiceFiscale, telefono'
+      });
+    }
+
+    // Check if fiscal code is unique (if changed)
+    if (codiceFiscale !== user.profile?.codiceFiscale) {
+      const existingProfile = await prisma.userProfile.findUnique({
+        where: { codiceFiscale }
+      });
+
+      if (existingProfile && existingProfile.userId !== userId) {
+        return res.status(400).json({
+          error: 'Codice fiscale già utilizzato da un altro utente'
+        });
+      }
+    }
+
+    // Prepare update data
+    const updateData: any = {
+      cognome,
+      nome,
+      codiceFiscale,
+      telefono
+    };
+
+    // Add optional fields if provided
+    if (dataNascita !== undefined) updateData.dataNascita = new Date(dataNascita);
+    if (luogoNascita !== undefined) updateData.luogoNascita = luogoNascita;
+    if (provinciaNascita !== undefined) updateData.provinciaNascita = provinciaNascita;
+    if (sesso !== undefined) updateData.sesso = sesso;
+    if (nomePadre !== undefined) updateData.nomePadre = nomePadre;
+    if (nomeMadre !== undefined) updateData.nomeMadre = nomeMadre;
+    if (residenzaVia !== undefined) updateData.residenzaVia = residenzaVia;
+    if (residenzaCitta !== undefined) updateData.residenzaCitta = residenzaCitta;
+    if (residenzaProvincia !== undefined) updateData.residenzaProvincia = residenzaProvincia;
+    if (residenzaCap !== undefined) updateData.residenzaCap = residenzaCap;
+    if (hasDifferentDomicilio !== undefined) updateData.hasDifferentDomicilio = hasDifferentDomicilio;
+    if (domicilioVia !== undefined) updateData.domicilioVia = domicilioVia;
+    if (domicilioCitta !== undefined) updateData.domicilioCitta = domicilioCitta;
+    if (domicilioProvincia !== undefined) updateData.domicilioProvincia = domicilioProvincia;
+    if (domicilioCap !== undefined) updateData.domicilioCap = domicilioCap;
+
+    // Update profile
+    const updatedProfile = await prisma.userProfile.update({
+      where: { userId },
+      data: updateData
+    });
+
+    res.json({
+      success: true,
+      message: 'Anagrafica aggiornata con successo',
+      profile: updatedProfile
+    });
+
+  } catch (error) {
+    console.error('Update user profile error:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
 export default router;
