@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, CopyObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import crypto from 'crypto';
 import path from 'path';
@@ -29,6 +29,7 @@ export interface IStorageManager {
 
   getDownloadUrl(key: string): Promise<SignedUrlResult>;
   deleteFile(key: string): Promise<void>;
+  copyFile(sourceKey: string, destinationKey: string): Promise<void>;
   getStorageType(): 'local' | 'r2';
 }
 
@@ -132,6 +133,22 @@ class R2StorageManager implements IStorageManager {
     }
   }
 
+  async copyFile(sourceKey: string, destinationKey: string): Promise<void> {
+    try {
+      const command = new CopyObjectCommand({
+        Bucket: this.bucketName,
+        CopySource: `${this.bucketName}/${sourceKey}`,
+        Key: destinationKey,
+      });
+
+      await this.s3Client.send(command);
+      console.log(`✅ R2 copy successful: ${sourceKey} -> ${destinationKey}`);
+    } catch (error) {
+      console.error('R2 copy error:', error);
+      throw new Error(`R2 copy failed: ${error}`);
+    }
+  }
+
   getStorageType(): 'r2' {
     return 'r2';
   }
@@ -214,6 +231,24 @@ class LocalStorageManager implements IStorageManager {
     } catch (error) {
       console.error('Local delete error:', error);
       throw new Error(`Local delete failed: ${error}`);
+    }
+  }
+
+  async copyFile(sourceKey: string, destinationKey: string): Promise<void> {
+    const sourcePath = path.join(this.baseDir, sourceKey);
+    const destPath = path.join(this.baseDir, destinationKey);
+
+    try {
+      // Ensure destination directory exists
+      const destDir = path.dirname(destPath);
+      this.ensureDirectoryExists(destDir);
+
+      // Copy file
+      fs.copyFileSync(sourcePath, destPath);
+      console.log(`✅ Local copy successful: ${sourceKey} -> ${destinationKey}`);
+    } catch (error) {
+      console.error('Local copy error:', error);
+      throw new Error(`Local copy failed: ${error}`);
     }
   }
 

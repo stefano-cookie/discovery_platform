@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import emailService from '../services/emailService';
 import SecureTokenService from '../services/secureTokenService';
+import storageManager from '../services/storageManager';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -62,7 +63,7 @@ async function processDocumentsForRegistration(tx: any, registrationId: string, 
 
   for (const doc of documents) {
     const documentType = documentTypeMap[doc.type] || 'OTHER';
-    
+
     // Check if document already exists
     const existingDoc = await tx.userDocument.findFirst({
       where: {
@@ -71,7 +72,7 @@ async function processDocumentsForRegistration(tx: any, registrationId: string, 
         type: documentType
       }
     });
-    
+
     if (!existingDoc) {
       // Create new document record
       console.log(`📁 Creating UserDocument for ${doc.type}:`, {
@@ -81,13 +82,40 @@ async function processDocumentsForRegistration(tx: any, registrationId: string, 
         originalFileName: doc.originalFileName
       });
 
+      // Determine the R2 key to use
+      let finalR2Key = doc.r2Key || doc.url || doc.filePath;
+
+      // 🔧 FIX: If the key contains 'temp_', move the file to permanent location
+      if (finalR2Key && finalR2Key.includes('/temp_')) {
+        try {
+          console.log(`🔄 Moving temporary file to permanent location: ${finalR2Key}`);
+
+          // Generate permanent key
+          const timestamp = Date.now();
+          const fileExtension = path.extname(doc.originalFileName || doc.fileName || '.pdf');
+          const permanentKey = `documents/${userId}/${registrationId}/${doc.type}_${timestamp}${fileExtension}`;
+
+          // Copy file from temp to permanent location in R2
+          await storageManager.copyFile(finalR2Key, permanentKey);
+
+          // Delete the temporary file
+          await storageManager.deleteFile(finalR2Key);
+
+          finalR2Key = permanentKey;
+          console.log(`✅ File moved to permanent location: ${permanentKey}`);
+        } catch (moveError) {
+          console.error(`❌ Error moving temp file ${finalR2Key}:`, moveError);
+          // Continue with temp key if move fails - better than losing the document
+        }
+      }
+
       await tx.userDocument.create({
         data: {
           userId,
           registrationId,
           type: documentType,
           originalName: doc.originalFileName || doc.fileName,
-          url: doc.r2Key || doc.url || doc.filePath, // Prioritize r2Key first
+          url: finalR2Key,
           size: doc.fileSize || 0,
           mimeType: doc.mimeType || 'application/octet-stream',
           status: 'PENDING',
@@ -2549,20 +2577,57 @@ router.post('/course-enrollment', async (req: Request, res: Response) => {
         await processDocumentsForRegistration(tx, registration.id, userId, documents);
       }
 
-      // Create payment deadlines based on payment plan
-      const installmentAmount = finalAmount / (paymentPlan?.installments || 1);
-      const baseDate = new Date();
+      // Create payment deadlines based on payment plan and course type
+      const installmentsCount = paymentPlan?.installments || partnerOffer.installments || 1;
 
-      for (let i = 0; i < (paymentPlan?.installments || 1); i++) {
-        const dueDate = new Date(baseDate);
-        dueDate.setMonth(baseDate.getMonth() + i * partnerOffer.installmentFrequency);
+      // For TFA courses, account for down payment
+      let downPayment = 0;
+      let installmentableAmount = finalAmount;
+
+      if (partnerOffer.course.templateType === 'TFA' && installmentsCount > 1) {
+        downPayment = 1500;
+        installmentableAmount = Math.max(0, finalAmount - downPayment);
+      }
+
+      const amountPerInstallment = installmentsCount > 1 ? installmentableAmount / installmentsCount : finalAmount;
+
+      // Create down payment deadline for TFA courses (if applicable)
+      if (downPayment > 0) {
+        const downPaymentDate = new Date();
+        downPaymentDate.setDate(downPaymentDate.getDate() + 7); // 7 days after registration
 
         await tx.paymentDeadline.create({
           data: {
             registrationId: registration.id,
-            amount: installmentAmount,
+            amount: downPayment,
+            dueDate: downPaymentDate,
+            paymentNumber: 0,
+            description: 'Acconto',
+            isPaid: false
+          }
+        });
+      }
+
+      // Calculate installment dates: first installment 30 days after down payment deadline
+      const baseDate = new Date();
+      if (downPayment > 0) {
+        baseDate.setDate(baseDate.getDate() + 7 + 30); // 7 days + 30 days = 37 days after registration
+      } else {
+        baseDate.setDate(baseDate.getDate() + 7); // 7 days after registration if no down payment
+      }
+
+      for (let i = 0; i < installmentsCount; i++) {
+        const dueDate = new Date(baseDate);
+        dueDate.setMonth(dueDate.getMonth() + i); // Each installment is 1 month apart
+        dueDate.setDate(30); // Always 30th of the month
+
+        await tx.paymentDeadline.create({
+          data: {
+            registrationId: registration.id,
+            amount: amountPerInstallment,
             dueDate: dueDate,
             paymentNumber: i + 1,
+            description: `Rata ${i + 1} di ${installmentsCount}`,
             isPaid: false
           }
         });
