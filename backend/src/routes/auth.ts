@@ -169,10 +169,10 @@ router.post('/change-password', authenticate, async (req: AuthRequest, res) => {
     }
     
     // Valida la nuova password
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/;
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&;.]{8,}$/;
     if (!passwordRegex.test(newPassword)) {
-      return res.status(400).json({ 
-        error: 'La password deve essere di almeno 8 caratteri e contenere almeno una maiuscola, una minuscola e un numero' 
+      return res.status(400).json({
+        error: 'La password deve essere di almeno 8 caratteri e contenere almeno una maiuscola, una minuscola e un numero'
       });
     }
     
@@ -554,11 +554,11 @@ router.post('/register', async (req, res) => {
 // Console output removed
     
     // Verifica password sicura (min 8 caratteri, almeno 1 maiuscola, 1 minuscola, 1 numero)
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/;
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&;.]{8,}$/;
     if (!passwordRegex.test(password)) {
 // Console output removed
-      return res.status(400).json({ 
-        error: 'La password deve essere di almeno 8 caratteri e contenere almeno una maiuscola, una minuscola e un numero' 
+      return res.status(400).json({
+        error: 'La password deve essere di almeno 8 caratteri e contenere almeno una maiuscola, una minuscola e un numero'
       });
     }
     

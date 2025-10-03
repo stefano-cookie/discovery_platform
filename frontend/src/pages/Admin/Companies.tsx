@@ -148,7 +148,7 @@ export const AdminCompanies: React.FC = () => {
               <Users className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm text-gray-600">Totale Dipendenti</p>
+              <p className="text-sm text-gray-600">Account Dipendenti</p>
               <p className="text-2xl font-bold text-gray-900">
                 {companies.reduce((sum, c) => sum + c.employeesCount, 0)}
               </p>
@@ -194,11 +194,18 @@ export const AdminCompanies: React.FC = () => {
                       <div className="text-sm text-gray-500">
                         {company.referralCode}
                       </div>
-                      {company.isPremium && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 mt-1">
-                          Premium
-                        </span>
-                      )}
+                      <div className="flex gap-1 mt-1">
+                        {company.isPremium && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                            Premium
+                          </span>
+                        )}
+                        {company.parent && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                            Collaboratore di {company.parent.name}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="px-6 py-4">
