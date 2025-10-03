@@ -798,27 +798,19 @@ router.get('/users', authenticate, requireAdmin, async (req: AuthRequest, res) =
         isActive: true,
         emailVerified: true,
         createdAt: true,
-        assignedPartnerId: true,
+        assignedPartnerCompanyId: true,
+        assignedPartnerCompany: {
+          select: {
+            id: true,
+            name: true,
+            referralCode: true
+          }
+        },
         profile: {
           select: {
             nome: true,
             cognome: true,
             codiceFiscale: true
-          }
-        },
-        registrations: {
-          select: {
-            partnerCompany: {
-              select: {
-                id: true,
-                name: true,
-                referralCode: true
-              }
-            }
-          },
-          take: 1,
-          orderBy: {
-            createdAt: 'desc'
           }
         },
         _count: {
@@ -832,11 +824,10 @@ router.get('/users', authenticate, requireAdmin, async (req: AuthRequest, res) =
       }
     });
 
-    // Format response with company from first registration
+    // Format response with assigned partner company
     const formattedUsers = users.map(user => ({
       ...user,
-      assignedPartner: user.registrations[0]?.partnerCompany || null,
-      registrations: undefined // Remove registrations array from response
+      assignedPartner: user.assignedPartnerCompany || null
     }));
 
     res.json(formattedUsers);
@@ -911,12 +902,18 @@ router.get('/users/:id', authenticate, requireAdmin, async (req: AuthRequest, re
 
 /**
  * POST /api/admin/users/transfer
- * Trasferisci utente a altra company
+ * Trasferisce utente tra partner
+ *
+ * Validazioni:
+ * - Solo utenti senza iscrizioni attive
+ * - Solo partner autonomi (non collaboratori)
+ * - Audit log completo
  */
 router.post('/users/transfer', authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { userId, toPartnerCompanyId, reason } = req.body;
 
+    // Validazione input
     if (!userId || !toPartnerCompanyId || !reason) {
       return res.status(400).json({
         error: 'userId, toPartnerCompanyId, and reason are required'
@@ -925,19 +922,43 @@ router.post('/users/transfer', authenticate, requireAdmin, async (req: AuthReque
 
     // Verifica utente
     const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        registrations: true
-      }
+      where: { id: userId }
     });
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Check iscrizioni
+    const registrationsCount = await prisma.registration.count({
+      where: { userId }
+    });
+
+    // ⛔ VALIDAZIONE: Blocca trasferimento se ci sono iscrizioni (qualsiasi stato)
+    // Nota: In futuro, potremmo permettere il trasferimento solo se tutte le iscrizioni sono completate/archiviate
+    if (registrationsCount > 0) {
+      return res.status(400).json({
+        error: 'Cannot transfer user with registrations',
+        message: `L'utente ha ${registrationsCount} iscrizione/i. Il trasferimento è permesso solo per utenti senza iscrizioni.`,
+        activeRegistrations: registrationsCount
+      });
+    }
+
+    // Get current assigned partner company
+    const currentPartner = user.assignedPartnerCompanyId
+      ? await prisma.partnerCompany.findUnique({
+          where: { id: user.assignedPartnerCompanyId }
+        })
+      : null;
+
     // Verifica company destinazione
     const toCompany = await prisma.partnerCompany.findUnique({
-      where: { id: toPartnerCompanyId }
+      where: { id: toPartnerCompanyId },
+      include: {
+        parent: {
+          select: { name: true }
+        }
+      }
     });
 
     if (!toCompany) {
@@ -948,25 +969,27 @@ router.post('/users/transfer', authenticate, requireAdmin, async (req: AuthReque
       return res.status(400).json({ error: 'Destination company is not active' });
     }
 
-    // Transfer user e tutte le registrazioni
+    // ⛔ VALIDAZIONE: Solo partner autonomi (non collaboratori)
+    if (toCompany.parentId) {
+      return res.status(400).json({
+        error: 'Cannot transfer to collaborator company',
+        message: `${toCompany.name} è un collaboratore di ${toCompany.parent?.name}. Il trasferimento è permesso solo verso partner autonomi.`,
+        isCollaborator: true,
+        parentCompany: toCompany.parent?.name
+      });
+    }
+
+    // Trasferimento utente
     await prisma.$transaction(async (tx) => {
-      // Update user
+      // Update user assignment to new partner company
       await tx.user.update({
         where: { id: userId },
         data: {
-          assignedPartnerId: toPartnerCompanyId
+          assignedPartnerCompanyId: toPartnerCompanyId
         }
       });
 
-      // Update all registrations
-      await tx.registration.updateMany({
-        where: { userId },
-        data: {
-          partnerCompanyId: toPartnerCompanyId
-        }
-      });
-
-      // Log transfer
+      // Audit log del trasferimento
       await tx.discoveryAdminLog.create({
         data: {
           adminId: req.user!.id,
@@ -974,10 +997,14 @@ router.post('/users/transfer', authenticate, requireAdmin, async (req: AuthReque
           targetType: 'USER',
           targetId: userId,
           previousValue: {
-            assignedPartnerId: user.assignedPartnerId
+            assignedPartnerCompanyId: currentPartner?.id || null,
+            partnerName: currentPartner?.name || null,
+            email: user.email
           },
           newValue: {
-            assignedPartnerId: toPartnerCompanyId
+            assignedPartnerCompanyId: toPartnerCompanyId,
+            partnerName: toCompany.name,
+            email: user.email
           },
           reason,
           ipAddress: req.ip
@@ -987,7 +1014,14 @@ router.post('/users/transfer', authenticate, requireAdmin, async (req: AuthReque
 
     res.json({
       success: true,
-      message: `User and ${user.registrations.length} registration(s) transferred successfully`
+      message: `User ${user.email} successfully transferred from ${currentPartner?.name || 'unassigned'} to ${toCompany.name}`,
+      transfer: {
+        userId: user.id,
+        userEmail: user.email,
+        fromPartner: currentPartner?.name || null,
+        toPartner: toCompany.name,
+        reason
+      }
     });
   } catch (error: any) {
     console.error('Error transferring user:', error);

@@ -25,11 +25,13 @@ model User {
   codeExpiresAt    DateTime?
 
   // Partner assignment (permanent association)
-  assignedPartnerId String?
+  assignedPartnerId        String? // DEPRECATED: Legacy field pointing to old Partner model
+  assignedPartnerCompanyId String? // NEW: Partner company assignment for new system
 
   // Relazioni
-  partner           Partner? // Solo per utenti che sono partner
-  assignedPartner   Partner?            @relation("UserPartnerAssignment", fields: [assignedPartnerId], references: [id])
+  partner                Partner? // Solo per utenti che sono partner (relazione inversa via Partner.user)
+  assignedPartner        Partner?        @relation("UserPartnerAssignment", fields: [assignedPartnerId], references: [id])
+  assignedPartnerCompany PartnerCompany? @relation("UserPartnerCompanyAssignment", fields: [assignedPartnerCompanyId], references: [id])
   profile           UserProfile? // Profilo con dati anagrafici
   registrations     Registration[] // Iscrizioni ai corsi
   documents         UserDocument[] // Repository documenti dell'utente
@@ -84,6 +86,7 @@ model PartnerCompany {
   transfersFrom       UserTransfer[]    @relation("TransferFromCompany")
   transfersTo         UserTransfer[]    @relation("TransferToCompany")
   userOfferAccess     UserOfferAccess[] @relation("CompanyOfferAccess")
+  assignedUsers       User[]            @relation("UserPartnerCompanyAssignment") // NEW: Users assigned to this company
 
   // Sub-Partner System
   companyInvites PartnerCompanyInvite[] @relation("CompanyInvites")

@@ -8,7 +8,6 @@ import UsersView from '../components/Partner/UsersView';
 import ChatView from '../components/Partner/ChatView';
 import CouponManagement from '../components/Partner/CouponManagement';
 import OfferManagement from '../components/Partner/OfferManagement';
-import UserManagement from '../components/Admin/UserManagement';
 import EnrollmentDetail from '../components/Partner/EnrollmentDetail';
 import EmployeesManagement from '../components/Partner/Employees/EmployeesManagement';
 import SubPartnerManagement from '../components/Partner/SubPartnerManagement';
@@ -20,11 +19,19 @@ const Dashboard: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { registrationId } = useParams();
-  
+
   // Determine which user is active and their role
   const currentUser = user || partnerEmployee;
   const currentLogout = user ? userLogout : partnerLogout;
   const userRole = user?.role || (partnerEmployee ? 'PARTNER' : null);
+
+  // 🔒 ADMIN users should NEVER access /dashboard - redirect to /admin
+  useEffect(() => {
+    if (userRole === 'ADMIN') {
+      console.log('⚠️ ADMIN user accessing /dashboard - redirecting to /admin');
+      navigate('/admin', { replace: true });
+    }
+  }, [userRole, navigate]);
   
   // Determine active tab from URL
   const getActiveTabFromPath = (pathname: string): 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators' | 'sub-partners' => {
@@ -88,10 +95,11 @@ const Dashboard: React.FC = () => {
   const getDashboardContent = () => {
     switch (userRole) {
       case 'ADMIN':
+        // ADMIN users are redirected to /admin via useEffect above
+        // This case should never be reached
         return (
-          <div>
-            <h2 className="text-2xl font-bold mb-6">Dashboard Admin</h2>
-            <UserManagement />
+          <div className="min-h-screen flex items-center justify-center">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
           </div>
         );
       case 'PARTNER':

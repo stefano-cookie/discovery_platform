@@ -456,18 +456,13 @@ router.get('/users', authenticateUnified, async (req: AuthRequest, res) => {
           .map(p => p.id);
       }
       
-      // Get all users assigned to this partner (both new and legacy systems)
+      // Get all users assigned to this partner company
       // EXCLUDE partner employees from the count - only count real users
       const assignedUsers = await prisma.user.findMany({
         where: {
           AND: [
             { role: 'USER' }, // Only count users with USER role, not PARTNER employees
-            {
-              OR: [
-                { assignedPartnerId: partnerCompanyId }, // New system
-                { assignedPartnerId: { in: legacyPartnerIds } } // Legacy system
-              ]
-            }
+            { assignedPartnerCompanyId: partnerCompanyId } // NEW: Use assignedPartnerCompanyId
           ]
         },
         include: {
@@ -715,12 +710,7 @@ router.get('/users', authenticateUnified, async (req: AuthRequest, res) => {
         where: {
           AND: [
             { role: 'USER' }, // Only count users with USER role, not PARTNER employees
-            {
-              OR: [
-                { assignedPartnerId: partnerCompanyId }, // New system
-                { assignedPartnerId: { in: legacyPartnerIds } } // Legacy system
-              ]
-            }
+            { assignedPartnerCompanyId: partnerCompanyId }
           ]
         },
         include: {
@@ -1778,19 +1768,17 @@ router.get('/coupons/:couponId/usage-logs', authenticateUnified, async (req: Aut
 // GET /api/partners/offer-visibility/:offerId - Get offer visibility settings for users
 router.get('/offer-visibility/:offerId', authenticateUnified, async (req: AuthRequest, res: ExpressResponse) => {
   try {
-    const partner = await prisma.partner.findUnique({
-      where: { userId: req.user!.id }
-    });
+    const partnerCompanyId = req.partnerCompany?.id;
 
-    if (!partner) {
-      return res.status(404).json({ error: 'Partner non trovato' });
+    if (!partnerCompanyId) {
+      return res.status(400).json({ error: 'Partner company non trovata' });
     }
 
     // Verify that the offer belongs to this partner
     const offer = await prisma.partnerOffer.findFirst({
       where: {
         id: req.params.offerId,
-        partnerCompanyId: partner.id
+        partnerCompanyId
       }
     });
 
@@ -1798,9 +1786,9 @@ router.get('/offer-visibility/:offerId', authenticateUnified, async (req: AuthRe
       return res.status(404).json({ error: 'Offerta non trovata' });
     }
 
-    // Get all users associated with this partner
+    // Get all users assigned to this partner company
     const associatedUsers = await prisma.user.findMany({
-      where: { assignedPartnerId: partner.id },
+      where: { assignedPartnerCompanyId: partnerCompanyId },
       include: {
         profile: true
       }
@@ -5551,7 +5539,7 @@ router.post('/users/:userId/reactivate', authenticateUnified, async (req: AuthRe
       return res.status(404).json({ error: 'Utente non trovato' });
     }
 
-    if (user.assignedPartnerId !== partnerCompanyId) {
+    if (user.assignedPartnerCompanyId !== partnerCompanyId) {
       return res.status(403).json({ error: 'Utente non assegnato a questo partner' });
     }
 
@@ -5732,7 +5720,7 @@ router.delete('/users/:userId/orphaned', authenticateUnified, async (req: AuthRe
     }
 
     // Check if user is assigned to this partner (new or legacy system)
-    const isAssignedToPartner = user.assignedPartnerId === partnerCompanyId || 
+    const isAssignedToPartner = user.assignedPartnerCompanyId === partnerCompanyId || 
                                legacyPartnerIds.includes(user.assignedPartnerId || '');
 
     if (!isAssignedToPartner) {
@@ -5847,10 +5835,7 @@ router.delete('/users/orphaned/all', authenticateUnified, async (req: AuthReques
     // Get all orphaned users for this partner
     const orphanedUsers = await prisma.user.findMany({
       where: {
-        OR: [
-          { assignedPartnerId: partnerCompanyId },
-          { assignedPartnerId: { in: legacyPartnerIds } }
-        ]
+        assignedPartnerCompanyId: partnerCompanyId
       },
       include: {
         registrations: true,
@@ -6023,21 +6008,12 @@ router.patch('/users/:userId/profile', authenticateUnified, async (req: AuthRequ
     }
 
     // Check if user belongs to this partner or any of its sub-partners
-    let hasAccess = user.assignedPartnerId === partnerCompanyId;
-
-    // Check for legacy Partner ID mapping (assignedPartnerId points to old Partner table)
-    if (!hasAccess && user.assignedPartnerId?.startsWith('legacy-partner-')) {
-      const legacyPartnerCompanyId = user.assignedPartnerId.replace('legacy-partner-', '');
-      if (legacyPartnerCompanyId === partnerCompanyId) {
-        hasAccess = true;
-        console.log('Access granted via legacy partner mapping');
-      }
-    }
+    let hasAccess = user.assignedPartnerCompanyId === partnerCompanyId;
 
     // If not direct access, check if partner is parent and user belongs to a child
     if (!hasAccess && req.partnerCompany?.canCreateChildren) {
       const userPartnerCompany = await prisma.partnerCompany.findUnique({
-        where: { id: user.assignedPartnerId || '' },
+        where: { id: user.assignedPartnerCompanyId || '' },
         select: { parentId: true }
       });
 
@@ -6047,7 +6023,7 @@ router.patch('/users/:userId/profile', authenticateUnified, async (req: AuthRequ
     }
 
     if (!hasAccess) {
-      console.log('Access denied - User assignedPartnerId:', user.assignedPartnerId, 'Partner companyId:', partnerCompanyId);
+      console.log('Access denied - User assignedPartnerCompanyId:', user.assignedPartnerCompanyId, 'Partner companyId:', partnerCompanyId);
       return res.status(403).json({
         error: 'Non hai accesso a questo utente. L\'utente appartiene a un altro partner.'
       });

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, AlertTriangle, ArrowRightLeft } from 'lucide-react';
+import { X, AlertTriangle, ArrowRightLeft, XCircle } from 'lucide-react';
 import api from '../../../services/api';
 
 interface TransferUserModalProps {
@@ -65,9 +65,8 @@ export const TransferUserModal: React.FC<TransferUserModalProps> = ({
       onSuccess();
       resetForm();
     } catch (err: any) {
-      setError(
-        err.response?.data?.error || 'Errore durante il trasferimento utente'
-      );
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Errore durante il trasferimento utente';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -150,17 +149,20 @@ export const TransferUserModal: React.FC<TransferUserModalProps> = ({
             </select>
           </div>
 
-          {/* Warning */}
+          {/* Warning - Blocked Transfer */}
           {user._count.registrations > 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
               <div className="flex gap-3">
-                <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-medium text-yellow-900 mb-1">
-                    Attenzione
+                  <p className="font-medium text-red-900 mb-1">
+                    Trasferimento Non Permesso
                   </p>
-                  <p className="text-sm text-yellow-800">
-                    Questo trasferimento sposterà l'utente e <strong>tutte le sue {user._count.registrations} iscrizioni</strong> alla nuova company. Le commissioni verranno ricalcolate in base alla configurazione della company di destinazione.
+                  <p className="text-sm text-red-800">
+                    L'utente ha <strong>{user._count.registrations} iscrizione{user._count.registrations !== 1 ? 'i' : ''} attiva{user._count.registrations !== 1 ? 'e' : ''}</strong>. Il trasferimento è permesso solo per utenti senza iscrizioni attive (cancellate o rifiutate sono OK).
+                  </p>
+                  <p className="text-xs text-red-700 mt-2">
+                    💡 <strong>Suggerimento</strong>: Se necessario, cancella prima le iscrizioni attive dell'utente.
                   </p>
                 </div>
               </div>
@@ -208,7 +210,7 @@ export const TransferUserModal: React.FC<TransferUserModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={loading || !selectedCompanyId || reason.trim().length < 10}
+              disabled={loading || !selectedCompanyId || reason.trim().length < 10 || user._count.registrations > 0}
               className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {loading ? (

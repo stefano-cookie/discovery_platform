@@ -28,6 +28,12 @@ yarn-error.log*
 *.swp
 *.swo
 
+# Backup files
+*.bak
+*.bak2
+*.backup
+*.old
+
 # Uploads
 uploads/
 

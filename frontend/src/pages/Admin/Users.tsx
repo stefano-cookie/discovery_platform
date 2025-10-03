@@ -86,7 +86,9 @@ export const AdminUsers: React.FC = () => {
   const fetchCompanies = async () => {
     try {
       const response = await api.get('/admin/companies');
-      setCompanies(response.data.map((c: any) => ({
+      // Filter only autonomous partners (not collaborators)
+      const autonomousPartners = response.data.filter((c: any) => !c.parent);
+      setCompanies(autonomousPartners.map((c: any) => ({
         id: c.id,
         name: c.name,
         referralCode: c.referralCode
