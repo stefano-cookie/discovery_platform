@@ -6022,9 +6022,25 @@ router.patch('/users/:userId/profile', authenticateUnified, async (req: AuthRequ
       return res.status(404).json({ error: 'Utente non trovato' });
     }
 
-    if (user.assignedPartnerId !== partnerCompanyId) {
+    // Check if user belongs to this partner or any of its sub-partners
+    let hasAccess = user.assignedPartnerId === partnerCompanyId;
+
+    // If not direct access, check if partner is parent and user belongs to a child
+    if (!hasAccess && req.partnerCompany?.canCreateChildren) {
+      const userPartnerCompany = await prisma.partnerCompany.findUnique({
+        where: { id: user.assignedPartnerId || '' },
+        select: { parentId: true }
+      });
+
+      if (userPartnerCompany?.parentId === partnerCompanyId) {
+        hasAccess = true;
+      }
+    }
+
+    if (!hasAccess) {
+      console.log('Access denied - User assignedPartnerId:', user.assignedPartnerId, 'Partner companyId:', partnerCompanyId);
       return res.status(403).json({
-        error: 'Non hai accesso a questo utente'
+        error: 'Non hai accesso a questo utente. L\'utente appartiene a un altro partner.'
       });
     }
 
