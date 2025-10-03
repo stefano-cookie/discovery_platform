@@ -1256,10 +1256,7 @@ router.get('/search', authenticate, requireAdmin, async (req: AuthRequest, res) 
           ]
         },
         take: searchLimit,
-        select: {
-          id: true,
-          status: true,
-          finalAmount: true,
+        include: {
           user: {
             select: {
               email: true,
@@ -1275,11 +1272,6 @@ router.get('/search', authenticate, requireAdmin, async (req: AuthRequest, res) 
             select: {
               name: true
             }
-          },
-          partnerOffer: {
-            select: {
-              offerType: true
-            }
           }
         }
       });
@@ -1291,8 +1283,8 @@ router.get('/search', authenticate, requireAdmin, async (req: AuthRequest, res) 
         finalAmount: r.finalAmount,
         userEmail: r.user.email,
         userName: r.user.profile ? `${r.user.profile.nome} ${r.user.profile.cognome}` : null,
-        companyName: r.partnerCompany.name,
-        offerType: r.partnerOffer.offerType
+        companyName: r.partnerCompany?.name || 'N/A',
+        offerType: r.offerType
       }));
       results.totalResults += registrations.length;
     }
@@ -1341,23 +1333,28 @@ router.get('/search', authenticate, requireAdmin, async (req: AuthRequest, res) 
           id: true,
           name: true,
           description: true,
-          templateType: true,
-          _count: {
-            select: {
-              partnerOffers: true
-            }
-          }
+          templateType: true
         }
       });
 
-      results.results.courses = courses.map(c => ({
-        type: 'course',
-        id: c.id,
-        name: c.name,
-        description: c.description,
-        templateType: c.templateType,
-        offersCount: c._count.partnerOffers
-      }));
+      // Get offers count separately
+      const coursesWithCount = await Promise.all(
+        courses.map(async (c) => {
+          const offersCount = await prisma.partnerOffer.count({
+            where: { courseId: c.id }
+          });
+          return {
+            type: 'course' as const,
+            id: c.id,
+            name: c.name,
+            description: c.description,
+            templateType: c.templateType,
+            offersCount
+          };
+        })
+      );
+
+      results.results.courses = coursesWithCount;
       results.totalResults += courses.length;
     }
 
