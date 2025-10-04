@@ -26,6 +26,8 @@ import { AuditLogs } from './pages/Admin/AuditLogs';
 import { AdminExport } from './pages/Admin/Export';
 import Archive from './pages/Admin/Archive';
 import ArchiveCreate from './pages/Admin/ArchiveCreate';
+import ArchiveEdit from './pages/Admin/ArchiveEdit';
+import ArchiveImport from './pages/Admin/ArchiveImport';
 import ArchiveDetail from './pages/Admin/ArchiveDetail';
 
 // Route Components to avoid IIFE issues
@@ -284,6 +286,8 @@ const AppContent: React.FC = () => {
           <Route path="logs" element={<AuditLogs />} />
           <Route path="archive" element={<Archive />} />
           <Route path="archive/create" element={<ArchiveCreate />} />
+          <Route path="archive/import" element={<ArchiveImport />} />
+          <Route path="archive/:id/edit" element={<ArchiveEdit />} />
           <Route path="archive/:id" element={<ArchiveDetail />} />
         </Route>
 
