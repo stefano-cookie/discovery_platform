@@ -24,6 +24,9 @@ import { AdminRegistrations } from './pages/Admin/Registrations';
 import { AdminUsers } from './pages/Admin/Users';
 import { AuditLogs } from './pages/Admin/AuditLogs';
 import { AdminExport } from './pages/Admin/Export';
+import Archive from './pages/Admin/Archive';
+import ArchiveCreate from './pages/Admin/ArchiveCreate';
+import ArchiveDetail from './pages/Admin/ArchiveDetail';
 
 // Route Components to avoid IIFE issues
 const RootRoute: React.FC<{ isAuthenticated: boolean; userRole: string | null }> = ({ isAuthenticated, userRole }) => {
@@ -279,6 +282,9 @@ const AppContent: React.FC = () => {
           <Route path="users" element={<AdminUsers />} />
           <Route path="export" element={<AdminExport />} />
           <Route path="logs" element={<AuditLogs />} />
+          <Route path="archive" element={<Archive />} />
+          <Route path="archive/create" element={<ArchiveCreate />} />
+          <Route path="archive/:id" element={<ArchiveDetail />} />
         </Route>
 
         {/* ========================================

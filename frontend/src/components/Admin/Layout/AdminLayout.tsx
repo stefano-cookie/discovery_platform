@@ -9,6 +9,7 @@ import {
   FileCheck,
   LogOut,
   Search,
+  Archive,
 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { GlobalSearch } from './GlobalSearch';
@@ -30,6 +31,7 @@ export const AdminLayout: React.FC = () => {
     { path: '/admin/companies', label: 'Companies', icon: <Building2 className="w-5 h-5" /> },
     { path: '/admin/registrations', label: 'Iscrizioni Globali', icon: <FileText className="w-5 h-5" /> },
     { path: '/admin/users', label: 'Utenti', icon: <Users className="w-5 h-5" /> },
+    { path: '/admin/archive', label: 'Archivio', icon: <Archive className="w-5 h-5" /> },
     { path: '/admin/export', label: 'Export & Report', icon: <Download className="w-5 h-5" /> },
     { path: '/admin/logs', label: 'Audit Log', icon: <FileCheck className="w-5 h-5" /> },
   ];

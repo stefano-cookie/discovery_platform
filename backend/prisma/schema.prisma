@@ -845,3 +845,88 @@ enum DiscoveryActionType {
   DOCUMENT_APPROVAL // Discovery approva documenti
   DOCUMENT_REJECTION // Discovery rifiuta documenti
 }
+
+// ========================================
+// SISTEMA ARCHIVIO ISCRIZIONI PASSATE
+// ========================================
+
+model ArchivedRegistration {
+  id String @id @default(uuid())
+
+  // Anagrafica
+  firstName    String
+  lastName     String
+  birthDate    DateTime
+  email        String
+  fiscalCode   String
+  phone        String
+  residenceVia String
+  residenceCity String
+  residenceProvince String
+  residenceCap String
+
+  // Company e Corso
+  companyName String
+  courseName  String
+
+  // Importi
+  finalAmount  Decimal // Importo finale corso
+  installments Int // Numero rate
+
+  // Totali calcolati
+  totalExpected    Decimal // Somma acconto + rate
+  totalPaid        Decimal // Somma pagamenti effettivi
+  totalOutstanding Decimal // Differenza (dovuto - pagato)
+  paymentProgress  Decimal // Percentuale pagamento (0-100)
+
+  // Documenti (R2 bucket archivio separati)
+  documentsZipUrl String? // ZIP documenti su legacy-archive-docs
+  documentsZipKey String? // Key R2 per download/delete
+  contractPdfUrl  String? // PDF contratto su legacy-archive-contracts
+  contractPdfKey  String? // Key R2 per preview/download/delete
+
+  // Metadata
+  originalYear Int // Anno iscrizione originale
+  uploadedAt   DateTime @default(now())
+  uploadedBy   String // ID admin che carica
+
+  // Relazioni
+  payments ArchivedPayment[]
+
+  @@index([companyName])
+  @@index([originalYear])
+  @@index([email])
+  @@index([uploadedAt])
+}
+
+model ArchivedPayment {
+  id             String @id @default(uuid())
+  registrationId String
+
+  // Tipo pagamento
+  type              ArchivePaymentType // DEPOSIT | INSTALLMENT
+  label             String // "Acconto", "Rata 1", "Rata 2", etc.
+  installmentNumber Int? // Numero rata (NULL per acconto)
+
+  // Importi
+  expectedAmount Decimal // Importo dovuto
+  paidAmount     Decimal // Importo effettivamente pagato
+  status         ArchivePaymentStatus // PAID | PARTIAL | UNPAID
+
+  // Relazioni
+  registration ArchivedRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  @@index([registrationId])
+  @@index([status])
+}
+
+enum ArchivePaymentType {
+  DEPOSIT // Acconto
+  INSTALLMENT // Rata
+}
+
+enum ArchivePaymentStatus {
+  PAID // Pagato completamente
+  PARTIAL // Pagato parzialmente
+  UNPAID // Non pagato
+}
