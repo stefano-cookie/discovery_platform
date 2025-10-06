@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSocket, useSocketEmit } from './useSocket';
 import axios from 'axios';
 
-interface Notice {
+export interface Notice {
   id: string;
   title: string;
   content: string;
@@ -13,6 +13,14 @@ interface Notice {
   createdBy: string;
   attachments?: any[];
   isRead?: boolean;
+  readAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  creator?: {
+    id: string;
+    email: string;
+  };
+  totalReads?: number;
 }
 
 interface NoticeStats {

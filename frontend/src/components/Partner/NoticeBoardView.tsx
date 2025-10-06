@@ -1,25 +1,5 @@
 import React, { useState } from 'react';
-import { useRealtimeNotices } from '../../hooks/useRealtimeNotices';
-
-interface Notice {
-  id: string;
-  title: string;
-  content: string;
-  contentHtml?: string;
-  attachments?: Array<{ name: string; url: string; type: string; size: number }>;
-  priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
-  isPinned: boolean;
-  publishedAt: string;
-  createdAt: string;
-  updatedAt: string;
-  creator: {
-    id: string;
-    email: string;
-  };
-  totalReads: number;
-  isRead: boolean;
-  readAt: string | null;
-}
+import { useRealtimeNotices, Notice } from '../../hooks/useRealtimeNotices';
 
 const NoticeBoardView: React.FC = () => {
   // Use real-time hook instead of manual fetching
