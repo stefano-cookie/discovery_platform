@@ -39,15 +39,17 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       return;
     }
 
-    // Get JWT token from localStorage
-    const token = localStorage.getItem('token');
+    // Get JWT token from localStorage (try both user and partner tokens)
+    const token = localStorage.getItem('token') || localStorage.getItem('partnerToken');
 
     if (!token) {
       console.warn('[Socket] No authentication token found');
       return;
     }
 
-    const BACKEND_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+    // Remove /api suffix if present - Socket.IO connects to server root
+    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+    const BACKEND_URL = apiUrl.replace(/\/api$/, '');
 
     console.log('[Socket] Connecting to:', BACKEND_URL);
 
@@ -127,7 +129,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
   // Auto-connect when token is available
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') || localStorage.getItem('partnerToken');
 
     if (token && !socket) {
       connect();
