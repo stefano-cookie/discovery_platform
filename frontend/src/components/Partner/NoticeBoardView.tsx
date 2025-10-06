@@ -31,7 +31,7 @@ const NoticeBoardView: React.FC = () => {
   const fetchNotices = async () => {
     try {
       const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/notices`, {
+      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/notices`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setNotices(response.data.notices);
@@ -46,7 +46,7 @@ const NoticeBoardView: React.FC = () => {
     try {
       const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
       await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/notices/${noticeId}/acknowledge`,
+        `${process.env.REACT_APP_API_URL}/api/notices/${noticeId}/acknowledge`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );

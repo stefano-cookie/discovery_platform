@@ -59,7 +59,7 @@ const NoticeBoard: React.FC = () => {
   const fetchNotices = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/notices`, {
+      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/notices`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setNotices(response.data.notices);
@@ -75,7 +75,7 @@ const NoticeBoard: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/notices`,
+        `${process.env.REACT_APP_API_URL}/api/notices`,
         formData,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -89,11 +89,11 @@ const NoticeBoard: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Sei sicuro di voler eliminare questo post?')) return;
+    if (!window.confirm('Sei sicuro di voler eliminare questo post?')) return;
 
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`${import.meta.env.VITE_API_URL}/api/notices/${id}`, {
+      await axios.delete(`${process.env.REACT_APP_API_URL}/api/notices/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       fetchNotices();
@@ -107,7 +107,7 @@ const NoticeBoard: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/notices/${noticeId}/stats`,
+        `${process.env.REACT_APP_API_URL}/api/notices/${noticeId}/stats`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setSelectedNoticeStats(response.data.stats);
