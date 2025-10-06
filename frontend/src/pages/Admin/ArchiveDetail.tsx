@@ -101,6 +101,24 @@ const ArchiveDetail: React.FC = () => {
     return new Date(dateString).toLocaleDateString('it-IT');
   };
 
+  const handleDelete = async () => {
+    if (!window.confirm('Sei sicuro di voler eliminare questa iscrizione archiviata? Questa azione è irreversibile.')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${API_URL}/admin/archive/registrations/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Iscrizione eliminata con successo');
+      navigate('/admin/archive');
+    } catch (err: any) {
+      console.error('Errore eliminazione:', err);
+      setError(err.response?.data?.error || 'Errore durante l\'eliminazione');
+    }
+  };
+
   const getPaymentStatusBadge = (status: string) => {
     const badges = {
       PAID: <span className="px-2 py-1 text-xs rounded bg-green-100 text-green-800">Pagato</span>,
@@ -370,11 +388,7 @@ const ArchiveDetail: React.FC = () => {
                 Modifica Iscrizione
               </button>
               <button
-                onClick={() => {
-                  if (window.confirm('Sei sicuro di voler eliminare questa iscrizione archiviata?')) {
-                    // TODO: implementare delete
-                  }
-                }}
+                onClick={handleDelete}
                 className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
               >
                 Elimina Iscrizione

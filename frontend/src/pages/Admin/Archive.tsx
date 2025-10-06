@@ -379,28 +379,29 @@ const Archive: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Azioni
-                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
                     Caricamento...
                   </td>
                 </tr>
               ) : registrations.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                     Nessuna iscrizione trovata
                   </td>
                 </tr>
               ) : (
                 registrations.map((reg) => (
-                  <tr key={reg.id} className="hover:bg-gray-50">
+                  <tr
+                    key={reg.id}
+                    onClick={() => navigate(`/admin/archive/${reg.id}`)}
+                    className="hover:bg-gray-50 cursor-pointer transition-colors"
+                  >
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-gray-900">
                         {reg.firstName} {reg.lastName}
@@ -432,20 +433,6 @@ const Archive: React.FC = () => {
                       <div className="mt-1 text-xs text-gray-500">
                         {Number(reg.paymentProgress).toFixed(0)}%
                       </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      <button
-                        onClick={() => navigate(`/admin/archive/${reg.id}`)}
-                        className="text-blue-600 hover:text-blue-900 mr-3"
-                      >
-                        Dettagli
-                      </button>
-                      <button
-                        onClick={() => navigate(`/admin/archive/${reg.id}/edit`)}
-                        className="text-green-600 hover:text-green-900"
-                      >
-                        Modifica
-                      </button>
                     </td>
                   </tr>
                 ))

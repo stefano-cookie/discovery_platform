@@ -55,6 +55,7 @@ const ArchiveCreate: React.FC = () => {
   const [finalAmount, setFinalAmount] = useState(savedData?.finalAmount || '');
   const [installments, setInstallments] = useState(savedData?.installments || '4');
   const [originalYear, setOriginalYear] = useState(savedData?.originalYear || new Date().getFullYear().toString());
+  const [isSinglePayment, setIsSinglePayment] = useState(savedData?.isSinglePayment || false);
 
   // Step 3b: Importi Manuali
   const [depositAmount, setDepositAmount] = useState(savedData?.depositAmount || '');
@@ -77,6 +78,10 @@ const ArchiveCreate: React.FC = () => {
   const [uploadingContract, setUploadingContract] = useState(false);
   const [contractUploadProgress, setContractUploadProgress] = useState(0);
 
+  // Drag & Drop states
+  const [isDraggingZip, setIsDraggingZip] = useState(false);
+  const [isDraggingContract, setIsDraggingContract] = useState(false);
+
   // Salva automaticamente in localStorage quando cambiano i dati
   React.useEffect(() => {
     const dataToSave = {
@@ -96,6 +101,7 @@ const ArchiveCreate: React.FC = () => {
       finalAmount,
       installments,
       originalYear,
+      isSinglePayment,
       depositAmount,
       installmentAmount,
       payments,
@@ -127,6 +133,7 @@ const ArchiveCreate: React.FC = () => {
     finalAmount,
     installments,
     originalYear,
+    isSinglePayment,
     depositAmount,
     installmentAmount,
     payments,
@@ -147,6 +154,29 @@ const ArchiveCreate: React.FC = () => {
 
   // Genera pagamenti quando si passa allo step 4
   const generatePaymentsManual = () => {
+    // Pagamento unico
+    if (isSinglePayment) {
+      const total = parseFloat(finalAmount);
+      if (isNaN(total) || total <= 0) {
+        return;
+      }
+
+      const newPayments: PaymentItem[] = [
+        {
+          type: 'DEPOSIT',
+          label: 'Pagamento Unico',
+          installmentNumber: null,
+          expectedAmount: total.toFixed(2),
+          paidAmount: '0',
+          status: 'UNPAID'
+        }
+      ];
+
+      setPayments(newPayments);
+      return;
+    }
+
+    // Pagamento con acconto + rate
     const numInstallments = parseInt(installments);
     const deposit = parseFloat(depositAmount);
     const installment = parseFloat(installmentAmount);
@@ -298,8 +328,7 @@ const ArchiveCreate: React.FC = () => {
       const token = localStorage.getItem('token');
       const response = await axios.post(`${API_URL}/admin/archive/upload-zip`, formData, {
         headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
+          Authorization: `Bearer ${token}`
         },
         onUploadProgress: (progressEvent) => {
           if (progressEvent.total) {
@@ -337,8 +366,7 @@ const ArchiveCreate: React.FC = () => {
       const token = localStorage.getItem('token');
       const response = await axios.post(`${API_URL}/admin/archive/upload-contract`, formData, {
         headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
+          Authorization: `Bearer ${token}`
         },
         onUploadProgress: (progressEvent) => {
           if (progressEvent.total) {
@@ -378,6 +406,82 @@ const ArchiveCreate: React.FC = () => {
 
   const handleContractFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        setError('Il file è troppo grande. Dimensione massima: 10MB');
+        return;
+      }
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        setError('Solo file PDF sono permessi per i contratti');
+        return;
+      }
+      setContractFile(file);
+      handleContractUpload(file);
+    }
+  };
+
+  // Drag & Drop Handlers per ZIP
+  const handleZipDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingZip(true);
+  };
+
+  const handleZipDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingZip(false);
+  };
+
+  const handleZipDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleZipDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingZip(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      if (file.size > 50 * 1024 * 1024) {
+        setError('Il file è troppo grande. Dimensione massima: 50MB');
+        return;
+      }
+      if (!file.name.toLowerCase().endsWith('.zip')) {
+        setError('Solo file ZIP sono permessi');
+        return;
+      }
+      setZipFile(file);
+      handleZipUpload(file);
+    }
+  };
+
+  // Drag & Drop Handlers per PDF contratto
+  const handleContractDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingContract(true);
+  };
+
+  const handleContractDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingContract(false);
+  };
+
+  const handleContractDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleContractDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingContract(false);
+
+    const file = e.dataTransfer.files?.[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
         setError('Il file è troppo grande. Dimensione massima: 10MB');
@@ -458,7 +562,9 @@ const ArchiveCreate: React.FC = () => {
 
   const canProceedStep1 = firstName && lastName && email && fiscalCode && birthDate && phone && residenceVia && residenceCity && residenceProvince && residenceCap;
   const canProceedStep2 = companyName;
-  const canProceedStep3 = courseName && finalAmount && installments && originalYear && depositAmount && installmentAmount;
+  const canProceedStep3 = courseName && finalAmount && originalYear && (
+    isSinglePayment ? true : (installments && depositAmount && installmentAmount)
+  );
   const canProceedStep4 = payments.length > 0;
 
   const totals = calculateTotals();
@@ -703,9 +809,24 @@ const ArchiveCreate: React.FC = () => {
               </div>
             </div>
 
-            <h3 className="text-lg font-medium text-gray-900 mt-6">Importi Pagamenti</h3>
+            <div className="mt-6 flex items-center space-x-3 p-4 bg-gray-50 rounded-lg">
+              <input
+                type="checkbox"
+                id="singlePayment"
+                checked={isSinglePayment}
+                onChange={(e) => setIsSinglePayment(e.target.checked)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="singlePayment" className="text-sm font-medium text-gray-700">
+                Pagamento Unico (nessun acconto o rata)
+              </label>
+            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {!isSinglePayment && (
+              <>
+                <h3 className="text-lg font-medium text-gray-900 mt-6">Importi Pagamenti</h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Importo Acconto (€) *
@@ -739,25 +860,40 @@ const ArchiveCreate: React.FC = () => {
               </div>
             </div>
 
-            {depositAmount && installmentAmount && installments && (
-              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                <h3 className="text-sm font-medium text-blue-900 mb-2">
-                  Riepilogo Pagamenti
-                </h3>
-                <div className="text-sm text-blue-800 space-y-1">
-                  <div>• Acconto: €{parseFloat(depositAmount).toFixed(2)}</div>
-                  <div>• {installments} rate da €{parseFloat(installmentAmount).toFixed(2)} ciascuna = €{(parseFloat(installmentAmount) * parseInt(installments)).toFixed(2)}</div>
-                  <div className="font-semibold mt-2 pt-2 border-t border-blue-200">
-                    Totale: €{(parseFloat(depositAmount) + parseFloat(installmentAmount) * parseInt(installments)).toFixed(2)}
-                    {finalAmount && Math.abs((parseFloat(depositAmount) + parseFloat(installmentAmount) * parseInt(installments)) - parseFloat(finalAmount)) > 0.01 && (
-                      <span className="text-red-600 ml-2">
-                        ⚠️ Non corrisponde all'importo finale (€{finalAmount})
-                      </span>
-                    )}
+                  {depositAmount && installmentAmount && installments && (
+                    <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                      <h3 className="text-sm font-medium text-blue-900 mb-2">
+                        Riepilogo Pagamenti
+                      </h3>
+                      <div className="text-sm text-blue-800 space-y-1">
+                        <div>• Acconto: €{parseFloat(depositAmount).toFixed(2)}</div>
+                        <div>• {installments} rate da €{parseFloat(installmentAmount).toFixed(2)} ciascuna = €{(parseFloat(installmentAmount) * parseInt(installments)).toFixed(2)}</div>
+                        <div className="font-semibold mt-2 pt-2 border-t border-blue-200">
+                          Totale: €{(parseFloat(depositAmount) + parseFloat(installmentAmount) * parseInt(installments)).toFixed(2)}
+                          {finalAmount && Math.abs((parseFloat(depositAmount) + parseFloat(installmentAmount) * parseInt(installments)) - parseFloat(finalAmount)) > 0.01 && (
+                            <span className="text-red-600 ml-2">
+                              ⚠️ Non corrisponde all'importo finale (€{finalAmount})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {isSinglePayment && finalAmount && (
+                <div className="mt-6 p-4 bg-green-50 rounded-lg">
+                  <h3 className="text-sm font-medium text-green-900 mb-2">
+                    Riepilogo Pagamento Unico
+                  </h3>
+                  <div className="text-sm text-green-800">
+                    <div className="font-semibold">
+                      Totale: €{parseFloat(finalAmount).toFixed(2)}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
           </div>
         );
 
@@ -956,7 +1092,17 @@ const ArchiveCreate: React.FC = () => {
           <div className="space-y-6">
             <h2 className="text-xl font-semibold text-gray-900">Documenti (Opzionale)</h2>
 
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+            <div
+              className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                isDraggingZip
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-300'
+              }`}
+              onDragEnter={handleZipDragEnter}
+              onDragLeave={handleZipDragLeave}
+              onDragOver={handleZipDragOver}
+              onDrop={handleZipDrop}
+            >
               {!zipFile && !documentsZipUrl ? (
                 <>
                   <svg
@@ -990,7 +1136,7 @@ const ArchiveCreate: React.FC = () => {
                     </label>
                   </div>
                   <p className="mt-2 text-sm text-gray-500">
-                    File ZIP contenente i documenti (max 50MB)
+                    o trascina qui il file ZIP (max 50MB)
                   </p>
                 </>
               ) : uploadingZip ? (
@@ -1035,7 +1181,17 @@ const ArchiveCreate: React.FC = () => {
             {/* Contratto PDF */}
             <div className="mt-8">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Contratto PDF (Opzionale)</h3>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+              <div
+                className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                  isDraggingContract
+                    ? 'border-green-500 bg-green-50'
+                    : 'border-gray-300'
+                }`}
+                onDragEnter={handleContractDragEnter}
+                onDragLeave={handleContractDragLeave}
+                onDragOver={handleContractDragOver}
+                onDrop={handleContractDrop}
+              >
                 {!contractFile && !contractPdfUrl ? (
                   <>
                     <svg
@@ -1069,7 +1225,7 @@ const ArchiveCreate: React.FC = () => {
                       </label>
                     </div>
                     <p className="mt-2 text-sm text-gray-500">
-                      File PDF del contratto (max 10MB)
+                      o trascina qui il file PDF (max 10MB)
                     </p>
                   </>
                 ) : uploadingContract ? (
