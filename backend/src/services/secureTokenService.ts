@@ -118,10 +118,10 @@ export class SecureTokenService {
       registration = await prisma.registration.create({
         data: {
           userId,
-          partnerId: offer.partnerId,
+          partnerId: offer.partnerId || '',
           partnerCompanyId: partnerCompanyId,
           sourcePartnerCompanyId: sourcePartnerCompanyId,
-          requestedByEmployeeId: validatedEmployeeId, // 🎯 Track referring employee
+          requestedByEmployeeId: validatedEmployeeId || undefined, // 🎯 Track referring employee
           isDirectRegistration: isDirectRegistration,
           courseId: offer.courseId,
           partnerOfferId: offer.id,

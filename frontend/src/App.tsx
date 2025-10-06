@@ -24,6 +24,7 @@ import { AdminRegistrations } from './pages/Admin/Registrations';
 import { AdminUsers } from './pages/Admin/Users';
 import { AuditLogs } from './pages/Admin/AuditLogs';
 import { AdminExport } from './pages/Admin/Export';
+import NoticeBoard from './components/Admin/NoticeBoard';
 import Archive from './pages/Admin/Archive';
 import ArchiveCreate from './pages/Admin/ArchiveCreate';
 import ArchiveEdit from './pages/Admin/ArchiveEdit';
@@ -250,13 +251,21 @@ const AppContent: React.FC = () => {
             </ProtectedRoute>
           } 
         />
-        <Route 
-          path="/dashboard/sub-partners" 
+        <Route
+          path="/dashboard/sub-partners"
           element={
             <ProtectedRoute>
               <DashboardRoute userRole={userRole} />
             </ProtectedRoute>
-          } 
+          }
+        />
+        <Route
+          path="/dashboard/notices"
+          element={
+            <ProtectedRoute>
+              <DashboardRoute userRole={userRole} />
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/dashboard/chat"
@@ -282,6 +291,7 @@ const AppContent: React.FC = () => {
           <Route path="companies" element={<AdminCompanies />} />
           <Route path="registrations" element={<AdminRegistrations />} />
           <Route path="users" element={<AdminUsers />} />
+          <Route path="notices" element={<NoticeBoard />} />
           <Route path="export" element={<AdminExport />} />
           <Route path="logs" element={<AuditLogs />} />
           <Route path="archive" element={<Archive />} />

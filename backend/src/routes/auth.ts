@@ -851,8 +851,8 @@ router.get('/check-referral/:code', async (req, res) => {
       // Found as direct offer link
       return res.json({
         valid: true,
-        partnerEmail: directOffer.partner.user.email,
-        partnerId: directOffer.partner.id,
+        partnerEmail: directOffer.partner?.user.email || '',
+        partnerId: directOffer.partner?.id || '',
         offer: {
           id: directOffer.id,
           name: directOffer.name,
