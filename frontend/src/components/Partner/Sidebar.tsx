@@ -3,8 +3,8 @@ import { usePartnerAuth } from '../../hooks/usePartnerAuth';
 import LogoutDropdown from '../UI/LogoutDropdown';
 
 interface SidebarProps {
-  activeTab: 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators' | 'sub-partners';
-  onTabChange: (tab: 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators' | 'sub-partners') => void;
+  activeTab: 'dashboard' | 'users' | 'notices' | 'coupons' | 'offers' | 'collaborators' | 'sub-partners';
+  onTabChange: (tab: 'dashboard' | 'users' | 'notices' | 'coupons' | 'offers' | 'collaborators' | 'sub-partners') => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
@@ -46,11 +46,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
       )
     },
     {
-      id: 'chat',
-      name: 'Chat',
+      id: 'notices',
+      name: 'Bacheca',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       )
     }
@@ -106,14 +106,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
         parentOnlyItems[0], // dashboard
         ...baseMenuItems.slice(0, 2), // users, offers
         ...administrativeOnlyItems, // collaborators
-        baseMenuItems[baseMenuItems.length - 1], // chat
+        baseMenuItems[baseMenuItems.length - 1], // notices
         parentOnlyItems[1] // coupons
       ];
     } else {
       // COMMERCIAL: dashboard + basic items + coupons (no collaborators)
       menuItems = [
         parentOnlyItems[0], // dashboard
-        ...baseMenuItems, // users, offers, chat
+        ...baseMenuItems, // users, offers, notices
         parentOnlyItems[1] // coupons
       ];
     }
@@ -122,7 +122,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
   // Add sub-partners menu item for premium companies (only for ADMINISTRATIVE)
   const extendedMenuItems = (partnerCompany?.isPremium && partnerEmployee?.role === 'ADMINISTRATIVE')
     ? [
-        ...menuItems.slice(0, -1), // All items except chat
+        ...menuItems.slice(0, -1), // All items except notices
         {
           id: 'sub-partners',
           name: 'Collaboratori',
@@ -133,7 +133,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
           ),
           isPremium: true
         },
-        menuItems[menuItems.length - 1] // Add chat at the end
+        menuItems[menuItems.length - 1] // Add notices at the end
       ]
     : menuItems;
 

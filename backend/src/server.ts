@@ -129,6 +129,7 @@ import documentUploadUnifiedRoutes from './routes/documentUploadUnified';
 import partnerUnifiedRoutes from './routes/partnerUnified';
 import documentDiagnosticsRoutes from './routes/documentDiagnostics';
 import archiveRoutes from './routes/archive';
+import noticesRoutes from './routes/notices';
 // TODO: Fix partnerRegistrations.ts - has compilation errors with legacy partner system
 // import partnerRegistrationsRoutes from './routes/_refactored/partnerRegistrations';
 
@@ -168,6 +169,7 @@ app.use('/api/enrollment', enrollmentRoutes);
 app.use('/api/offer-types', offerTypesRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/archive', archiveRoutes);
+app.use('/api/notices', noticesRoutes); // Notice Board system
 
 // DIAGNOSTICS ROUTES (Admin tools for document troubleshooting)
 app.use('/api/document-diagnostics', documentDiagnosticsRoutes);

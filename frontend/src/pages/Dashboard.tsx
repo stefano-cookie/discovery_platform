@@ -5,7 +5,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Sidebar from '../components/Partner/Sidebar';
 import DashboardView from '../components/Partner/DashboardView';
 import UsersView from '../components/Partner/UsersView';
-import ChatView from '../components/Partner/ChatView';
+import NoticeBoardView from '../components/Partner/NoticeBoardView';
 import CouponManagement from '../components/Partner/CouponManagement';
 import OfferManagement from '../components/Partner/OfferManagement';
 import EnrollmentDetail from '../components/Partner/EnrollmentDetail';
@@ -34,20 +34,20 @@ const Dashboard: React.FC = () => {
   }, [userRole, navigate]);
   
   // Determine active tab from URL
-  const getActiveTabFromPath = (pathname: string): 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators' | 'sub-partners' => {
+  const getActiveTabFromPath = (pathname: string): 'dashboard' | 'users' | 'notices' | 'coupons' | 'offers' | 'collaborators' | 'sub-partners' => {
     if (pathname.includes('/users')) return 'users';
-    if (pathname.includes('/chat')) return 'chat';
+    if (pathname.includes('/notices')) return 'notices';
     if (pathname.includes('/coupons')) return 'coupons';
     if (pathname.includes('/offers')) return 'offers';
     if (pathname.includes('/collaborators')) return 'collaborators';
     if (pathname.includes('/sub-partners')) return 'sub-partners';
-    
+
     // For sub-partners, default to users instead of dashboard
     if (partnerCompany?.parentId) return 'users';
     return 'dashboard';
   };
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators' | 'sub-partners'>(
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'notices' | 'coupons' | 'offers' | 'collaborators' | 'sub-partners'>(
     getActiveTabFromPath(location.pathname)
   );
   const [showLogoutDropdown, setShowLogoutDropdown] = useState(false);
@@ -58,15 +58,15 @@ const Dashboard: React.FC = () => {
   }, [location.pathname]);
 
   // Navigation functions
-  const handleTabChange = (tab: 'dashboard' | 'users' | 'chat' | 'coupons' | 'offers' | 'collaborators' | 'sub-partners') => {
+  const handleTabChange = (tab: 'dashboard' | 'users' | 'notices' | 'coupons' | 'offers' | 'collaborators' | 'sub-partners') => {
     const basePath = '/dashboard';
-    
+
     // For sub-partners, prevent navigation to dashboard and redirect to users
     if (partnerCompany?.parentId && tab === 'dashboard') {
       navigate(`${basePath}/users`);
       return;
     }
-    
+
     const newPath = tab === 'dashboard' ? basePath : `${basePath}/${tab}`;
     navigate(newPath);
   };
@@ -133,7 +133,7 @@ const Dashboard: React.FC = () => {
                 {activeTab === 'offers' && <OfferManagement />}
                 {activeTab === 'collaborators' && <EmployeesManagement />}
                 {activeTab === 'sub-partners' && <SubPartnerManagement />}
-                {activeTab === 'chat' && <ChatView />}
+                {activeTab === 'notices' && <NoticeBoardView />}
               </div>
             </div>
           </div>

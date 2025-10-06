@@ -42,6 +42,8 @@ model User {
   offerVisibilities OfferVisibility[]
   offerAccess       UserOfferAccess[] // Accesso alle offerte aggiuntive
   discoveryActions  DiscoveryAdminLog[] @relation("DiscoveryActions") // Log azioni admin Discovery
+  createdNotices    Notice[]            @relation("NoticeCreator") // Notice create (solo ADMIN)
+  noticeReads       NoticeAcknowledgement[] @relation("UserNoticeReads") // Notice lette
 }
 
 enum UserRole {
@@ -127,6 +129,7 @@ model PartnerEmployee {
   requestedRegistrations Registration[]       @relation("EmployeeRequests")
   createdOffers          PartnerOffer[]       @relation("CreatedOffers")
   actionTokens           ActionToken[]
+  noticeReads            NoticeAcknowledgement[] @relation("PartnerNoticeReads") // Notice lette
 
   @@index([partnerCompanyId])
   @@index([email])
@@ -929,4 +932,61 @@ enum ArchivePaymentStatus {
   PAID // Pagato completamente
   PARTIAL // Pagato parzialmente
   UNPAID // Non pagato
+}
+
+// ========================================
+// SISTEMA BACHECA (NOTICE BOARD)
+// ========================================
+
+model Notice {
+  id        String   @id @default(uuid())
+  title     String
+  content   String   @db.Text
+  priority  NoticePriority @default(NORMAL)
+  isPinned  Boolean  @default(false)
+
+  // Publishing
+  publishedAt DateTime @default(now())
+  createdBy   String   // Admin user ID
+
+  // Tracking
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  creator         User                  @relation("NoticeCreator", fields: [createdBy], references: [id])
+  acknowledgements NoticeAcknowledgement[]
+
+  @@index([publishedAt])
+  @@index([isPinned, publishedAt])
+  @@index([createdBy])
+}
+
+model NoticeAcknowledgement {
+  id       String   @id @default(uuid())
+  noticeId String
+  userId   String?   // For User/Admin staff
+  partnerEmployeeId String? // For Partner employees
+
+  // Tracking
+  readAt   DateTime @default(now())
+
+  // Relations
+  notice          Notice           @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  user            User?            @relation("UserNoticeReads", fields: [userId], references: [id], onDelete: Cascade)
+  partnerEmployee PartnerEmployee? @relation("PartnerNoticeReads", fields: [partnerEmployeeId], references: [id], onDelete: Cascade)
+
+  // Ensure one acknowledgement per user/employee per notice
+  @@unique([noticeId, userId])
+  @@unique([noticeId, partnerEmployeeId])
+  @@index([noticeId])
+  @@index([userId])
+  @@index([partnerEmployeeId])
+}
+
+enum NoticePriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
 }
