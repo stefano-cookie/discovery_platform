@@ -5,7 +5,9 @@ import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import path from 'path';
 import fs from 'fs';
+import http from 'http';
 import { StorageConfig } from './config/storage';
+import { initializeSocketIO, setSocketIOInstance, getWebSocketHealth } from './sockets';
 
 // Load environment variables based on NODE_ENV
 const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env';
@@ -185,9 +187,30 @@ const PORT = parseInt(process.env.PORT || '8000', 10);
 console.log('🏗️ Initializing storage directories...');
 StorageConfig.initializeDirectories();
 
-const server = app.listen(PORT, () => {
+// Create HTTP server
+const httpServer = http.createServer(app);
+
+// Initialize Socket.IO
+const io = initializeSocketIO(httpServer);
+setSocketIOInstance(io);
+
+// WebSocket health check endpoint
+app.get('/api/health/websocket', (_req, res) => {
+  try {
+    const health = getWebSocketHealth(io);
+    res.json(health);
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get WebSocket health',
+    });
+  }
+});
+
+const server = httpServer.listen(PORT, () => {
   const host = process.env.HOST || 'localhost';
   console.log(`✅ Server running on http://${host}:${PORT}`);
+  console.log(`🔌 WebSocket server ready on ws://${host}:${PORT}`);
   console.log(`📁 Upload base path: ${StorageConfig.uploadBasePath}`);
 });
 
