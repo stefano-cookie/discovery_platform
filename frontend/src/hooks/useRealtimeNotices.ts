@@ -57,7 +57,8 @@ export const useRealtimeNotices = () => {
         },
       });
 
-      setNotices(response.data);
+      // API returns { notices: Notice[] }
+      setNotices(response.data.notices || response.data);
       setError(null);
     } catch (err: any) {
       console.error('[useRealtimeNotices] Error fetching notices:', err);

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
+import { useRealtimeNotices } from '../../hooks/useRealtimeNotices';
 
 interface Notice {
   id: string;
@@ -22,43 +22,16 @@ interface Notice {
 }
 
 const NoticeBoardView: React.FC = () => {
-  const [notices, setNotices] = useState<Notice[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Use real-time hook instead of manual fetching
+  const { notices, unreadCount, acknowledgeNotice, loading } = useRealtimeNotices();
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
-
-  useEffect(() => {
-    fetchNotices();
-  }, []);
-
-  const fetchNotices = async () => {
-    try {
-      const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
-      const response = await axios.get(`${process.env.REACT_APP_API_URL}/notices`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setNotices(response.data.notices);
-    } catch (error) {
-      console.error('Error fetching notices:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAcknowledge = async (noticeId: string) => {
     try {
-      const token = localStorage.getItem('partnerToken') || localStorage.getItem('token');
-      await axios.post(
-        `${process.env.REACT_APP_API_URL}/notices/${noticeId}/acknowledge`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      // Update local state
-      setNotices(notices.map(n =>
-        n.id === noticeId ? { ...n, isRead: true, readAt: new Date().toISOString() } : n
-      ));
+      await acknowledgeNotice(noticeId);
     } catch (error) {
       console.error('Error acknowledging notice:', error);
+      // You could show a toast/notification here
     }
   };
 
@@ -99,8 +72,6 @@ const NoticeBoardView: React.FC = () => {
   const filteredNotices = filter === 'unread'
     ? notices.filter(n => !n.isRead)
     : notices;
-
-  const unreadCount = notices.filter(n => !n.isRead).length;
 
   if (loading) {
     return (

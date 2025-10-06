@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { PartnerAuthProvider, usePartnerAuth } from './hooks/usePartnerAuth';
+import { SocketProvider } from './contexts/SocketContext';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -318,11 +319,13 @@ const App: React.FC = () => {
   return (
     <AuthProvider>
       <PartnerAuthProvider>
-        <Router>
-          <div className="App">
-            <AppContent />
-          </div>
-        </Router>
+        <SocketProvider>
+          <Router>
+            <div className="App">
+              <AppContent />
+            </div>
+          </Router>
+        </SocketProvider>
       </PartnerAuthProvider>
     </AuthProvider>
   );

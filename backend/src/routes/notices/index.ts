@@ -2,6 +2,13 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, authenticateUnified, AuthRequest } from '../../middleware/auth';
 import uploadRouter from './upload';
+import { getSocketIO } from '../../sockets';
+import {
+  emitNoticeNew,
+  emitNoticeUpdated,
+  emitNoticeDeleted,
+  emitNoticeAcknowledged,
+} from '../../sockets/events/notice.events';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -123,6 +130,27 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     });
 
     console.log('POST /api/notices - Notice created successfully:', notice.id);
+
+    // Emit WebSocket event to all users
+    try {
+      const io = getSocketIO();
+      emitNoticeNew(io, {
+        id: notice.id,
+        title: notice.title,
+        content: notice.content,
+        contentHtml: notice.contentHtml || undefined,
+        priority: notice.priority,
+        isPinned: notice.isPinned,
+        publishedAt: notice.publishedAt.toISOString(),
+        createdBy: notice.createdBy,
+        attachments: notice.attachments as any[],
+      });
+      console.log('POST /api/notices - WebSocket event emitted');
+    } catch (socketError) {
+      console.error('POST /api/notices - Failed to emit WebSocket event:', socketError);
+      // Don't fail the request if WebSocket fails
+    }
+
     res.status(201).json({ notice });
   } catch (error: any) {
     console.error('Error creating notice:', error);
@@ -166,6 +194,23 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       }
     });
 
+    // Emit WebSocket event
+    try {
+      const io = getSocketIO();
+      emitNoticeUpdated(io, {
+        id: notice.id,
+        changes: {
+          title: notice.title,
+          content: notice.content,
+          priority: notice.priority,
+          isPinned: notice.isPinned,
+        },
+      });
+      console.log('PATCH /api/notices/:id - WebSocket event emitted');
+    } catch (socketError) {
+      console.error('PATCH /api/notices/:id - Failed to emit WebSocket event:', socketError);
+    }
+
     res.json({ notice });
   } catch (error) {
     console.error('Error updating notice:', error);
@@ -191,6 +236,15 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res) => {
     await prisma.notice.delete({
       where: { id }
     });
+
+    // Emit WebSocket event
+    try {
+      const io = getSocketIO();
+      emitNoticeDeleted(io, { id });
+      console.log('DELETE /api/notices/:id - WebSocket event emitted');
+    } catch (socketError) {
+      console.error('DELETE /api/notices/:id - Failed to emit WebSocket event:', socketError);
+    }
 
     res.json({ success: true });
   } catch (error) {
@@ -232,6 +286,26 @@ router.post('/:id/acknowledge', authenticateUnified, async (req: AuthRequest, re
         partnerEmployeeId: currentPartnerEmployeeId
       }
     });
+
+    // Get total reads for this notice
+    const totalReads = await prisma.noticeAcknowledgement.count({
+      where: { noticeId: id },
+    });
+
+    // Emit WebSocket event to notify admins
+    try {
+      const io = getSocketIO();
+      emitNoticeAcknowledged(io, {
+        noticeId: id,
+        userId: currentUserId || undefined,
+        partnerEmployeeId: currentPartnerEmployeeId || undefined,
+        readAt: acknowledgement.readAt.toISOString(),
+        totalReads,
+      });
+      console.log('POST /api/notices/:id/acknowledge - WebSocket event emitted');
+    } catch (socketError) {
+      console.error('POST /api/notices/:id/acknowledge - Failed to emit WebSocket event:', socketError);
+    }
 
     res.status(201).json({ acknowledgement });
   } catch (error) {
