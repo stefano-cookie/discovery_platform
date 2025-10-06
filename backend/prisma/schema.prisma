@@ -261,8 +261,8 @@ enum CourseTemplate {
 
 model PartnerOffer {
   id                   String    @id @default(uuid())
-  partnerId            String
-  partnerCompanyId     String? // NEW: Reference to PartnerCompany
+  partnerId            String? // DEPRECATED: Legacy field, now nullable
+  partnerCompanyId     String // NEW: Reference to PartnerCompany (now required)
   courseId             String
   name                 String
   offerType            OfferType @default(TFA_ROMANIA)
@@ -282,10 +282,10 @@ model PartnerOffer {
   parentOfferId String? // ID dell'offerta parent da cui deriva
   inheritedBy   PartnerOffer[] @relation("OfferInheritance")
 
-  // Legacy relation (manteniamo per compatibilità)
-  partner           Partner           @relation(fields: [partnerId], references: [id])
-  // NEW: Partner company relation
-  partnerCompany    PartnerCompany?   @relation("CompanyOffers", fields: [partnerCompanyId], references: [id])
+  // Legacy relation (manteniamo per compatibilità, ma ora opzionale)
+  partner           Partner?          @relation(fields: [partnerId], references: [id])
+  // NEW: Partner company relation (now required)
+  partnerCompany    PartnerCompany    @relation("CompanyOffers", fields: [partnerCompanyId], references: [id])
   // NEW: Created by employee relation
   createdByEmployee PartnerEmployee?  @relation("CreatedOffers", fields: [createdByEmployeeId], references: [id])
   course            Course            @relation(fields: [courseId], references: [id])
