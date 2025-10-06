@@ -23,6 +23,23 @@ class ArchiveStorageService {
   private contractsPublicUrl: string;
 
   constructor() {
+    // Verifica variabili d'ambiente obbligatorie
+    const requiredEnvVars = {
+      R2_ARCHIVE_ENDPOINT: process.env.R2_ARCHIVE_ENDPOINT,
+      R2_ARCHIVE_ACCESS_KEY_ID: process.env.R2_ARCHIVE_ACCESS_KEY_ID,
+      R2_ARCHIVE_SECRET_ACCESS_KEY: process.env.R2_ARCHIVE_SECRET_ACCESS_KEY,
+    };
+
+    const missingVars = Object.entries(requiredEnvVars)
+      .filter(([_, value]) => !value)
+      .map(([key]) => key);
+
+    if (missingVars.length > 0) {
+      const errorMsg = `[ArchiveStorageService] FATAL: Missing required environment variables: ${missingVars.join(', ')}`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+
     // Cloudflare R2 Archive configuration (shared credentials)
     this.s3Client = new S3Client({
       region: 'auto',
@@ -41,7 +58,7 @@ class ArchiveStorageService {
     this.contractsBucketName = process.env.R2_ARCHIVE_CONTRACTS_BUCKET_NAME || 'legacy-archive-contracts';
     this.contractsPublicUrl = process.env.R2_ARCHIVE_CONTRACTS_PUBLIC_URL || '';
 
-    console.log(`[ArchiveStorageService] Initialized`);
+    console.log(`[ArchiveStorageService] ✅ Initialized successfully`);
     console.log(`[ArchiveStorageService] Docs Bucket: ${this.docsBucketName}`);
     console.log(`[ArchiveStorageService] Contracts Bucket: ${this.contractsBucketName}`);
     console.log(`[ArchiveStorageService] Endpoint: ${process.env.R2_ARCHIVE_ENDPOINT}`);
@@ -69,6 +86,10 @@ class ArchiveStorageService {
     const key = `archive-registrations/${metadata.originalYear}/${this.sanitizePath(metadata.companyName)}/${timestamp}-${randomId}-${sanitizedFileName}`;
 
     try {
+      console.log(`[ArchiveStorageService] Uploading ZIP: ${key}`);
+      console.log(`[ArchiveStorageService] Bucket: ${this.docsBucketName}`);
+      console.log(`[ArchiveStorageService] Size: ${buffer.length} bytes`);
+
       const command = new PutObjectCommand({
         Bucket: this.docsBucketName,
         Key: key,
@@ -85,6 +106,7 @@ class ArchiveStorageService {
       });
 
       await this.s3Client.send(command);
+      console.log(`[ArchiveStorageService] ✅ ZIP uploaded successfully: ${key}`);
 
       // Genera URL pubblico se configurato, altrimenti usa endpoint
       const url = this.docsPublicUrl
@@ -97,9 +119,15 @@ class ArchiveStorageService {
         size: buffer.length,
         mimeType: 'application/zip',
       };
-    } catch (error) {
-      console.error('[ArchiveStorageService] Error uploading ZIP to R2:', error);
-      throw new Error(`Failed to upload archive ZIP: ${error}`);
+    } catch (error: any) {
+      console.error('[ArchiveStorageService] ❌ Error uploading ZIP to R2:', {
+        message: error.message,
+        code: error.code,
+        statusCode: error.$metadata?.httpStatusCode,
+        bucket: this.docsBucketName,
+        key,
+      });
+      throw new Error(`Failed to upload archive ZIP: ${error.message || error}`);
     }
   }
 
@@ -124,6 +152,10 @@ class ArchiveStorageService {
     const key = `contracts/${metadata.originalYear}/${this.sanitizePath(metadata.companyName)}/${timestamp}-${randomId}-${sanitizedFileName}`;
 
     try {
+      console.log(`[ArchiveStorageService] Uploading Contract PDF: ${key}`);
+      console.log(`[ArchiveStorageService] Bucket: ${this.contractsBucketName}`);
+      console.log(`[ArchiveStorageService] Size: ${buffer.length} bytes`);
+
       const command = new PutObjectCommand({
         Bucket: this.contractsBucketName,
         Key: key,
@@ -141,6 +173,7 @@ class ArchiveStorageService {
       });
 
       await this.s3Client.send(command);
+      console.log(`[ArchiveStorageService] ✅ Contract PDF uploaded successfully: ${key}`);
 
       // Genera URL pubblico (necessario per preview PDF)
       const url = this.contractsPublicUrl
@@ -153,9 +186,15 @@ class ArchiveStorageService {
         size: buffer.length,
         mimeType: 'application/pdf',
       };
-    } catch (error) {
-      console.error('[ArchiveStorageService] Error uploading contract PDF to R2:', error);
-      throw new Error(`Failed to upload contract PDF: ${error}`);
+    } catch (error: any) {
+      console.error('[ArchiveStorageService] ❌ Error uploading contract PDF to R2:', {
+        message: error.message,
+        code: error.code,
+        statusCode: error.$metadata?.httpStatusCode,
+        bucket: this.contractsBucketName,
+        key,
+      });
+      throw new Error(`Failed to upload contract PDF: ${error.message || error}`);
     }
   }
 
