@@ -945,6 +945,10 @@ model Notice {
   priority  NoticePriority @default(NORMAL)
   isPinned  Boolean  @default(false)
 
+  // Rich content support
+  contentHtml String? @db.Text // HTML formatted content from editor
+  attachments Json?   @default("[]") // Array of attachment objects: [{name, url, type, size}]
+
   // Publishing
   publishedAt DateTime @default(now())
   createdBy   String   // Admin user ID

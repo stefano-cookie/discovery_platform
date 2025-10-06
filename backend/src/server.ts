@@ -130,6 +130,7 @@ import partnerUnifiedRoutes from './routes/partnerUnified';
 import documentDiagnosticsRoutes from './routes/documentDiagnostics';
 import archiveRoutes from './routes/archive';
 import noticesRoutes from './routes/notices';
+import noticeUploadRoutes from './routes/notices/upload';
 // TODO: Fix partnerRegistrations.ts - has compilation errors with legacy partner system
 // import partnerRegistrationsRoutes from './routes/_refactored/partnerRegistrations';
 
@@ -169,7 +170,11 @@ app.use('/api/enrollment', enrollmentRoutes);
 app.use('/api/offer-types', offerTypesRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/archive', archiveRoutes);
+app.use('/api/notices/upload', noticeUploadRoutes); // Notice file uploads - MUST be BEFORE main notices routes
 app.use('/api/notices', noticesRoutes); // Notice Board system
+
+// Serve uploaded notice files
+app.use('/uploads/notices', express.static(path.join(__dirname, '../uploads/notices')));
 
 // DIAGNOSTICS ROUTES (Admin tools for document troubleshooting)
 app.use('/api/document-diagnostics', documentDiagnosticsRoutes);

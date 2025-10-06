@@ -1,39 +1,25 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authenticate, AuthRequest } from '../../middleware/auth';
+import { authenticate, authenticateUnified, AuthRequest } from '../../middleware/auth';
+import uploadRouter from './upload';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+// Mount upload routes
+router.use('/upload', uploadRouter);
 
 /**
  * GET /api/notices
  * Get all notices with read status for current user
  * Accessible by: ADMIN, PARTNER employees
  */
-router.get('/', async (req, res) => {
+router.get('/', authenticateUnified, async (req: AuthRequest, res) => {
   try {
-    // Check auth from either User or PartnerEmployee
-    const userAuth = req.headers.authorization;
-    let currentUserId: string | null = null;
-    let currentPartnerEmployeeId: string | null = null;
-    let isAdmin = false;
-
-    if (userAuth) {
-      // Try User auth first
-      try {
-        const user = (req as any).user;
-        if (user) {
-          currentUserId = user.id;
-          isAdmin = user.role === 'ADMIN';
-        }
-      } catch (e) {
-        // If User auth fails, try PartnerEmployee
-        const partnerEmployee = (req as any).partnerEmployee;
-        if (partnerEmployee) {
-          currentPartnerEmployeeId = partnerEmployee.id;
-        }
-      }
-    }
+    // Extract user info from authenticated request
+    const currentUserId = req.user?.id || null;
+    const currentPartnerEmployeeId = req.partnerEmployee?.id || null;
+    const isAdmin = req.user?.role === 'ADMIN' || false;
 
     // Fetch all notices
     const notices = await prisma.notice.findMany({
@@ -72,6 +58,8 @@ router.get('/', async (req, res) => {
       id: notice.id,
       title: notice.title,
       content: notice.content,
+      contentHtml: notice.contentHtml,
+      attachments: notice.attachments,
       priority: notice.priority,
       isPinned: notice.isPinned,
       publishedAt: notice.publishedAt,
@@ -99,14 +87,18 @@ router.get('/', async (req, res) => {
 router.post('/', authenticate, async (req: AuthRequest, res) => {
   try {
     const user = req.user;
+    console.log('POST /api/notices - User:', user ? { id: user.id, email: user.email, role: user.role } : 'No user');
 
     if (!user || user.role !== 'ADMIN') {
+      console.log('POST /api/notices - Access denied. User role:', user?.role);
       return res.status(403).json({ error: 'Only admins can create notices' });
     }
 
-    const { title, content, priority, isPinned } = req.body;
+    const { title, content, contentHtml, priority, isPinned, attachments } = req.body;
+    console.log('POST /api/notices - Request body:', { title, content, contentHtml, priority, isPinned, attachments });
 
     if (!title || !content) {
+      console.log('POST /api/notices - Missing title or content');
       return res.status(400).json({ error: 'Title and content are required' });
     }
 
@@ -114,6 +106,8 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       data: {
         title,
         content,
+        contentHtml: contentHtml || null,
+        attachments: attachments || [],
         priority: priority || 'NORMAL',
         isPinned: isPinned || false,
         createdBy: user.id
@@ -128,10 +122,12 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       }
     });
 
+    console.log('POST /api/notices - Notice created successfully:', notice.id);
     res.status(201).json({ notice });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating notice:', error);
-    res.status(500).json({ error: 'Failed to create notice' });
+    console.error('Error details:', error.message, error.stack);
+    res.status(500).json({ error: 'Failed to create notice', details: error.message });
   }
 });
 
@@ -208,32 +204,13 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res) => {
  * Mark a notice as read
  * Accessible by: All authenticated users (ADMIN, USER, PARTNER employees)
  */
-router.post('/:id/acknowledge', async (req, res) => {
+router.post('/:id/acknowledge', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
 
-    // Determine user type and ID
-    const userAuth = req.headers.authorization;
-    let currentUserId: string | null = null;
-    let currentPartnerEmployeeId: string | null = null;
-
-    if (userAuth) {
-      try {
-        const user = (req as any).user;
-        if (user) {
-          currentUserId = user.id;
-        }
-      } catch (e) {
-        const partnerEmployee = (req as any).partnerEmployee;
-        if (partnerEmployee) {
-          currentPartnerEmployeeId = partnerEmployee.id;
-        }
-      }
-    }
-
-    if (!currentUserId && !currentPartnerEmployeeId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    // Extract user info from authenticated request
+    const currentUserId = req.user?.id || null;
+    const currentPartnerEmployeeId = req.partnerEmployee?.id || null;
 
     // Check if already acknowledged
     const existing = await prisma.noticeAcknowledgement.findFirst({

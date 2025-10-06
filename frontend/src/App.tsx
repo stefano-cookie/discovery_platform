@@ -251,13 +251,21 @@ const AppContent: React.FC = () => {
             </ProtectedRoute>
           } 
         />
-        <Route 
-          path="/dashboard/sub-partners" 
+        <Route
+          path="/dashboard/sub-partners"
           element={
             <ProtectedRoute>
               <DashboardRoute userRole={userRole} />
             </ProtectedRoute>
-          } 
+          }
+        />
+        <Route
+          path="/dashboard/notices"
+          element={
+            <ProtectedRoute>
+              <DashboardRoute userRole={userRole} />
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/dashboard/chat"
