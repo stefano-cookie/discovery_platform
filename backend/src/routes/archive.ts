@@ -152,9 +152,24 @@ router.post('/registrations', authenticate, requireAdmin, async (req: AuthReques
       }
     });
 
+    // Converti Decimal in Number
+    const serializedRegistration = {
+      ...archivedRegistration,
+      finalAmount: Number(archivedRegistration.finalAmount),
+      totalExpected: Number(archivedRegistration.totalExpected),
+      totalPaid: Number(archivedRegistration.totalPaid),
+      totalOutstanding: Number(archivedRegistration.totalOutstanding),
+      paymentProgress: Number(archivedRegistration.paymentProgress),
+      payments: archivedRegistration.payments.map(p => ({
+        ...p,
+        expectedAmount: Number(p.expectedAmount),
+        paidAmount: Number(p.paidAmount)
+      }))
+    };
+
     res.json({
       success: true,
-      registration: archivedRegistration
+      registration: serializedRegistration
     });
   } catch (error: any) {
     console.error('Errore creazione iscrizione archiviata:', error);
@@ -216,10 +231,10 @@ router.get('/stats', authenticate, requireAdmin, async (req: AuthRequest, res: R
       success: true,
       stats: {
         totalRegistrations,
-        totalExpected: aggregates._sum.totalExpected || 0,
-        totalPaid: aggregates._sum.totalPaid || 0,
-        totalOutstanding: aggregates._sum.totalOutstanding || 0,
-        averageProgress: aggregates._avg.paymentProgress || 0,
+        totalExpected: Number(aggregates._sum.totalExpected || 0),
+        totalPaid: Number(aggregates._sum.totalPaid || 0),
+        totalOutstanding: Number(aggregates._sum.totalOutstanding || 0),
+        averageProgress: Number(aggregates._avg.paymentProgress || 0),
         paymentStatusCounts: paymentStatusCounts.reduce((acc: any, item: any) => {
           acc[item.status] = item._count;
           return acc;
@@ -312,9 +327,24 @@ router.get('/registrations', authenticate, requireAdmin, async (req: AuthRequest
       prisma.archivedRegistration.count({ where })
     ]);
 
+    // Converti Decimal in Number
+    const serializedRegistrations = registrations.map(reg => ({
+      ...reg,
+      finalAmount: Number(reg.finalAmount),
+      totalExpected: Number(reg.totalExpected),
+      totalPaid: Number(reg.totalPaid),
+      totalOutstanding: Number(reg.totalOutstanding),
+      paymentProgress: Number(reg.paymentProgress),
+      payments: reg.payments.map(p => ({
+        ...p,
+        expectedAmount: Number(p.expectedAmount),
+        paidAmount: Number(p.paidAmount)
+      }))
+    }));
+
     res.json({
       success: true,
-      registrations,
+      registrations: serializedRegistrations,
       pagination: {
         total,
         page: pageNum,
@@ -354,9 +384,24 @@ router.get('/registrations/:id', authenticate, requireAdmin, async (req: AuthReq
       return res.status(404).json({ error: 'Iscrizione archiviata non trovata' });
     }
 
+    // Converti Decimal in Number
+    const serializedRegistration = {
+      ...registration,
+      finalAmount: Number(registration.finalAmount),
+      totalExpected: Number(registration.totalExpected),
+      totalPaid: Number(registration.totalPaid),
+      totalOutstanding: Number(registration.totalOutstanding),
+      paymentProgress: Number(registration.paymentProgress),
+      payments: registration.payments.map(p => ({
+        ...p,
+        expectedAmount: Number(p.expectedAmount),
+        paidAmount: Number(p.paidAmount)
+      }))
+    };
+
     res.json({
       success: true,
-      registration
+      registration: serializedRegistration
     });
   } catch (error: any) {
     console.error('Errore recupero dettaglio iscrizione archiviata:', error);
@@ -494,9 +539,24 @@ router.patch('/registrations/:id', authenticate, requireAdmin, async (req: AuthR
       }
     });
 
+    // Converti Decimal in Number
+    const serializedUpdated = {
+      ...updated,
+      finalAmount: Number(updated.finalAmount),
+      totalExpected: Number(updated.totalExpected),
+      totalPaid: Number(updated.totalPaid),
+      totalOutstanding: Number(updated.totalOutstanding),
+      paymentProgress: Number(updated.paymentProgress),
+      payments: updated.payments.map(p => ({
+        ...p,
+        expectedAmount: Number(p.expectedAmount),
+        paidAmount: Number(p.paidAmount)
+      }))
+    };
+
     res.json({
       success: true,
-      registration: updated
+      registration: serializedUpdated
     });
   } catch (error: any) {
     console.error('Errore modifica iscrizione archiviata:', error);
