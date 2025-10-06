@@ -72,6 +72,22 @@ const ArchiveEdit: React.FC = () => {
   // Pagamenti
   const [payments, setPayments] = useState<PaymentItem[]>([]);
 
+  // Documenti
+  const [documentsZipUrl, setDocumentsZipUrl] = useState('');
+  const [documentsZipKey, setDocumentsZipKey] = useState('');
+  const [contractPdfUrl, setContractPdfUrl] = useState('');
+  const [contractPdfKey, setContractPdfKey] = useState('');
+  const [zipFile, setZipFile] = useState<File | null>(null);
+  const [contractFile, setContractFile] = useState<File | null>(null);
+  const [uploadingZip, setUploadingZip] = useState(false);
+  const [uploadingContract, setUploadingContract] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [contractUploadProgress, setContractUploadProgress] = useState(0);
+
+  // Drag & Drop states
+  const [isDraggingZip, setIsDraggingZip] = useState(false);
+  const [isDraggingContract, setIsDraggingContract] = useState(false);
+
   // Carica dati esistenti
   useEffect(() => {
     loadRegistration();
@@ -115,6 +131,16 @@ const ArchiveEdit: React.FC = () => {
         status: p.status
       }));
       setPayments(paymentsData);
+
+      // Carica documenti esistenti
+      if ((reg as any).documentsZipUrl) {
+        setDocumentsZipUrl((reg as any).documentsZipUrl);
+        setDocumentsZipKey((reg as any).documentsZipKey || '');
+      }
+      if ((reg as any).contractPdfUrl) {
+        setContractPdfUrl((reg as any).contractPdfUrl);
+        setContractPdfKey((reg as any).contractPdfKey || '');
+      }
     } catch (err: any) {
       console.error('Errore caricamento:', err);
       setError(err.response?.data?.error || 'Errore durante il caricamento');
@@ -145,6 +171,189 @@ const ArchiveEdit: React.FC = () => {
     setPayments(updated);
   };
 
+  // Upload ZIP
+  const handleZipUpload = async (file: File) => {
+    try {
+      setUploadingZip(true);
+      setUploadProgress(0);
+
+      const formData = new FormData();
+      formData.append('zipFile', file);
+      formData.append('registrationId', id || 'temp');
+      formData.append('companyName', companyName);
+      formData.append('userName', `${firstName} ${lastName}`);
+      formData.append('originalYear', originalYear);
+
+      const token = localStorage.getItem('token');
+      const response = await axios.post(`${API_URL}/admin/archive/upload-zip`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(percentCompleted);
+          }
+        }
+      });
+
+      setDocumentsZipUrl(response.data.url);
+      setDocumentsZipKey(response.data.key);
+      setError('');
+    } catch (err: any) {
+      console.error('Errore upload ZIP:', err);
+      setError(err.response?.data?.error || 'Errore durante l\'upload del file');
+      setZipFile(null);
+    } finally {
+      setUploadingZip(false);
+    }
+  };
+
+  const handleContractUpload = async (file: File) => {
+    try {
+      setUploadingContract(true);
+      setContractUploadProgress(0);
+
+      const formData = new FormData();
+      formData.append('contractFile', file);
+      formData.append('registrationId', id || 'temp');
+      formData.append('companyName', companyName);
+      formData.append('userName', `${firstName} ${lastName}`);
+      formData.append('originalYear', originalYear);
+
+      const token = localStorage.getItem('token');
+      const response = await axios.post(`${API_URL}/admin/archive/upload-contract`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setContractUploadProgress(percentCompleted);
+          }
+        }
+      });
+
+      setContractPdfUrl(response.data.url);
+      setContractPdfKey(response.data.key);
+      setError('');
+    } catch (err: any) {
+      console.error('Errore upload contratto:', err);
+      setError(err.response?.data?.error || 'Errore durante l\'upload del contratto');
+      setContractFile(null);
+    } finally {
+      setUploadingContract(false);
+    }
+  };
+
+  const handleZipFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 50 * 1024 * 1024) {
+        setError('Il file è troppo grande. Dimensione massima: 50MB');
+        return;
+      }
+      if (!file.name.toLowerCase().endsWith('.zip')) {
+        setError('Solo file ZIP sono permessi');
+        return;
+      }
+      setZipFile(file);
+      handleZipUpload(file);
+    }
+  };
+
+  const handleContractFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        setError('Il file è troppo grande. Dimensione massima: 10MB');
+        return;
+      }
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        setError('Solo file PDF sono permessi per i contratti');
+        return;
+      }
+      setContractFile(file);
+      handleContractUpload(file);
+    }
+  };
+
+  // Drag & Drop Handlers per ZIP
+  const handleZipDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingZip(true);
+  };
+
+  const handleZipDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingZip(false);
+  };
+
+  const handleZipDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleZipDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingZip(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      if (file.size > 50 * 1024 * 1024) {
+        setError('Il file è troppo grande. Dimensione massima: 50MB');
+        return;
+      }
+      if (!file.name.toLowerCase().endsWith('.zip')) {
+        setError('Solo file ZIP sono permessi');
+        return;
+      }
+      setZipFile(file);
+      handleZipUpload(file);
+    }
+  };
+
+  // Drag & Drop Handlers per PDF contratto
+  const handleContractDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingContract(true);
+  };
+
+  const handleContractDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingContract(false);
+  };
+
+  const handleContractDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleContractDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingContract(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        setError('Il file è troppo grande. Dimensione massima: 10MB');
+        return;
+      }
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        setError('Solo file PDF sono permessi per i contratti');
+        return;
+      }
+      setContractFile(file);
+      handleContractUpload(file);
+    }
+  };
+
   const handleSave = async () => {
     try {
       setSaving(true);
@@ -169,6 +378,10 @@ const ArchiveEdit: React.FC = () => {
           finalAmount: parseFloat(finalAmount),
           installments: parseInt(installments),
           originalYear: parseInt(originalYear),
+          documentsZipUrl: documentsZipUrl || null,
+          documentsZipKey: documentsZipKey || null,
+          contractPdfUrl: contractPdfUrl || null,
+          contractPdfKey: contractPdfKey || null,
           payments: payments.map(p => ({
             type: p.type,
             label: p.label,
@@ -443,6 +656,97 @@ const ArchiveEdit: React.FC = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Documenti */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold mb-4">Documenti</h2>
+
+            {/* ZIP Documenti */}
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">File ZIP Documenti</h3>
+              <div
+                className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+                  isDraggingZip ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                }`}
+                onDragEnter={handleZipDragEnter}
+                onDragLeave={handleZipDragLeave}
+                onDragOver={handleZipDragOver}
+                onDrop={handleZipDrop}
+              >
+                {!zipFile && !documentsZipUrl ? (
+                  <>
+                    <svg className="mx-auto h-8 w-8 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <label className="mt-2 cursor-pointer inline-flex items-center px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+                      <span>Carica ZIP</span>
+                      <input type="file" accept=".zip" className="sr-only" onChange={handleZipFileChange} disabled={uploadingZip} />
+                    </label>
+                    <p className="mt-1 text-xs text-gray-500">o trascina qui il file ZIP (max 50MB)</p>
+                  </>
+                ) : uploadingZip ? (
+                  <div className="space-y-2">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <div className="text-xs text-gray-600">Upload... {uploadProgress}%</div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${uploadProgress}%` }}></div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <svg className="h-8 w-8 text-green-600 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <div className="text-sm font-medium text-gray-900">{zipFile?.name || 'File caricato'}</div>
+                    <button onClick={() => { setZipFile(null); setDocumentsZipUrl(''); }} className="text-xs text-red-600 hover:text-red-800">Rimuovi</button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* PDF Contratto */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Contratto PDF</h3>
+              <div
+                className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+                  isDraggingContract ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                }`}
+                onDragEnter={handleContractDragEnter}
+                onDragLeave={handleContractDragLeave}
+                onDragOver={handleContractDragOver}
+                onDrop={handleContractDrop}
+              >
+                {!contractFile && !contractPdfUrl ? (
+                  <>
+                    <svg className="mx-auto h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    <label className="mt-2 cursor-pointer inline-flex items-center px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700">
+                      <span>Carica PDF</span>
+                      <input type="file" accept=".pdf" className="sr-only" onChange={handleContractFileChange} disabled={uploadingContract} />
+                    </label>
+                    <p className="mt-1 text-xs text-gray-500">o trascina qui il file PDF (max 10MB)</p>
+                  </>
+                ) : uploadingContract ? (
+                  <div className="space-y-2">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+                    <div className="text-xs text-gray-600">Upload... {contractUploadProgress}%</div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div className="bg-green-600 h-1.5 rounded-full" style={{ width: `${contractUploadProgress}%` }}></div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <svg className="h-8 w-8 text-green-600 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <div className="text-sm font-medium text-gray-900">{contractFile?.name || 'File caricato'}</div>
+                    <button onClick={() => { setContractFile(null); setContractPdfUrl(''); }} className="text-xs text-red-600 hover:text-red-800">Rimuovi</button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

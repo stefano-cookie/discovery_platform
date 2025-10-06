@@ -397,6 +397,9 @@ router.patch('/registrations/:id', authenticate, requireAdmin, async (req: AuthR
 
       // Documenti
       documentsZipUrl,
+      documentsZipKey,
+      contractPdfUrl,
+      contractPdfKey,
 
       // Metadata
       originalYear,
@@ -465,6 +468,9 @@ router.patch('/registrations/:id', authenticate, requireAdmin, async (req: AuthR
 
         // Documenti
         ...(documentsZipUrl !== undefined && { documentsZipUrl }),
+        ...(documentsZipKey !== undefined && { documentsZipKey }),
+        ...(contractPdfUrl !== undefined && { contractPdfUrl }),
+        ...(contractPdfKey !== undefined && { contractPdfKey }),
 
         // Metadata
         ...(originalYear && { originalYear: parseInt(originalYear) }),
