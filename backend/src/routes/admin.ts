@@ -779,7 +779,11 @@ router.get('/users', authenticate, requireAdmin, async (req: AuthRequest, res) =
   try {
     const { role, search, page = '1', limit = '50' } = req.query;
 
-    const where: any = {};
+    const where: any = {
+      // Escludi ADMIN dalla lista utenti (sono super admin, non utenti della piattaforma)
+      role: { not: 'ADMIN' }
+    };
+
     if (role) where.role = role;
     if (search) {
       where.OR = [
@@ -1158,6 +1162,261 @@ router.get('/export/registrations', authenticate, requireAdmin, async (req: Auth
     res.end();
   } catch (error) {
     console.error('Error exporting registrations:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/admin/export/revenue
+ * Export Excel revenue per company con breakdown commissioni
+ */
+router.get('/export/revenue', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { dateFrom, dateTo, onlyActive, includeBreakdown } = req.query;
+
+    // Build filters
+    const where: any = {};
+
+    if (onlyActive === 'true') {
+      where.isActive = true;
+    }
+
+    if (dateFrom || dateTo) {
+      where.registrations = {
+        some: {
+          createdAt: {
+            ...(dateFrom ? { gte: new Date(dateFrom as string) } : {}),
+            ...(dateTo ? { lte: new Date(dateTo as string) } : {})
+          }
+        }
+      };
+    }
+
+    // Fetch companies with registrations
+    const companies: any[] = await prisma.partnerCompany.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        registrations: {
+          where: {
+            ...(dateFrom || dateTo ? {
+              createdAt: {
+                ...(dateFrom ? { gte: new Date(dateFrom as string) } : {}),
+                ...(dateTo ? { lte: new Date(dateTo as string) } : {})
+              }
+            } : {}),
+            status: {
+              in: ['ENROLLED', 'CONTRACT_SIGNED', 'DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED']
+            }
+          },
+          select: {
+            id: true,
+            finalAmount: true,
+            courseId: true,
+            course: {
+              select: {
+                id: true,
+                name: true,
+                templateType: true
+              }
+            }
+          }
+        }
+      }
+    } as any);
+
+    const exporter = new ExcelExporter('Revenue per Company');
+
+    // Define columns based on includeBreakdown
+    const columns: any[] = [
+      { header: 'Company', key: 'company', width: 30 },
+      { header: 'Totale Iscrizioni', key: 'totalRegistrations', width: 15 },
+      { header: 'Revenue Totale', key: 'totalRevenue', width: 15 }
+    ];
+
+    if (includeBreakdown === 'true') {
+      columns.push(
+        { header: 'Iscrizioni TFA', key: 'tfaCount', width: 15 },
+        { header: 'Revenue TFA', key: 'tfaRevenue', width: 15 },
+        { header: 'Iscrizioni CERT', key: 'certCount', width: 15 },
+        { header: 'Revenue CERT', key: 'certRevenue', width: 15 }
+      );
+    }
+
+    exporter.setColumns(columns);
+
+    // Calculate revenue per company
+    const rows = companies.map((company: any) => {
+      const totalRevenue = company.registrations.reduce(
+        (sum: number, reg: any) => sum + Number(reg.finalAmount || 0),
+        0
+      );
+
+      const tfaRegistrations = company.registrations.filter(
+        (reg: any) => reg.course?.templateType === 'TFA'
+      );
+      const certRegistrations = company.registrations.filter(
+        (reg: any) => reg.course?.templateType === 'CERTIFICATION'
+      );
+
+      const tfaRevenue = tfaRegistrations.reduce(
+        (sum: number, reg: any) => sum + Number(reg.finalAmount || 0),
+        0
+      );
+      const certRevenue = certRegistrations.reduce(
+        (sum: number, reg: any) => sum + Number(reg.finalAmount || 0),
+        0
+      );
+
+      const row: any = {
+        company: company.name,
+        totalRegistrations: company.registrations.length,
+        totalRevenue: ExcelFormatters.currency(totalRevenue)
+      };
+
+      if (includeBreakdown === 'true') {
+        row.tfaCount = tfaRegistrations.length;
+        row.tfaRevenue = ExcelFormatters.currency(tfaRevenue);
+        row.certCount = certRegistrations.length;
+        row.certRevenue = ExcelFormatters.currency(certRevenue);
+      }
+
+      return row;
+    });
+
+    exporter.addRows(rows);
+
+    const buffer = await exporter.generate();
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', 'attachment; filename=revenue_companies.xlsx');
+
+    res.send(buffer);
+    res.end();
+  } catch (error) {
+    console.error('Error exporting revenue:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/admin/export/users
+ * Export Excel utenti con dati completi
+ */
+router.get('/export/users', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { companyId, role, status, emailVerified, hasRegistrations } = req.query;
+
+    // Build filters
+    const where: any = {
+      // Escludi ADMIN dalla lista utenti
+      role: { not: 'ADMIN' }
+    };
+
+    if (companyId) {
+      where.assignedPartnerCompanyId = companyId;
+    }
+
+    if (role && role !== 'all') {
+      where.role = role;
+    }
+
+    if (status === 'active') {
+      where.isActive = true;
+    } else if (status === 'inactive') {
+      where.isActive = false;
+    }
+
+    if (emailVerified === 'verified') {
+      where.emailVerified = true;
+    } else if (emailVerified === 'unverified') {
+      where.emailVerified = false;
+    }
+
+    if (hasRegistrations === 'with') {
+      where.registrations = { some: {} };
+    } else if (hasRegistrations === 'without') {
+      where.registrations = { none: {} };
+    }
+
+    // Fetch users
+    const users = await prisma.user.findMany({
+      where,
+      include: {
+        profile: true,
+        assignedPartnerCompany: {
+          select: {
+            name: true,
+            referralCode: true
+          }
+        },
+        _count: {
+          select: {
+            registrations: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    const exporter = new ExcelExporter('Utenti Discovery');
+
+    exporter.setColumns([
+      { header: 'ID', key: 'id', width: 30 },
+      { header: 'Email', key: 'email', width: 30 },
+      { header: 'Nome', key: 'nome', width: 20 },
+      { header: 'Cognome', key: 'cognome', width: 20 },
+      { header: 'Codice Fiscale', key: 'codiceFiscale', width: 20 },
+      { header: 'Telefono', key: 'telefono', width: 15 },
+      { header: 'Data Nascita', key: 'dataNascita', width: 15 },
+      { header: 'Luogo Nascita', key: 'luogoNascita', width: 20 },
+      { header: 'Company', key: 'company', width: 30 },
+      { header: 'Referral Code', key: 'referralCode', width: 15 },
+      { header: 'Ruolo', key: 'role', width: 15 },
+      { header: 'Status', key: 'status', width: 15 },
+      { header: 'Email Verificata', key: 'emailVerified', width: 15 },
+      { header: 'Iscrizioni', key: 'registrationsCount', width: 10 },
+      { header: 'Data Creazione', key: 'createdAt', width: 15 }
+    ]);
+
+    const rows = users.map(user => ({
+      id: user.id,
+      email: user.email,
+      nome: user.profile?.nome || '',
+      cognome: user.profile?.cognome || '',
+      codiceFiscale: user.profile?.codiceFiscale || '',
+      telefono: user.profile?.telefono || '',
+      dataNascita: user.profile?.dataNascita ? ExcelFormatters.date(user.profile.dataNascita) : '',
+      luogoNascita: user.profile?.luogoNascita || '',
+      company: user.assignedPartnerCompany?.name || 'Nessuna',
+      referralCode: user.assignedPartnerCompany?.referralCode || '',
+      role: user.role,
+      status: user.isActive ? 'Attivo' : 'Inattivo',
+      emailVerified: user.emailVerified ? 'Sì' : 'No',
+      registrationsCount: user._count.registrations,
+      createdAt: ExcelFormatters.date(user.createdAt)
+    }));
+
+    exporter.addRows(rows);
+
+    const buffer = await exporter.generate();
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', 'attachment; filename=utenti_discovery.xlsx');
+
+    res.send(buffer);
+    res.end();
+  } catch (error) {
+    console.error('Error exporting users:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

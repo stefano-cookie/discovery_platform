@@ -55,10 +55,20 @@ export const AdminExport: React.FC = () => {
     try {
       setLoading({ ...loading, registrations: true });
 
-      const response = await api.post(
+      // Build query params
+      const params: any = {};
+      if (registrationFilters.companyId) params.companyId = registrationFilters.companyId;
+      if (registrationFilters.courseType) params.courseType = registrationFilters.courseType;
+      if (registrationFilters.status.length > 0) params.status = registrationFilters.status.join(',');
+      if (registrationFilters.dateFrom) params.dateFrom = registrationFilters.dateFrom;
+      if (registrationFilters.dateTo) params.dateTo = registrationFilters.dateTo;
+
+      const response = await api.get(
         '/admin/export/registrations',
-        { filters: registrationFilters },
-        { responseType: 'blob' }
+        {
+          params,
+          responseType: 'blob'
+        }
       );
 
       // Download file
@@ -84,10 +94,19 @@ export const AdminExport: React.FC = () => {
     try {
       setLoading({ ...loading, revenue: true });
 
-      const response = await api.post(
+      // Build query params
+      const params: any = {};
+      if (revenueFilters.dateFrom) params.dateFrom = revenueFilters.dateFrom;
+      if (revenueFilters.dateTo) params.dateTo = revenueFilters.dateTo;
+      params.onlyActive = revenueFilters.onlyActive.toString();
+      params.includeBreakdown = revenueFilters.includeBreakdown.toString();
+
+      const response = await api.get(
         '/admin/export/revenue',
-        { filters: revenueFilters },
-        { responseType: 'blob' }
+        {
+          params,
+          responseType: 'blob'
+        }
       );
 
       // Download file

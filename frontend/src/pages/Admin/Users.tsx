@@ -98,6 +98,46 @@ export const AdminUsers: React.FC = () => {
     }
   };
 
+  const handleExportUsers = async () => {
+    try {
+      // Build query params based on active filters
+      const params: any = {};
+
+      if (selectedCompany) {
+        params.companyId = selectedCompany;
+      }
+
+      if (statusFilter !== 'all') {
+        params.status = statusFilter;
+      }
+
+      if (emailVerifiedFilter !== 'all') {
+        params.emailVerified = emailVerifiedFilter;
+      }
+
+      if (registrationsFilter !== 'all') {
+        params.hasRegistrations = registrationsFilter === 'with' ? 'with' : 'without';
+      }
+
+      const response = await api.get('/admin/export/users', {
+        params,
+        responseType: 'blob'
+      });
+
+      // Download file
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Utenti_${new Date().toISOString().split('T')[0]}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error('Error exporting users:', error);
+      alert('Errore durante l\'export degli utenti');
+    }
+  };
+
   const handleViewDetail = (user: User) => {
     setSelectedUser(user);
     setShowDetailModal(true);
@@ -194,7 +234,10 @@ export const AdminUsers: React.FC = () => {
             {hasActiveFilters && ` (${filteredUsers.length} filtrati)`}
           </p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+        <button
+          onClick={handleExportUsers}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+        >
           <Download className="w-5 h-5" />
           Esporta Excel
         </button>
@@ -415,7 +458,9 @@ export const AdminUsers: React.FC = () => {
                       <div className="font-medium text-gray-900">
                         {user.profile?.nome && user.profile?.cognome
                           ? `${user.profile.cognome} ${user.profile.nome}`
-                          : 'N/A'}
+                          : user.role === 'ADMIN'
+                          ? 'Admin'
+                          : user.email.split('@')[0]}
                       </div>
                       <div className="text-sm text-gray-500">{user.email}</div>
                       <div className="flex items-center gap-2 mt-1">

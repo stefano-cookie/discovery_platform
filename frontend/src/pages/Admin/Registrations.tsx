@@ -140,6 +140,46 @@ export const AdminRegistrations: React.FC = () => {
     }
   };
 
+  const handleExportRegistrations = async () => {
+    try {
+      // Build query params based on active filters
+      const params: any = {};
+
+      if (selectedCompany) {
+        params.companyId = selectedCompany;
+      }
+
+      if (selectedStatuses.length > 0) {
+        params.status = selectedStatuses.join(',');
+      }
+
+      if (dateFrom) {
+        params.dateFrom = dateFrom;
+      }
+
+      if (dateTo) {
+        params.dateTo = dateTo;
+      }
+
+      const response = await api.get('/admin/export/registrations', {
+        params,
+        responseType: 'blob'
+      });
+
+      // Download file
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Iscrizioni_${new Date().toISOString().split('T')[0]}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error('Error exporting registrations:', error);
+      alert('Errore durante l\'export delle iscrizioni');
+    }
+  };
+
   const formatCurrency = (amount: number | null) => {
     if (amount === null) return '€ 0,00';
     return new Intl.NumberFormat('it-IT', {
@@ -304,7 +344,10 @@ export const AdminRegistrations: React.FC = () => {
             {hasActiveFilters && ` (${registrations.length} filtrate)`}
           </p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+        <button
+          onClick={handleExportRegistrations}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+        >
           <Download className="w-5 h-5" />
           Esporta Excel
         </button>
