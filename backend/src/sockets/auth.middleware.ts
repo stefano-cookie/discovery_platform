@@ -29,11 +29,56 @@ export const authenticateSocket = async (
     // Verify JWT token
     const decoded = jwt.verify(token, JWT_SECRET) as any;
 
-    if (!decoded || !decoded.userId) {
+    if (!decoded) {
       return next(new Error('Invalid token'));
     }
 
-    // Fetch user from database
+    // Check if it's a partner token (type: 'partner') or user token (userId)
+    if (decoded.type === 'partner') {
+      // Partner Employee token
+      const partnerEmployee = await prisma.partnerEmployee.findUnique({
+        where: { id: decoded.id },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          isActive: true,
+          partnerCompanyId: true,
+        },
+      });
+
+      if (!partnerEmployee) {
+        return next(new Error('Partner employee not found'));
+      }
+
+      if (!partnerEmployee.isActive) {
+        return next(new Error('Partner account is inactive'));
+      }
+
+      // Attach partner data to socket
+      const socketData: SocketData = {
+        userId: partnerEmployee.id,
+        role: 'PARTNER',
+        email: partnerEmployee.email,
+        partnerId: partnerEmployee.partnerCompanyId,
+      };
+
+      socket.data = socketData;
+
+      console.log(
+        `[WebSocket] Authenticated Partner: ${partnerEmployee.email} (${partnerEmployee.role}) - Company: ${partnerEmployee.partnerCompanyId}`
+      );
+
+      return next();
+    }
+
+    // Standard User token
+    if (!decoded.userId) {
+      return next(new Error('Invalid token format'));
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       select: {
@@ -68,7 +113,7 @@ export const authenticateSocket = async (
     socket.data = socketData;
 
     console.log(
-      `[WebSocket] Authenticated: ${user.email} (${user.role})${
+      `[WebSocket] Authenticated User: ${user.email} (${user.role})${
         user.partner ? ` - Partner: ${user.partner.id}` : ''
       }`
     );
