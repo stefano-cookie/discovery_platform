@@ -16,11 +16,12 @@ interface ArchiveUploadResult {
  * - legacy-archive-contracts: PDF contratti
  */
 class ArchiveStorageService {
-  private s3Client: S3Client;
+  private s3Client: S3Client | null = null;
   private docsBucketName: string;
   private contractsBucketName: string;
   private docsPublicUrl: string;
   private contractsPublicUrl: string;
+  private isConfigured: boolean = false;
 
   constructor() {
     // Verifica variabili d'ambiente obbligatorie
@@ -35,9 +36,18 @@ class ArchiveStorageService {
       .map(([key]) => key);
 
     if (missingVars.length > 0) {
-      const errorMsg = `[ArchiveStorageService] FATAL: Missing required environment variables: ${missingVars.join(', ')}`;
-      console.error(errorMsg);
-      throw new Error(errorMsg);
+      // ⚠️ NON bloccare il server - solo warning
+      console.warn(`[ArchiveStorageService] ⚠️ Not configured - missing env vars: ${missingVars.join(', ')}`);
+      console.warn(`[ArchiveStorageService] Archive features will be disabled until configuration is complete`);
+      console.warn(`[ArchiveStorageService] See backend/R2_SETUP_PRODUCTION.md for setup instructions`);
+
+      // Imposta valori default ma segna come non configurato
+      this.docsBucketName = 'legacy-archive-docs';
+      this.contractsBucketName = 'legacy-archive-contracts';
+      this.docsPublicUrl = '';
+      this.contractsPublicUrl = '';
+      this.isConfigured = false;
+      return;
     }
 
     // Cloudflare R2 Archive configuration (shared credentials)
@@ -58,11 +68,25 @@ class ArchiveStorageService {
     this.contractsBucketName = process.env.R2_ARCHIVE_CONTRACTS_BUCKET_NAME || 'legacy-archive-contracts';
     this.contractsPublicUrl = process.env.R2_ARCHIVE_CONTRACTS_PUBLIC_URL || '';
 
+    this.isConfigured = true;
+
     console.log(`[ArchiveStorageService] ✅ Initialized successfully`);
     console.log(`[ArchiveStorageService] Docs Bucket: ${this.docsBucketName}`);
     console.log(`[ArchiveStorageService] Contracts Bucket: ${this.contractsBucketName}`);
     console.log(`[ArchiveStorageService] Endpoint: ${process.env.R2_ARCHIVE_ENDPOINT}`);
     console.log(`[ArchiveStorageService] Has credentials: ${!!process.env.R2_ARCHIVE_ACCESS_KEY_ID}`);
+  }
+
+  /**
+   * Verifica se il service è configurato correttamente
+   */
+  private ensureConfigured(): void {
+    if (!this.isConfigured || !this.s3Client) {
+      throw new Error(
+        'Archive storage not configured. Please set R2_ARCHIVE_* environment variables. ' +
+        'See backend/R2_SETUP_PRODUCTION.md for instructions.'
+      );
+    }
   }
 
   /**
@@ -78,6 +102,8 @@ class ArchiveStorageService {
       originalYear: number;
     }
   ): Promise<ArchiveUploadResult> {
+    this.ensureConfigured();
+
     const timestamp = Date.now();
     const randomId = crypto.randomBytes(8).toString('hex');
     const sanitizedFileName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
@@ -105,7 +131,7 @@ class ArchiveStorageService {
         },
       });
 
-      await this.s3Client.send(command);
+      await this.s3Client!.send(command);
       console.log(`[ArchiveStorageService] ✅ ZIP uploaded successfully: ${key}`);
 
       // Genera URL pubblico se configurato, altrimenti usa endpoint
@@ -144,6 +170,8 @@ class ArchiveStorageService {
       originalYear: number;
     }
   ): Promise<ArchiveUploadResult> {
+    this.ensureConfigured();
+
     const timestamp = Date.now();
     const randomId = crypto.randomBytes(8).toString('hex');
     const sanitizedFileName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
@@ -172,7 +200,7 @@ class ArchiveStorageService {
         },
       });
 
-      await this.s3Client.send(command);
+      await this.s3Client!.send(command);
       console.log(`[ArchiveStorageService] ✅ Contract PDF uploaded successfully: ${key}`);
 
       // Genera URL pubblico (necessario per preview PDF)
@@ -204,6 +232,8 @@ class ArchiveStorageService {
    * @param bucketType - 'docs' per ZIP documenti, 'contracts' per PDF contratti
    */
   async getSignedDownloadUrl(key: string, bucketType: 'docs' | 'contracts' = 'docs'): Promise<string> {
+    this.ensureConfigured();
+
     try {
       const bucketName = bucketType === 'contracts' ? this.contractsBucketName : this.docsBucketName;
 
@@ -212,7 +242,7 @@ class ArchiveStorageService {
         Key: key,
       });
 
-      const signedUrl = await getSignedUrl(this.s3Client, command, {
+      const signedUrl = await getSignedUrl(this.s3Client!, command, {
         expiresIn: 3600, // 1 hour
       });
 
@@ -241,6 +271,8 @@ class ArchiveStorageService {
    * @param bucketType - 'docs' per ZIP documenti, 'contracts' per PDF contratti
    */
   async deleteFile(key: string, bucketType: 'docs' | 'contracts' = 'docs'): Promise<void> {
+    this.ensureConfigured();
+
     try {
       const bucketName = bucketType === 'contracts' ? this.contractsBucketName : this.docsBucketName;
 
@@ -249,7 +281,7 @@ class ArchiveStorageService {
         Key: key,
       });
 
-      await this.s3Client.send(command);
+      await this.s3Client!.send(command);
       console.log(`[ArchiveStorageService] Deleted file from ${bucketType}: ${key}`);
     } catch (error) {
       console.error('[ArchiveStorageService] Error deleting file:', error);
