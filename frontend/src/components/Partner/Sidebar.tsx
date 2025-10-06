@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { usePartnerAuth } from '../../hooks/usePartnerAuth';
+import { useRealtimeNotices } from '../../hooks/useRealtimeNotices';
 import LogoutDropdown from '../UI/LogoutDropdown';
 
 interface SidebarProps {
@@ -9,6 +10,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
   const { partnerEmployee, partnerCompany, logout } = usePartnerAuth();
+  const { unreadCount } = useRealtimeNotices(); // Get unread notices count
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showLogoutDropdown, setShowLogoutDropdown] = useState(false);
 
@@ -170,7 +172,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
               <button
                 key={item.id}
                 onClick={() => onTabChange(item.id as any)}
-                className={`group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md transition-colors ${
+                className={`relative group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md transition-colors ${
                   activeTab === item.id
                     ? 'bg-gray-700 text-white'
                     : 'text-gray-300 hover:bg-gray-700 hover:text-white'
@@ -182,10 +184,22 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
                 {!isCollapsed && (
                   <div className="flex items-center justify-between w-full">
                     <span>{item.name}</span>
-                    {(item as any).isPremium && (
-                      <span className="ml-2 text-yellow-400 text-xs">⭐</span>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {(item as any).isPremium && (
+                        <span className="text-yellow-400 text-xs">⭐</span>
+                      )}
+                      {item.id === 'notices' && unreadCount > 0 && (
+                        <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center animate-pulse">
+                          {unreadCount}
+                        </span>
+                      )}
+                    </div>
                   </div>
+                )}
+                {isCollapsed && item.id === 'notices' && unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 bg-red-500 text-white text-xs font-bold w-4 h-4 flex items-center justify-center rounded-full animate-pulse">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
                 )}
               </button>
             ))}
