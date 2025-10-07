@@ -54,12 +54,18 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       auth: {
         token,
       },
-      transports: ['websocket', 'polling'], // Try websocket first, fallback to polling
+      // Use polling first for Render free tier (WebSocket has issues behind proxy)
+      transports: ['polling', 'websocket'],
+      // Enable upgrade from polling to websocket if possible
+      upgrade: true,
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: Infinity, // Keep trying to reconnect
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      timeout: 10000,
+      timeout: 20000,
+      // Render free tier disconnects after 5 minutes, so use shorter ping interval
+      forceNew: false,
+      multiplex: true,
     });
 
     // Connection events

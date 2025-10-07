@@ -23,15 +23,21 @@ export const initializeSocketIO = (httpServer: HTTPServer): Server => {
     },
     // Connection timeout
     connectTimeout: 10000,
-    // Ping/pong for connection health
-    pingTimeout: 20000,
+    // Ping/pong for connection health (shorter for Render free tier 5min limit)
+    pingTimeout: 60000,
     pingInterval: 25000,
-    // Enable long-polling fallback for Render/proxy compatibility
-    transports: ['websocket', 'polling'],
-    // Allow upgrades from HTTP to WebSocket
+    // Use polling first for Render free tier (better proxy support)
+    transports: ['polling', 'websocket'],
+    // Allow upgrades from polling to WebSocket
     allowUpgrades: true,
     // For deployment behind proxies (like Render)
     path: '/socket.io/',
+    // Max HTTP buffer size
+    maxHttpBufferSize: 1e6,
+    // Allow requests from proxy
+    allowRequest: (_req, callback) => {
+      callback(null, true);
+    },
   };
 
   const io = new Server(httpServer, socketOptions);
