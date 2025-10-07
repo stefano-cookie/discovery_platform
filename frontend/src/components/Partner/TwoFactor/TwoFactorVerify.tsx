@@ -58,19 +58,9 @@ const TwoFactorVerify: React.FC<TwoFactorVerifyProps> = ({
       setLoading(true);
       setError(null);
 
-      console.log('[TwoFactorVerify] Sending verification request...');
-
       const response = await api.post('/auth/2fa/verify', {
         sessionToken,
         code,
-      });
-
-      console.log('[TwoFactorVerify] Verification SUCCESS:', {
-        hasToken: !!response.data.token,
-        hasEmployee: !!response.data.employee,
-        employeeId: response.data.employee?.id,
-        companyId: response.data.employee?.partnerCompany?.id,
-        tokenPreview: response.data.token?.substring(0, 20) + '...'
       });
 
       onSuccess(
@@ -79,7 +69,6 @@ const TwoFactorVerify: React.FC<TwoFactorVerifyProps> = ({
         response.data.employee.partnerCompany
       );
     } catch (err: any) {
-      console.error('[TwoFactorVerify] Verification FAILED:', err);
       const errorData = err.response?.data;
       setError(errorData?.error || 'Codice non valido. Riprova.');
 
@@ -113,10 +102,6 @@ const TwoFactorVerify: React.FC<TwoFactorVerifyProps> = ({
         response.data.employee,
         response.data.employee.partnerCompany
       );
-
-      if (response.data.warning) {
-        console.warn(response.data.warning);
-      }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Codice di recupero non valido');
       setRecoveryCode('');

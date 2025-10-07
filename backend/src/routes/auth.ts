@@ -527,32 +527,7 @@ router.post('/register', async (req, res) => {
       domicilioProvincia,
       domicilioCap
     } = req.body;
-    
-    // Debug: log dei dati ricevuti
-    console.log('Registration data received:', {
-      email,
-      hasPassword: !!password,
-      referralCode,
-      employeeId, // 🎯 Track employee parameter
-      cognome,
-      nome,
-      dataNascita,
-      luogoNascita,
-      provinciaNascita,
-      sesso,
-      codiceFiscale,
-      telefono,
-      // Residenza
-      residenzaVia,
-      residenzaCitta,
-      residenzaProvincia,
-      residenzaCap,
-      // Optional fields
-      nomePadre,
-      nomeMadre,
-      hasDifferentDomicilio
-    });
-    
+
     // Validazione campi obbligatori
     if (!email || !password || !cognome || !nome || !dataNascita || !luogoNascita || 
         !provinciaNascita || !sesso || !codiceFiscale || !telefono || 
@@ -1016,14 +991,7 @@ router.get('/check-email-verification/:email', async (req, res) => {
         registrations: true
       }
     });
-    
-    console.log(`🔍 EMAIL CHECK RESULT:`, {
-      userExists: !!user,
-      hasProfile: !!user?.profile,
-      registrationsCount: user?.registrations?.length || 0,
-      emailVerified: user?.emailVerified || false
-    });
-    
+
     if (!user) {
       return res.json({ verified: false, exists: false });
     }

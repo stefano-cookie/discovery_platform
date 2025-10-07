@@ -272,14 +272,6 @@ router.post('/verify', async (req: Request, res: Response) => {
       { expiresIn: '7d' }
     );
 
-    console.log('[2FA] JWT generato:', {
-      id: employee!.id,
-      type: 'partner',
-      email: employee!.email,
-      role: employee!.role,
-      twoFactorVerified: true
-    });
-
     return res.json({
       message: 'Autenticazione completata',
       token,
@@ -369,14 +361,6 @@ router.post('/recovery', async (req: Request, res: Response) => {
       process.env.JWT_SECRET!,
       { expiresIn: '7d' }
     );
-
-    console.log('[2FA Recovery] JWT generato:', {
-      id: employee!.id,
-      type: 'partner',
-      email: employee!.email,
-      role: employee!.role,
-      twoFactorVerified: true
-    });
 
     // Ottieni stato aggiornato
     const status = await twoFactorService.getTwoFactorStatus(partnerEmployeeId);

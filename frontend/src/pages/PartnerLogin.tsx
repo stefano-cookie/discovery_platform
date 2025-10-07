@@ -48,7 +48,6 @@ const PartnerLogin: React.FC = () => {
     } catch (err: any) {
       // Check if it's a 2FA flow error
       if (err instanceof TwoFactorRequiredError) {
-        console.log('2FA verification required');
         // Clear any existing tokens before 2FA
         localStorage.removeItem('partnerToken');
         localStorage.removeItem('partnerEmployee');
@@ -59,7 +58,6 @@ const PartnerLogin: React.FC = () => {
       }
 
       if (err instanceof TwoFactorSetupRequiredError) {
-        console.log('2FA setup required');
         // Clear any existing tokens before 2FA setup
         localStorage.removeItem('partnerToken');
         localStorage.removeItem('partnerEmployee');
@@ -77,26 +75,12 @@ const PartnerLogin: React.FC = () => {
 
   // Handle successful 2FA verification
   const handle2FASuccess = (token: string, employee: any, partnerCompany: any) => {
-    console.log('[PartnerLogin] 2FA Success - Storing auth data:', {
-      hasToken: !!token,
-      employeeId: employee?.id,
-      companyId: partnerCompany?.id,
-      tokenPreview: token?.substring(0, 20) + '...'
-    });
-
     // Store authentication data
     localStorage.setItem('partnerToken', token);
     localStorage.setItem('partnerEmployee', JSON.stringify(employee));
     localStorage.setItem('partnerCompany', JSON.stringify(partnerCompany));
 
-    console.log('[PartnerLogin] Stored in localStorage:', {
-      token: localStorage.getItem('partnerToken')?.substring(0, 20) + '...',
-      employee: localStorage.getItem('partnerEmployee'),
-      company: localStorage.getItem('partnerCompany')
-    });
-
     // Navigate to dashboard
-    console.log('[PartnerLogin] Navigating to /partner/dashboard');
     navigate('/partner/dashboard');
     window.location.reload(); // Reload to update auth context
   };
