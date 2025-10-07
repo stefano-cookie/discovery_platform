@@ -27,13 +27,10 @@ export const useSocket = <T = any>(
       return;
     }
 
-    console.log(`[useSocket] Subscribing to event: ${event}`);
-
     socket.on(event, memoizedCallback);
 
     // Cleanup on unmount or when dependencies change
     return () => {
-      console.log(`[useSocket] Unsubscribing from event: ${event}`);
       socket.off(event, memoizedCallback);
     };
   }, [socket, isConnected, isAuthenticated, event, memoizedCallback]);
@@ -57,11 +54,9 @@ export const useSocketEmit = () => {
   const emit = useCallback(
     (event: string, data?: any) => {
       if (!socket || !isConnected || !isAuthenticated) {
-        console.warn(`[useSocketEmit] Cannot emit "${event}" - socket not ready`);
         return false;
       }
 
-      console.log(`[useSocketEmit] Emitting event: ${event}`, data);
       socket.emit(event, data);
       return true;
     },

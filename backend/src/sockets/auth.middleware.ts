@@ -75,12 +75,15 @@ export const authenticateSocket = async (
     }
 
     // Standard User token
-    if (!decoded.userId) {
+    // Support both 'id' and 'userId' for backward compatibility
+    const userId = decoded.userId || decoded.id;
+
+    if (!userId) {
       return next(new Error('Invalid token format'));
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
+      where: { id: userId },
       select: {
         id: true,
         email: true,

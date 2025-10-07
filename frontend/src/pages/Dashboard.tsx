@@ -12,6 +12,7 @@ import EnrollmentDetail from '../components/Partner/EnrollmentDetail';
 import EmployeesManagement from '../components/Partner/Employees/EmployeesManagement';
 import SubPartnerManagement from '../components/Partner/SubPartnerManagement';
 import LogoutDropdown from '../components/UI/LogoutDropdown';
+import { NoticeProvider } from '../contexts/NoticeContext';
 
 const Dashboard: React.FC = () => {
   const { user, logout: userLogout } = useAuth();
@@ -114,29 +115,31 @@ const Dashboard: React.FC = () => {
         }
 
         return (
-          <div className="flex h-screen bg-gray-50">
-            <Sidebar activeTab={activeTab} onTabChange={handleTabChange} />
-            <div className="flex-1 lg:ml-64">
-              <div className="p-6 lg:p-8">
-                {activeTab === 'dashboard' && !partnerCompany?.parentId && (
-                  <DashboardView 
-                    onNavigateToUsers={() => navigate('/dashboard/users')}
-                    onNavigateToEnrollmentDetail={handleNavigateToEnrollmentDetail}
-                  />
-                )}
-                {activeTab === 'users' && (
-                  <UsersView 
-                    onNavigateToEnrollmentDetail={handleNavigateToEnrollmentDetail}
-                  />
-                )}
-                {activeTab === 'coupons' && !partnerCompany?.parentId && <CouponManagement />}
-                {activeTab === 'offers' && <OfferManagement />}
-                {activeTab === 'collaborators' && <EmployeesManagement />}
-                {activeTab === 'sub-partners' && <SubPartnerManagement />}
-                {activeTab === 'notices' && <NoticeBoardView />}
+          <NoticeProvider>
+            <div className="flex h-screen bg-gray-50">
+              <Sidebar activeTab={activeTab} onTabChange={handleTabChange} />
+              <div className="flex-1 lg:ml-64">
+                <div className="p-6 lg:p-8">
+                  {activeTab === 'dashboard' && !partnerCompany?.parentId && (
+                    <DashboardView
+                      onNavigateToUsers={() => navigate('/dashboard/users')}
+                      onNavigateToEnrollmentDetail={handleNavigateToEnrollmentDetail}
+                    />
+                  )}
+                  {activeTab === 'users' && (
+                    <UsersView
+                      onNavigateToEnrollmentDetail={handleNavigateToEnrollmentDetail}
+                    />
+                  )}
+                  {activeTab === 'coupons' && !partnerCompany?.parentId && <CouponManagement />}
+                  {activeTab === 'offers' && <OfferManagement />}
+                  {activeTab === 'collaborators' && <EmployeesManagement />}
+                  {activeTab === 'sub-partners' && <SubPartnerManagement />}
+                  {activeTab === 'notices' && <NoticeBoardView />}
+                </div>
               </div>
             </div>
-          </div>
+          </NoticeProvider>
         );
       case 'USER':
         return (

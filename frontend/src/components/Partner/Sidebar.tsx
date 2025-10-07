@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { usePartnerAuth } from '../../hooks/usePartnerAuth';
-import { useRealtimeNotices } from '../../hooks/useRealtimeNotices';
+import { useNotices } from '../../contexts/NoticeContext';
 import LogoutDropdown from '../UI/LogoutDropdown';
 
 interface SidebarProps {
@@ -10,9 +10,14 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
   const { partnerEmployee, partnerCompany, logout } = usePartnerAuth();
-  const { unreadCount } = useRealtimeNotices(); // Get unread notices count
+  const { unreadCount } = useNotices(); // Get unread notices count from shared context
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showLogoutDropdown, setShowLogoutDropdown] = useState(false);
+
+  // Debug log for unread count changes
+  React.useEffect(() => {
+    console.log('[Sidebar] Unread count updated:', unreadCount);
+  }, [unreadCount]);
 
   const handleLogoutClick = () => {
     setShowLogoutDropdown(true);
@@ -88,7 +93,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
       name: 'Dipendenti',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20v-2a3 3 0 515.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 0 1 9.288 0M15 7a3 3 0 11-6 0 3 3 0 0 1 6 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
         </svg>
       )
     }

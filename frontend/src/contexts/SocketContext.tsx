@@ -35,7 +35,6 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const connect = useCallback(() => {
     // Don't create multiple connections
     if (socket?.connected) {
-      console.log('[Socket] Already connected');
       return;
     }
 
@@ -43,15 +42,12 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     const token = localStorage.getItem('token') || localStorage.getItem('partnerToken');
 
     if (!token) {
-      console.warn('[Socket] No authentication token found');
       return;
     }
 
     // Remove /api suffix if present - Socket.IO connects to server root
     const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
     const BACKEND_URL = apiUrl.replace(/\/api$/, '');
-
-    console.log('[Socket] Connecting to:', BACKEND_URL);
 
     // Create Socket.IO connection
     const newSocket = io(BACKEND_URL, {
@@ -68,12 +64,10 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
     // Connection events
     newSocket.on('connect', () => {
-      console.log('[Socket] Connected:', newSocket.id);
       setIsConnected(true);
     });
 
-    newSocket.on('disconnect', (reason) => {
-      console.log('[Socket] Disconnected:', reason);
+    newSocket.on('disconnect', () => {
       setIsConnected(false);
       setIsAuthenticated(false);
     });
@@ -85,14 +79,12 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
       // If authentication failed, clear token
       if (error.message.includes('token') || error.message.includes('Authentication')) {
-        console.warn('[Socket] Authentication failed - clearing token');
         localStorage.removeItem('token');
       }
     });
 
     // Welcome message (indicates successful auth)
-    newSocket.on('welcome', (data) => {
-      console.log('[Socket] Welcome message:', data);
+    newSocket.on('welcome', () => {
       setIsAuthenticated(true);
     });
 
@@ -102,12 +94,8 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     });
 
     // Reconnection events
-    newSocket.on('reconnect', (attemptNumber) => {
-      console.log(`[Socket] Reconnected after ${attemptNumber} attempts`);
-    });
-
-    newSocket.on('reconnect_attempt', (attemptNumber) => {
-      console.log(`[Socket] Reconnection attempt ${attemptNumber}`);
+    newSocket.on('reconnect', () => {
+      // Reconnected successfully
     });
 
     newSocket.on('reconnect_failed', () => {
@@ -119,7 +107,6 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
   const disconnect = useCallback(() => {
     if (socket) {
-      console.log('[Socket] Disconnecting...');
       socket.disconnect();
       setSocket(null);
       setIsConnected(false);

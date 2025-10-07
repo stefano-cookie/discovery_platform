@@ -57,9 +57,10 @@ export const useRealtimeNotices = () => {
   const fetchNotices = useCallback(async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      // Support both user and partner tokens
+      const token = localStorage.getItem('token') || localStorage.getItem('partnerToken');
 
-      const response = await axios.get(`${API_URL}/api/notices`, {
+      const response = await axios.get(`${API_URL}/notices`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -87,12 +88,7 @@ export const useRealtimeNotices = () => {
   useSocket<Notice>(
     'notice:new',
     (newNotice) => {
-      console.log('[useRealtimeNotices] New notice received:', newNotice);
-
-      setNotices((prev) => {
-        // Add to beginning
-        return [newNotice, ...prev];
-      });
+      setNotices((prev) => [newNotice, ...prev]);
     },
     []
   );
@@ -103,8 +99,6 @@ export const useRealtimeNotices = () => {
   useSocket<{ id: string; changes: Partial<Notice> }>(
     'notice:updated',
     (update) => {
-      console.log('[useRealtimeNotices] Notice updated:', update);
-
       setNotices((prev) =>
         prev.map((notice) =>
           notice.id === update.id ? { ...notice, ...update.changes } : notice
@@ -120,8 +114,6 @@ export const useRealtimeNotices = () => {
   useSocket<{ id: string }>(
     'notice:deleted',
     (deleted) => {
-      console.log('[useRealtimeNotices] Notice deleted:', deleted);
-
       setNotices((prev) => prev.filter((notice) => notice.id !== deleted.id));
     },
     []
@@ -133,11 +125,12 @@ export const useRealtimeNotices = () => {
   const acknowledgeNotice = useCallback(
     async (noticeId: string) => {
       try {
-        const token = localStorage.getItem('token');
+        // Support both user and partner tokens
+        const token = localStorage.getItem('token') || localStorage.getItem('partnerToken');
 
         // Call API
         await axios.post(
-          `${API_URL}/api/notices/${noticeId}/acknowledge`,
+          `${API_URL}/notices/${noticeId}/acknowledge`,
           {},
           {
             headers: {
@@ -147,16 +140,17 @@ export const useRealtimeNotices = () => {
         );
 
         // Update local state
-        setNotices((prev) =>
-          prev.map((notice) =>
-            notice.id === noticeId ? { ...notice, isRead: true } : notice
-          )
-        );
+        setNotices((prev) => {
+          const updated = prev.map((notice) =>
+            notice.id === noticeId
+              ? { ...notice, isRead: true, readAt: new Date().toISOString() }
+              : notice
+          );
+          return updated;
+        });
 
         // Emit to WebSocket for admin notification
         emit('notice:acknowledge', { noticeId });
-
-        console.log('[useRealtimeNotices] Notice acknowledged:', noticeId);
       } catch (err: any) {
         console.error('[useRealtimeNotices] Error acknowledging notice:', err);
         throw err;
@@ -209,9 +203,10 @@ export const useNoticeStats = (noticeId: string) => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const token = localStorage.getItem('token');
+        // Support both user and partner tokens
+        const token = localStorage.getItem('token') || localStorage.getItem('partnerToken');
 
-        const response = await axios.get(`${API_URL}/api/notices/${noticeId}/stats`, {
+        const response = await axios.get(`${API_URL}/notices/${noticeId}/stats`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -235,8 +230,6 @@ export const useNoticeStats = (noticeId: string) => {
     'notice:acknowledged',
     (data) => {
       if (data.noticeId === noticeId) {
-        console.log('[useNoticeStats] Stats updated:', data);
-
         setStats((prev) => {
           if (!prev) return prev;
           return {

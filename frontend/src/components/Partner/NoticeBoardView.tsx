@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { useRealtimeNotices, Notice } from '../../hooks/useRealtimeNotices';
+import { useNotices } from '../../contexts/NoticeContext';
+import { Notice } from '../../hooks/useRealtimeNotices';
 
 const NoticeBoardView: React.FC = () => {
-  // Use real-time hook instead of manual fetching
-  const { notices, unreadCount, acknowledgeNotice, loading } = useRealtimeNotices();
+  // Use shared context instead of creating new instance
+  const { notices, unreadCount, acknowledgeNotice, loading } = useNotices();
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
   const handleAcknowledge = async (noticeId: string) => {

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import RichTextEditor from '../UI/RichTextEditor';
+import ConfirmModal from '../UI/ConfirmModal';
+import { useSocket } from '../../hooks/useSocket';
 
 interface Notice {
   id: string;
@@ -49,6 +51,9 @@ const NoticeBoard: React.FC = () => {
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [selectedNoticeStats, setSelectedNoticeStats] = useState<NoticeStats | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [noticeToDelete, setNoticeToDelete] = useState<{ id: string; title: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     content: '',
@@ -62,6 +67,42 @@ const NoticeBoard: React.FC = () => {
   useEffect(() => {
     fetchNotices();
   }, []);
+
+  // Listen for real-time acknowledgements
+  useSocket<{ noticeId: string; totalReads: number }>(
+    'notice:acknowledged',
+    (data) => {
+      // Ignore invalid events
+      if (data.totalReads === undefined || data.totalReads === null) {
+        return;
+      }
+
+      // Update the totalReads count for this notice
+      setNotices((prev) =>
+        prev.map((notice) => {
+          if (notice.id === data.noticeId) {
+            const newTotalReads = Math.max(notice.totalReads || 0, data.totalReads);
+            return { ...notice, totalReads: newTotalReads };
+          }
+          return notice;
+        })
+      );
+
+      // Also update stats modal if open for this notice
+      if (selectedNoticeStats && showStatsModal) {
+        setSelectedNoticeStats((prev) => {
+          if (!prev) return prev;
+          const newTotalReads = Math.max(prev.totalReads || 0, data.totalReads);
+          return {
+            ...prev,
+            totalReads: newTotalReads,
+            readPercentage: Math.round((newTotalReads / prev.totalStaff) * 100),
+          };
+        });
+      }
+    },
+    []
+  );
 
   const fetchNotices = async () => {
     try {
@@ -82,9 +123,9 @@ const NoticeBoard: React.FC = () => {
     if (!files || files.length === 0) return;
 
     setUploading(true);
-    try {
-      const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token');
 
+    try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const formDataUpload = new FormData();
@@ -108,7 +149,20 @@ const NoticeBoard: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error uploading file:', error);
-      alert(`Errore upload: ${error.response?.data?.error || error.message}`);
+      console.error('Error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        token: token ? 'presente' : 'mancante',
+        tokenLength: token?.length
+      });
+
+      if (error.response?.status === 401) {
+        alert('Sessione scaduta. Effettua nuovamente il login.');
+        // Redirect to login
+        window.location.href = '/login';
+      } else {
+        alert(`Errore upload: ${error.response?.data?.error || error.message}`);
+      }
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
@@ -182,18 +236,28 @@ const NoticeBoard: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Sei sicuro di voler eliminare questo post?')) return;
+  const handleDeleteClick = (id: string, title: string) => {
+    setNoticeToDelete({ id, title });
+    setShowDeleteModal(true);
+  };
 
+  const handleDeleteConfirm = async () => {
+    if (!noticeToDelete) return;
+
+    setDeleting(true);
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`${process.env.REACT_APP_API_URL}/notices/${id}`, {
+      await axios.delete(`${process.env.REACT_APP_API_URL}/notices/${noticeToDelete.id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       fetchNotices();
+      setShowDeleteModal(false);
+      setNoticeToDelete(null);
     } catch (error) {
       console.error('Error deleting notice:', error);
       alert('Errore nell\'eliminazione del post');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -255,6 +319,7 @@ const NoticeBoard: React.FC = () => {
   }
 
   return (
+    <>
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -354,7 +419,7 @@ const NoticeBoard: React.FC = () => {
                     </svg>
                   </button>
                   <button
-                    onClick={() => handleDelete(notice.id)}
+                    onClick={() => handleDeleteClick(notice.id, notice.title)}
                     className="p-2.5 hover:bg-red-50 rounded-xl transition-all hover:scale-105"
                     title="Elimina"
                   >
@@ -458,10 +523,11 @@ const NoticeBoard: React.FC = () => {
           </div>
         ))
       )}
+    </div>
 
       {/* Create Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 px-4">
           <form onSubmit={handleCreate} className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 flex items-center justify-between">
               <div>
@@ -725,7 +791,41 @@ const NoticeBoard: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setNoticeToDelete(null);
+        }}
+        onConfirm={handleDeleteConfirm}
+        title="Elimina Annuncio"
+        message={
+          noticeToDelete ? (
+            <div>
+              <p className="text-gray-900 font-medium mb-2">
+                Stai per eliminare l'annuncio:
+              </p>
+              <p className="text-lg font-bold text-gray-900">
+                "{noticeToDelete.title}"
+              </p>
+            </div>
+          ) : (
+            'Confermi di voler eliminare questo annuncio?'
+          )
+        }
+        confirmText="Elimina"
+        cancelText="Annulla"
+        variant="danger"
+        details={[
+          'L\'annuncio sarà rimosso definitivamente',
+          'Tutte le statistiche di lettura verranno perse',
+          'Questa azione non può essere annullata'
+        ]}
+        loading={deleting}
+      />
+    </>
   );
 };
 

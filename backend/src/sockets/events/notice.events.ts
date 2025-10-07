@@ -30,10 +30,6 @@ export const setupNoticeEvents = (io: Server, socket: AuthenticatedSocket): void
         return;
       }
 
-      console.log(
-        `[Notice] Acknowledgement received: ${noticeId} from ${socket.data.email}`
-      );
-
       // Emit to admin room for real-time stats update
       const ackPayload: NoticeAcknowledgedPayload = {
         noticeId,
@@ -62,7 +58,6 @@ export const setupNoticeEvents = (io: Server, socket: AuthenticatedSocket): void
  */
 export const emitNoticeNew = (io: Server, payload: NoticeNewPayload): void => {
   io.to(SOCKET_ROOMS.NOTICES_GLOBAL).emit(SOCKET_EVENTS.NOTICE_NEW, payload);
-  console.log(`[Notice] Broadcasted new notice: ${payload.id} (${payload.title})`);
 };
 
 /**
@@ -70,7 +65,6 @@ export const emitNoticeNew = (io: Server, payload: NoticeNewPayload): void => {
  */
 export const emitNoticeUpdated = (io: Server, payload: NoticeUpdatedPayload): void => {
   io.to(SOCKET_ROOMS.NOTICES_GLOBAL).emit(SOCKET_EVENTS.NOTICE_UPDATED, payload);
-  console.log(`[Notice] Broadcasted notice update: ${payload.id}`);
 };
 
 /**
@@ -78,7 +72,6 @@ export const emitNoticeUpdated = (io: Server, payload: NoticeUpdatedPayload): vo
  */
 export const emitNoticeDeleted = (io: Server, payload: NoticeDeletedPayload): void => {
   io.to(SOCKET_ROOMS.NOTICES_GLOBAL).emit(SOCKET_EVENTS.NOTICE_DELETED, payload);
-  console.log(`[Notice] Broadcasted notice deletion: ${payload.id}`);
 };
 
 /**
@@ -89,7 +82,4 @@ export const emitNoticeAcknowledged = (
   payload: NoticeAcknowledgedPayload
 ): void => {
   io.to(SOCKET_ROOMS.ADMIN_GLOBAL).emit(SOCKET_EVENTS.NOTICE_ACKNOWLEDGED, payload);
-  console.log(
-    `[Notice] Notified admins of acknowledgement: ${payload.noticeId} (total: ${payload.totalReads})`
-  );
 };
