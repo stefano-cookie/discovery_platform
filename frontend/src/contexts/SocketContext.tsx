@@ -54,18 +54,13 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       auth: {
         token,
       },
-      // Use polling first for Render free tier (WebSocket has issues behind proxy)
-      transports: ['polling', 'websocket'],
-      // Enable upgrade from polling to websocket if possible
-      upgrade: true,
+      // Use only WebSocket transport
+      transports: ['websocket'],
       reconnection: true,
-      reconnectionAttempts: Infinity, // Keep trying to reconnect
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 20000,
-      // Render free tier disconnects after 5 minutes, so use shorter ping interval
-      forceNew: false,
-      multiplex: true,
     });
 
     // Connection events
@@ -79,7 +74,13 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     });
 
     newSocket.on('connect_error', (error) => {
-      console.error('[Socket] Connection error:', error.message);
+      console.error('[Socket] Connection error:', {
+        message: error.message,
+        description: error.description,
+        context: error.context,
+        type: error.type,
+        stack: error.stack,
+      });
       setIsConnected(false);
       setIsAuthenticated(false);
 
