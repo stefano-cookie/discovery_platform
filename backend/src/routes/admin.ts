@@ -1658,4 +1658,76 @@ router.get('/search', authenticate, requireAdmin, async (req: AuthRequest, res) 
   }
 });
 
+/**
+ * GET /api/admin/logs
+ * Discovery Admin Audit Logs (azioni degli admin Discovery)
+ */
+router.get('/logs', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { page = '1', limit = '50', action, targetType, dateFrom, dateTo } = req.query;
+
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Build where clause
+    const where: any = {};
+    if (action) where.action = action as string;
+    if (targetType) where.targetType = targetType as string;
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = new Date(dateFrom as string);
+      if (dateTo) where.createdAt.lte = new Date(dateTo as string);
+    }
+
+    // Fetch logs with pagination
+    const [logs, total] = await Promise.all([
+      prisma.discoveryAdminLog.findMany({
+        where,
+        include: {
+          admin: {
+            select: {
+              id: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limitNum,
+        skip,
+      }),
+      prisma.discoveryAdminLog.count({ where }),
+    ]);
+
+    // Format response
+    const formattedLogs = logs.map((log) => ({
+      id: log.id,
+      adminId: log.adminId,
+      adminEmail: log.admin.email,
+      action: log.action,
+      targetType: log.targetType,
+      targetId: log.targetId,
+      targetName: log.targetId, // TODO: resolve target name based on type
+      previousValue: log.previousValue,
+      newValue: log.newValue,
+      reason: log.reason,
+      ipAddress: log.ipAddress,
+      createdAt: log.createdAt,
+    }));
+
+    res.json({
+      logs: formattedLogs,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        pages: Math.ceil(total / limitNum),
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching admin logs:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

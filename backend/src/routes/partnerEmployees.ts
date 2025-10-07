@@ -701,7 +701,9 @@ router.post('/invite', authenticatePartner, async (req: AuthRequest, res) => {
     await prisma.partnerActivityLog.create({
       data: {
         partnerEmployeeId: employeeId,
+        partnerCompanyId: employee.partnerCompanyId,
         action: 'INVITE_COLLABORATOR',
+        category: 'CRITICAL',
         details: {
           invitedEmail: email,
           invitedRole: role,
@@ -788,7 +790,9 @@ router.post('/accept-invite/:token', async (req, res) => {
     await prisma.partnerActivityLog.create({
       data: {
         partnerEmployeeId: updatedCollaborator.id,
+        partnerCompanyId: updatedCollaborator.partnerCompany.id,
         action: 'ACCEPT_INVITE',
+        category: 'CRITICAL',
         details: {
           acceptedAt: new Date()
         }
@@ -946,7 +950,9 @@ router.put('/collaborators/:id', authenticatePartner, async (req: AuthRequest, r
     await prisma.partnerActivityLog.create({
       data: {
         partnerEmployeeId: employeeId,
+        partnerCompanyId: employee.partnerCompanyId,
         action: 'UPDATE_COLLABORATOR',
+        category: 'CRITICAL',
         details: {
           updatedEmail: updatedCollaborator.email,
           updatedName: `${updatedCollaborator.firstName} ${updatedCollaborator.lastName}`,
@@ -1017,7 +1023,9 @@ router.delete('/collaborators/:id', authenticatePartner, async (req: AuthRequest
     await prisma.partnerActivityLog.create({
       data: {
         partnerEmployeeId: employeeId,
+        partnerCompanyId: employee.partnerCompanyId,
         action: 'REMOVE_COLLABORATOR',
+        category: 'CRITICAL',
         details: {
           removedEmail: collaboratorToRemove.email,
           removedName: `${collaboratorToRemove.firstName} ${collaboratorToRemove.lastName}`

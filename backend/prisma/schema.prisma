@@ -89,6 +89,7 @@ model PartnerCompany {
   transfersTo         UserTransfer[]    @relation("TransferToCompany")
   userOfferAccess     UserOfferAccess[] @relation("CompanyOfferAccess")
   assignedUsers       User[]            @relation("UserPartnerCompanyAssignment") // NEW: Users assigned to this company
+  activityLogs        PartnerActivityLog[] // Activity logs per company
 
   // Sub-Partner System
   companyInvites PartnerCompanyInvite[] @relation("CompanyInvites")
@@ -216,19 +217,49 @@ model PartnerSession {
 }
 
 model PartnerActivityLog {
-  id                String   @id @default(uuid())
+  id                String              @id @default(uuid())
   partnerEmployeeId String
-  action            String // "LOGIN", "CREATE_EMPLOYEE", "CREATE_CHILD_COMPANY", "VIEW_REGISTRATIONS"
-  details           Json? // Dati aggiuntivi azione
+  partnerCompanyId  String              // Per query per azienda
+
+  // Classificazione azione
+  action            String              // "LOGIN", "VIEW_REGISTRATION", "EXPORT_DATA", etc.
+  category          ActivityLogCategory @default(INFO)
+
+  // Dati azione
+  method            String?             // HTTP method: GET, POST, PUT, DELETE
+  endpoint          String?             // API endpoint chiamato
+  resourceType      String?             // "Registration", "User", "Document", etc.
+  resourceId        String?             // ID risorsa coinvolta
+
+  // Dettagli
+  details           Json?               // Dati aggiuntivi azione (no sensitive data)
   ipAddress         String?
   userAgent         String?
-  createdAt         DateTime @default(now())
 
+  // Metadata per query ottimizzate
+  isSuccess         Boolean             @default(true)
+  errorCode         String?             // Se isSuccess = false
+  duration          Int?                // Durata operazione in ms
+
+  // Timestamp immutabile
+  createdAt         DateTime            @default(now())
+
+  // Relations
   partnerEmployee PartnerEmployee @relation(fields: [partnerEmployeeId], references: [id], onDelete: Cascade)
+  partnerCompany  PartnerCompany  @relation(fields: [partnerCompanyId], references: [id], onDelete: Cascade)
 
-  @@index([partnerEmployeeId])
-  @@index([action])
-  @@index([createdAt])
+  @@index([partnerEmployeeId, createdAt(sort: Desc)])
+  @@index([partnerCompanyId, createdAt(sort: Desc)])
+  @@index([action, createdAt(sort: Desc)])
+  @@index([category, createdAt(sort: Desc)])
+  @@index([resourceType, resourceId])
+  @@index([createdAt(sort: Desc)]) // Per cleanup e export
+}
+
+enum ActivityLogCategory {
+  CRITICAL  // Login, pagamenti, documenti, trasferimenti
+  WARNING   // Tentativi falliti, validazioni, errori
+  INFO      // Letture, ricerche, navigazione
 }
 
 // ========================================
