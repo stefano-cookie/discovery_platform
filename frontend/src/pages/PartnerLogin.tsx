@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { usePartnerAuth, TwoFactorRequiredError, TwoFactorSetupRequiredError } from '../hooks/usePartnerAuth';
 import Button from '../components/UI/Button';
 import Input from '../components/UI/Input';
+import Modal from '../components/UI/Modal';
 import ErrorMessage from '../components/UI/ErrorMessage';
 import ErrorService, { ErrorDetails } from '../services/errorService';
 import TwoFactorSetup from '../components/Partner/TwoFactor/TwoFactorSetup';
@@ -27,6 +28,8 @@ const PartnerLogin: React.FC = () => {
   const [show2FASetup, setShow2FASetup] = useState(false);
   const [show2FAVerify, setShow2FAVerify] = useState(false);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [partnerEmployeeId, setPartnerEmployeeId] = useState<string | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const {
     register,
@@ -45,14 +48,23 @@ const PartnerLogin: React.FC = () => {
     } catch (err: any) {
       // Check if it's a 2FA flow error
       if (err instanceof TwoFactorRequiredError) {
-        console.log('🔐 2FA verification required');
+        console.log('2FA verification required');
+        // Clear any existing tokens before 2FA
+        localStorage.removeItem('partnerToken');
+        localStorage.removeItem('partnerEmployee');
+        localStorage.removeItem('partnerCompany');
         setSessionToken(err.sessionToken);
         setShow2FAVerify(true);
         return;
       }
 
       if (err instanceof TwoFactorSetupRequiredError) {
-        console.log('🔐 2FA setup required');
+        console.log('2FA setup required');
+        // Clear any existing tokens before 2FA setup
+        localStorage.removeItem('partnerToken');
+        localStorage.removeItem('partnerEmployee');
+        localStorage.removeItem('partnerCompany');
+        setPartnerEmployeeId(err.partnerEmployeeId);
         setShow2FASetup(true);
         return;
       }
@@ -65,12 +77,26 @@ const PartnerLogin: React.FC = () => {
 
   // Handle successful 2FA verification
   const handle2FASuccess = (token: string, employee: any, partnerCompany: any) => {
+    console.log('[PartnerLogin] 2FA Success - Storing auth data:', {
+      hasToken: !!token,
+      employeeId: employee?.id,
+      companyId: partnerCompany?.id,
+      tokenPreview: token?.substring(0, 20) + '...'
+    });
+
     // Store authentication data
     localStorage.setItem('partnerToken', token);
     localStorage.setItem('partnerEmployee', JSON.stringify(employee));
     localStorage.setItem('partnerCompany', JSON.stringify(partnerCompany));
 
+    console.log('[PartnerLogin] Stored in localStorage:', {
+      token: localStorage.getItem('partnerToken')?.substring(0, 20) + '...',
+      employee: localStorage.getItem('partnerEmployee'),
+      company: localStorage.getItem('partnerCompany')
+    });
+
     // Navigate to dashboard
+    console.log('[PartnerLogin] Navigating to /partner/dashboard');
     navigate('/partner/dashboard');
     window.location.reload(); // Reload to update auth context
   };
@@ -78,7 +104,12 @@ const PartnerLogin: React.FC = () => {
   // Handle 2FA setup completion
   const handle2FASetupComplete = () => {
     setShow2FASetup(false);
-    alert('2FA configurato con successo! Effettua nuovamente il login.');
+    setShowSuccessModal(true);
+  };
+
+  // Handle success modal close and reload
+  const handleSuccessModalClose = () => {
+    setShowSuccessModal(false);
     window.location.reload();
   };
 
@@ -87,11 +118,12 @@ const PartnerLogin: React.FC = () => {
     setShow2FASetup(false);
     setShow2FAVerify(false);
     setSessionToken(null);
+    setPartnerEmployeeId(null);
   };
 
   // Show 2FA Setup if required
-  if (show2FASetup) {
-    return <TwoFactorSetup onComplete={handle2FASetupComplete} onCancel={handleCancel} />;
+  if (show2FASetup && partnerEmployeeId) {
+    return <TwoFactorSetup partnerEmployeeId={partnerEmployeeId} onComplete={handle2FASetupComplete} onCancel={handleCancel} />;
   }
 
   // Show 2FA Verify if required
@@ -190,6 +222,39 @@ const PartnerLogin: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Success Modal */}
+      <Modal
+        isOpen={showSuccessModal}
+        onClose={handleSuccessModalClose}
+        title="Autenticazione a Due Fattori Configurata"
+        size="md"
+        closeOnOverlayClick={false}
+        closeOnEscape={false}
+      >
+        <div className="p-6">
+          <div className="flex items-center justify-center mb-4">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+          </div>
+
+          <p className="text-center text-gray-700 mb-6">
+            L'autenticazione a due fattori è stata configurata con successo.
+            Effettua nuovamente il login per accedere alla dashboard.
+          </p>
+
+          <Button
+            onClick={handleSuccessModalClose}
+            variant="primary"
+            className="w-full"
+          >
+            Torna al Login
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 };

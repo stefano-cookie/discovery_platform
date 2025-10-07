@@ -12,11 +12,12 @@ interface TwoFactorSetupData {
 }
 
 interface TwoFactorSetupProps {
+  partnerEmployeeId: string;
   onComplete: () => void;
   onCancel?: () => void;
 }
 
-const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onComplete, onCancel }) => {
+const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ partnerEmployeeId, onComplete, onCancel }) => {
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +41,9 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onComplete, onCancel })
     try {
       setLoading(true);
       setError(null);
-      const response = await api.post('/auth/2fa/setup');
+      const response = await api.post('/auth/2fa/setup', {
+        partnerEmployeeId
+      });
       setSetupData({
         qrCode: response.data.data.qrCode,
         secret: response.data.data.secret,
@@ -63,6 +66,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onComplete, onCancel })
       setLoading(true);
       setError(null);
       await api.post('/auth/2fa/verify-setup', {
+        partnerEmployeeId,
         secret: setupData!.secret,
         code: verificationCode,
         recoveryCodes: setupData!.recoveryCodes,
@@ -244,7 +248,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onComplete, onCancel })
           {activeStep === 2 && setupData && (
             <div>
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                <p className="font-semibold text-yellow-900 mb-2">⚠️ Salva questi codici di recupero in un posto sicuro!</p>
+                <p className="font-semibold text-yellow-900 mb-2">Salva questi codici di recupero in un posto sicuro!</p>
                 <p className="text-sm text-yellow-800">
                   Ogni codice può essere usato una sola volta per accedere se perdi l'accesso alla tua app di autenticazione.
                 </p>
@@ -259,14 +263,14 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onComplete, onCancel })
                       className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
                       title="Copia Codici"
                     >
-                      📋 Copia
+                      Copia
                     </button>
                     <button
                       onClick={handleDownloadRecoveryCodes}
                       className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
                       title="Scarica Codici"
                     >
-                      💾 Scarica
+                      Scarica
                     </button>
                   </div>
                 </div>
@@ -281,7 +285,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onComplete, onCancel })
 
                 {(codesCopied || codesDownloaded) && (
                   <div className="mt-4 bg-green-50 border border-green-200 rounded p-3 text-sm text-green-800">
-                    ✓ {codesCopied && 'Codici copiati negli appunti! '}
+                    {codesCopied && 'Codici copiati negli appunti! '}
                     {codesDownloaded && 'Codici scaricati!'}
                   </div>
                 )}
@@ -289,9 +293,9 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onComplete, onCancel })
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                 <ul className="text-sm text-blue-800 space-y-2">
-                  <li>ℹ️ Questi codici non saranno più visibili dopo questa schermata</li>
-                  <li>⚠️ Ogni codice può essere usato una sola volta</li>
-                  <li>🔐 Conservali in un posto sicuro (password manager, cassetta di sicurezza, ecc.)</li>
+                  <li>Questi codici non saranno più visibili dopo questa schermata</li>
+                  <li>Ogni codice può essere usato una sola volta</li>
+                  <li>Conservali in un posto sicuro (password manager, cassetta di sicurezza, ecc.)</li>
                 </ul>
               </div>
 

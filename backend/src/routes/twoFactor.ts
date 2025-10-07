@@ -51,10 +51,73 @@ const authenticateEmployee = async (
 };
 
 /**
+ * Middleware per setup iniziale 2FA (accetta JWT o partnerEmployeeId)
+ */
+const authenticateForSetup = async (
+  req: AuthRequest,
+  res: Response,
+  next: Function
+) => {
+  // Prova JWT prima
+  const token = req.headers.authorization?.replace('Bearer ', '');
+
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+      req.partnerEmployeeId = decoded.id;
+
+      const employee = await prisma.partnerEmployee.findUnique({
+        where: { id: decoded.id },
+      });
+
+      if (employee && employee.isActive) {
+        req.employee = employee;
+        return next();
+      }
+    } catch (error) {
+      // JWT non valido, prova con partnerEmployeeId nel body
+    }
+  }
+
+  // Fallback: partnerEmployeeId nel body (per setup iniziale obbligatorio)
+  const { partnerEmployeeId } = req.body;
+
+  if (!partnerEmployeeId) {
+    return res.status(401).json({
+      error: 'Autenticazione richiesta: fornire JWT token o partnerEmployeeId'
+    });
+  }
+
+  try {
+    const employee = await prisma.partnerEmployee.findUnique({
+      where: { id: partnerEmployeeId },
+    });
+
+    if (!employee || !employee.isActive) {
+      return res.status(401).json({ error: 'Employee non valido' });
+    }
+
+    // Verifica che l'employee NON abbia già 2FA abilitato (sicurezza)
+    if (employee.twoFactorEnabled) {
+      return res.status(403).json({
+        error: 'Setup iniziale non permesso: 2FA già configurato'
+      });
+    }
+
+    req.partnerEmployeeId = employee.id;
+    req.employee = employee;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Errore autenticazione' });
+  }
+};
+
+/**
  * POST /api/auth/2fa/setup
  * Inizia il processo di setup 2FA (genera QR + secret)
+ * Accetta JWT token (per user autenticati) o partnerEmployeeId nel body (per setup iniziale)
  */
-router.post('/setup', authenticateEmployee, async (req: AuthRequest, res: Response) => {
+router.post('/setup', authenticateForSetup, async (req: AuthRequest, res: Response) => {
   try {
     const partnerEmployeeId = req.partnerEmployeeId!;
     const employee = req.employee;
@@ -95,10 +158,11 @@ router.post('/setup', authenticateEmployee, async (req: AuthRequest, res: Respon
 /**
  * POST /api/auth/2fa/verify-setup
  * Conferma setup con primo codice
+ * Accetta JWT token (per user autenticati) o partnerEmployeeId nel body (per setup iniziale)
  */
 router.post(
   '/verify-setup',
-  authenticateEmployee,
+  authenticateForSetup,
   async (req: AuthRequest, res: Response) => {
     try {
       const { secret, code, recoveryCodes } = req.body;
@@ -198,6 +262,7 @@ router.post('/verify', async (req: Request, res: Response) => {
     const token = jwt.sign(
       {
         id: employee!.id,
+        type: 'partner', // ✅ CRITICAL: Required by authenticatePartner middleware
         email: employee!.email,
         role: employee!.role,
         partnerCompanyId: employee!.partnerCompanyId,
@@ -206,6 +271,14 @@ router.post('/verify', async (req: Request, res: Response) => {
       process.env.JWT_SECRET!,
       { expiresIn: '7d' }
     );
+
+    console.log('[2FA] JWT generato:', {
+      id: employee!.id,
+      type: 'partner',
+      email: employee!.email,
+      role: employee!.role,
+      twoFactorVerified: true
+    });
 
     return res.json({
       message: 'Autenticazione completata',
@@ -287,6 +360,7 @@ router.post('/recovery', async (req: Request, res: Response) => {
     const token = jwt.sign(
       {
         id: employee!.id,
+        type: 'partner', // ✅ CRITICAL: Required by authenticatePartner middleware
         email: employee!.email,
         role: employee!.role,
         partnerCompanyId: employee!.partnerCompanyId,
@@ -295,6 +369,14 @@ router.post('/recovery', async (req: Request, res: Response) => {
       process.env.JWT_SECRET!,
       { expiresIn: '7d' }
     );
+
+    console.log('[2FA Recovery] JWT generato:', {
+      id: employee!.id,
+      type: 'partner',
+      email: employee!.email,
+      role: employee!.role,
+      twoFactorVerified: true
+    });
 
     // Ottieni stato aggiornato
     const status = await twoFactorService.getTwoFactorStatus(partnerEmployeeId);
