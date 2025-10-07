@@ -1,23 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  Box,
-  Paper,
-  Typography,
-  TextField,
-  Button,
-  Alert,
-  CircularProgress,
-  Link,
-  Collapse,
-  Divider,
-  LinearProgress,
-} from '@mui/material';
-import {
-  Security,
-  PhoneAndroid,
-  VpnKey,
-  Timer,
-} from '@mui/icons-material';
+import Button from '../../UI/Button';
+import Input from '../../UI/Input';
+import ErrorMessage from '../../UI/ErrorMessage';
 import api from '../../../services/api';
 
 interface TwoFactorVerifyProps {
@@ -36,17 +20,14 @@ const TwoFactorVerify: React.FC<TwoFactorVerifyProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
 
-  // Recovery code mode
   const [useRecoveryCode, setUseRecoveryCode] = useState(false);
   const [recoveryCode, setRecoveryCode] = useState('');
 
-  // Session timeout (5 minutes)
-  const [timeLeft, setTimeLeft] = useState(300); // 300 seconds = 5 minutes
+  const [timeLeft, setTimeLeft] = useState(300); // 5 minutes
   const [sessionExpired, setSessionExpired] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Countdown timer
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -61,24 +42,20 @@ const TwoFactorVerify: React.FC<TwoFactorVerifyProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // Auto-focus input
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus();
     }
   }, [useRecoveryCode]);
 
-  // Format time left
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Progress percentage for countdown
   const progressPercent = (timeLeft / 300) * 100;
 
-  // Verify TOTP code
   const handleVerifyCode = async () => {
     if (code.length !== 6) {
       setError('Il codice deve essere di 6 cifre');
@@ -94,7 +71,6 @@ const TwoFactorVerify: React.FC<TwoFactorVerifyProps> = ({
         code,
       });
 
-      // Success - call onSuccess with token and user data
       onSuccess(
         response.data.token,
         response.data.employee,
@@ -108,13 +84,12 @@ const TwoFactorVerify: React.FC<TwoFactorVerifyProps> = ({
         setRemainingAttempts(errorData.remainingAttempts);
       }
 
-      setCode(''); // Clear code on error
+      setCode('');
     } finally {
       setLoading(false);
     }
   };
 
-  // Verify recovery code
   const handleVerifyRecoveryCode = async () => {
     if (!recoveryCode.trim()) {
       setError('Inserisci un codice di recupero');
@@ -127,19 +102,16 @@ const TwoFactorVerify: React.FC<TwoFactorVerifyProps> = ({
 
       const response = await api.post('/auth/2fa/recovery', {
         sessionToken,
-        recoveryCode: recoveryCode.replace(/\s+/g, ''), // Remove spaces
+        recoveryCode: recoveryCode.replace(/\s+/g, ''),
       });
 
-      // Success
       onSuccess(
         response.data.token,
         response.data.employee,
         response.data.employee.partnerCompany
       );
 
-      // Check if warning about remaining recovery codes
       if (response.data.warning) {
-        // Could show a toast notification here
         console.warn(response.data.warning);
       }
     } catch (err: any) {
@@ -150,7 +122,6 @@ const TwoFactorVerify: React.FC<TwoFactorVerifyProps> = ({
     }
   };
 
-  // Handle Enter key
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !loading) {
       if (useRecoveryCode) {
@@ -163,210 +134,179 @@ const TwoFactorVerify: React.FC<TwoFactorVerifyProps> = ({
 
   if (sessionExpired) {
     return (
-      <Box maxWidth={500} mx="auto" py={4}>
-        <Paper elevation={3} sx={{ p: 4 }}>
-          <Alert severity="error">
-            <Typography variant="h6" gutterBottom>
-              Sessione Scaduta
-            </Typography>
-            <Typography variant="body2">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+            <h2 className="text-xl font-bold text-red-900 mb-3">Sessione Scaduta</h2>
+            <p className="text-sm text-red-800 mb-4">
               La sessione di verifica è scaduta dopo 5 minuti. Riprova ad effettuare il login.
-            </Typography>
-            <Box mt={2}>
-              {onCancel && (
-                <Button variant="contained" onClick={onCancel}>
-                  Torna al Login
-                </Button>
-              )}
-            </Box>
-          </Alert>
-        </Paper>
-      </Box>
+            </p>
+            {onCancel && (
+              <Button onClick={onCancel} variant="primary" className="w-full">
+                Torna al Login
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Box maxWidth={500} mx="auto" py={4}>
-      <Paper elevation={3} sx={{ p: 4 }}>
-        <Box display="flex" flexDirection="column" alignItems="center" mb={3}>
-          <Security fontSize="large" color="primary" sx={{ mb: 2 }} />
-          <Typography variant="h5" component="h1" align="center" gutterBottom>
-            Verifica in Due Passaggi
-          </Typography>
-          <Typography variant="body2" color="text.secondary" align="center">
-            Inserisci il codice dalla tua app di autenticazione
-          </Typography>
-        </Box>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
+      <div className="max-w-md w-full">
+        <div className="bg-white rounded-lg shadow-lg p-8">
+          <div className="flex flex-col items-center mb-6">
+            <div className="w-16 h-16 bg-emerald-600 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 text-center mb-2">
+              Verifica in Due Passaggi
+            </h2>
+            <p className="text-sm text-gray-600 text-center">
+              Inserisci il codice dalla tua app di autenticazione
+            </p>
+          </div>
 
-        {/* Session Timeout Indicator */}
-        <Box mb={3}>
-          <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
-            <Typography variant="caption" color="text.secondary">
-              <Timer fontSize="small" sx={{ verticalAlign: 'middle', mr: 0.5 }} />
-              Tempo rimanente
-            </Typography>
-            <Typography
-              variant="caption"
-              color={timeLeft < 60 ? 'error' : 'text.secondary'}
-              fontWeight="bold"
-            >
-              {formatTime(timeLeft)}
-            </Typography>
-          </Box>
-          <LinearProgress
-            variant="determinate"
-            value={progressPercent}
-            color={timeLeft < 60 ? 'error' : 'primary'}
-          />
-        </Box>
+          {/* Session Timeout */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-gray-600">⏱️ Tempo rimanente</span>
+              <span className={`text-xs font-bold ${timeLeft < 60 ? 'text-red-600' : 'text-gray-700'}`}>
+                {formatTime(timeLeft)}
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className={`h-2 rounded-full transition-all ${
+                  timeLeft < 60 ? 'bg-red-600' : 'bg-emerald-600'
+                }`}
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          </div>
 
-        {error && (
-          <Alert
-            severity="error"
-            sx={{ mb: 3 }}
-            onClose={() => setError(null)}
-          >
-            {error}
-            {remainingAttempts !== null && remainingAttempts > 0 && (
-              <Typography variant="caption" display="block" mt={1}>
-                Tentativi rimanenti: {remainingAttempts}
-              </Typography>
-            )}
-          </Alert>
-        )}
-
-        <Collapse in={!useRecoveryCode}>
-          <Box>
-            <Box display="flex" alignItems="center" justifyContent="center" mb={2}>
-              <PhoneAndroid color="action" sx={{ mr: 1 }} />
-              <Typography variant="body2" color="text.secondary">
-                Apri la tua app di autenticazione
-              </Typography>
-            </Box>
-
-            <TextField
-              fullWidth
-              inputRef={inputRef}
-              label="Codice a 6 cifre"
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              onKeyPress={handleKeyPress}
-              placeholder="000000"
-              autoComplete="one-time-code"
-              inputProps={{
-                maxLength: 6,
-                pattern: '[0-9]*',
-                inputMode: 'numeric',
-                style: {
-                  fontSize: '2rem',
-                  textAlign: 'center',
-                  letterSpacing: '1rem',
-                  fontWeight: 'bold'
-                }
-              }}
-              sx={{ mb: 3 }}
-              disabled={loading}
-            />
-
-            <Button
-              fullWidth
-              variant="contained"
-              size="large"
-              onClick={handleVerifyCode}
-              disabled={loading || code.length !== 6}
-              startIcon={loading && <CircularProgress size={20} />}
-              sx={{ mb: 2 }}
-            >
-              Verifica
-            </Button>
-          </Box>
-        </Collapse>
-
-        <Collapse in={useRecoveryCode}>
-          <Box>
-            <Box display="flex" alignItems="center" justifyContent="center" mb={2}>
-              <VpnKey color="action" sx={{ mr: 1 }} />
-              <Typography variant="body2" color="text.secondary">
-                Inserisci un codice di recupero
-              </Typography>
-            </Box>
-
-            <TextField
-              fullWidth
-              inputRef={inputRef}
-              label="Codice di Recupero"
-              value={recoveryCode}
-              onChange={(e) => setRecoveryCode(e.target.value.toUpperCase())}
-              onKeyPress={handleKeyPress}
-              placeholder="XXXX-YYYY"
-              inputProps={{
-                style: {
-                  fontSize: '1.5rem',
-                  textAlign: 'center',
-                  fontFamily: 'monospace',
-                  letterSpacing: '0.2rem'
-                }
-              }}
-              sx={{ mb: 3 }}
-              disabled={loading}
-              helperText="Formato: XXXX-YYYY (8 caratteri)"
-            />
-
-            <Button
-              fullWidth
-              variant="contained"
-              size="large"
-              onClick={handleVerifyRecoveryCode}
-              disabled={loading || !recoveryCode.trim()}
-              startIcon={loading && <CircularProgress size={20} />}
-              sx={{ mb: 2 }}
-            >
-              Verifica Codice di Recupero
-            </Button>
-          </Box>
-        </Collapse>
-
-        <Divider sx={{ my: 2 }} />
-
-        <Box textAlign="center">
-          {!useRecoveryCode ? (
-            <Link
-              component="button"
-              variant="body2"
-              onClick={() => {
-                setUseRecoveryCode(true);
-                setCode('');
-                setError(null);
-              }}
-              disabled={loading}
-            >
-              Non hai accesso all'app? Usa un codice di recupero
-            </Link>
-          ) : (
-            <Link
-              component="button"
-              variant="body2"
-              onClick={() => {
-                setUseRecoveryCode(false);
-                setRecoveryCode('');
-                setError(null);
-              }}
-              disabled={loading}
-            >
-              ← Torna al codice dall'app
-            </Link>
+          {error && (
+            <div className="mb-6">
+              <ErrorMessage message={error} onClose={() => setError(null)} />
+              {remainingAttempts !== null && remainingAttempts > 0 && (
+                <p className="text-xs text-red-600 mt-2">
+                  Tentativi rimanenti: {remainingAttempts}
+                </p>
+              )}
+            </div>
           )}
-        </Box>
 
-        {onCancel && (
-          <Box textAlign="center" mt={2}>
-            <Button onClick={onCancel} disabled={loading}>
-              Annulla
-            </Button>
-          </Box>
-        )}
-      </Paper>
-    </Box>
+          {!useRecoveryCode ? (
+            <div>
+              <div className="flex items-center justify-center mb-4 text-sm text-gray-600">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                Apri la tua app di autenticazione
+              </div>
+
+              <div className="mb-6">
+                <Input
+                  label="Codice a 6 cifre"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onKeyPress={handleKeyPress}
+                  placeholder="000000"
+                  maxLength={6}
+                  className="text-center text-3xl tracking-[1rem] font-bold"
+                  disabled={loading}
+                  autoFocus
+                />
+              </div>
+
+              <Button
+                onClick={handleVerifyCode}
+                disabled={loading || code.length !== 6}
+                variant="primary"
+                className="w-full mb-4"
+              >
+                {loading ? 'Verifica in corso...' : 'Verifica'}
+              </Button>
+            </div>
+          ) : (
+            <div>
+              <div className="flex items-center justify-center mb-4 text-sm text-gray-600">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                </svg>
+                Inserisci un codice di recupero
+              </div>
+
+              <div className="mb-6">
+                <Input
+                  label="Codice di Recupero"
+                  value={recoveryCode}
+                  onChange={(e) => setRecoveryCode(e.target.value.toUpperCase())}
+                  onKeyPress={handleKeyPress}
+                  placeholder="XXXX-YYYY"
+                  className="text-center text-xl font-mono tracking-wider"
+                  disabled={loading}
+                  autoFocus
+                />
+                <p className="text-xs text-gray-500 mt-2">Formato: XXXX-YYYY (8 caratteri)</p>
+              </div>
+
+              <Button
+                onClick={handleVerifyRecoveryCode}
+                disabled={loading || !recoveryCode.trim()}
+                variant="primary"
+                className="w-full mb-4"
+              >
+                {loading ? 'Verifica in corso...' : 'Verifica Codice di Recupero'}
+              </Button>
+            </div>
+          )}
+
+          <div className="border-t pt-4">
+            {!useRecoveryCode ? (
+              <button
+                onClick={() => {
+                  setUseRecoveryCode(true);
+                  setCode('');
+                  setError(null);
+                }}
+                disabled={loading}
+                className="text-sm text-emerald-600 hover:text-emerald-700 w-full text-center"
+              >
+                Non hai accesso all'app? Usa un codice di recupero
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setUseRecoveryCode(false);
+                  setRecoveryCode('');
+                  setError(null);
+                }}
+                disabled={loading}
+                className="text-sm text-emerald-600 hover:text-emerald-700 w-full text-center"
+              >
+                ← Torna al codice dall'app
+              </button>
+            )}
+          </div>
+
+          {onCancel && (
+            <div className="mt-4 text-center">
+              <button
+                onClick={onCancel}
+                disabled={loading}
+                className="text-sm text-gray-600 hover:text-gray-700"
+              >
+                Annulla
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
 
