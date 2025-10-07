@@ -225,9 +225,9 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
       api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
 
       console.log('✅ Partner login successful:', {
-        employee: employee.email,
-        company: company.name,
-        role: employee.role
+        employee: employee?.email,
+        company: company?.name,
+        role: employee?.role
       });
 
     } catch (error) {
