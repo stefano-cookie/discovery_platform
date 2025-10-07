@@ -73,19 +73,20 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       setIsAuthenticated(false);
     });
 
-    newSocket.on('connect_error', (error) => {
+    newSocket.on('connect_error', (error: any) => {
       console.error('[Socket] Connection error:', {
         message: error.message,
         description: error.description,
         context: error.context,
         type: error.type,
+        data: error.data,
         stack: error.stack,
       });
       setIsConnected(false);
       setIsAuthenticated(false);
 
       // If authentication failed, clear token
-      if (error.message.includes('token') || error.message.includes('Authentication')) {
+      if (error.message?.includes('token') || error.message?.includes('Authentication')) {
         localStorage.removeItem('token');
       }
     });
