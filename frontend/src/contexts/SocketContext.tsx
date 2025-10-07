@@ -54,8 +54,8 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       auth: {
         token,
       },
-      // Use only WebSocket transport
-      transports: ['websocket'],
+      // Use polling transport (WebSocket doesn't work on Render free tier)
+      transports: ['polling'],
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
