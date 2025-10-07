@@ -7,6 +7,7 @@ import storageManager from '../services/storageManager';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { getSocketIO, broadcastCouponUsed, broadcastCouponExpired } from '../sockets';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -193,7 +194,7 @@ async function applyCouponAndRecordUsage(
   baseAmount: number,
   tx: any, // Prisma transaction client
   partnerCompanyId?: string
-): Promise<{ finalAmount: number; couponApplied: boolean; discountApplied: number }> {
+): Promise<{ finalAmount: number; couponApplied: boolean; discountApplied: number; couponUseId?: string; shouldBroadcastExpired?: boolean }> {
   try {
     // Find coupon scoped to the partner company if available
     const coupon = await tx.coupon.findFirst({
@@ -231,7 +232,7 @@ async function applyCouponAndRecordUsage(
     }
 
     // Record coupon usage
-    await tx.couponUse.create({
+    const couponUse = await tx.couponUse.create({
       data: {
         couponId: coupon.id,
         registrationId: registrationId,
@@ -249,16 +250,18 @@ async function applyCouponAndRecordUsage(
     });
 
     // Check if coupon should be deactivated (reached max uses)
+    let shouldBroadcastExpired = false;
     if (updatedCoupon.maxUses && updatedCoupon.usedCount >= updatedCoupon.maxUses) {
       await tx.coupon.update({
         where: { id: coupon.id },
         data: { isActive: false }
       });
+      shouldBroadcastExpired = true;
       console.log(`Coupon ${couponCode} deactivated after reaching usage limit: ${updatedCoupon.usedCount}/${updatedCoupon.maxUses}`);
     }
 
     console.log(`Applied coupon ${couponCode}: ${baseAmount} -> ${finalAmount} (discount: ${discountApplied})`);
-    return { finalAmount, couponApplied: true, discountApplied };
+    return { finalAmount, couponApplied: true, discountApplied, couponUseId: couponUse.id, shouldBroadcastExpired };
 
   } catch (error) {
     console.error('Error applying coupon:', error);
@@ -707,6 +710,10 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
     }
     
     const result = await prisma.$transaction(async (tx) => {
+      // Track coupon usage for WebSocket broadcast
+      let couponUseId: string | undefined;
+      let shouldBroadcastExpired = false;
+
       // Check for duplicate registrations with same user and course
       // Include both cases: with and without partnerOfferId
       const existingRegistration = await tx.registration.findFirst({
@@ -720,7 +727,7 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
       
       if (existingRegistration) {
         console.log(`⚠️ Duplicate registration attempt detected for user ${userId}, returning existing registration ${existingRegistration.id}`);
-        return existingRegistration; // Return the existing registration instead of creating a duplicate
+        return { registration: existingRegistration, couponUseId: undefined, shouldBroadcastExpired: false };
       }
       
       // NEW: Enhanced hierarchical system with referral link parsing
@@ -980,10 +987,12 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
           tx,
           partnerCompanyId
         );
-        
+
         if (couponResult.couponApplied) {
           finalAmount = couponResult.finalAmount;
-          
+          couponUseId = couponResult.couponUseId;
+          shouldBroadcastExpired = couponResult.shouldBroadcastExpired || false;
+
           // Update registration with corrected amounts
           await tx.registration.update({
             where: { id: registration.id },
@@ -992,7 +1001,7 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
               finalAmount: finalAmount
             }
           });
-          
+
           console.log(`Coupon applied to registration ${registration.id}: ${originalAmount} -> ${finalAmount}`);
         }
       }
@@ -1177,10 +1186,31 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
       // DEPRECATED: Link existing user documents to new registration (no longer needed)
       // All documents are now created with registrationId directly
       console.log(`📝 Registration ${registration.id} created - documents will be uploaded directly with registrationId`);
-      
-      return registration;
+
+      return { registration, couponUseId, shouldBroadcastExpired };
     });
-    
+
+    // WebSocket: Broadcast coupon usage if applicable
+    if (result.couponUseId) {
+      try {
+        const io = getSocketIO();
+        await broadcastCouponUsed(io, result.couponUseId);
+
+        // If coupon expired/exhausted, broadcast that too
+        if (result.shouldBroadcastExpired) {
+          const couponUse = await prisma.couponUse.findUnique({
+            where: { id: result.couponUseId },
+            select: { couponId: true }
+          });
+          if (couponUse) {
+            await broadcastCouponExpired(io, couponUse.couponId, 'MAX_USES_REACHED');
+          }
+        }
+      } catch (wsError) {
+        console.error('WebSocket broadcast error (non-blocking):', wsError);
+      }
+    }
+
     // Send enrollment confirmation email
     try {
       const courseInfo = await prisma.course.findUnique({
@@ -1198,7 +1228,7 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
         nome: user!.profile!.nome,
         cognome: user!.profile!.cognome,
         email: user!.email,
-        registrationId: result.id,
+        registrationId: result.registration.id,
         courseName: courseInfo?.name || 'Corso selezionato',
         offerType: offer?.offerType || 'TFA_ROMANIA',
         partnerName: partnerInfo?.user.email || 'Partner di riferimento'
@@ -1210,7 +1240,7 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
 
     res.json({
       success: true,
-      registrationId: result.id,
+      registrationId: result.registration.id,
       message: 'Iscrizione aggiuntiva completata con successo'
     });
     
@@ -1354,6 +1384,10 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
     }
     
     const result = await prisma.$transaction(async (tx) => {
+      // Track coupon usage for WebSocket broadcast
+      let couponUseId: string | undefined;
+      let shouldBroadcastExpired = false;
+
       // Check for existing registrations - more comprehensive check
       // Check by multiple criteria to catch registrations created by token service
       const existingRegistration = await tx.registration.findFirst({
@@ -1539,8 +1573,8 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
         if (documentsToProcess && documentsToProcess.length > 0) {
           await processDocumentsForRegistration(tx, updatedRegistration.id, user.id, documentsToProcess);
         }
-        
-        return updatedRegistration;
+
+        return { registration: updatedRegistration, couponUseId: undefined, shouldBroadcastExpired: false };
       }
       
       // NEW: Enhanced hierarchical system with referral link parsing (duplicate logic for complete registration)
@@ -1808,6 +1842,8 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
 
         if (couponResult.couponApplied) {
           finalAmount = couponResult.finalAmount;
+          couponUseId = couponResult.couponUseId;
+          shouldBroadcastExpired = couponResult.shouldBroadcastExpired || false;
 
           // Update registration with corrected amounts
           await tx.registration.update({
@@ -2001,28 +2037,49 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
       // DEPRECATED: Link existing user documents to new registration (no longer needed)
       // All documents are now created with registrationId directly
       console.log(`📝 Verified user registration ${registration.id} created - documents will be uploaded directly with registrationId`);
-      
-      return registration;
+
+      return { registration, couponUseId, shouldBroadcastExpired };
     });
-    
+
+    // WebSocket: Broadcast coupon usage if applicable
+    if (result.couponUseId) {
+      try {
+        const io = getSocketIO();
+        await broadcastCouponUsed(io, result.couponUseId);
+
+        // If coupon expired/exhausted, broadcast that too
+        if (result.shouldBroadcastExpired) {
+          const couponUse = await prisma.couponUse.findUnique({
+            where: { id: result.couponUseId },
+            select: { couponId: true }
+          });
+          if (couponUse) {
+            await broadcastCouponExpired(io, couponUse.couponId, 'MAX_USES_REACHED');
+          }
+        }
+      } catch (wsError) {
+        console.error('WebSocket broadcast error (non-blocking):', wsError);
+      }
+    }
+
     // Send enrollment confirmation email
     try {
       const courseInfo = await prisma.course.findUnique({
         where: { id: courseId }
       });
-      
+
       const partnerInfo = await prisma.partner.findUnique({
         where: { id: partnerId },
         include: {
           user: { select: { email: true } }
         }
       });
-      
+
       await emailService.sendEnrollmentConfirmation(user.email, {
         nome: user.profile.nome,
         cognome: user.profile.cognome,
         email: user.email,
-        registrationId: result.id,
+        registrationId: result.registration.id,
         courseName: courseInfo?.name || 'Corso selezionato',
         offerType: offer?.offerType || 'TFA_ROMANIA',
         partnerName: partnerInfo?.user.email || 'Partner di riferimento'
@@ -2033,7 +2090,7 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
 
     res.json({
       success: true,
-      registrationId: result.id,
+      registrationId: result.registration.id,
       message: 'Iscrizione completata con successo'
     });
     
@@ -2144,10 +2201,14 @@ router.post('/token-enrollment', async (req: Request, res: Response) => {
     
     // Update the existing registration with enrollment data
     const result = await prisma.$transaction(async (tx) => {
+      // Track coupon usage for WebSocket broadcast
+      let couponUseId: string | undefined;
+      let shouldBroadcastExpired = false;
+
       // Check if registration was already completed (not in PENDING state anymore)
       if (existingRegistration.status !== 'PENDING') {
         console.log(`⚠️ Duplicate token enrollment attempt detected for registration ${existingRegistration.id}, already in ${existingRegistration.status} state`);
-        return existingRegistration; // Return the existing registration instead of updating again
+        return { registration: existingRegistration, couponUseId: undefined, shouldBroadcastExpired: false };
       }
       
       // Determine initial amounts before coupon
@@ -2167,6 +2228,8 @@ router.post('/token-enrollment', async (req: Request, res: Response) => {
 
         if (couponResult.couponApplied) {
           finalAmount = couponResult.finalAmount;
+          couponUseId = couponResult.couponUseId;
+          shouldBroadcastExpired = couponResult.shouldBroadcastExpired || false;
           console.log(`Coupon applied to token enrollment ${existingRegistration.id}: ${originalAmount} -> ${finalAmount}`);
         }
       }
@@ -2262,24 +2325,45 @@ router.post('/token-enrollment', async (req: Request, res: Response) => {
           }
         }
       }
-      
-      return updatedRegistration;
+
+      return { registration: updatedRegistration, couponUseId, shouldBroadcastExpired };
     });
-    
-    console.log(`✅ Token-based enrollment completed for user ${user.id}, registration ${result.id}`);
-    
+
+    console.log(`✅ Token-based enrollment completed for user ${user.id}, registration ${result.registration.id}`);
+
+    // WebSocket: Broadcast coupon usage if applicable
+    if (result.couponUseId) {
+      try {
+        const io = getSocketIO();
+        await broadcastCouponUsed(io, result.couponUseId);
+
+        // If coupon expired/exhausted, broadcast that too
+        if (result.shouldBroadcastExpired) {
+          const couponUse = await prisma.couponUse.findUnique({
+            where: { id: result.couponUseId },
+            select: { couponId: true }
+          });
+          if (couponUse) {
+            await broadcastCouponExpired(io, couponUse.couponId, 'MAX_USES_REACHED');
+          }
+        }
+      } catch (wsError) {
+        console.error('WebSocket broadcast error (non-blocking):', wsError);
+      }
+    }
+
     // Send enrollment confirmation email
     try {
       // Get user profile
       const userProfile = await prisma.userProfile.findUnique({
         where: { userId: user.id }
       });
-      
+
       // Get course info
       const courseInfo = await prisma.course.findUnique({
         where: { id: courseId }
       });
-      
+
       // Get offer and partner info
       const offer = await prisma.partnerOffer.findUnique({
         where: { id: partnerOfferId },
@@ -2291,13 +2375,13 @@ router.post('/token-enrollment', async (req: Request, res: Response) => {
           }
         }
       });
-      
+
       if (userProfile) {
         await emailService.sendEnrollmentConfirmation(user.email, {
           nome: userProfile.nome,
           cognome: userProfile.cognome,
           email: user.email,
-          registrationId: result.id,
+          registrationId: result.registration.id,
           courseName: courseInfo?.name || 'Corso selezionato',
           offerType: offer?.offerType || 'TFA_ROMANIA',
           partnerName: offer?.partner?.user?.email || 'Partner di riferimento'
@@ -2311,7 +2395,7 @@ router.post('/token-enrollment', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      registrationId: result.id,
+      registrationId: result.registration.id,
       message: 'Iscrizione completata con successo'
     });
     
@@ -2501,7 +2585,11 @@ router.post('/course-enrollment', async (req: Request, res: Response) => {
     const finalAmount = Math.max(0, originalAmount - discountAmount);
 
     // Start transaction for enrollment
-    await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
+      // Track coupon usage for WebSocket broadcast
+      let couponUseId: string | undefined;
+      let shouldBroadcastExpired = false;
+
       // Create the registration with proper partner tracking
       console.log(`📝 Creating registration with:`, {
         userId,
@@ -2541,7 +2629,7 @@ router.post('/course-enrollment', async (req: Request, res: Response) => {
       // Increment coupon usage if used
       if (coupon) {
         // Create CouponUse record for tracking
-        await tx.couponUse.create({
+        const couponUse = await tx.couponUse.create({
           data: {
             couponId: coupon.id,
             registrationId: registration.id,
@@ -2549,6 +2637,7 @@ router.post('/course-enrollment', async (req: Request, res: Response) => {
             usedAt: new Date()
           }
         });
+        couponUseId = couponUse.id;
 
         // Increment usage counter
         const updatedCoupon = await tx.coupon.update({
@@ -2566,6 +2655,7 @@ router.post('/course-enrollment', async (req: Request, res: Response) => {
             where: { id: coupon.id },
             data: { isActive: false }
           });
+          shouldBroadcastExpired = true;
           console.log(`Coupon ${coupon.code} deactivated after reaching usage limit: ${updatedCoupon.usedCount}/${updatedCoupon.maxUses}`);
         }
 
@@ -2634,7 +2724,24 @@ router.post('/course-enrollment', async (req: Request, res: Response) => {
       }
 
       console.log(`🎯 Course enrollment completed: User ${userId} enrolled by employee ${requestedByEmployeeId || 'DIRECT'}`);
+
+      return { registration, couponUseId, shouldBroadcastExpired };
     });
+
+    // WebSocket: Broadcast coupon usage if applicable
+    if (result.couponUseId) {
+      try {
+        const io = getSocketIO();
+        await broadcastCouponUsed(io, result.couponUseId);
+
+        // If coupon expired/exhausted, broadcast that too
+        if (result.shouldBroadcastExpired && coupon) {
+          await broadcastCouponExpired(io, coupon.id, 'MAX_USES_REACHED');
+        }
+      } catch (wsError) {
+        console.error('WebSocket broadcast error (non-blocking):', wsError);
+      }
+    }
 
     // Send enrollment confirmation email
     try {

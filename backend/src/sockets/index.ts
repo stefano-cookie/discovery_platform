@@ -4,6 +4,7 @@ import { authenticateSocket, cleanupRateLimit, AuthenticatedSocket } from './aut
 import { autoJoinRooms } from './rooms.manager';
 import { setupNoticeEvents } from './events/notice.events';
 import { setupRegistrationEvents } from './events/registration.events';
+import { setupCouponEvents } from './events/coupon.events';
 import { SOCKET_EVENTS } from './types';
 
 /**
@@ -45,6 +46,7 @@ export const initializeSocketIO = (httpServer: HTTPServer): Server => {
     // Setup event handlers for different features
     setupNoticeEvents(io, socket);
     setupRegistrationEvents(io, socket);
+    setupCouponEvents(io, socket);
 
     // TODO: Future event handlers
     // setupNotificationEvents(io, socket);
@@ -112,6 +114,12 @@ export {
   broadcastContractSigned,
   broadcastNewRegistration,
 } from './events/registration.events';
+
+export {
+  broadcastCouponUsed,
+  broadcastCouponExpired,
+  broadcastCouponCreated,
+} from './events/coupon.events';
 
 /**
  * Health check data for /api/health/websocket endpoint

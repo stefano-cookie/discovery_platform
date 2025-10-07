@@ -4,6 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { usePartnerAuth } from '../../hooks/usePartnerAuth';
 import Portal from '../UI/Portal';
+import { useRealtimeCoupon } from '../../hooks/useRealtimeCoupon';
+import RealtimeToast from '../UI/RealtimeToast';
 
 // Schema per creazione coupon
 const couponSchema = z.object({
@@ -118,6 +120,35 @@ const CouponManagement: React.FC = () => {
   });
 
   const discountType = watch('discountType');
+
+  // Real-time coupon updates
+  const [toasts, setToasts] = useState<Array<{ id: string; type: 'success' | 'info' | 'warning' | 'error'; message: string }>>([]);
+
+  const { refreshTrigger } = useRealtimeCoupon(
+    (payload) => {
+      // Coupon used
+      const message = `🎉 Coupon ${payload.couponCode} usato da ${payload.userEmail}! Sconto: €${payload.discountApplied.toFixed(2)}`;
+      setToasts((prev) => [...prev, { id: Date.now().toString(), type: 'success', message }]);
+      // Refresh coupon list to update stats
+      loadCoupons();
+    },
+    (payload) => {
+      // Stats updated - just refresh silently
+      loadCoupons();
+    },
+    (payload) => {
+      // Coupon expired
+      const message = payload.reason === 'MAX_USES_REACHED'
+        ? `⚠️ Coupon ${payload.couponCode} ha raggiunto il limite massimo di utilizzi!`
+        : `⚠️ Coupon ${payload.couponCode} è scaduto!`;
+      setToasts((prev) => [...prev, { id: Date.now().toString(), type: 'warning', message }]);
+      loadCoupons();
+    }
+  );
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
 
   // Load coupons and companies
   useEffect(() => {
@@ -1413,6 +1444,18 @@ const CouponManagement: React.FC = () => {
         </div>
         </Portal>
       )}
+
+      {/* Real-time Toast Notifications */}
+      <div className="fixed top-4 right-4 z-50 space-y-2">
+        {toasts.map((toast) => (
+          <RealtimeToast
+            key={toast.id}
+            type={toast.type}
+            message={toast.message}
+            onClose={() => removeToast(toast.id)}
+          />
+        ))}
+      </div>
     </div>
   );
 };

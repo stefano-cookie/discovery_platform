@@ -30,6 +30,12 @@ export const SOCKET_EVENTS = {
   ADMIN_NEW_REGISTRATION: 'admin:new_registration',
   ADMIN_DOCUMENT_PENDING: 'admin:document_pending',
 
+  // Coupon events
+  COUPON_USED: 'coupon:used',
+  COUPON_STATS_UPDATED: 'coupon:stats_updated',
+  COUPON_EXPIRED: 'coupon:expired',
+  COUPON_CREATED: 'coupon:created',
+
   // System notifications (Phase 4)
   NOTIFICATION_NEW: 'notification:new',
   NOTIFICATION_READ: 'notification:read',
@@ -123,5 +129,57 @@ export interface AdminNewRegistrationPayload {
   userEmail: string;
   courseId: string;
   courseName: string;
+  timestamp: string;
+}
+
+export interface CouponUsedPayload {
+  couponUseId: string;
+  couponId: string;
+  couponCode: string;
+  discountApplied: number;
+  discountType: string;
+  usedCount: number;
+  maxUses: number | null;
+  isExhausted: boolean;
+  registrationId: string;
+  userId: string;
+  userEmail: string;
+  courseName: string;
+  finalAmount: number;
+  originalAmount: number;
+  usedAt: string;
+  timestamp: string;
+}
+
+export interface CouponStatsUpdatedPayload {
+  couponId: string;
+  couponCode: string;
+  usedCount: number;
+  maxUses: number | null;
+  remainingUses: number | null;
+  isExhausted: boolean;
+  timestamp: string;
+}
+
+export interface CouponExpiredPayload {
+  couponId: string;
+  couponCode: string;
+  reason: 'MAX_USES_REACHED' | 'DATE_EXPIRED';
+  usedCount: number;
+  maxUses: number | null;
+  validUntil: string;
+  timestamp: string;
+}
+
+export interface CouponCreatedPayload {
+  couponId: string;
+  couponCode: string;
+  discountType: string;
+  discountAmount: number | null;
+  discountPercent: number | null;
+  maxUses: number | null;
+  validFrom: string;
+  validUntil: string;
+  isActive: boolean;
   timestamp: string;
 }
