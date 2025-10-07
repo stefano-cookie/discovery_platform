@@ -26,6 +26,12 @@ export const initializeSocketIO = (httpServer: HTTPServer): Server => {
     // Ping/pong for connection health
     pingTimeout: 20000,
     pingInterval: 25000,
+    // Enable long-polling fallback for Render/proxy compatibility
+    transports: ['websocket', 'polling'],
+    // Allow upgrades from HTTP to WebSocket
+    allowUpgrades: true,
+    // For deployment behind proxies (like Render)
+    path: '/socket.io/',
   };
 
   const io = new Server(httpServer, socketOptions);

@@ -47,6 +47,10 @@ app.use(helmet({
     }
   }
 }));
+
+// Trust proxy for Render deployment (needed for WebSocket)
+app.set('trust proxy', 1);
+
 app.use(cors(corsOptions));
 app.use(express.json());
 
