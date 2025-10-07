@@ -77,20 +77,50 @@ router.post('/login', async (req, res) => {
         partnerCompany: true
       }
     });
-    
+
     if (partnerEmployee && await bcrypt.compare(password, partnerEmployee.password)) {
       if (!partnerEmployee.isActive) {
-        return res.status(401).json({ 
+        return res.status(401).json({
           error: 'Account disattivato. Contatta l\'amministratore.',
         });
       }
-      
-      // Aggiorna ultimo login
+
+      // ========== 2FA CHECK ==========
+      // Se 2FA non è configurato e il ruolo lo richiede, forza setup
+      if (!partnerEmployee.twoFactorEnabled &&
+          (partnerEmployee.role === 'ADMINISTRATIVE' || partnerEmployee.role === 'COMMERCIAL')) {
+        // TODO: In produzione, rendere obbligatorio il setup
+        // Per ora permettiamo login ma segnaliamo necessità setup
+        return res.json({
+          requires2FASetup: true,
+          partnerEmployeeId: partnerEmployee.id,
+          message: 'Configurazione 2FA obbligatoria per procedere',
+        });
+      }
+
+      // Se 2FA è abilitato, crea sessione temporanea e richiedi codice
+      if (partnerEmployee.twoFactorEnabled) {
+        const twoFactorService = await import('../services/twoFactorService');
+        const sessionToken = await twoFactorService.default.createTwoFactorSession(
+          partnerEmployee.id,
+          req.ip,
+          req.get('User-Agent')
+        );
+
+        return res.json({
+          requires2FA: true,
+          sessionToken,
+          message: 'Inserisci il codice a 6 cifre dalla tua app di autenticazione',
+        });
+      }
+      // ========== END 2FA CHECK ==========
+
+      // Login normale (senza 2FA - legacy o setup non ancora obbligatorio)
       await prisma.partnerEmployee.update({
         where: { id: partnerEmployee.id },
         data: { lastLoginAt: new Date() }
       });
-      
+
       // Log attività login
       await prisma.partnerActivityLog.create({
         data: {
@@ -104,18 +134,19 @@ router.post('/login', async (req, res) => {
           userAgent: req.get('User-Agent')
         }
       });
-      
+
       const token = jwt.sign(
-        { 
-          id: partnerEmployee.id, 
+        {
+          id: partnerEmployee.id,
           type: 'partner',
           partnerCompanyId: partnerEmployee.partnerCompanyId,
-          role: partnerEmployee.role 
+          role: partnerEmployee.role,
+          twoFactorVerified: false, // Non verificato
         },
         process.env.JWT_SECRET!,
         { expiresIn: '7d' }
       );
-      
+
       return res.json({
         token,
         type: 'partner',
