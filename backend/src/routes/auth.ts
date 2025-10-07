@@ -86,13 +86,9 @@ router.post('/login', async (req, res) => {
       }
 
       // ========== 2FA CHECK ==========
-      // TEMPORANEAMENTE DISABILITATO - Da abilitare dopo implementazione frontend
-      /*
       // Se 2FA non è configurato e il ruolo lo richiede, forza setup
       if (!partnerEmployee.twoFactorEnabled &&
           (partnerEmployee.role === 'ADMINISTRATIVE' || partnerEmployee.role === 'COMMERCIAL')) {
-        // TODO: In produzione, rendere obbligatorio il setup
-        // Per ora permettiamo login ma segnaliamo necessità setup
         return res.json({
           requires2FASetup: true,
           partnerEmployeeId: partnerEmployee.id,
@@ -115,7 +111,6 @@ router.post('/login', async (req, res) => {
           message: 'Inserisci il codice a 6 cifre dalla tua app di autenticazione',
         });
       }
-      */
       // ========== END 2FA CHECK ==========
 
       // Login normale (senza 2FA - legacy o setup non ancora obbligatorio)
