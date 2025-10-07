@@ -15,6 +15,38 @@ interface PartnerLoginResponse {
   partnerCompany: PartnerCompany;
 }
 
+// 2FA flow responses
+interface TwoFactorRequiredResponse {
+  requires2FA: true;
+  sessionToken: string;
+  message: string;
+}
+
+interface TwoFactorSetupRequiredResponse {
+  requires2FASetup: true;
+  partnerEmployeeId: string;
+  message: string;
+}
+
+// Custom error for 2FA required flow
+export class TwoFactorRequiredError extends Error {
+  sessionToken: string;
+  constructor(sessionToken: string, message: string) {
+    super(message);
+    this.name = 'TwoFactorRequiredError';
+    this.sessionToken = sessionToken;
+  }
+}
+
+export class TwoFactorSetupRequiredError extends Error {
+  partnerEmployeeId: string;
+  constructor(partnerEmployeeId: string, message: string) {
+    super(message);
+    this.name = 'TwoFactorSetupRequiredError';
+    this.partnerEmployeeId = partnerEmployeeId;
+  }
+}
+
 // ========================================
 // PARTNER AUTH CONTEXT
 // ========================================
@@ -65,41 +97,26 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
         const savedToken = localStorage.getItem('partnerToken');
         const savedEmployee = localStorage.getItem('partnerEmployee');
         const savedCompany = localStorage.getItem('partnerCompany');
-        
-        console.log('🔑 Partner Auth Init:', {
-          savedToken: savedToken ? 'EXISTS' : 'NULL',
-          savedEmployee: savedEmployee ? 'EXISTS' : 'NULL',
-          savedCompany: savedCompany ? 'EXISTS' : 'NULL'
-        });
 
         if (savedToken && savedEmployee && savedCompany) {
           const employee = JSON.parse(savedEmployee);
           const company = JSON.parse(savedCompany);
-          
+
           setToken(savedToken);
           setPartnerEmployee(employee);
           setPartnerCompany(company);
-          
-          console.log('✅ Partner Auth Restored:', {
-            email: employee.email,
-            role: employee.role,
-            company: company.name
-          });
-          
+
           // Setup api default header
           api.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
         } else {
           // Clear any partial/corrupted data
           if (savedToken || savedEmployee || savedCompany) {
-            console.log('🧹 Clearing corrupted partner auth data');
             localStorage.removeItem('partnerToken');
             localStorage.removeItem('partnerEmployee');
             localStorage.removeItem('partnerCompany');
           }
-          console.log('❌ Partner Auth: No saved data found');
         }
       } catch (error) {
-        console.error('❌ Error loading partner auth from storage:', error);
         logout();
       }
       setIsLoading(false);
@@ -111,34 +128,36 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
   // Calculated authentication state
   const authenticated = !!(token && partnerEmployee && partnerCompany);
 
-  // Debug: Log when partner state changes
-  useEffect(() => {
-    console.log('🔄 Partner state changed:', {
-      hasToken: !!token,
-      hasEmployee: !!partnerEmployee,
-      hasCompany: !!partnerCompany,
-      isLoading,
-      authenticated
-    });
-  }, [token, partnerEmployee, partnerCompany, isLoading]);
-
   // ========================================
   // AUTH ACTIONS
   // ========================================
 
   const login = async (credentials: LoginRequest) => {
     try {
-      console.log('🔄 Partner login attempt:', credentials.email);
-      const response = await api.post<PartnerLoginResponse>('/auth/login', credentials);
-      const { token: newToken, type, user: employee, partnerCompany: company } = response.data;
-      
-      console.log('📝 Partner login response:', {
-        type,
-        employee: employee.email,
-        company: company.name,
-        tokenLength: newToken.length
-      });
-      
+      const response = await api.post<any>('/auth/login', credentials);
+      const data = response.data;
+
+      // ========== 2FA FLOW HANDLING ==========
+      // Check if 2FA setup is required
+      if (data.requires2FASetup) {
+        throw new TwoFactorSetupRequiredError(
+          data.partnerEmployeeId,
+          data.message || 'Configurazione 2FA obbligatoria'
+        );
+      }
+
+      // Check if 2FA verification is required
+      if (data.requires2FA) {
+        throw new TwoFactorRequiredError(
+          data.sessionToken,
+          data.message || 'Inserisci il codice a 6 cifre'
+        );
+      }
+      // ========== END 2FA FLOW ==========
+
+      // Normal login flow (legacy or 2FA disabled)
+      const { token: newToken, type, user: employee, partnerCompany: company } = data;
+
       // Verify this is a partner login
       if (type !== 'partner') {
         throw new Error('Invalid login type. Expected partner login.');
@@ -148,35 +167,16 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
       localStorage.setItem('partnerToken', newToken);
       localStorage.setItem('partnerEmployee', JSON.stringify(employee));
       localStorage.setItem('partnerCompany', JSON.stringify(company));
-      
-      console.log('💾 Partner data stored in localStorage:', {
-        tokenSaved: !!localStorage.getItem('partnerToken'),
-        employeeSaved: !!localStorage.getItem('partnerEmployee'),
-        companySaved: !!localStorage.getItem('partnerCompany')
-      });
-      
+
       // Update state
       setToken(newToken);
       setPartnerEmployee(employee);
       setPartnerCompany(company);
-      
-      console.log('🔄 Partner state updated in React:', {
-        tokenState: !!newToken,
-        employeeState: !!employee,
-        companyState: !!company
-      });
-      
+
       // Setup api default header
       api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-      
-      console.log('✅ Partner login successful:', {
-        employee: employee.email,
-        company: company.name,
-        role: employee.role
-      });
-      
+
     } catch (error) {
-      console.error('❌ Partner login failed:', error);
       throw error;
     }
   };
@@ -194,8 +194,6 @@ export const PartnerAuthProvider: React.FC<PartnerAuthProviderProps> = ({ childr
     
     // Clear api header
     delete api.defaults.headers.common['Authorization'];
-    
-    console.log('✅ Partner logout completed');
   };
 
   // ========================================

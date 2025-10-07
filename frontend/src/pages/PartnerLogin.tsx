@@ -2,11 +2,15 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { usePartnerAuth } from '../hooks/usePartnerAuth';
+import { usePartnerAuth, TwoFactorRequiredError, TwoFactorSetupRequiredError } from '../hooks/usePartnerAuth';
 import Button from '../components/UI/Button';
 import Input from '../components/UI/Input';
+import Modal from '../components/UI/Modal';
 import ErrorMessage from '../components/UI/ErrorMessage';
 import ErrorService, { ErrorDetails } from '../services/errorService';
+import TwoFactorSetup from '../components/Partner/TwoFactor/TwoFactorSetup';
+import TwoFactorVerify from '../components/Partner/TwoFactor/TwoFactorVerify';
+import { useNavigate } from 'react-router-dom';
 
 const loginSchema = z.object({
   email: z.string().email('Email non valida'),
@@ -17,7 +21,15 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 const PartnerLogin: React.FC = () => {
   const { login, isLoading } = usePartnerAuth();
+  const navigate = useNavigate();
   const [error, setError] = useState<ErrorDetails | null>(null);
+
+  // 2FA flow states
+  const [show2FASetup, setShow2FASetup] = useState(false);
+  const [show2FAVerify, setShow2FAVerify] = useState(false);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [partnerEmployeeId, setPartnerEmployeeId] = useState<string | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const {
     register,
@@ -31,12 +43,83 @@ const PartnerLogin: React.FC = () => {
     try {
       setError(null);
       await login(data);
-      // Navigation will be handled by the auth provider
+      // Login successful - navigate to dashboard
+      navigate('/partner/dashboard');
     } catch (err: any) {
+      // Check if it's a 2FA flow error
+      if (err instanceof TwoFactorRequiredError) {
+        // Clear any existing tokens before 2FA
+        localStorage.removeItem('partnerToken');
+        localStorage.removeItem('partnerEmployee');
+        localStorage.removeItem('partnerCompany');
+        setSessionToken(err.sessionToken);
+        setShow2FAVerify(true);
+        return;
+      }
+
+      if (err instanceof TwoFactorSetupRequiredError) {
+        // Clear any existing tokens before 2FA setup
+        localStorage.removeItem('partnerToken');
+        localStorage.removeItem('partnerEmployee');
+        localStorage.removeItem('partnerCompany');
+        setPartnerEmployeeId(err.partnerEmployeeId);
+        setShow2FASetup(true);
+        return;
+      }
+
+      // Regular error
       const processedError = ErrorService.processApiError(err);
       setError(processedError);
     }
   };
+
+  // Handle successful 2FA verification
+  const handle2FASuccess = (token: string, employee: any, partnerCompany: any) => {
+    // Store authentication data
+    localStorage.setItem('partnerToken', token);
+    localStorage.setItem('partnerEmployee', JSON.stringify(employee));
+    localStorage.setItem('partnerCompany', JSON.stringify(partnerCompany));
+
+    // Navigate to dashboard
+    navigate('/partner/dashboard');
+    window.location.reload(); // Reload to update auth context
+  };
+
+  // Handle 2FA setup completion
+  const handle2FASetupComplete = () => {
+    setShow2FASetup(false);
+    setShowSuccessModal(true);
+  };
+
+  // Handle success modal close and reload
+  const handleSuccessModalClose = () => {
+    setShowSuccessModal(false);
+    window.location.reload();
+  };
+
+  // Handle cancel
+  const handleCancel = () => {
+    setShow2FASetup(false);
+    setShow2FAVerify(false);
+    setSessionToken(null);
+    setPartnerEmployeeId(null);
+  };
+
+  // Show 2FA Setup if required
+  if (show2FASetup && partnerEmployeeId) {
+    return <TwoFactorSetup partnerEmployeeId={partnerEmployeeId} onComplete={handle2FASetupComplete} onCancel={handleCancel} />;
+  }
+
+  // Show 2FA Verify if required
+  if (show2FAVerify && sessionToken) {
+    return (
+      <TwoFactorVerify
+        sessionToken={sessionToken}
+        onSuccess={handle2FASuccess}
+        onCancel={handleCancel}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
@@ -123,6 +206,39 @@ const PartnerLogin: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Success Modal */}
+      <Modal
+        isOpen={showSuccessModal}
+        onClose={handleSuccessModalClose}
+        title="Autenticazione a Due Fattori Configurata"
+        size="md"
+        closeOnOverlayClick={false}
+        closeOnEscape={false}
+      >
+        <div className="p-6">
+          <div className="flex items-center justify-center mb-4">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+          </div>
+
+          <p className="text-center text-gray-700 mb-6">
+            L'autenticazione a due fattori è stata configurata con successo.
+            Effettua nuovamente il login per accedere alla dashboard.
+          </p>
+
+          <Button
+            onClick={handleSuccessModalClose}
+            variant="primary"
+            className="w-full"
+          >
+            Torna al Login
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 };

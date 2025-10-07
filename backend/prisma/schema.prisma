@@ -117,6 +117,17 @@ model PartnerEmployee {
   invitedBy       String? // ID di chi ha invitato
   acceptedAt      DateTime?
 
+  // Campi 2FA
+  twoFactorEnabled     Boolean  @default(false)
+  twoFactorSecret      String?  // Encrypted TOTP secret (AES-256-GCM)
+  twoFactorBackupCodes Json?    // Array di recovery codes hashati
+  twoFactorVerifiedAt  DateTime?
+
+  // Security tracking
+  lastFailedTwoFactorAt    DateTime?
+  failedTwoFactorAttempts  Int @default(0)
+  twoFactorLockedUntil     DateTime?
+
   // Timestamps
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -130,6 +141,8 @@ model PartnerEmployee {
   createdOffers          PartnerOffer[]       @relation("CreatedOffers")
   actionTokens           ActionToken[]
   noticeReads            NoticeAcknowledgement[] @relation("PartnerNoticeReads") // Notice lette
+  twoFactorSessions      TwoFactorSession[]
+  twoFactorAuditLogs     TwoFactorAuditLog[]
 
   @@index([partnerCompanyId])
   @@index([email])
@@ -993,4 +1006,52 @@ enum NoticePriority {
   NORMAL
   HIGH
   URGENT
+}
+
+// ========================================
+// SISTEMA 2FA (Two-Factor Authentication)
+// ========================================
+
+model TwoFactorSession {
+  id                String   @id @default(uuid())
+  partnerEmployeeId String
+  token             String   @unique // Token temporaneo post-password
+  expiresAt         DateTime // 5 minuti di validità
+  verified          Boolean  @default(false)
+  ipAddress         String?
+  userAgent         String?
+  createdAt         DateTime @default(now())
+
+  partnerEmployee PartnerEmployee @relation(fields: [partnerEmployeeId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([partnerEmployeeId])
+  @@index([expiresAt])
+}
+
+model TwoFactorAuditLog {
+  id                String          @id @default(uuid())
+  partnerEmployeeId String
+  action            TwoFactorAction // ENABLED|DISABLED|VERIFIED|FAILED|RECOVERY_USED|LOCKED
+  ipAddress         String?
+  userAgent         String?
+  details           Json?
+  createdAt         DateTime        @default(now())
+
+  partnerEmployee PartnerEmployee @relation(fields: [partnerEmployeeId], references: [id], onDelete: Cascade)
+
+  @@index([partnerEmployeeId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+enum TwoFactorAction {
+  ENABLED
+  DISABLED
+  VERIFIED
+  FAILED
+  RECOVERY_USED
+  LOCKED
+  UNLOCKED
+  BACKUP_GENERATED
 }

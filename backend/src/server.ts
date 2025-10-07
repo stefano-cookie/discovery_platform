@@ -137,6 +137,7 @@ import documentDiagnosticsRoutes from './routes/documentDiagnostics';
 import archiveRoutes from './routes/archive';
 import noticesRoutes from './routes/notices';
 import noticeUploadRoutes from './routes/notices/upload';
+import twoFactorRoutes from './routes/twoFactor';
 // TODO: Fix partnerRegistrations.ts - has compilation errors with legacy partner system
 // import partnerRegistrationsRoutes from './routes/_refactored/partnerRegistrations';
 
@@ -151,6 +152,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/auth/2fa', twoFactorRoutes); // Two-Factor Authentication routes
 
 // UNIFIED STORAGE ROUTES - Must be BEFORE legacy routes for proper override
 app.use('/api/document-upload-unified', documentUploadUnifiedRoutes);
