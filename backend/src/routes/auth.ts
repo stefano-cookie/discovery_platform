@@ -123,7 +123,9 @@ router.post('/login', async (req, res) => {
       await prisma.partnerActivityLog.create({
         data: {
           partnerEmployeeId: partnerEmployee.id,
+          partnerCompanyId: partnerEmployee.partnerCompanyId,
           action: 'LOGIN',
+          category: 'CRITICAL',
           details: {
             ipAddress: req.ip,
             userAgent: req.get('User-Agent')

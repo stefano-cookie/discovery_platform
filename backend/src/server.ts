@@ -54,6 +54,10 @@ app.set('trust proxy', 1);
 app.use(cors(corsOptions));
 app.use(express.json());
 
+// Activity Logger Middleware (intercetta tutte le richieste partner)
+import { activityLoggerMiddleware } from './middleware/activityLogger.middleware';
+app.use(activityLoggerMiddleware);
+
 /**
  * Calculate the project root directory
  * Works in both development and production environments
@@ -138,6 +142,7 @@ import archiveRoutes from './routes/archive';
 import noticesRoutes from './routes/notices';
 import noticeUploadRoutes from './routes/notices/upload';
 import twoFactorRoutes from './routes/twoFactor';
+import activityLogsRoutes from './routes/admin/activityLogs.routes';
 // TODO: Fix partnerRegistrations.ts - has compilation errors with legacy partner system
 // import partnerRegistrationsRoutes from './routes/_refactored/partnerRegistrations';
 
@@ -178,6 +183,7 @@ app.use('/api/enrollment', enrollmentRoutes);
 app.use('/api/offer-types', offerTypesRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/archive', archiveRoutes);
+app.use('/api/admin/activity-logs', activityLogsRoutes); // Activity Logging system
 app.use('/api/notices/upload', noticeUploadRoutes); // Notice file uploads - MUST be BEFORE main notices routes
 app.use('/api/notices', noticesRoutes); // Notice Board system
 
@@ -199,6 +205,14 @@ const httpServer = http.createServer(app);
 // Initialize Socket.IO
 const io = initializeSocketIO(httpServer);
 setSocketIOInstance(io);
+
+// Initialize Activity Logger WebSocket
+import { activityLoggerWS } from './services/activityLoggerWebSocket.service';
+activityLoggerWS.initialize(io);
+
+// Start Activity Logs Cleanup Job
+import { startActivityLogsCleanupJob } from './jobs/activityLogsCleanup.job';
+startActivityLogsCleanupJob();
 
 // WebSocket health check endpoint
 app.get('/api/health/websocket', (_req, res) => {
