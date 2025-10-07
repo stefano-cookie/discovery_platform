@@ -3,6 +3,7 @@ import { Server, ServerOptions } from 'socket.io';
 import { authenticateSocket, cleanupRateLimit, AuthenticatedSocket } from './auth.middleware';
 import { autoJoinRooms } from './rooms.manager';
 import { setupNoticeEvents } from './events/notice.events';
+import { setupRegistrationEvents } from './events/registration.events';
 import { SOCKET_EVENTS } from './types';
 
 /**
@@ -43,9 +44,9 @@ export const initializeSocketIO = (httpServer: HTTPServer): Server => {
 
     // Setup event handlers for different features
     setupNoticeEvents(io, socket);
+    setupRegistrationEvents(io, socket);
 
     // TODO: Future event handlers
-    // setupRegistrationEvents(io, socket);
     // setupNotificationEvents(io, socket);
 
     // Disconnect event
@@ -100,6 +101,17 @@ export const getSocketIO = (): Server => {
   }
   return ioInstance;
 };
+
+// Export broadcast functions for use in controllers
+export {
+  broadcastRegistrationStatusChange,
+  broadcastPaymentUpdate,
+  broadcastDocumentUpload,
+  broadcastDocumentApproval,
+  broadcastDocumentRejection,
+  broadcastContractSigned,
+  broadcastNewRegistration,
+} from './events/registration.events';
 
 /**
  * Health check data for /api/health/websocket endpoint

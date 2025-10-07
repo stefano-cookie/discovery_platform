@@ -22,6 +22,10 @@ export const SOCKET_EVENTS = {
   REGISTRATION_DOCUMENT_UPLOADED: 'registration:document_uploaded',
   REGISTRATION_CONTRACT_SIGNED: 'registration:contract_signed',
 
+  // Document events
+  DOCUMENT_APPROVED: 'document:approved',
+  DOCUMENT_REJECTED: 'document:rejected',
+
   // Admin notifications
   ADMIN_NEW_REGISTRATION: 'admin:new_registration',
   ADMIN_DOCUMENT_PENDING: 'admin:document_pending',

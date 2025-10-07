@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { usePartnerAuth } from '../../hooks/usePartnerAuth';
 import { usePartnerStats } from '../../hooks/usePartnerStats';
 import { usePartnerAnalytics } from '../../hooks/usePartnerAnalytics';
+import { useRealtimeRegistration } from '../../hooks/useRealtimeRegistration';
 import { partnerService } from '../../services/partner';
 import { PartnerUser } from '../../types/partner';
 import StatsCard from './StatsCard';
@@ -13,6 +14,7 @@ import QuickMetrics from './QuickMetrics';
 import PriorityAlerts from './PriorityAlerts';
 import SuccessModal from '../UI/SuccessModal';
 import ErrorModal from '../UI/ErrorModal';
+import RealtimeToast from '../UI/RealtimeToast';
 
 const ImprovedPartnerDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -27,6 +29,68 @@ const ImprovedPartnerDashboard: React.FC = () => {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [realtimeToast, setRealtimeToast] = useState<{ message: string; type: 'success' | 'info' | 'warning' } | null>(null);
+
+  // Real-time updates
+  const { refreshTrigger } = useRealtimeRegistration(
+    // onStatusChange
+    (payload) => {
+      console.log('🔄 Real-time status change:', payload);
+      setRealtimeToast({
+        message: `${payload.userEmail} - Stato aggiornato: ${payload.newStatus}`,
+        type: 'info',
+      });
+      fetchUsers(currentFilter);
+      refetchStats();
+    },
+    // onPaymentUpdate
+    (payload) => {
+      console.log('💰 Real-time payment update:', payload);
+      setRealtimeToast({
+        message: `Pagamento rata ${payload.deadlineNumber} - €${payload.amount.toFixed(2)}`,
+        type: 'success',
+      });
+      fetchUsers(currentFilter);
+      refetchStats();
+    },
+    // onDocumentUpload
+    (payload) => {
+      console.log('📄 Real-time document upload:', payload);
+      setRealtimeToast({
+        message: `Nuovo documento caricato: ${payload.type}`,
+        type: 'info',
+      });
+      fetchUsers(currentFilter);
+    },
+    // onDocumentApproval
+    (payload) => {
+      console.log('✅ Real-time document approved:', payload);
+      setRealtimeToast({
+        message: `Documento ${payload.type} approvato per ${payload.userEmail}`,
+        type: 'success',
+      });
+      fetchUsers(currentFilter);
+    },
+    // onDocumentRejection
+    (payload) => {
+      console.log('❌ Real-time document rejected:', payload);
+      setRealtimeToast({
+        message: `Documento ${payload.type} rifiutato: ${payload.rejectionReason || 'da rivedere'}`,
+        type: 'warning',
+      });
+      fetchUsers(currentFilter);
+    },
+    // onContractSigned
+    (payload) => {
+      console.log('✍️ Real-time contract signed:', payload);
+      setRealtimeToast({
+        message: `${payload.userEmail} ha firmato il contratto!`,
+        type: 'success',
+      });
+      fetchUsers(currentFilter);
+      refetchStats();
+    }
+  );
 
   const fetchUsers = async (filter: 'all' | 'direct' | 'children' | 'orphaned' = 'all') => {
     try {
@@ -448,6 +512,15 @@ const ImprovedPartnerDashboard: React.FC = () => {
           title="Errore Export"
           message={errorMessage}
         />
+
+        {/* Real-time Toast */}
+        {realtimeToast && (
+          <RealtimeToast
+            message={realtimeToast.message}
+            type={realtimeToast.type}
+            onClose={() => setRealtimeToast(null)}
+          />
+        )}
       </div>
     </div>
   );

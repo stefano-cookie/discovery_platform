@@ -7,6 +7,8 @@ import { RegistrationsChart } from '../../components/Admin/Dashboard/Registratio
 import { StatusDonutChart } from '../../components/Admin/Dashboard/StatusDonutChart';
 import { TopCompanies } from '../../components/Admin/Dashboard/TopCompanies';
 import { QuickActions } from '../../components/Admin/Dashboard/QuickActions';
+import { useRealtimeAdmin } from '../../hooks/useRealtimeRegistration';
+import RealtimeToast from '../../components/UI/RealtimeToast';
 import api from '../../services/api';
 
 interface DashboardStats {
@@ -48,6 +50,29 @@ export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [realtimeToast, setRealtimeToast] = useState<{ message: string; type: 'success' | 'info' | 'warning' } | null>(null);
+
+  // Real-time admin notifications
+  const { refreshTrigger } = useRealtimeAdmin(
+    // onNewRegistration
+    (payload) => {
+      console.log('🆕 New registration:', payload);
+      setRealtimeToast({
+        message: `Nuova iscrizione: ${payload.userEmail} - ${payload.courseName}`,
+        type: 'success',
+      });
+      fetchDashboardData(); // Refresh dashboard stats
+    },
+    // onDocumentPending
+    (payload) => {
+      console.log('📄 Document pending:', payload);
+      setRealtimeToast({
+        message: `Documento in attesa di approvazione da ${payload.userEmail}`,
+        type: 'warning',
+      });
+      fetchDashboardData(); // Refresh dashboard stats
+    }
+  );
 
   useEffect(() => {
     fetchDashboardData();
@@ -243,6 +268,15 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Real-time Toast */}
+      {realtimeToast && (
+        <RealtimeToast
+          message={realtimeToast.message}
+          type={realtimeToast.type}
+          onClose={() => setRealtimeToast(null)}
+        />
+      )}
     </div>
   );
 };
