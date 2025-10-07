@@ -33,6 +33,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onComplete, onCancel })
     if (activeStep === 0 && !setupData) {
       initializeSetup();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeStep, setupData]);
 
   const initializeSetup = async () => {

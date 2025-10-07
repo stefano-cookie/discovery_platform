@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Button from '../../UI/Button';
 import Input from '../../UI/Input';
 import ErrorMessage from '../../UI/ErrorMessage';
@@ -26,8 +26,6 @@ const TwoFactorVerify: React.FC<TwoFactorVerifyProps> = ({
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes
   const [sessionExpired, setSessionExpired] = useState(false);
 
-  const inputRef = useRef<HTMLInputElement>(null);
-
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -41,12 +39,6 @@ const TwoFactorVerify: React.FC<TwoFactorVerifyProps> = ({
 
     return () => clearInterval(timer);
   }, []);
-
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [useRecoveryCode]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
