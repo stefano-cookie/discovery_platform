@@ -1,8 +1,9 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, CopyObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand, GetObjectCommand, DeleteObjectCommand, CopyObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
+import { r2ClientFactory, R2Account } from './r2ClientFactory';
 
 // Unified storage interface
 export interface StorageResult {
@@ -35,23 +36,15 @@ export interface IStorageManager {
 
 // R2 Storage Implementation (Production)
 class R2StorageManager implements IStorageManager {
-  private s3Client: S3Client;
-  private bucketName: string;
-
   constructor() {
-    this.s3Client = new S3Client({
-      region: 'auto',
-      endpoint: process.env.CLOUDFLARE_ENDPOINT,
-      credentials: {
-        accessKeyId: process.env.CLOUDFLARE_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.CLOUDFLARE_SECRET_ACCESS_KEY!,
-      },
-    });
+    // Verify Documents account is configured
+    if (!r2ClientFactory.isConfigured(R2Account.DOCUMENTS)) {
+      throw new Error('[R2StorageManager] Documents account not configured');
+    }
 
-    // Use different buckets for dev and production
-    const isProduction = process.env.NODE_ENV === 'production';
-    this.bucketName = isProduction ? 'discovery-documents-prod' : 'discovery-documents-dev';
-    console.log(`[R2Storage] Initialized - Bucket: ${this.bucketName}`);
+    const config = r2ClientFactory.getClient(R2Account.DOCUMENTS);
+    console.log(`[R2StorageManager] Initialized using centralized R2 factory`);
+    console.log(`[R2StorageManager] Bucket: ${config.bucketName}`);
   }
 
   async uploadFile(
@@ -61,6 +54,7 @@ class R2StorageManager implements IStorageManager {
     userId: string,
     documentType: string
   ): Promise<StorageResult> {
+    const config = r2ClientFactory.getClient(R2Account.DOCUMENTS);
     const timestamp = Date.now();
     const randomId = crypto.randomBytes(8).toString('hex');
     const fileExtension = this.getFileExtension(originalName);
@@ -68,7 +62,7 @@ class R2StorageManager implements IStorageManager {
 
     try {
       const command = new PutObjectCommand({
-        Bucket: this.bucketName,
+        Bucket: config.bucketName,
         Key: key,
         Body: buffer,
         ContentType: mimeType,
@@ -80,28 +74,30 @@ class R2StorageManager implements IStorageManager {
         },
       });
 
-      await this.s3Client.send(command);
+      await config.client.send(command);
 
       return {
         key,
-        url: `https://${this.bucketName}.r2.cloudflarestorage.com/${key}`,
+        url: `https://${config.bucketName}.r2.cloudflarestorage.com/${key}`,
         size: buffer.length,
         mimeType,
       };
     } catch (error) {
-      console.error('R2 upload error:', error);
+      console.error('[R2StorageManager] Upload error:', error);
       throw new Error(`R2 upload failed: ${error}`);
     }
   }
 
   async getDownloadUrl(key: string): Promise<SignedUrlResult> {
+    const config = r2ClientFactory.getClient(R2Account.DOCUMENTS);
+
     try {
       const command = new GetObjectCommand({
-        Bucket: this.bucketName,
+        Bucket: config.bucketName,
         Key: key,
       });
 
-      const signedUrl = await getSignedUrl(this.s3Client, command, {
+      const signedUrl = await getSignedUrl(config.client, command, {
         expiresIn: 3600, // 1 hour
       });
 
@@ -111,40 +107,43 @@ class R2StorageManager implements IStorageManager {
       return {
         signedUrl,
         fileName,
-        mimeType: 'application/octet-stream', // Could be enhanced with metadata lookup
+        mimeType: 'application/octet-stream',
       };
     } catch (error) {
-      console.error('R2 signed URL error:', error);
+      console.error('[R2StorageManager] Signed URL error:', error);
       throw new Error(`R2 signed URL failed: ${error}`);
     }
   }
 
   async deleteFile(key: string): Promise<void> {
+    const config = r2ClientFactory.getClient(R2Account.DOCUMENTS);
+
     try {
       const command = new DeleteObjectCommand({
-        Bucket: this.bucketName,
+        Bucket: config.bucketName,
         Key: key,
       });
 
-      await this.s3Client.send(command);
+      await config.client.send(command);
     } catch (error) {
-      console.error('R2 delete error:', error);
+      console.error('[R2StorageManager] Delete error:', error);
       throw new Error(`R2 delete failed: ${error}`);
     }
   }
 
   async copyFile(sourceKey: string, destinationKey: string): Promise<void> {
+    const config = r2ClientFactory.getClient(R2Account.DOCUMENTS);
+
     try {
       const command = new CopyObjectCommand({
-        Bucket: this.bucketName,
-        CopySource: `${this.bucketName}/${sourceKey}`,
+        Bucket: config.bucketName,
+        CopySource: `${config.bucketName}/${sourceKey}`,
         Key: destinationKey,
       });
 
-      await this.s3Client.send(command);
-      console.log(`✅ R2 copy successful: ${sourceKey} -> ${destinationKey}`);
+      await config.client.send(command);
     } catch (error) {
-      console.error('R2 copy error:', error);
+      console.error('[R2StorageManager] Copy error:', error);
       throw new Error(`R2 copy failed: ${error}`);
     }
   }

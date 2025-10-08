@@ -1,6 +1,7 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import crypto from 'crypto';
+import { r2ClientFactory, R2Account } from './r2ClientFactory';
 
 interface ArchiveUploadResult {
   key: string;
@@ -14,9 +15,10 @@ interface ArchiveUploadResult {
  * Gestisce 2 bucket separati:
  * - legacy-archive-docs: ZIP documenti iscrizione
  * - legacy-archive-contracts: PDF contratti
+ *
+ * Usa il centralized R2ClientFactory per accedere all'account ARCHIVE
  */
 class ArchiveStorageService {
-  private s3Client: S3Client | null = null;
   private docsBucketName: string;
   private contractsBucketName: string;
   private docsPublicUrl: string;
@@ -24,24 +26,11 @@ class ArchiveStorageService {
   private isConfigured: boolean = false;
 
   constructor() {
-    // Verifica variabili d'ambiente obbligatorie
-    const requiredEnvVars = {
-      R2_ARCHIVE_ENDPOINT: process.env.R2_ARCHIVE_ENDPOINT,
-      R2_ARCHIVE_ACCESS_KEY_ID: process.env.R2_ARCHIVE_ACCESS_KEY_ID,
-      R2_ARCHIVE_SECRET_ACCESS_KEY: process.env.R2_ARCHIVE_SECRET_ACCESS_KEY,
-    };
+    // Check if Archive account is configured
+    if (!r2ClientFactory.isConfigured(R2Account.ARCHIVE)) {
+      console.warn(`[ArchiveStorageService] ⚠️ Archive account not configured`);
+      console.warn(`[ArchiveStorageService] Archive features will be disabled`);
 
-    const missingVars = Object.entries(requiredEnvVars)
-      .filter(([_, value]) => !value)
-      .map(([key]) => key);
-
-    if (missingVars.length > 0) {
-      // ⚠️ NON bloccare il server - solo warning
-      console.warn(`[ArchiveStorageService] ⚠️ Not configured - missing env vars: ${missingVars.join(', ')}`);
-      console.warn(`[ArchiveStorageService] Archive features will be disabled until configuration is complete`);
-      console.warn(`[ArchiveStorageService] See backend/R2_SETUP_PRODUCTION.md for setup instructions`);
-
-      // Imposta valori default ma segna come non configurato
       this.docsBucketName = 'legacy-archive-docs';
       this.contractsBucketName = 'legacy-archive-contracts';
       this.docsPublicUrl = '';
@@ -50,15 +39,8 @@ class ArchiveStorageService {
       return;
     }
 
-    // Cloudflare R2 Archive configuration (shared credentials)
-    this.s3Client = new S3Client({
-      region: 'auto',
-      endpoint: process.env.R2_ARCHIVE_ENDPOINT,
-      credentials: {
-        accessKeyId: process.env.R2_ARCHIVE_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.R2_ARCHIVE_SECRET_ACCESS_KEY!,
-      },
-    });
+    // Get configuration from centralized factory
+    const config = r2ClientFactory.getClient(R2Account.ARCHIVE);
 
     // Bucket per ZIP documenti
     this.docsBucketName = process.env.R2_ARCHIVE_BUCKET_NAME || 'legacy-archive-docs';
@@ -70,21 +52,18 @@ class ArchiveStorageService {
 
     this.isConfigured = true;
 
-    console.log(`[ArchiveStorageService] ✅ Initialized successfully`);
+    console.log(`[ArchiveStorageService] ✅ Initialized using centralized R2 factory`);
     console.log(`[ArchiveStorageService] Docs Bucket: ${this.docsBucketName}`);
     console.log(`[ArchiveStorageService] Contracts Bucket: ${this.contractsBucketName}`);
-    console.log(`[ArchiveStorageService] Endpoint: ${process.env.R2_ARCHIVE_ENDPOINT}`);
-    console.log(`[ArchiveStorageService] Has credentials: ${!!process.env.R2_ARCHIVE_ACCESS_KEY_ID}`);
   }
 
   /**
    * Verifica se il service è configurato correttamente
    */
   private ensureConfigured(): void {
-    if (!this.isConfigured || !this.s3Client) {
+    if (!this.isConfigured) {
       throw new Error(
-        'Archive storage not configured. Please set R2_ARCHIVE_* environment variables. ' +
-        'See backend/R2_SETUP_PRODUCTION.md for instructions.'
+        'Archive storage not configured. Please set R2_ARCHIVE_* environment variables.'
       );
     }
   }
@@ -104,6 +83,7 @@ class ArchiveStorageService {
   ): Promise<ArchiveUploadResult> {
     this.ensureConfigured();
 
+    const config = r2ClientFactory.getClient(R2Account.ARCHIVE);
     const timestamp = Date.now();
     const randomId = crypto.randomBytes(8).toString('hex');
     const sanitizedFileName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
@@ -112,10 +92,6 @@ class ArchiveStorageService {
     const key = `archive-registrations/${metadata.originalYear}/${this.sanitizePath(metadata.companyName)}/${timestamp}-${randomId}-${sanitizedFileName}`;
 
     try {
-      console.log(`[ArchiveStorageService] Uploading ZIP: ${key}`);
-      console.log(`[ArchiveStorageService] Bucket: ${this.docsBucketName}`);
-      console.log(`[ArchiveStorageService] Size: ${buffer.length} bytes`);
-
       const command = new PutObjectCommand({
         Bucket: this.docsBucketName,
         Key: key,
@@ -131,13 +107,12 @@ class ArchiveStorageService {
         },
       });
 
-      await this.s3Client!.send(command);
-      console.log(`[ArchiveStorageService] ✅ ZIP uploaded successfully: ${key}`);
+      await config.client.send(command);
 
       // Genera URL pubblico se configurato, altrimenti usa endpoint
       const url = this.docsPublicUrl
         ? `${this.docsPublicUrl}/${key}`
-        : `${process.env.R2_ARCHIVE_ENDPOINT}/${this.docsBucketName}/${key}`;
+        : `${config.endpoint}/${this.docsBucketName}/${key}`;
 
       return {
         key,
@@ -146,10 +121,8 @@ class ArchiveStorageService {
         mimeType: 'application/zip',
       };
     } catch (error: any) {
-      console.error('[ArchiveStorageService] ❌ Error uploading ZIP to R2:', {
+      console.error('[ArchiveStorageService] ZIP upload error:', {
         message: error.message,
-        code: error.code,
-        statusCode: error.$metadata?.httpStatusCode,
         bucket: this.docsBucketName,
         key,
       });
@@ -172,6 +145,7 @@ class ArchiveStorageService {
   ): Promise<ArchiveUploadResult> {
     this.ensureConfigured();
 
+    const config = r2ClientFactory.getClient(R2Account.ARCHIVE);
     const timestamp = Date.now();
     const randomId = crypto.randomBytes(8).toString('hex');
     const sanitizedFileName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
@@ -180,16 +154,12 @@ class ArchiveStorageService {
     const key = `contracts/${metadata.originalYear}/${this.sanitizePath(metadata.companyName)}/${timestamp}-${randomId}-${sanitizedFileName}`;
 
     try {
-      console.log(`[ArchiveStorageService] Uploading Contract PDF: ${key}`);
-      console.log(`[ArchiveStorageService] Bucket: ${this.contractsBucketName}`);
-      console.log(`[ArchiveStorageService] Size: ${buffer.length} bytes`);
-
       const command = new PutObjectCommand({
         Bucket: this.contractsBucketName,
         Key: key,
         Body: buffer,
         ContentType: 'application/pdf',
-        ContentDisposition: 'inline', // Permette preview nel browser
+        ContentDisposition: 'inline',
         Metadata: {
           originalName,
           registrationId: metadata.registrationId,
@@ -200,13 +170,12 @@ class ArchiveStorageService {
         },
       });
 
-      await this.s3Client!.send(command);
-      console.log(`[ArchiveStorageService] ✅ Contract PDF uploaded successfully: ${key}`);
+      await config.client.send(command);
 
       // Genera URL pubblico (necessario per preview PDF)
       const url = this.contractsPublicUrl
         ? `${this.contractsPublicUrl}/${key}`
-        : `${process.env.R2_ARCHIVE_ENDPOINT}/${this.contractsBucketName}/${key}`;
+        : `${config.endpoint}/${this.contractsBucketName}/${key}`;
 
       return {
         key,
@@ -215,10 +184,8 @@ class ArchiveStorageService {
         mimeType: 'application/pdf',
       };
     } catch (error: any) {
-      console.error('[ArchiveStorageService] ❌ Error uploading contract PDF to R2:', {
+      console.error('[ArchiveStorageService] Contract PDF upload error:', {
         message: error.message,
-        code: error.code,
-        statusCode: error.$metadata?.httpStatusCode,
         bucket: this.contractsBucketName,
         key,
       });
@@ -234,6 +201,8 @@ class ArchiveStorageService {
   async getSignedDownloadUrl(key: string, bucketType: 'docs' | 'contracts' = 'docs'): Promise<string> {
     this.ensureConfigured();
 
+    const config = r2ClientFactory.getClient(R2Account.ARCHIVE);
+
     try {
       const bucketName = bucketType === 'contracts' ? this.contractsBucketName : this.docsBucketName;
 
@@ -242,13 +211,13 @@ class ArchiveStorageService {
         Key: key,
       });
 
-      const signedUrl = await getSignedUrl(this.s3Client!, command, {
-        expiresIn: 3600, // 1 hour
+      const signedUrl = await getSignedUrl(config.client, command, {
+        expiresIn: 3600,
       });
 
       return signedUrl;
     } catch (error) {
-      console.error('[ArchiveStorageService] Error generating signed URL:', error);
+      console.error('[ArchiveStorageService] Signed URL error:', error);
       throw new Error(`Failed to generate download URL: ${error}`);
     }
   }
@@ -261,8 +230,8 @@ class ArchiveStorageService {
     if (this.contractsPublicUrl) {
       return `${this.contractsPublicUrl}/${key}`;
     }
-    // Fallback: usa signed URL
-    return `${process.env.R2_ARCHIVE_ENDPOINT}/${this.contractsBucketName}/${key}`;
+    const config = r2ClientFactory.getClient(R2Account.ARCHIVE);
+    return `${config.endpoint}/${this.contractsBucketName}/${key}`;
   }
 
   /**
@@ -273,6 +242,8 @@ class ArchiveStorageService {
   async deleteFile(key: string, bucketType: 'docs' | 'contracts' = 'docs'): Promise<void> {
     this.ensureConfigured();
 
+    const config = r2ClientFactory.getClient(R2Account.ARCHIVE);
+
     try {
       const bucketName = bucketType === 'contracts' ? this.contractsBucketName : this.docsBucketName;
 
@@ -281,10 +252,9 @@ class ArchiveStorageService {
         Key: key,
       });
 
-      await this.s3Client!.send(command);
-      console.log(`[ArchiveStorageService] Deleted file from ${bucketType}: ${key}`);
+      await config.client.send(command);
     } catch (error) {
-      console.error('[ArchiveStorageService] Error deleting file:', error);
+      console.error('[ArchiveStorageService] Delete error:', error);
       throw new Error(`Failed to delete file: ${error}`);
     }
   }

@@ -1,22 +1,18 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { authenticate, AuthRequest } from '../../middleware/auth';
+import { r2ClientFactory, R2Account } from '../../services/r2ClientFactory';
 
 const router = Router();
 
-// Configure R2 client for Notice Board attachments
-const r2Client = new S3Client({
-  region: 'auto',
-  endpoint: process.env.R2_NOTICES_ENDPOINT || '',
-  credentials: {
-    accessKeyId: process.env.R2_NOTICES_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.R2_NOTICES_SECRET_ACCESS_KEY || '',
-  },
-});
-
-const BUCKET_NAME = process.env.R2_NOTICES_BUCKET_NAME || 'notice-board-attachments';
-const PUBLIC_URL = process.env.R2_NOTICES_PUBLIC_URL || '';
+// Get R2 configuration from centralized factory
+const getNoticesConfig = () => {
+  if (!r2ClientFactory.isConfigured(R2Account.NOTICES)) {
+    throw new Error('Notices R2 account not configured');
+  }
+  return r2ClientFactory.getClient(R2Account.NOTICES);
+};
 
 // Configure multer for memory storage (upload to R2 instead of disk)
 const storage = multer.memoryStorage();
@@ -113,9 +109,12 @@ router.post('/', authenticate, upload.single('file'), async (req: AuthRequest, r
     const uniqueFilename = generateUniqueFilename(file.originalname);
     const fileKey = `notices/${uniqueFilename}`;
 
+    // Get R2 config from factory
+    const config = getNoticesConfig();
+
     // Upload to R2
     const uploadCommand = new PutObjectCommand({
-      Bucket: BUCKET_NAME,
+      Bucket: config.bucketName,
       Key: fileKey,
       Body: file.buffer,
       ContentType: file.mimetype,
@@ -126,10 +125,10 @@ router.post('/', authenticate, upload.single('file'), async (req: AuthRequest, r
       },
     });
 
-    await r2Client.send(uploadCommand);
+    await config.client.send(uploadCommand);
 
     // Generate public URL
-    const fileUrl = PUBLIC_URL ? `${PUBLIC_URL}/${fileKey}` : fileKey;
+    const fileUrl = config.publicUrl ? `${config.publicUrl}/${fileKey}` : fileKey;
     const type = getFileType(file.mimetype);
 
     const attachment = {
@@ -172,13 +171,16 @@ router.delete('/:filename', authenticate, async (req: AuthRequest, res) => {
       fileKey = `notices/${fileKey}`;
     }
 
+    // Get R2 config from factory
+    const config = getNoticesConfig();
+
     // Delete from R2
     const deleteCommand = new DeleteObjectCommand({
-      Bucket: BUCKET_NAME,
+      Bucket: config.bucketName,
       Key: fileKey,
     });
 
-    await r2Client.send(deleteCommand);
+    await config.client.send(deleteCommand);
 
     console.log('File deleted from R2:', fileKey);
     res.json({ success: true, message: 'File deleted' });

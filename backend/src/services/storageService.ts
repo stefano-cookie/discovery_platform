@@ -1,6 +1,7 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import crypto from 'crypto';
+import { r2ClientFactory, R2Account } from './r2ClientFactory';
 
 interface UploadResult {
   key: string;
@@ -10,33 +11,15 @@ interface UploadResult {
 }
 
 class StorageService {
-  private s3Client: S3Client;
-  private bucketName: string;
-
   constructor() {
-    // Cloudflare R2 configuration
-    this.s3Client = new S3Client({
-      region: 'auto', // Cloudflare R2 uses 'auto'
-      endpoint: process.env.CLOUDFLARE_ENDPOINT,
-      credentials: {
-        accessKeyId: process.env.CLOUDFLARE_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.CLOUDFLARE_SECRET_ACCESS_KEY!,
-      },
-    });
+    // Verify Documents account is configured
+    if (!r2ClientFactory.isConfigured(R2Account.DOCUMENTS)) {
+      throw new Error('[StorageService] Documents account not configured');
+    }
 
-    // Environment-specific bucket names
-    const env = process.env.NODE_ENV || 'development';
-    const defaultBucket = env === 'production'
-      ? 'discovery-documents-prod'
-      : 'discovery-documents-dev';
-
-    this.bucketName = process.env.CLOUDFLARE_BUCKET_NAME || defaultBucket;
-
-    // Log configuration for debugging
-    console.log(`[StorageService] Initialized for ${env} environment`);
-    console.log(`[StorageService] Bucket: ${this.bucketName}`);
-    console.log(`[StorageService] Endpoint: ${process.env.CLOUDFLARE_ENDPOINT}`);
-    console.log(`[StorageService] Has credentials: ${!!process.env.CLOUDFLARE_ACCESS_KEY_ID}`);
+    const config = r2ClientFactory.getClient(R2Account.DOCUMENTS);
+    console.log(`[StorageService] Initialized using centralized R2 factory`);
+    console.log(`[StorageService] Bucket: ${config.bucketName}`);
   }
 
   /**
@@ -49,6 +32,8 @@ class StorageService {
     userId: string,
     documentType: string
   ): Promise<UploadResult> {
+    const config = r2ClientFactory.getClient(R2Account.DOCUMENTS);
+
     // Generate unique key with folder structure
     const timestamp = Date.now();
     const randomId = crypto.randomBytes(8).toString('hex');
@@ -58,7 +43,7 @@ class StorageService {
 
     try {
       const command = new PutObjectCommand({
-        Bucket: this.bucketName,
+        Bucket: config.bucketName,
         Key: key,
         Body: buffer,
         ContentType: mimeType,
@@ -70,16 +55,16 @@ class StorageService {
         },
       });
 
-      await this.s3Client.send(command);
+      await config.client.send(command);
 
       return {
         key,
-        url: `https://${this.bucketName}.r2.cloudflarestorage.com/${key}`,
+        url: `https://${config.bucketName}.r2.cloudflarestorage.com/${key}`,
         size: buffer.length,
         mimeType,
       };
     } catch (error) {
-      console.error('Error uploading to R2:', error);
+      console.error('[StorageService] Upload error:', error);
       throw new Error(`Failed to upload file: ${error}`);
     }
   }
@@ -88,19 +73,21 @@ class StorageService {
    * Get signed URL for secure download (valid for 1 hour)
    */
   async getSignedDownloadUrl(key: string): Promise<string> {
+    const config = r2ClientFactory.getClient(R2Account.DOCUMENTS);
+
     try {
       const command = new GetObjectCommand({
-        Bucket: this.bucketName,
+        Bucket: config.bucketName,
         Key: key,
       });
 
-      const signedUrl = await getSignedUrl(this.s3Client, command, {
+      const signedUrl = await getSignedUrl(config.client, command, {
         expiresIn: 3600, // 1 hour
       });
 
       return signedUrl;
     } catch (error) {
-      console.error('Error generating signed URL:', error);
+      console.error('[StorageService] Signed URL error:', error);
       throw new Error(`Failed to generate signed URL: ${error}`);
     }
   }
@@ -109,15 +96,17 @@ class StorageService {
    * Delete file from R2
    */
   async deleteFile(key: string): Promise<void> {
+    const config = r2ClientFactory.getClient(R2Account.DOCUMENTS);
+
     try {
       const command = new DeleteObjectCommand({
-        Bucket: this.bucketName,
+        Bucket: config.bucketName,
         Key: key,
       });
 
-      await this.s3Client.send(command);
+      await config.client.send(command);
     } catch (error) {
-      console.error('Error deleting from R2:', error);
+      console.error('[StorageService] Delete error:', error);
       throw new Error(`Failed to delete file: ${error}`);
     }
   }
