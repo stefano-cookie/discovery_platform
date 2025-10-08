@@ -5,6 +5,7 @@ import { DocumentService, upload as documentUpload } from '../../services/docume
 import emailService from '../../services/emailService';
 import * as path from 'path';
 import * as fs from 'fs';
+import { getSocketIO, broadcastRegistrationDeleted } from '../../sockets';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -82,6 +83,14 @@ router.delete('/registrations/:registrationId', authenticatePartner, async (req:
     await prisma.registration.delete({
       where: { id: registrationId }
     });
+
+    // Broadcast registration deletion to admin dashboard
+    try {
+      const io = getSocketIO();
+      await broadcastRegistrationDeleted(io, registrationId);
+    } catch (wsError) {
+      console.error('[WebSocket] Failed to broadcast registration deletion (non-blocking):', wsError);
+    }
 
     res.json({ success: true, message: 'Iscrizione eliminata con successo' });
   } catch (error) {

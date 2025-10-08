@@ -232,15 +232,23 @@ interface AdminNotificationPayload {
   timestamp: string;
 }
 
+interface RegistrationDeletedPayload {
+  registrationId: string;
+  timestamp: string;
+  action: string;
+}
+
 interface UseRealtimeAdminResult {
   lastNewRegistration: AdminNotificationPayload | null;
   lastDocumentPending: AdminNotificationPayload | null;
+  lastRegistrationDeleted: RegistrationDeletedPayload | null;
   refreshTrigger: number;
 }
 
 export const useRealtimeAdmin = (
   onNewRegistration?: (payload: AdminNotificationPayload) => void,
-  onDocumentPending?: (payload: AdminNotificationPayload) => void
+  onDocumentPending?: (payload: AdminNotificationPayload) => void,
+  onRegistrationDeleted?: (payload: RegistrationDeletedPayload) => void
 ): UseRealtimeAdminResult => {
   const { socket } = useSocketContext();
 
@@ -248,6 +256,9 @@ export const useRealtimeAdmin = (
     null
   );
   const [lastDocumentPending, setLastDocumentPending] = useState<AdminNotificationPayload | null>(
+    null
+  );
+  const [lastRegistrationDeleted, setLastRegistrationDeleted] = useState<RegistrationDeletedPayload | null>(
     null
   );
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -288,9 +299,28 @@ export const useRealtimeAdmin = (
     };
   }, [socket, onDocumentPending]);
 
+  // Registration deleted
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleRegistrationDeleted = (payload: RegistrationDeletedPayload) => {
+      console.log('[useRealtimeAdmin] Registration deleted:', payload);
+      setLastRegistrationDeleted(payload);
+      setRefreshTrigger((prev) => prev + 1);
+      onRegistrationDeleted?.(payload);
+    };
+
+    socket.on('admin:registration_deleted', handleRegistrationDeleted);
+
+    return () => {
+      socket.off('admin:registration_deleted', handleRegistrationDeleted);
+    };
+  }, [socket, onRegistrationDeleted]);
+
   return {
     lastNewRegistration,
     lastDocumentPending,
+    lastRegistrationDeleted,
     refreshTrigger,
   };
 };

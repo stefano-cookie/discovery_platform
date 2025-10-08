@@ -29,6 +29,7 @@ export const SOCKET_EVENTS = {
   // Admin notifications
   ADMIN_NEW_REGISTRATION: 'admin:new_registration',
   ADMIN_DOCUMENT_PENDING: 'admin:document_pending',
+  ADMIN_REGISTRATION_DELETED: 'admin:registration_deleted',
 
   // Coupon events
   COUPON_USED: 'coupon:used',

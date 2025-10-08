@@ -630,3 +630,25 @@ export const broadcastNewRegistration = async (
     console.error('[Registration Events] Error broadcasting new registration:', error);
   }
 };
+
+/**
+ * Broadcast registration deletion to admin
+ */
+export const broadcastRegistrationDeleted = async (
+  io: Server,
+  registrationId: string
+): Promise<void> => {
+  try {
+    const payload = {
+      registrationId,
+      timestamp: new Date().toISOString(),
+      action: 'registration_deleted',
+    };
+
+    io.to(SOCKET_ROOMS.ADMIN_GLOBAL).emit(SOCKET_EVENTS.ADMIN_REGISTRATION_DELETED, payload);
+
+    console.log(`[Registration Events] Registration deletion broadcast: ${registrationId}`);
+  } catch (error) {
+    console.error('[Registration Events] Error broadcasting registration deletion:', error);
+  }
+};

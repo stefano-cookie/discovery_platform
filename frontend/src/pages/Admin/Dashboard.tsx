@@ -71,6 +71,15 @@ export const AdminDashboard: React.FC = () => {
         type: 'warning',
       });
       fetchDashboardData(); // Refresh dashboard stats
+    },
+    // onRegistrationDeleted
+    (payload) => {
+      console.log('🗑️ Registration deleted:', payload);
+      setRealtimeToast({
+        message: `Iscrizione eliminata`,
+        type: 'info',
+      });
+      fetchDashboardData(); // Refresh dashboard stats
     }
   );
 

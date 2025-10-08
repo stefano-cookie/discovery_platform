@@ -120,6 +120,7 @@ export {
   broadcastDocumentRejection,
   broadcastContractSigned,
   broadcastNewRegistration,
+  broadcastRegistrationDeleted,
 } from './events/registration.events';
 
 export {
