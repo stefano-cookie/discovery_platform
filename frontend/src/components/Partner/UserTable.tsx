@@ -13,7 +13,7 @@ interface UserTableProps {
   onFilterChange: (filter: 'all' | 'direct' | 'children' | 'orphaned') => void;
   currentFilter: 'all' | 'direct' | 'children' | 'orphaned';
   onNavigateToEnrollmentDetail?: (registrationId: string) => void;
-  onRegistrationsUpdated?: () => void; // Callback per aggiornare la lista dopo eliminazione
+  onRegistrationsUpdated?: (forceFilter?: 'all' | 'direct' | 'children' | 'orphaned') => void; // Callback per aggiornare la lista dopo eliminazione
 }
 
 const UserTable: React.FC<UserTableProps> = ({ 
@@ -53,39 +53,49 @@ const UserTable: React.FC<UserTableProps> = ({
 
   const handleDeleteRegistrations = async () => {
     if (selectedRegistrations.length === 0) return;
-    
+
     // Salva info delle registrazioni prima dell'eliminazione per il messaggio di successo
     const registrationsInfo = getSelectedRegistrationsInfo();
-    
+
     setIsDeleting(true);
     try {
-      // Elimina tutte le registrazioni selezionate
-      await Promise.all(
-        selectedRegistrations.map(regId => 
+      // Elimina tutte le registrazioni selezionate e raccogli info sugli utenti orfani
+      const deleteResults = await Promise.all(
+        selectedRegistrations.map(regId =>
           partnerService.deleteRegistration(regId)
         )
       );
-      
+
+      // Controlla se ci sono utenti diventati orfani
+      const orphanedUsers = deleteResults
+        .filter(result => result.userOrphaned)
+        .map(result => result.userId);
+
       // Reset selezione
       setSelectedRegistrations([]);
       setShowDeleteConfirm(false);
-      
+
       // Mostra messaggio di successo
       setDeleteSuccess({
         count: registrationsInfo.length,
         registrations: registrationsInfo
       });
-      
+
+      // Se ci sono utenti orfani, aggiorna con filtro 'all' per mostrarli
+      if (orphanedUsers.length > 0 && onRegistrationsUpdated) {
+        console.log(`${orphanedUsers.length} utenti sono diventati orfani, aggiornamento vista con filtro 'all'`);
+        // Forza il refresh con filtro 'all' per mostrare gli utenti orfani
+        onRegistrationsUpdated('all');
+      } else if (onRegistrationsUpdated) {
+        // Altrimenti aggiorna normalmente
+        onRegistrationsUpdated();
+      }
+
       // Nascondi messaggio dopo 5 secondi
       setTimeout(() => {
         setDeleteSuccess(null);
       }, 5000);
-      
-      // Aggiorna la lista
-      if (onRegistrationsUpdated) {
-        onRegistrationsUpdated();
-      }
-      
+
     } catch (error: any) {
       console.error('Errore eliminazione iscrizioni:', error);
       alert('Errore durante l\'eliminazione delle iscrizioni: ' + (error.response?.data?.error || error.message));

@@ -495,6 +495,14 @@ const ImprovedPartnerDashboard: React.FC = () => {
           onFilterChange={handleFilterChange}
           currentFilter={currentFilter}
           onNavigateToEnrollmentDetail={handleNavigateToEnrollmentDetail}
+          onRegistrationsUpdated={(forceFilter) => {
+            // Se specificato un filtro forzato (per utenti orfani), usalo
+            if (forceFilter) {
+              setCurrentFilter(forceFilter);
+            }
+            // Ricarica gli utenti con il filtro corrente o forzato
+            fetchUsers(forceFilter || currentFilter);
+          }}
         />
 
         {/* Success Modal */}

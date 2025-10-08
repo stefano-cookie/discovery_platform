@@ -89,8 +89,18 @@ export const partnerService = {
   },
 
   // Delete registration
-  async deleteRegistration(registrationId: string): Promise<{ success: boolean; message: string }> {
-    return partnerApiRequest<{ success: boolean; message: string }>({
+  async deleteRegistration(registrationId: string): Promise<{
+    success: boolean;
+    message: string;
+    userOrphaned?: boolean;
+    userId?: string;
+  }> {
+    return partnerApiRequest<{
+      success: boolean;
+      message: string;
+      userOrphaned?: boolean;
+      userId?: string;
+    }>({
       method: 'DELETE',
       url: `/partners/registrations/${registrationId}`,
     });

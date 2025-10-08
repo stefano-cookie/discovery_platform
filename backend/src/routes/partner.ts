@@ -5345,10 +5345,31 @@ router.delete('/registrations/:registrationId', authenticateUnified, async (req:
 
     console.log(`✅ Successfully deleted registration ${registrationId}`);
 
+    // Check if the user is now orphaned after deletion
+    const remainingRegistrations = await prisma.registration.count({
+      where: {
+        userId: registration.userId,
+        partnerCompanyId: partnerCompanyId
+      }
+    });
+
+    const isNowOrphaned = remainingRegistrations === 0;
+
     // Broadcast registration deletion to admin dashboard
     try {
       const io = getSocketIO();
       await broadcastRegistrationDeleted(io, registrationId);
+
+      // If user is now orphaned, broadcast a special event to update partner dashboard
+      if (isNowOrphaned && partnerCompanyId) {
+        io.to(`partner:${partnerCompanyId}`).emit('user:became_orphaned', {
+          userId: registration.userId,
+          userEmail: registration.user.email,
+          partnerCompanyId: partnerCompanyId,
+          timestamp: new Date().toISOString()
+        });
+        console.log(`🔔 User ${registration.user.email} became orphaned after registration deletion`);
+      }
     } catch (wsError) {
       console.error('[WebSocket] Failed to broadcast registration deletion (non-blocking):', wsError);
     }
@@ -5361,7 +5382,9 @@ router.delete('/registrations/:registrationId', authenticateUnified, async (req:
         userEmail: registration.user.email,
         offerName: registration.offer?.name,
         status: registration.status
-      }
+      },
+      userOrphaned: isNowOrphaned,
+      userId: registration.userId
     });
 
   } catch (error) {
