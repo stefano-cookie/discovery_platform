@@ -50,6 +50,7 @@ jobs:
         host: ${{ secrets.REMOTE_HOST || '' }}
         username: ${{ secrets.REMOTE_USER || '' }}
         key: ${{ secrets.SSH_PRIVATE_KEY || '' }}
+        command_timeout: 30m
         script: |
           cd /var/www/vhosts/cfoeducation.it/discovery_platform_temp
           bash deploy-on-server.sh
