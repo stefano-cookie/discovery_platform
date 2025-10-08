@@ -5804,10 +5804,9 @@ router.delete('/users/:userId/orphaned', authenticateUnified, async (req: AuthRe
       }
 
 
-      // Delete user documents
-      await tx.userDocument.deleteMany({
-        where: { userId: userId }
-      });
+      // Delete user documents (INCLUDING R2 FILES)
+      const DocumentCleanupService = (await import('../services/documentCleanupService')).default;
+      await DocumentCleanupService.deleteUserDocuments(userId);
 
       // Finally delete the user
       await tx.user.delete({
@@ -5915,10 +5914,9 @@ router.delete('/users/orphaned/all', authenticateUnified, async (req: AuthReques
         }
 
 
-        // Delete user documents
-        await tx.userDocument.deleteMany({
-          where: { userId: user.id }
-        });
+        // Delete user documents (INCLUDING R2 FILES)
+        const DocumentCleanupService = (await import('../services/documentCleanupService')).default;
+        await DocumentCleanupService.deleteUserDocuments(user.id);
 
         // Finally delete the user
         await tx.user.delete({

@@ -326,17 +326,15 @@ export class CompanyService {
     }
 
     return await prisma.$transaction(async (tx) => {
-      // 1. Elimina documenti degli utenti associati alle registrations
-      await tx.userDocument.deleteMany({
-        where: {
-          registrationId: {
-            in: await tx.registration.findMany({
-              where: { partnerCompanyId: id },
-              select: { id: true }
-            }).then(regs => regs.map(r => r.id))
-          }
-        }
-      });
+      // 1. Elimina documenti degli utenti associati alle registrations (INCLUDING R2 FILES)
+      const registrationIds = await tx.registration.findMany({
+        where: { partnerCompanyId: id },
+        select: { id: true }
+      }).then(regs => regs.map(r => r.id));
+
+      // Delete documents from R2 + database using cleanup service
+      const { DocumentCleanupService } = await import('./documentCleanupService');
+      await DocumentCleanupService.deleteRegistrationsDocuments(registrationIds);
 
       // 2. Elimina payment deadlines
       await tx.paymentDeadline.deleteMany({
