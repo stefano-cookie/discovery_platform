@@ -143,6 +143,7 @@ import noticesRoutes from './routes/notices';
 import noticeUploadRoutes from './routes/notices/upload';
 import twoFactorRoutes from './routes/twoFactor';
 import activityLogsRoutes from './routes/admin/activityLogs.routes';
+import diagnosticsRoutes from './routes/diagnostics';
 // TODO: Fix partnerRegistrations.ts - has compilation errors with legacy partner system
 // import partnerRegistrationsRoutes from './routes/_refactored/partnerRegistrations';
 
@@ -186,6 +187,7 @@ app.use('/api/admin/archive', archiveRoutes);
 app.use('/api/admin/activity-logs', activityLogsRoutes); // Activity Logging system
 app.use('/api/notices/upload', noticeUploadRoutes); // Notice file uploads - MUST be BEFORE main notices routes
 app.use('/api/notices', noticesRoutes); // Notice Board system
+app.use('/api/diagnostics', diagnosticsRoutes); // System diagnostics for production debugging
 
 // Serve uploaded notice files
 app.use('/uploads/notices', express.static(path.join(__dirname, '../uploads/notices')));
