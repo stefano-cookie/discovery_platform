@@ -26,8 +26,10 @@ export const initializeSocketIO = (httpServer: HTTPServer): Server => {
     // Ping/pong for connection health
     pingTimeout: 60000,
     pingInterval: 25000,
-    // Use polling transport (WebSocket doesn't work on Render free tier)
-    transports: ['polling'],
+    // Pure WebSocket transport
+    transports: ['websocket'],
+    // Allow upgrade from polling if needed
+    allowUpgrades: true,
     // For deployment behind proxies (like Render)
     path: '/socket.io/',
   };

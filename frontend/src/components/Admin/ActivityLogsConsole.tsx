@@ -70,9 +70,11 @@ export const ActivityLogsConsole: React.FC = () => {
    * WebSocket connection
    */
   useEffect(() => {
-    const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+    // Remove /api suffix from REACT_APP_API_URL since WebSocket is on base domain
+    const baseApiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+    const wsUrl = baseApiUrl.replace('/api', '');
 
-    const socket = io(`${API_URL}/activity-logs`, {
+    const socket = io(`${wsUrl}/activity-logs`, {
       transports: ['websocket'],
       auth: {
         token: localStorage.getItem('token'),
