@@ -1,6 +1,7 @@
 import { PrismaClient, DocumentType, UploadSource, UserRole, DocumentStatus } from '@prisma/client';
 import multer from 'multer';
 import crypto from 'crypto';
+import path from 'path';
 import storageManager from './storageManager';
 import emailService from './emailService';
 
@@ -175,14 +176,45 @@ export class UnifiedDocumentManager {
         // Convert document type to enum format
         const documentType = this.convertToDocumentType(tempDoc.type);
 
-        // Create UserDocument record with storage key
+        // 🔧 FIX: Copy file from temporary location to permanent location
+        let finalStorageKey = tempDoc.storageKey;
+
+        // If the key contains 'temp-' or 'temp_', copy to permanent location
+        if (finalStorageKey && (finalStorageKey.includes('/temp-') || finalStorageKey.includes('/temp_'))) {
+          try {
+            // Generate permanent key
+            const timestamp = Date.now();
+            const randomId = crypto.randomBytes(8).toString('hex');
+            const fileExtension = path.extname(tempDoc.originalFileName);
+            const permanentKey = `documents/${userId}/${documentType}/${timestamp}-${randomId}${fileExtension}`;
+
+            console.log(`🔄 Copying from temporary to permanent location:`);
+            console.log(`   From: ${finalStorageKey}`);
+            console.log(`   To: ${permanentKey}`);
+
+            // Copy file to permanent location
+            await storageManager.copyFile(finalStorageKey, permanentKey);
+
+            // Delete temporary file (optional - keep for safety during testing)
+            // await storageManager.deleteFile(finalStorageKey);
+
+            finalStorageKey = permanentKey;
+            console.log(`✅ File copied to permanent location`);
+          } catch (copyError) {
+            console.error(`❌ Error copying file to permanent location:`, copyError);
+            // Fall back to using temporary key if copy fails
+            console.warn(`⚠️  Using temporary key as fallback: ${finalStorageKey}`);
+          }
+        }
+
+        // Create UserDocument record with final storage key
         const userDocument = await prisma.userDocument.create({
           data: {
             userId,
             registrationId,
             type: documentType,
             originalName: tempDoc.originalFileName,
-            url: tempDoc.storageKey, // Use unified storage key
+            url: finalStorageKey, // Use final (permanent) storage key
             size: tempDoc.fileSize,
             mimeType: tempDoc.mimeType,
             status: DocumentStatus.PENDING,
