@@ -270,15 +270,18 @@ class LocalStorageManager implements IStorageManager {
 // Factory for creating appropriate storage manager
 export class StorageFactory {
   static createStorage(): IStorageManager {
+    // Check for CLOUDFLARE_* env vars (used for documents account)
     const hasR2Config = process.env.CLOUDFLARE_ACCESS_KEY_ID &&
-                       process.env.CLOUDFLARE_SECRET_ACCESS_KEY;
+                       process.env.CLOUDFLARE_SECRET_ACCESS_KEY &&
+                       process.env.CLOUDFLARE_ACCOUNT_ID &&
+                       process.env.CLOUDFLARE_ENDPOINT;
 
     // Always use R2 - no more LocalStorage
     if (hasR2Config) {
       console.log(`[StorageFactory] Using R2Storage - Env: ${process.env.NODE_ENV}`);
       return new R2StorageManager();
     } else {
-      throw new Error('[StorageFactory] R2 configuration is required. Please set CLOUDFLARE_ACCESS_KEY_ID and CLOUDFLARE_SECRET_ACCESS_KEY in .env');
+      throw new Error('[StorageFactory] R2 configuration is required. Please set CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_ACCESS_KEY_ID, CLOUDFLARE_SECRET_ACCESS_KEY, and CLOUDFLARE_ENDPOINT in .env');
     }
   }
 }

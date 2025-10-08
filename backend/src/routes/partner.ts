@@ -5305,6 +5305,15 @@ router.delete('/registrations/:registrationId', authenticateUnified, async (req:
     console.log(`- Payments: ${registration.payments.length}`);
     console.log(`- Documents: ${registration.userDocuments.length}`);
 
+    // Import DocumentCleanupService for R2 cleanup
+    const { DocumentCleanupService } = await import('../services/documentCleanupService');
+
+    // Delete documents from R2 first (before transaction)
+    if (registration.userDocuments.length > 0) {
+      console.log(`🗑️ Deleting ${registration.userDocuments.length} documents from R2...`);
+      await DocumentCleanupService.deleteRegistrationDocuments(registrationId);
+    }
+
     // Use transaction to ensure atomic deletion and access disabling
     await prisma.$transaction(async (tx) => {
       // 1. Ensure user maintains assignedPartnerCompanyId even after deletion
@@ -5345,7 +5354,7 @@ router.delete('/registrations/:registrationId', authenticateUnified, async (req:
         where: { registrationId }
       });
 
-      // 6. Delete the registration (CASCADE will handle UserDocuments)
+      // 6. Delete the registration (CASCADE will handle UserDocuments in DB)
       await tx.registration.delete({
         where: { id: registrationId }
       });

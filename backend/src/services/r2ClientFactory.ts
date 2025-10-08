@@ -56,6 +56,7 @@ class R2ClientFactory {
    * Email: stefanojpriolo@gmail.com
    */
   private initializeDocumentsAccount(): void {
+    // Use CLOUDFLARE_* env vars as configured in production
     const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
     const accessKeyId = process.env.CLOUDFLARE_ACCESS_KEY_ID;
     const secretAccessKey = process.env.CLOUDFLARE_SECRET_ACCESS_KEY;
@@ -76,7 +77,7 @@ class R2ClientFactory {
       },
     });
 
-    // Environment-specific bucket
+    // Environment-specific bucket - use exact names from .env
     const isProduction = process.env.NODE_ENV === 'production';
     const bucketName = isProduction ? 'discovery-documents-prod' : 'discovery-documents-dev';
 
@@ -91,6 +92,7 @@ class R2ClientFactory {
     console.log(`[R2Factory]    Account ID: ${accountId}`);
     console.log(`[R2Factory]    Bucket: ${bucketName}`);
     console.log(`[R2Factory]    Environment: ${process.env.NODE_ENV}`);
+    console.log(`[R2Factory]    Endpoint: ${endpoint}`);
   }
 
   /**

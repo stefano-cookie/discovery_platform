@@ -71,14 +71,19 @@ router.delete('/registrations/:registrationId', authenticatePartner, async (req:
       return res.status(404).json({ error: 'Iscrizione non trovata' });
     }
 
-    // Delete related records first
+    // Import DocumentCleanupService for R2 cleanup
+    const { DocumentCleanupService } = await import('../../services/documentCleanupService');
+
+    // Delete documents from R2 first (before deleting from database)
+    await DocumentCleanupService.deleteRegistrationDocuments(registrationId);
+
+    // Delete related records from database
     await prisma.paymentDeadline.deleteMany({
       where: { registrationId }
     });
 
-    await prisma.userDocument.deleteMany({
-      where: { registrationId }
-    });
+    // UserDocuments are already deleted by DocumentCleanupService
+    // No need to delete them again
 
     await prisma.registration.delete({
       where: { id: registrationId }
