@@ -1,9 +1,10 @@
 /**
  * Conditional Logger Utility
  * Only logs in development environment
+ * Uses process.env for Create React App compatibility
  */
 
-const IS_DEVELOPMENT = import.meta.env.MODE === 'development';
+const IS_DEVELOPMENT = process.env.NODE_ENV === 'development';
 
 export const logger = {
   log: (...args: any[]) => {
