@@ -59,7 +59,5 @@ sync-db*.sh
 server-info-commands.sh
 nginx*.conf
 start-production-local.sh
-DEPLOYMENT.md
-DEPLOY_GUIDE.md
-TESTING_GUIDE.md
-IONOS_CONFIG_GUIDE.md
+*.md
+!README.md
