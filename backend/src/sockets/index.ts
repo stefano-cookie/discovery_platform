@@ -26,11 +26,12 @@ export const initializeSocketIO = (httpServer: HTTPServer): Server => {
     // Ping/pong for connection health
     pingTimeout: 60000,
     pingInterval: 25000,
-    // Pure WebSocket transport
-    transports: ['websocket'],
-    // Allow upgrade from polling if needed
+    // Support both polling and websocket for production compatibility
+    // Client will upgrade from polling to websocket automatically
+    transports: ['polling', 'websocket'],
+    // Allow upgrade from polling to websocket
     allowUpgrades: true,
-    // For deployment behind proxies (like Render)
+    // For deployment behind proxies (nginx, Plesk)
     path: '/socket.io/',
   };
 
