@@ -7,7 +7,12 @@ import storageManager from '../services/storageManager';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { getSocketIO, broadcastCouponUsed, broadcastCouponExpired } from '../sockets';
+import {
+  getSocketIO,
+  broadcastCouponUsed,
+  broadcastCouponExpired,
+  broadcastNewRegistration
+} from '../sockets';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -1238,6 +1243,14 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
       // Don't fail the registration if email fails
     }
 
+    // WebSocket: Broadcast new registration to dashboard
+    try {
+      const io = getSocketIO();
+      await broadcastNewRegistration(io, result.registration.id);
+    } catch (wsError) {
+      console.error('[WebSocket] Failed to broadcast new registration (non-blocking):', wsError);
+    }
+
     res.json({
       success: true,
       registrationId: result.registration.id,
@@ -2088,6 +2101,14 @@ router.post('/verified-user-enrollment', async (req: Request, res: Response) => 
       console.error('Failed to send enrollment confirmation email:', emailError);
     }
 
+    // WebSocket: Broadcast new registration to dashboard
+    try {
+      const io = getSocketIO();
+      await broadcastNewRegistration(io, result.registration.id);
+    } catch (wsError) {
+      console.error('[WebSocket] Failed to broadcast new registration (non-blocking):', wsError);
+    }
+
     res.json({
       success: true,
       registrationId: result.registration.id,
@@ -2393,12 +2414,20 @@ router.post('/token-enrollment', async (req: Request, res: Response) => {
       // Don't fail the registration if email fails
     }
 
+    // WebSocket: Broadcast new registration to dashboard
+    try {
+      const io = getSocketIO();
+      await broadcastNewRegistration(io, result.registration.id);
+    } catch (wsError) {
+      console.error('[WebSocket] Failed to broadcast new registration (non-blocking):', wsError);
+    }
+
     res.json({
       success: true,
       registrationId: result.registration.id,
       message: 'Iscrizione completata con successo'
     });
-    
+
   } catch (error) {
     console.error('Token enrollment error:', error);
     res.status(500).json({ error: 'Errore interno del server' });
@@ -2728,6 +2757,14 @@ router.post('/course-enrollment', async (req: Request, res: Response) => {
       return { registration, couponUseId, shouldBroadcastExpired };
     });
 
+    // WebSocket: Broadcast new registration to dashboard
+    try {
+      const io = getSocketIO();
+      await broadcastNewRegistration(io, result.registration.id);
+    } catch (wsError) {
+      console.error('[WebSocket] Failed to broadcast new registration (non-blocking):', wsError);
+    }
+
     // WebSocket: Broadcast coupon usage if applicable
     if (result.couponUseId) {
       try {
@@ -2739,7 +2776,7 @@ router.post('/course-enrollment', async (req: Request, res: Response) => {
           await broadcastCouponExpired(io, coupon.id, 'MAX_USES_REACHED');
         }
       } catch (wsError) {
-        console.error('WebSocket broadcast error (non-blocking):', wsError);
+        console.error('[WebSocket] Coupon broadcast error (non-blocking):', wsError);
       }
     }
 
