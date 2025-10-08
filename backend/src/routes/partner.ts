@@ -463,7 +463,7 @@ router.get('/users', authenticateUnified, async (req: AuthRequest, res) => {
         where: {
           AND: [
             { role: 'USER' }, // Only count users with USER role, not PARTNER employees
-            { assignedPartnerCompanyId: partnerCompanyId } // NEW: Use assignedPartnerCompanyId
+            { assignedPartnerCompanyId: partnerCompanyId } // Users assigned to this partner
           ]
         },
         include: {
@@ -705,13 +705,13 @@ router.get('/users', authenticateUnified, async (req: AuthRequest, res) => {
           .map(p => p.id);
       }
       
-      // Get all users assigned to this partner (both new and legacy systems)
+      // Get all users assigned to this partner company
       // EXCLUDE partner employees from the count - only count real users
       const allAssignedUsers = await prisma.user.findMany({
         where: {
           AND: [
             { role: 'USER' }, // Only count users with USER role, not PARTNER employees
-            { assignedPartnerCompanyId: partnerCompanyId }
+            { assignedPartnerCompanyId: partnerCompanyId } // Users assigned to this partner
           ]
         },
         include: {
@@ -5307,7 +5307,17 @@ router.delete('/registrations/:registrationId', authenticateUnified, async (req:
 
     // Use transaction to ensure atomic deletion and access disabling
     await prisma.$transaction(async (tx) => {
-      // 1. Disable user access to the offer before deleting registration (if offerId exists)
+      // 1. Ensure user maintains assignedPartnerCompanyId even after deletion
+      // This allows the user to remain visible as orphaned in the partner dashboard
+      if (!registration.user.assignedPartnerCompanyId && partnerCompanyId) {
+        await tx.user.update({
+          where: { id: registration.userId },
+          data: { assignedPartnerCompanyId: partnerCompanyId }
+        });
+        console.log(`📌 Set assignedPartnerCompanyId for user ${registration.user.email} to ${partnerCompanyId}`);
+      }
+
+      // 2. Disable user access to the offer before deleting registration (if offerId exists)
       if (registration.partnerOfferId) {
         await tx.userOfferAccess.updateMany({
           where: {
@@ -5320,22 +5330,22 @@ router.delete('/registrations/:registrationId', authenticateUnified, async (req:
         });
       }
 
-      // 2. Delete payment deadlines (thanks to CASCADE, this happens automatically)
+      // 3. Delete payment deadlines (thanks to CASCADE, this happens automatically)
       await tx.paymentDeadline.deleteMany({
         where: { registrationId }
       });
 
-      // 3. Delete payments (thanks to CASCADE, this happens automatically)
+      // 4. Delete payments (thanks to CASCADE, this happens automatically)
       await tx.payment.deleteMany({
         where: { registrationId }
       });
 
-      // 4. Delete coupon uses
+      // 5. Delete coupon uses
       await tx.couponUse.deleteMany({
         where: { registrationId }
       });
 
-      // 5. Delete the registration (CASCADE will handle UserDocuments)
+      // 6. Delete the registration (CASCADE will handle UserDocuments)
       await tx.registration.delete({
         where: { id: registrationId }
       });
