@@ -171,8 +171,8 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
     try {
       console.log('👁️ Preview document:', { docId: doc.documentId, mode, userId });
 
-      // Check if document is actually uploaded
-      if (!doc.uploaded || !doc.documentId || doc.id.startsWith('empty-')) {
+      // Check if document is actually uploaded and has valid ID
+      if (!doc.uploaded || !doc.documentId || doc.documentId === 'undefined' || doc.id.startsWith('empty-')) {
         setError('Documento non ancora caricato');
         return;
       }
@@ -234,8 +234,8 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
     try {
       console.log('⬇️ Download document:', { docId: doc.documentId, mode, userId });
 
-      // Check if document is actually uploaded
-      if (!doc.uploaded || !doc.documentId || doc.id.startsWith('empty-')) {
+      // Check if document is actually uploaded and has valid ID
+      if (!doc.uploaded || !doc.documentId || doc.documentId === 'undefined' || doc.id.startsWith('empty-')) {
         setError('Documento non ancora caricato');
         return;
       }
@@ -669,7 +669,7 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
 
                     {/* Action Buttons - grouped by function */}
                     <div className="flex items-center space-x-1 flex-wrap justify-end">
-                      {doc.uploaded && doc.documentId && (
+                      {doc.uploaded && doc.documentId && doc.documentId !== 'undefined' && !doc.id.startsWith('empty-') && (
                         <>
                           <button
                             onClick={() => handlePreview(doc)}

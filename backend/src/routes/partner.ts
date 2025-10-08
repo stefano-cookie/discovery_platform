@@ -3920,7 +3920,7 @@ router.get('/registrations/:registrationId/documents/unified', authenticateUnifi
     // Create unified document structure
     const documents = documentTypes.map(docType => {
       const userDoc = userDocuments.find(doc => doc.type === docType.type);
-      
+
       return {
         id: userDoc?.id || `empty-${docType.type}`,
         type: docType.type,
@@ -3932,7 +3932,7 @@ router.get('/registrations/:registrationId/documents/unified', authenticateUnifi
         mimeType: userDoc?.mimeType,
         size: userDoc?.size,
         uploadedAt: userDoc?.uploadedAt?.toISOString(),
-        documentId: userDoc?.id,
+        documentId: userDoc?.id || null, // Use null instead of undefined
         status: userDoc?.status,
         rejectionReason: userDoc?.rejectionReason,
         rejectionDetails: userDoc?.rejectionDetails,
