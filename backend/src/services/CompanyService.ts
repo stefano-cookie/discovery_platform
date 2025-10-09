@@ -326,6 +326,15 @@ export class CompanyService {
     }
 
     return await prisma.$transaction(async (tx) => {
+      // 0. Trova tutti gli utenti assegnati a questa company
+      const assignedUsers = await tx.user.findMany({
+        where: { assignedPartnerCompanyId: id },
+        select: { id: true, email: true }
+      });
+      const assignedUserIds = assignedUsers.map(u => u.id);
+
+      console.log(`🗑️ Deleting company ${company.name} with ${assignedUserIds.length} assigned users`);
+
       // 1. Elimina documenti degli utenti associati alle registrations (INCLUDING R2 FILES)
       const registrationIds = await tx.registration.findMany({
         where: { partnerCompanyId: id },
@@ -375,7 +384,48 @@ export class CompanyService {
         where: { partnerCompanyId: id }
       });
 
-      // 7. Log dell'azione
+      // 7. Elimina utenti assegnati alla company (User records)
+      if (assignedUserIds.length > 0) {
+        // 7a. Elimina UserOfferAccess degli utenti
+        await tx.userOfferAccess.deleteMany({
+          where: { userId: { in: assignedUserIds } }
+        });
+
+        // 7b. Elimina UserDocument rimasti (dovrebbero essere già stati eliminati con registrations)
+        await tx.userDocument.deleteMany({
+          where: { userId: { in: assignedUserIds } }
+        });
+
+        // 7c. Elimina ChatConversation degli utenti (se esistono)
+        await tx.chatConversation.deleteMany({
+          where: { userId: { in: assignedUserIds } }
+        });
+
+        // 7d. Elimina UserProfile degli utenti
+        await tx.userProfile.deleteMany({
+          where: { userId: { in: assignedUserIds } }
+        });
+
+        // 7e. Elimina UserTransfer records
+        await tx.userTransfer.deleteMany({
+          where: {
+            OR: [
+              { userId: { in: assignedUserIds } },
+              { fromPartnerId: id },
+              { toPartnerId: id }
+            ]
+          }
+        });
+
+        // 7f. Elimina User records
+        await tx.user.deleteMany({
+          where: { id: { in: assignedUserIds } }
+        });
+
+        console.log(`✅ Deleted ${assignedUserIds.length} users assigned to company ${company.name}`);
+      }
+
+      // 8. Log dell'azione
       await tx.discoveryAdminLog.create({
         data: {
           adminId,
@@ -386,14 +436,16 @@ export class CompanyService {
             name: company.name,
             referralCode: company.referralCode,
             employeesCount: company._count.employees,
-            registrationsCount: company._count.registrations
+            registrationsCount: company._count.registrations,
+            assignedUsersCount: assignedUserIds.length,
+            assignedUserEmails: assignedUsers.map(u => u.email)
           },
           reason: 'Company deleted by Discovery admin',
           ipAddress
         }
       });
 
-      // 8. Elimina company
+      // 9. Elimina company
       await tx.partnerCompany.delete({
         where: { id }
       });
