@@ -353,17 +353,29 @@ export class CompanyService {
         where: { partnerCompanyId: id }
       });
 
-      // 4. Elimina offers
+      // 4. Elimina UserOfferAccess legati alle offer della company
+      const offerIds = await tx.partnerOffer.findMany({
+        where: { partnerCompanyId: id },
+        select: { id: true }
+      }).then(offers => offers.map(o => o.id));
+
+      if (offerIds.length > 0) {
+        await tx.userOfferAccess.deleteMany({
+          where: { offerId: { in: offerIds } }
+        });
+      }
+
+      // 5. Elimina offers
       await tx.partnerOffer.deleteMany({
         where: { partnerCompanyId: id }
       });
 
-      // 5. Elimina employees
+      // 6. Elimina employees
       await tx.partnerEmployee.deleteMany({
         where: { partnerCompanyId: id }
       });
 
-      // 6. Log dell'azione
+      // 7. Log dell'azione
       await tx.discoveryAdminLog.create({
         data: {
           adminId,
@@ -381,7 +393,7 @@ export class CompanyService {
         }
       });
 
-      // 7. Elimina company
+      // 8. Elimina company
       await tx.partnerCompany.delete({
         where: { id }
       });

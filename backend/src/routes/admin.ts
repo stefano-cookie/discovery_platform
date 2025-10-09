@@ -315,29 +315,6 @@ router.patch('/companies/:id', authenticate, requireAdmin, async (req: AuthReque
 });
 
 /**
- * DELETE /api/admin/companies/:id
- * Disattiva company (soft delete)
- */
-router.delete('/companies/:id', authenticate, requireAdmin, async (req: AuthRequest, res) => {
-  try {
-    const { id } = req.params;
-
-    await CompanyService.disableCompany(id, req.user!.id, req.ip);
-
-    res.json({
-      success: true,
-      message: 'Company disabled successfully'
-    });
-  } catch (error: any) {
-    console.error('Error disabling company:', error);
-    if (error.message === 'Company not found') {
-      return res.status(404).json({ error: error.message });
-    }
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-/**
  * DELETE /api/admin/companies/:id/permanent
  * Elimina definitivamente company e tutti i dati associati (hard delete)
  */
