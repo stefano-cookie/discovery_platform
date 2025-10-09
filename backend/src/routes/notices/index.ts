@@ -28,7 +28,7 @@ router.get('/', authenticateUnified, async (req: AuthRequest, res) => {
     const currentPartnerEmployeeId = req.partnerEmployee?.id || null;
     const isAdmin = req.user?.role === 'ADMIN' || false;
 
-    // Fetch all notices
+    // Fetch all notices with their acknowledgements
     const notices = await prisma.notice.findMany({
       orderBy: [
         { isPinned: 'desc' },
@@ -42,42 +42,48 @@ router.get('/', authenticateUnified, async (req: AuthRequest, res) => {
           }
         },
         acknowledgements: {
-          where: currentUserId
-            ? { userId: currentUserId }
-            : currentPartnerEmployeeId
-            ? { partnerEmployeeId: currentPartnerEmployeeId }
-            : undefined,
-          select: {
-            id: true,
-            readAt: true
-          }
-        },
-        _count: {
-          select: {
-            acknowledgements: true
+          include: {
+            user: {
+              select: {
+                id: true,
+                role: true
+              }
+            }
           }
         }
       }
     });
 
     // Transform to include read status
-    const noticesWithStatus = notices.map(notice => ({
-      id: notice.id,
-      title: notice.title,
-      content: notice.content,
-      contentHtml: notice.contentHtml,
-      attachments: notice.attachments,
-      priority: notice.priority,
-      isPinned: notice.isPinned,
-      publishedAt: notice.publishedAt,
-      createdBy: notice.createdBy,
-      createdAt: notice.createdAt,
-      updatedAt: notice.updatedAt,
-      creator: notice.creator,
-      isRead: notice.acknowledgements.length > 0,
-      readAt: notice.acknowledgements[0]?.readAt || null,
-      totalReads: notice._count.acknowledgements
-    }));
+    const noticesWithStatus = notices.map(notice => {
+      // Find current user's acknowledgement
+      const currentUserAck = notice.acknowledgements.find(ack =>
+        currentUserId ? ack.userId === currentUserId : ack.partnerEmployeeId === currentPartnerEmployeeId
+      );
+
+      // Count only non-admin reads
+      const totalReads = notice.acknowledgements.filter(ack =>
+        !ack.user || ack.user.role !== 'ADMIN'
+      ).length;
+
+      return {
+        id: notice.id,
+        title: notice.title,
+        content: notice.content,
+        contentHtml: notice.contentHtml,
+        attachments: notice.attachments,
+        priority: notice.priority,
+        isPinned: notice.isPinned,
+        publishedAt: notice.publishedAt,
+        createdBy: notice.createdBy,
+        createdAt: notice.createdAt,
+        updatedAt: notice.updatedAt,
+        creator: notice.creator,
+        isRead: !!currentUserAck,
+        readAt: currentUserAck?.readAt || null,
+        totalReads
+      };
+    });
 
     res.json({ notices: noticesWithStatus });
   } catch (error) {
@@ -331,7 +337,13 @@ router.get('/:id/stats', authenticate, async (req: AuthRequest, res) => {
 
     const [notice, totalUsers, totalPartners, acknowledgements] = await Promise.all([
       prisma.notice.findUnique({ where: { id } }),
-      prisma.user.count({ where: { isActive: true } }),
+      // Count only non-admin users
+      prisma.user.count({
+        where: {
+          isActive: true,
+          role: { not: 'ADMIN' }
+        }
+      }),
       prisma.partnerEmployee.count({ where: { isActive: true } }),
       prisma.noticeAcknowledgement.findMany({
         where: { noticeId: id },
@@ -357,7 +369,10 @@ router.get('/:id/stats', authenticate, async (req: AuthRequest, res) => {
     ]);
 
     const totalStaff = totalUsers + totalPartners;
-    const totalReads = acknowledgements.length;
+    // Count only reads from non-admin users and partner employees
+    const totalReads = acknowledgements.filter(ack =>
+      !ack.user || ack.user.role !== 'ADMIN'
+    ).length;
     const readPercentage = totalStaff > 0 ? Math.round((totalReads / totalStaff) * 100) : 0;
 
     res.json({
