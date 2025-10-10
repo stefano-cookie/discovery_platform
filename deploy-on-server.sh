@@ -29,19 +29,21 @@ fi
 
 # 2. Deploy Frontend
 echo -e "${YELLOW}🎨 Deploying frontend...${NC}"
+mkdir -p "$DEPLOY_DIR/frontend/build"
 rsync -av --delete \
     --exclude='.git' \
     --exclude='node_modules' \
     --exclude='*.log' \
-    "$TEMP_DIR/frontend/build/" "$DEPLOY_DIR/"
+    "$TEMP_DIR/frontend/build/" "$DEPLOY_DIR/frontend/build/"
 
 # 2.1 Deploy Frontend Proxy Server
 echo -e "${YELLOW}🔧 Deploying frontend proxy server...${NC}"
+mkdir -p "$DEPLOY_DIR/frontend"
 if [ -f "$TEMP_DIR/frontend-proxy-server-production.js" ]; then
-    cp "$TEMP_DIR/frontend-proxy-server-production.js" "$DEPLOY_DIR/frontend-proxy-server.js"
+    cp "$TEMP_DIR/frontend-proxy-server-production.js" "$DEPLOY_DIR/frontend/frontend-proxy-server.js"
     echo -e "${GREEN}✓ Frontend proxy server deployed (production version)${NC}"
 else
-    cp "$TEMP_DIR/frontend-proxy-server.js" "$DEPLOY_DIR/"
+    cp "$TEMP_DIR/frontend-proxy-server.js" "$DEPLOY_DIR/frontend/"
     echo -e "${YELLOW}⚠️  Using development version of proxy server${NC}"
 fi
 
