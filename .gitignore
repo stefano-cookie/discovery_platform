@@ -13,6 +13,10 @@ dist/
 # Misc
 .DS_Store
 .env*
+!.env.production.placeholder
+!.env.example
+!.env.production.example
+!.env.production.template
 *.log
 npm-debug.log*
 yarn-debug.log*
