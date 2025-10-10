@@ -795,7 +795,7 @@ router.post('/upload-contract', authenticate, requireAdmin, upload.single('contr
 
 // ========================================
 // GET /api/admin/archive/contract-preview/:registrationId
-// URL pubblico per preview PDF contratto
+// URL temporaneo per preview PDF contratto (signed URL)
 // ========================================
 router.get('/contract-preview/:registrationId', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
@@ -803,20 +803,21 @@ router.get('/contract-preview/:registrationId', authenticate, requireAdmin, asyn
 
     const registration = await prisma.archivedRegistration.findUnique({
       where: { id: registrationId },
-      select: { contractPdfUrl: true, contractPdfKey: true }
+      select: { contractPdfKey: true }
     });
 
-    if (!registration || !registration.contractPdfUrl) {
+    if (!registration || !registration.contractPdfKey) {
       return res.status(404).json({ error: 'Contratto PDF non trovato' });
     }
 
-    // Ritorna URL pubblico per preview (no scadenza)
-    const publicUrl = registration.contractPdfUrl;
+    // Genera signed URL temporaneo per preview (1 ora)
+    const signedUrl = await archiveStorageService.getSignedDownloadUrl(registration.contractPdfKey, 'contracts');
 
     res.json({
       success: true,
-      previewUrl: publicUrl,
-      key: registration.contractPdfKey
+      previewUrl: signedUrl,
+      key: registration.contractPdfKey,
+      expiresIn: 3600 // secondi
     });
   } catch (error: any) {
     console.error('[Archive] Errore recupero preview contratto:', error);
