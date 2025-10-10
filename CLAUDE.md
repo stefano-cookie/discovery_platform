@@ -104,6 +104,91 @@ R2_NOTICES_BUCKET_NAME=notice-board-attachments
 
 ---
 
+## 🗑️ R2 Automatic Cleanup System - 2025-10-10
+
+### Overview
+Implementato sistema di cleanup automatico per prevenire file orfani in R2 storage quando i record del database vengono eliminati.
+
+**Problema Risolto**: File rimanevano in R2 anche dopo eliminazione dal database, causando saturazione dello spazio storage.
+
+### Integrazione Automatica
+
+Il servizio `R2CleanupService` è integrato nei seguenti punti di eliminazione:
+
+1. **Notice Deletion** ([notices/index.ts](backend/src/routes/notices/index.ts#L244))
+   - Elimina tutti gli allegati dalla Notice prima di eliminare il record DB
+   - Account: `R2Account.NOTICES`
+
+2. **UserDocument Deletion** ([unifiedDocumentService.ts](backend/src/services/unifiedDocumentService.ts#L474))
+   - Elimina file documento da R2 prima di eliminare record DB
+   - Account: `R2Account.DOCUMENTS`
+
+3. **User Deletion** ([auth.ts](backend/src/routes/auth.ts#L1050))
+   - Elimina TUTTI i documenti utente + contratti
+   - Include tutti i documenti legati alle registrations
+   - Account: `R2Account.DOCUMENTS`
+
+4. **Registration Deletion** (via `DocumentCleanupService`)
+   - Gestito automaticamente quando si elimina una registration
+   - Elimina documenti enrollment + contratti firmati
+
+### Service API
+
+```typescript
+import { R2CleanupService } from './services/r2CleanupService';
+
+// Cleanup Notice attachments
+await R2CleanupService.cleanupNoticeAttachments(noticeId);
+
+// Cleanup single UserDocument
+await R2CleanupService.cleanupUserDocument(documentId);
+
+// Cleanup ALL documents for a Registration
+await R2CleanupService.cleanupRegistrationDocuments(registrationId);
+
+// Cleanup ALL documents for a User (documents + contracts)
+await R2CleanupService.cleanupUserDocuments(userId);
+
+// Cleanup Archive files
+await R2CleanupService.cleanupArchiveFiles(archiveId);
+```
+
+### Manual Cleanup Script
+
+Per file orfani esistenti (creati prima dell'implementazione):
+
+```bash
+# DRY RUN - solo visualizza file orfani
+cd backend
+npx ts-node scripts/cleanup-orphaned-r2-files.ts
+
+# DELETE - elimina effettivamente i file
+npx ts-node scripts/cleanup-orphaned-r2-files.ts --delete
+```
+
+### Behavior
+
+- ✅ **Non-blocking**: Se R2 cleanup fallisce, l'eliminazione DB procede comunque
+- ✅ **Idempotent**: Chiamate multiple non causano errori
+- ✅ **Logged**: Ogni cleanup è loggato nei backend logs
+- ✅ **Batch support**: Supporta eliminazione batch per performance
+
+### File Paths Gestiti
+
+```
+R2Account.DOCUMENTS:
+  - documents/{userId}/{type}/{filename}
+  - contracts/{registrationId}/{filename}
+
+R2Account.NOTICES:
+  - notices/{filename}
+
+R2Account.ARCHIVE:
+  - archive/{filename}
+```
+
+---
+
 ## 🔧 Comandi Utili Server Produzione
 
 ### SSH Access
