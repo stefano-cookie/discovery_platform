@@ -42,7 +42,7 @@ jobs:
         REMOTE_USER: ${{ secrets.REMOTE_USER || '' }}
         SOURCE: "./"
         TARGET: "/var/www/vhosts/cfoeducation.it/discovery_platform_temp/"
-        EXCLUDE: ".git/,.github/,node_modules/,backend/.env,frontend/.env,*.log,.DS_Store"
+        EXCLUDE: ".git/,.github/,node_modules/,backend/.env,backend/.env.production,frontend/.env,*.log,.DS_Store"
           
     - name: Execute deployment script on server
       uses: appleboy/ssh-action@v1.0.0
