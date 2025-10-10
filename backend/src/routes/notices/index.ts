@@ -9,6 +9,7 @@ import {
   emitNoticeDeleted,
   emitNoticeAcknowledged,
 } from '../../sockets/events/notice.events';
+import { R2CleanupService } from '../../services/r2CleanupService';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -239,9 +240,14 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res) => {
 
     const { id } = req.params;
 
+    // CRITICAL: Clean up R2 files BEFORE deleting database record
+    await R2CleanupService.cleanupNoticeAttachments(id);
+
     await prisma.notice.delete({
       where: { id }
     });
+
+    console.log(`[Notice] Deleted notice ${id} with all attachments`);
 
     // Emit WebSocket event
     try {

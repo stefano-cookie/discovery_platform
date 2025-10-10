@@ -6,6 +6,7 @@ import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import emailService from '../services/emailService';
 import SecureTokenService from '../services/secureTokenService';
+import { R2CleanupService } from '../services/r2CleanupService';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -1045,12 +1046,15 @@ if (process.env.NODE_ENV === 'development') {
         return res.json({ success: true, message: 'User not found, nothing to clean' });
       }
 
+      // CRITICAL: Clean up R2 files BEFORE deleting database records
+      await R2CleanupService.cleanupUserDocuments(existingUser.id);
+
       await prisma.$transaction(async (tx) => {
         // Delete related records first
         if (existingUser.registrations.length > 0) {
           const registrationIds = existingUser.registrations.map(r => r.id);
-          
-          // Clean up UserDocument tables
+
+          // Clean up UserDocument tables (R2 already cleaned above)
           await tx.userDocument.deleteMany({
             where: { registrationId: { in: registrationIds } }
           });

@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import emailService from './emailService';
+import { R2CleanupService } from './r2CleanupService';
 
 const prisma = new PrismaClient();
 
@@ -468,6 +469,9 @@ export class UnifiedDocumentService {
     if (fs.existsSync(document.url)) {
       fs.unlinkSync(document.url);
     }
+
+    // CRITICAL: Clean up R2 files BEFORE deleting database record
+    await R2CleanupService.cleanupUserDocument(documentId);
 
     // Log action before deletion
     await prisma.documentActionLog.create({

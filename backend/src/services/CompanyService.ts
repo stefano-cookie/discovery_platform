@@ -1,5 +1,6 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import crypto from 'crypto';
+import { R2CleanupService } from './r2CleanupService';
 
 const prisma = new PrismaClient();
 
