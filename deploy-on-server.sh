@@ -48,6 +48,22 @@ fi
 # 3. Deploy Backend
 echo -e "${YELLOW}⚙️ Deploying backend...${NC}"
 mkdir -p "$DEPLOY_DIR/backend"
+
+# 3.0 🔒 CRITICAL: Backup .env files BEFORE rsync
+echo -e "${YELLOW}🔐 Backing up environment files BEFORE deploy...${NC}"
+if [ -f "$DEPLOY_DIR/backend/.env" ]; then
+    mkdir -p "$BACKUP_DIR"
+    cp "$DEPLOY_DIR/backend/.env" "$BACKUP_DIR/.env.backup_$TIMESTAMP"
+    echo -e "${GREEN}✓ Backed up .env${NC}"
+fi
+if [ -f "$DEPLOY_DIR/backend/.env.production" ]; then
+    mkdir -p "$BACKUP_DIR"
+    cp "$DEPLOY_DIR/backend/.env.production" "$BACKUP_DIR/.env.production.backup_$TIMESTAMP"
+    echo -e "${GREEN}✓ Backed up .env.production${NC}"
+else
+    echo -e "${YELLOW}⚠️  No .env.production found to backup (will check backups later)${NC}"
+fi
+
 rsync -av \
     --exclude='.git' \
     --exclude='node_modules' \
@@ -86,17 +102,7 @@ echo -e "${GREEN}✓ Document directories configured${NC}"
 # 4. 🔒 CRITICAL: Setup environment variables (.env and .env.production)
 echo -e "${YELLOW}🔐 Setting up environment variables...${NC}"
 
-# 4.1 Backup existing .env files if they exist
-if [ -f "$DEPLOY_DIR/backend/.env" ]; then
-    cp "$DEPLOY_DIR/backend/.env" "$BACKUP_DIR/.env.backup_$TIMESTAMP"
-    echo -e "${YELLOW}📦 Backed up existing .env${NC}"
-fi
-if [ -f "$DEPLOY_DIR/backend/.env.production" ]; then
-    cp "$DEPLOY_DIR/backend/.env.production" "$BACKUP_DIR/.env.production.backup_$TIMESTAMP"
-    echo -e "${YELLOW}📦 Backed up existing .env.production${NC}"
-fi
-
-# 4.2 Check if .env.production exists (should be manually maintained on server)
+# 4.1 Check if .env.production exists (should be manually maintained on server)
 if [ ! -f "$DEPLOY_DIR/backend/.env.production" ]; then
     echo -e "${RED}❌ CRITICAL: .env.production not found!${NC}"
     echo -e "${RED}   This file MUST exist on the server with production credentials.${NC}"
@@ -115,7 +121,7 @@ if [ ! -f "$DEPLOY_DIR/backend/.env.production" ]; then
     fi
 fi
 
-# 4.3 Validate .env.production has required variables
+# 4.2 Validate .env.production has required variables
 echo -e "${YELLOW}🔍 Validating .env.production...${NC}"
 REQUIRED_VARS=("DATABASE_URL" "JWT_SECRET" "ENCRYPTION_KEY" "CLOUDFLARE_ACCOUNT_ID" "EMAIL_USER")
 MISSING_VARS=()
@@ -134,11 +140,11 @@ if [ ${#MISSING_VARS[@]} -gt 0 ]; then
     exit 1
 fi
 
-# 4.4 Create .env from .env.production (dotenv loads .env by default)
+# 4.3 Create .env from .env.production (dotenv loads .env by default)
 cp "$DEPLOY_DIR/backend/.env.production" "$DEPLOY_DIR/backend/.env"
 echo -e "${GREEN}✓ Created .env from .env.production${NC}"
 
-# 4.5 Verify file exists and is readable
+# 4.4 Verify file exists and is readable
 if [ -f "$DEPLOY_DIR/backend/.env" ] && [ -r "$DEPLOY_DIR/backend/.env" ]; then
     ENV_LINE_COUNT=$(wc -l < "$DEPLOY_DIR/backend/.env")
     echo -e "${GREEN}✓ .env file verified ($ENV_LINE_COUNT lines)${NC}"
