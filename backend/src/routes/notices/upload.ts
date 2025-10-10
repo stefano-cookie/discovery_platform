@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import { authenticate, AuthRequest } from '../../middleware/auth';
+import { PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { authenticate, AuthRequest, authenticateUnified } from '../../middleware/auth';
 import { r2ClientFactory, R2Account } from '../../services/r2ClientFactory';
 
 const router = Router();
@@ -127,13 +128,18 @@ router.post('/', authenticate, upload.single('file'), async (req: AuthRequest, r
 
     await config.client.send(uploadCommand);
 
-    // Generate public URL
-    const fileUrl = config.publicUrl ? `${config.publicUrl}/${fileKey}` : fileKey;
+    // Generate signed URL (7 days expiry) - no need for public bucket
+    const getCommand = new GetObjectCommand({
+      Bucket: config.bucketName,
+      Key: fileKey,
+    });
+
+    const signedUrl = await getSignedUrl(config.client, getCommand, { expiresIn: 604800 }); // 7 days
     const type = getFileType(file.mimetype);
 
     const attachment = {
       name: file.originalname,
-      url: fileUrl,
+      url: signedUrl, // Use signed URL instead of public URL
       type: type,
       size: file.size,
       mimeType: file.mimetype,

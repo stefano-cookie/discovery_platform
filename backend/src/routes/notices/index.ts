@@ -10,6 +10,9 @@ import {
   emitNoticeAcknowledged,
 } from '../../sockets/events/notice.events';
 import { R2CleanupService } from '../../services/r2CleanupService';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { r2ClientFactory, R2Account } from '../../services/r2ClientFactory';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -55,8 +58,8 @@ router.get('/', authenticateUnified, async (req: AuthRequest, res) => {
       }
     });
 
-    // Transform to include read status
-    const noticesWithStatus = notices.map(notice => {
+    // Transform to include read status and refresh signed URLs
+    const noticesWithStatus = await Promise.all(notices.map(async (notice) => {
       // Find current user's acknowledgement
       const currentUserAck = notice.acknowledgements.find(ack =>
         currentUserId ? ack.userId === currentUserId : ack.partnerEmployeeId === currentPartnerEmployeeId
@@ -67,12 +70,40 @@ router.get('/', authenticateUnified, async (req: AuthRequest, res) => {
         !ack.user || ack.user.role !== 'ADMIN'
       ).length;
 
+      // Refresh signed URLs for attachments (if R2 Notices is configured)
+      let refreshedAttachments = notice.attachments;
+      if (notice.attachments && Array.isArray(notice.attachments) && notice.attachments.length > 0) {
+        try {
+          if (r2ClientFactory.isConfigured(R2Account.NOTICES)) {
+            const config = r2ClientFactory.getClient(R2Account.NOTICES);
+            refreshedAttachments = await Promise.all((notice.attachments as any[]).map(async (attachment) => {
+              if (attachment.key) {
+                try {
+                  const getCommand = new GetObjectCommand({
+                    Bucket: config.bucketName,
+                    Key: attachment.key,
+                  });
+                  const signedUrl = await getSignedUrl(config.client, getCommand, { expiresIn: 604800 }); // 7 days
+                  return { ...attachment, url: signedUrl };
+                } catch (error) {
+                  console.error(`Failed to refresh signed URL for ${attachment.key}:`, error);
+                  return attachment; // Return original if refresh fails
+                }
+              }
+              return attachment;
+            }));
+          }
+        } catch (error) {
+          console.error('Error refreshing attachment URLs:', error);
+        }
+      }
+
       return {
         id: notice.id,
         title: notice.title,
         content: notice.content,
         contentHtml: notice.contentHtml,
-        attachments: notice.attachments,
+        attachments: refreshedAttachments,
         priority: notice.priority,
         isPinned: notice.isPinned,
         publishedAt: notice.publishedAt,
@@ -84,7 +115,7 @@ router.get('/', authenticateUnified, async (req: AuthRequest, res) => {
         readAt: currentUserAck?.readAt || null,
         totalReads
       };
-    });
+    }));
 
     res.json({ notices: noticesWithStatus });
   } catch (error) {
