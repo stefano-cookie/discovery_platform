@@ -81,13 +81,68 @@ fi
 chmod -R 755 "$DEPLOY_DIR/backend/uploads"
 echo -e "${GREEN}✓ Document directories configured${NC}"
 
-# 4. Copia file .env.production come .env
+# 4. 🔒 CRITICAL: Setup environment variables (.env and .env.production)
 echo -e "${YELLOW}🔐 Setting up environment variables...${NC}"
+
+# 4.1 Backup existing .env files if they exist
+if [ -f "$DEPLOY_DIR/backend/.env" ]; then
+    cp "$DEPLOY_DIR/backend/.env" "$BACKUP_DIR/.env.backup_$TIMESTAMP"
+    echo -e "${YELLOW}📦 Backed up existing .env${NC}"
+fi
 if [ -f "$DEPLOY_DIR/backend/.env.production" ]; then
-    cp "$DEPLOY_DIR/backend/.env.production" "$DEPLOY_DIR/backend/.env"
-    echo -e "${GREEN}✓ Environment file configured${NC}"
+    cp "$DEPLOY_DIR/backend/.env.production" "$BACKUP_DIR/.env.production.backup_$TIMESTAMP"
+    echo -e "${YELLOW}📦 Backed up existing .env.production${NC}"
+fi
+
+# 4.2 Check if .env.production exists (should be manually maintained on server)
+if [ ! -f "$DEPLOY_DIR/backend/.env.production" ]; then
+    echo -e "${RED}❌ CRITICAL: .env.production not found!${NC}"
+    echo -e "${RED}   This file MUST exist on the server with production credentials.${NC}"
+    echo -e "${RED}   Location: $DEPLOY_DIR/backend/.env.production${NC}"
+
+    # Check if there's a backup we can restore
+    LATEST_ENV_BACKUP=$(ls -t "$BACKUP_DIR/.env.production.backup_"* 2>/dev/null | head -1)
+    if [ -n "$LATEST_ENV_BACKUP" ]; then
+        echo -e "${YELLOW}⚠️  Restoring from latest backup: $(basename $LATEST_ENV_BACKUP)${NC}"
+        cp "$LATEST_ENV_BACKUP" "$DEPLOY_DIR/backend/.env.production"
+        echo -e "${GREEN}✓ .env.production restored from backup${NC}"
+    else
+        echo -e "${RED}❌ No backup found. Deployment will FAIL!${NC}"
+        echo -e "${RED}   Create .env.production manually with production credentials.${NC}"
+        exit 1
+    fi
+fi
+
+# 4.3 Validate .env.production has required variables
+echo -e "${YELLOW}🔍 Validating .env.production...${NC}"
+REQUIRED_VARS=("DATABASE_URL" "JWT_SECRET" "ENCRYPTION_KEY" "CLOUDFLARE_ACCOUNT_ID" "EMAIL_USER")
+MISSING_VARS=()
+
+for VAR in "${REQUIRED_VARS[@]}"; do
+    if ! grep -q "^${VAR}=" "$DEPLOY_DIR/backend/.env.production"; then
+        MISSING_VARS+=("$VAR")
+    fi
+done
+
+if [ ${#MISSING_VARS[@]} -gt 0 ]; then
+    echo -e "${RED}❌ Missing required variables in .env.production:${NC}"
+    for VAR in "${MISSING_VARS[@]}"; do
+        echo -e "${RED}   - $VAR${NC}"
+    done
+    exit 1
+fi
+
+# 4.4 Create .env from .env.production (dotenv loads .env by default)
+cp "$DEPLOY_DIR/backend/.env.production" "$DEPLOY_DIR/backend/.env"
+echo -e "${GREEN}✓ Created .env from .env.production${NC}"
+
+# 4.5 Verify file exists and is readable
+if [ -f "$DEPLOY_DIR/backend/.env" ] && [ -r "$DEPLOY_DIR/backend/.env" ]; then
+    ENV_LINE_COUNT=$(wc -l < "$DEPLOY_DIR/backend/.env")
+    echo -e "${GREEN}✓ .env file verified ($ENV_LINE_COUNT lines)${NC}"
 else
-    echo -e "${RED}⚠️ Warning: .env.production not found!${NC}"
+    echo -e "${RED}❌ .env file missing or not readable!${NC}"
+    exit 1
 fi
 
 # 5. Installa dipendenze backend
@@ -172,11 +227,37 @@ fi
 
 echo -e "${GREEN}✓ Database migrations completed${NC}"
 
-# 7. Copy ecosystem config and restart services with PM2
-echo -e "${YELLOW}🔄 Restarting services...${NC}"
-cp "$TEMP_DIR/ecosystem.config.js" "$DEPLOY_DIR/"
+# 7. Copy ecosystem config and ensure production environment
+echo -e "${YELLOW}🔄 Preparing PM2 configuration...${NC}"
+cp "$TEMP_DIR/ecosystem.config.js" "$DEPLOY_DIR/ecosystem.config.js.tmp"
+
+# 7.1 🔥 ANTI-DEPLOYMENT BREAKAGE: Force production environment in ecosystem config
+echo -e "${YELLOW}🔧 Forcing production environment in PM2 config...${NC}"
+sed -i 's/NODE_ENV.*:.*'"'"'development'"'"'/NODE_ENV: '"'"'production'"'"'/g' "$DEPLOY_DIR/ecosystem.config.js.tmp"
+sed -i 's/PORT.*:.*3001/PORT: 3010/g' "$DEPLOY_DIR/ecosystem.config.js.tmp"
+mv "$DEPLOY_DIR/ecosystem.config.js.tmp" "$DEPLOY_DIR/ecosystem.config.js"
+echo -e "${GREEN}✓ Ecosystem config prepared for production${NC}"
+
+# 7.2 Stop all PM2 processes before restart (prevents crash loops)
+echo -e "${YELLOW}⏹️  Stopping all PM2 processes...${NC}"
 cd "$DEPLOY_DIR"
-pm2 restart ecosystem.config.js --update-env --env production || pm2 start ecosystem.config.js --env production
+pm2 stop all || true
+pm2 delete all || true
+sleep 2
+
+# 7.3 Start fresh PM2 processes
+echo -e "${YELLOW}▶️  Starting PM2 processes...${NC}"
+pm2 start ecosystem.config.js
+sleep 5
+
+# 7.4 Verify processes started correctly
+BACKEND_STATUS=$(pm2 jlist | grep -o '"name":"discovery-backend".*"status":"[^"]*"' | grep -o 'online' || echo "error")
+if [ "$BACKEND_STATUS" != "online" ]; then
+    echo -e "${RED}❌ Backend failed to start! Checking logs...${NC}"
+    pm2 logs discovery-backend --lines 50 --nostream
+    exit 1
+fi
+echo -e "${GREEN}✓ Backend started successfully${NC}"
 
 # Ensure frontend proxy server is copied and accessible
 if [ ! -f "$DEPLOY_DIR/frontend-proxy-server.js" ]; then
