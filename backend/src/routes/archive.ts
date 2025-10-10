@@ -569,7 +569,7 @@ router.patch('/registrations/:id', authenticate, requireAdmin, async (req: AuthR
 
 // ========================================
 // DELETE /api/admin/archive/registrations/:id
-// Elimina iscrizione archiviata
+// Elimina iscrizione archiviata + cleanup R2 files
 // ========================================
 router.delete('/registrations/:id', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
@@ -584,14 +584,21 @@ router.delete('/registrations/:id', authenticate, requireAdmin, async (req: Auth
       return res.status(404).json({ error: 'Iscrizione archiviata non trovata' });
     }
 
-    // Elimina (cascade automatico per payments)
+    // IMPORTANTE: Cleanup R2 files PRIMA di eliminare dal database
+    // così abbiamo ancora accesso ai file keys
+    const { R2CleanupService } = await import('../services/r2CleanupService');
+    await R2CleanupService.cleanupArchivedRegistration(id);
+
+    // Elimina dal database (cascade automatico per payments)
     await prisma.archivedRegistration.delete({
       where: { id }
     });
 
+    console.log(`[Archive] ✅ Deleted archived registration and R2 files: ${id}`);
+
     res.json({
       success: true,
-      message: 'Iscrizione archiviata eliminata con successo'
+      message: 'Iscrizione archiviata e file R2 eliminati con successo'
     });
   } catch (error: any) {
     console.error('Errore eliminazione iscrizione archiviata:', error);

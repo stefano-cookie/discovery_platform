@@ -327,6 +327,55 @@ export async function cleanupArchiveFiles(archiveId: string): Promise<void> {
 }
 
 /**
+ * Clean up ArchivedRegistration files (ZIP documenti + PDF contratto)
+ * when deleting from archive
+ */
+export async function cleanupArchivedRegistration(registrationId: string): Promise<void> {
+  try {
+    console.log(`[R2Cleanup] Cleaning up ArchivedRegistration: ${registrationId}`);
+
+    const archivedReg = await prisma.archivedRegistration.findUnique({
+      where: { id: registrationId },
+      select: {
+        documentsZipKey: true,
+        contractPdfKey: true
+      }
+    });
+
+    if (!archivedReg) {
+      console.log(`[R2Cleanup] No ArchivedRegistration found: ${registrationId}`);
+      return;
+    }
+
+    const fileKeys: string[] = [];
+
+    // Add ZIP documents key (from legacy-archive-docs bucket)
+    if (archivedReg.documentsZipKey) {
+      fileKeys.push(archivedReg.documentsZipKey);
+    }
+
+    // Add contract PDF key (from legacy-archive-contracts bucket)
+    if (archivedReg.contractPdfKey) {
+      fileKeys.push(archivedReg.contractPdfKey);
+    }
+
+    if (fileKeys.length === 0) {
+      console.log(`[R2Cleanup] No files to delete for ArchivedRegistration: ${registrationId}`);
+      return;
+    }
+
+    // Delete files from R2 Archive account
+    // Note: Both docs and contracts use the same R2 account (ARCHIVE) but different buckets
+    const deletedCount = await deleteFiles(R2Account.ARCHIVE, fileKeys);
+
+    console.log(`[R2Cleanup] ✅ Deleted ${deletedCount} files from archive for registration: ${registrationId}`);
+  } catch (error) {
+    console.error('[R2Cleanup] Error cleaning up archived registration:', error);
+    // Don't throw - allow deletion to continue
+  }
+}
+
+/**
  * Export all cleanup functions
  */
 export const R2CleanupService = {
@@ -335,6 +384,7 @@ export const R2CleanupService = {
   cleanupRegistrationDocuments,
   cleanupUserDocuments,
   cleanupArchiveFiles,
+  cleanupArchivedRegistration,
   deleteFile,
   deleteFiles,
 };
