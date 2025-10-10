@@ -49,6 +49,8 @@ const ArchiveDetail: React.FC = () => {
   const [error, setError] = useState('');
   const [showPdfPreview, setShowPdfPreview] = useState(false);
   const [downloadingZip, setDownloadingZip] = useState(false);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [loadingPdfPreview, setLoadingPdfPreview] = useState(false);
 
   useEffect(() => {
     loadRegistration();
@@ -87,6 +89,48 @@ const ArchiveDetail: React.FC = () => {
       alert(err.response?.data?.error || 'Errore download documenti');
     } finally {
       setDownloadingZip(false);
+    }
+  };
+
+  const loadPdfPreview = async () => {
+    if (!registration?.contractPdfKey || pdfPreviewUrl) return;
+
+    try {
+      setLoadingPdfPreview(true);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/admin/archive/contract-preview/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setPdfPreviewUrl(response.data.previewUrl);
+    } catch (err: any) {
+      console.error('Errore caricamento preview PDF:', err);
+      alert(err.response?.data?.error || 'Errore caricamento preview contratto');
+    } finally {
+      setLoadingPdfPreview(false);
+    }
+  };
+
+  const handleShowPdfPreview = async () => {
+    if (!showPdfPreview) {
+      await loadPdfPreview();
+    }
+    setShowPdfPreview(!showPdfPreview);
+  };
+
+  const handleDownloadContract = async () => {
+    if (!registration?.contractPdfKey) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/admin/archive/download-contract/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      window.open(response.data.downloadUrl, '_blank');
+    } catch (err: any) {
+      console.error('Errore download contratto:', err);
+      alert(err.response?.data?.error || 'Errore download contratto');
     }
   };
 
@@ -333,41 +377,48 @@ const ArchiveDetail: React.FC = () => {
               )}
 
               {/* Contratto PDF */}
-              {registration.contractPdfUrl ? (
+              {registration.contractPdfKey ? (
                 <div className="space-y-2">
                   <button
-                    onClick={() => setShowPdfPreview(!showPdfPreview)}
-                    className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    onClick={handleShowPdfPreview}
+                    disabled={loadingPdfPreview}
+                    className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
                   >
-                    <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                    {showPdfPreview ? 'Nascondi' : 'Visualizza'} Contratto PDF
+                    {loadingPdfPreview ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Caricamento...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        {showPdfPreview ? 'Nascondi' : 'Visualizza'} Contratto PDF
+                      </>
+                    )}
                   </button>
 
-                  {showPdfPreview && (
+                  {showPdfPreview && pdfPreviewUrl && (
                     <div className="border rounded-lg overflow-hidden">
                       <iframe
-                        src={registration.contractPdfUrl}
+                        src={pdfPreviewUrl}
                         className="w-full h-96"
                         title="Contratto PDF Preview"
                       />
                     </div>
                   )}
 
-                  <a
-                    href={registration.contractPdfUrl}
-                    download
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={handleDownloadContract}
                     className="w-full flex items-center justify-center px-4 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-50"
                   >
                     <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                     </svg>
                     Scarica Contratto
-                  </a>
+                  </button>
                 </div>
               ) : (
                 <div className="text-sm text-gray-500 text-center py-4">
