@@ -69,6 +69,7 @@ rsync -av \
     --exclude='node_modules' \
     --exclude='.env' \
     --exclude='.env.production' \
+    --exclude='.env.production.placeholder' \
     --exclude='*.log' \
     "$TEMP_DIR/backend/" "$DEPLOY_DIR/backend/"
 echo -e "${GREEN}✓ Backend deployed (preserved .env files)${NC}"
