@@ -52,8 +52,10 @@ rsync -av \
     --exclude='.git' \
     --exclude='node_modules' \
     --exclude='.env' \
+    --exclude='.env.production' \
     --exclude='*.log' \
     "$TEMP_DIR/backend/" "$DEPLOY_DIR/backend/"
+echo -e "${GREEN}✓ Backend deployed (preserved .env files)${NC}"
 
 # 3.1 Backup existing uploads before deploy
 echo -e "${YELLOW}📁 Backing up existing uploads...${NC}"
