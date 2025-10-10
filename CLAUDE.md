@@ -81,25 +81,39 @@ CLOUDFLARE_ENDPOINT=https://96e7e20557789c11d012aca51dc21a27.r2.cloudflarestorag
 
 ---
 
-### Account 2 - ARCHIVE/NOTICES ⚠️ NON CONFIGURATO
+### Account 2 - ARCHIVE/NOTICES ✅ ATTIVO (2025-10-10)
 
-**Status**: Opzionale - Features disabilitate
-- Archive features: disabled
-- Notice attachments: disabled
+**Status**: ✅ Configurato e operativo
 
-**Configurazione richiesta (se necessario):**
+**Utilizzo:**
+- Notice Board attachments (upload allegati bacheca)
+- Archive legacy documents
+- Storage secondario applicazione
+
 ```env
-R2_ARCHIVE_ACCOUNT_ID=11eb49867970f932827c4503411e1816
-R2_ARCHIVE_ACCESS_KEY_ID=<key>
-R2_ARCHIVE_SECRET_ACCESS_KEY=<secret>
-R2_ARCHIVE_ENDPOINT=https://11eb49867970f932827c4503411e1816.r2.cloudflarestorage.com
-R2_ARCHIVE_BUCKET_NAME=legacy-archive-docs
-
 R2_NOTICES_ACCOUNT_ID=11eb49867970f932827c4503411e1816
-R2_NOTICES_ACCESS_KEY_ID=<key>
-R2_NOTICES_SECRET_ACCESS_KEY=<secret>
+R2_NOTICES_ACCESS_KEY_ID=d8194d05713afc9cb79997710236c441
+R2_NOTICES_SECRET_ACCESS_KEY=***
 R2_NOTICES_ENDPOINT=https://11eb49867970f932827c4503411e1816.r2.cloudflarestorage.com
 R2_NOTICES_BUCKET_NAME=notice-board-attachments
+R2_NOTICES_PUBLIC_URL=https://pub-11eb49867970f932827c4503411e1816.r2.dev
+
+R2_ARCHIVE_ACCOUNT_ID=11eb49867970f932827c4503411e1816
+R2_ARCHIVE_ACCESS_KEY_ID=d8194d05713afc9cb79997710236c441
+R2_ARCHIVE_SECRET_ACCESS_KEY=***
+R2_ARCHIVE_ENDPOINT=https://11eb49867970f932827c4503411e1816.r2.cloudflarestorage.com
+R2_ARCHIVE_BUCKET_NAME=legacy-archive-docs
+R2_ARCHIVE_PUBLIC_URL=https://pub-11eb49867970f932827c4503411e1816.r2.dev
+```
+
+**Logs Verifica:**
+```
+[R2Factory] ✅ ACCOUNT 2 (Archive) initialized
+[R2Factory]    Account ID: 11eb49867970f932827c4503411e1816
+[R2Factory]    Bucket: legacy-archive-docs
+[R2Factory] ✅ ACCOUNT 2 (Notices) initialized
+[R2Factory]    Account ID: 11eb49867970f932827c4503411e1816
+[R2Factory]    Bucket: notice-board-attachments
 ```
 
 ---
