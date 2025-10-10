@@ -262,7 +262,7 @@ pm2 start ecosystem.config.js
 sleep 5
 
 # 7.4 Verify processes started correctly
-BACKEND_STATUS=$(pm2 jlist | grep -o '"name":"discovery-backend".*"status":"[^"]*"' | grep -o 'online' || echo "error")
+BACKEND_STATUS=$(pm2 jlist | grep -o '"name":"discovery-backend".*"status":"[^"]*"' | grep -o 'online' | head -1 || echo "error")
 if [ "$BACKEND_STATUS" != "online" ]; then
     echo -e "${RED}❌ Backend failed to start! Checking logs...${NC}"
     pm2 logs discovery-backend --lines 50 --nostream
