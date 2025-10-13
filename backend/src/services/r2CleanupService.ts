@@ -329,6 +329,12 @@ export async function cleanupArchiveFiles(archiveId: string): Promise<void> {
 /**
  * Clean up ArchivedRegistration files (ZIP documenti + PDF contratto)
  * when deleting from archive
+ *
+ * IMPORTANT: Archive uses TWO separate buckets:
+ * - legacy-archive-docs: for ZIP files
+ * - legacy-archive-contracts: for PDF contracts
+ *
+ * We use archiveStorageService which knows how to handle both buckets
  */
 export async function cleanupArchivedRegistration(registrationId: string): Promise<void> {
   try {
@@ -347,26 +353,37 @@ export async function cleanupArchivedRegistration(registrationId: string): Promi
       return;
     }
 
-    const fileKeys: string[] = [];
+    // Import archiveStorageService for proper multi-bucket handling
+    const { archiveStorageService } = await import('./archiveStorageService');
 
-    // Add ZIP documents key (from legacy-archive-docs bucket)
+    let deletedCount = 0;
+
+    // Delete ZIP documents from legacy-archive-docs bucket
     if (archivedReg.documentsZipKey) {
-      fileKeys.push(archivedReg.documentsZipKey);
+      try {
+        await archiveStorageService.deleteFile(archivedReg.documentsZipKey, 'docs');
+        console.log(`[R2Cleanup] ✅ Deleted ZIP: ${archivedReg.documentsZipKey}`);
+        deletedCount++;
+      } catch (error: any) {
+        console.error(`[R2Cleanup] ❌ Failed to delete ZIP: ${archivedReg.documentsZipKey}`, error.message);
+      }
     }
 
-    // Add contract PDF key (from legacy-archive-contracts bucket)
+    // Delete PDF contract from legacy-archive-contracts bucket
     if (archivedReg.contractPdfKey) {
-      fileKeys.push(archivedReg.contractPdfKey);
+      try {
+        await archiveStorageService.deleteFile(archivedReg.contractPdfKey, 'contracts');
+        console.log(`[R2Cleanup] ✅ Deleted PDF: ${archivedReg.contractPdfKey}`);
+        deletedCount++;
+      } catch (error: any) {
+        console.error(`[R2Cleanup] ❌ Failed to delete PDF: ${archivedReg.contractPdfKey}`, error.message);
+      }
     }
 
-    if (fileKeys.length === 0) {
+    if (deletedCount === 0) {
       console.log(`[R2Cleanup] No files to delete for ArchivedRegistration: ${registrationId}`);
       return;
     }
-
-    // Delete files from R2 Archive account
-    // Note: Both docs and contracts use the same R2 account (ARCHIVE) but different buckets
-    const deletedCount = await deleteFiles(R2Account.ARCHIVE, fileKeys);
 
     console.log(`[R2Cleanup] ✅ Deleted ${deletedCount} files from archive for registration: ${registrationId}`);
   } catch (error) {
