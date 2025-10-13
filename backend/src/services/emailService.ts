@@ -2019,14 +2019,15 @@ Piattaforma Diamante
           .invite-icon { font-size: 48px; margin-bottom: 20px; text-align: center; }
           .company-info { background-color: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
           .role-badge { background-color: #e0f2fe; color: #0369a1; padding: 8px 16px; border-radius: 20px; font-weight: 600; display: inline-block; margin: 10px 0; }
-          .accept-button { 
-            background-color: #8b5cf6; 
-            color: white; 
-            padding: 15px 30px; 
-            text-decoration: none; 
-            border-radius: 6px; 
-            font-weight: 600; 
-            display: inline-block; 
+          .accept-button {
+            background-color: white;
+            color: black;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 6px;
+            border: 2px solid #8b5cf6;
+            font-weight: 600;
+            display: inline-block;
             margin: 25px 0;
             font-size: 16px;
           }
@@ -2119,14 +2120,15 @@ Piattaforma Diamante
           .content { padding: 30px; }
           .invite-icon { font-size: 48px; margin-bottom: 20px; text-align: center; }
           .company-info { background-color: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
-          .accept-button { 
-            background-color: #8b5cf6; 
-            color: white; 
-            padding: 15px 30px; 
-            text-decoration: none; 
-            border-radius: 6px; 
-            font-weight: 600; 
-            display: inline-block; 
+          .accept-button {
+            background-color: white;
+            color: black;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 6px;
+            border: 2px solid #8b5cf6;
+            font-weight: 600;
+            display: inline-block;
             margin: 25px 0;
             font-size: 16px;
           }
@@ -2243,14 +2245,15 @@ Piattaforma Diamante
           .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
           .content { padding: 30px; }
           .company-highlight { background-color: #ecfdf5; border: 2px solid #10b981; border-radius: 8px; padding: 25px; margin: 25px 0; text-align: center; }
-          .accept-button { 
-            background-color: #059669; 
-            color: white; 
-            padding: 15px 30px; 
-            text-decoration: none; 
-            border-radius: 6px; 
-            font-weight: 600; 
-            display: inline-block; 
+          .accept-button {
+            background-color: white;
+            color: black;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 6px;
+            border: 2px solid #059669;
+            font-weight: 600;
+            display: inline-block;
             margin: 25px 0;
             font-size: 16px;
           }

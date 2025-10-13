@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import ConfirmModal from '../../components/UI/ConfirmModal';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
@@ -51,6 +52,8 @@ const ArchiveDetail: React.FC = () => {
   const [downloadingZip, setDownloadingZip] = useState(false);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const [loadingPdfPreview, setLoadingPdfPreview] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadRegistration();
@@ -146,20 +149,17 @@ const ArchiveDetail: React.FC = () => {
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('Sei sicuro di voler eliminare questa iscrizione archiviata? Questa azione è irreversibile.')) {
-      return;
-    }
-
     try {
+      setDeleting(true);
       const token = localStorage.getItem('token');
       await axios.delete(`${API_URL}/admin/archive/registrations/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      alert('Iscrizione eliminata con successo');
       navigate('/admin/archive');
     } catch (err: any) {
       console.error('Errore eliminazione:', err);
       setError(err.response?.data?.error || 'Errore durante l\'eliminazione');
+      setDeleting(false);
     }
   };
 
@@ -335,10 +335,10 @@ const ArchiveDetail: React.FC = () => {
                   <span className="text-gray-600">Progresso:</span>
                   <span className="font-semibold">{Number(registration.paymentProgress).toFixed(1)}%</span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                   <div
-                    className="bg-green-600 h-2 rounded-full"
-                    style={{ width: `${Number(registration.paymentProgress)}%` }}
+                    className="bg-green-600 h-2 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, Number(registration.paymentProgress))}%` }}
                   ></div>
                 </div>
               </div>
@@ -439,7 +439,7 @@ const ArchiveDetail: React.FC = () => {
                 Modifica Iscrizione
               </button>
               <button
-                onClick={handleDelete}
+                onClick={() => setShowDeleteModal(true)}
                 className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
               >
                 Elimina Iscrizione
@@ -448,6 +448,24 @@ const ArchiveDetail: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDelete}
+        title="Elimina Iscrizione Archiviata"
+        message="Sei sicuro di voler eliminare questa iscrizione dall'archivio? Questa azione è irreversibile."
+        confirmText="Elimina"
+        cancelText="Annulla"
+        variant="danger"
+        loading={deleting}
+        details={[
+          'Tutti i dati dell\'iscrizione saranno eliminati definitivamente',
+          'I documenti allegati (ZIP e contratti PDF) saranno rimossi dallo storage',
+          'Le informazioni di pagamento saranno cancellate'
+        ]}
+      />
     </div>
   );
 };
