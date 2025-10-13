@@ -36,7 +36,42 @@ rsync -av --delete \
     --exclude='*.log' \
     "$TEMP_DIR/frontend/build/" "$DEPLOY_DIR/frontend/build/"
 
-# 2.1 Deploy Frontend Proxy Server
+# 2.1 Copy frontend build files to project root (for web server)
+echo -e "${YELLOW}📋 Copying frontend files to project root...${NC}"
+# Copy index.html to root
+cp "$DEPLOY_DIR/frontend/build/index.html" "$DEPLOY_DIR/index.html"
+echo -e "${GREEN}✓ Copied index.html to root${NC}"
+
+# Copy .htaccess to root (if exists)
+if [ -f "$DEPLOY_DIR/frontend/build/.htaccess" ]; then
+    cp "$DEPLOY_DIR/frontend/build/.htaccess" "$DEPLOY_DIR/.htaccess"
+    echo -e "${GREEN}✓ Copied .htaccess to root${NC}"
+fi
+
+# Copy static files to root
+mkdir -p "$DEPLOY_DIR/static"
+rsync -av --delete "$DEPLOY_DIR/frontend/build/static/" "$DEPLOY_DIR/static/"
+echo -e "${GREEN}✓ Copied static files to root/static/${NC}"
+
+# Copy favicon and other assets to root
+for asset in favicon.ico favicon.svg logo192.png logo192.svg logo512.png logo512.svg manifest.json robots.txt diamond-favicon.svg asset-manifest.json pdf.worker.min.js; do
+    if [ -f "$DEPLOY_DIR/frontend/build/$asset" ]; then
+        cp "$DEPLOY_DIR/frontend/build/$asset" "$DEPLOY_DIR/$asset"
+    fi
+done
+echo -e "${GREEN}✓ Copied frontend assets to root${NC}"
+
+# Verify index.html references correct JS bundle
+BUNDLE_REFERENCE=$(grep -o 'main\.[^"]*\.js' "$DEPLOY_DIR/index.html" | head -1)
+if [ -f "$DEPLOY_DIR/static/js/$BUNDLE_REFERENCE" ]; then
+    echo -e "${GREEN}✓ Verified bundle exists: $BUNDLE_REFERENCE${NC}"
+else
+    echo -e "${RED}❌ WARNING: Bundle file not found: $BUNDLE_REFERENCE${NC}"
+    echo -e "${YELLOW}   Available bundles in static/js/:${NC}"
+    ls -lh "$DEPLOY_DIR/static/js/" | grep "\.js$" | awk '{print "     "$9}'
+fi
+
+# 2.2 Deploy Frontend Proxy Server
 echo -e "${YELLOW}🔧 Deploying frontend proxy server...${NC}"
 mkdir -p "$DEPLOY_DIR/frontend"
 if [ -f "$TEMP_DIR/frontend-proxy-server-production.js" ]; then
@@ -418,6 +453,20 @@ if curl -s -f "https://discovery.cfoeducation.it/api/health" > /dev/null 2>&1; t
     echo -e "${GREEN}✓ API proxy health check passed${NC}"
 else
     echo -e "${YELLOW}⚠️ API proxy health check failed${NC}"
+fi
+
+# Verify frontend is serving correct bundle
+echo -e "${YELLOW}🔍 Verifying frontend bundle...${NC}"
+SERVED_BUNDLE=$(curl -s "https://discovery.cfoeducation.it/" | grep -o 'main\.[^"]*\.js' | head -1)
+EXPECTED_BUNDLE=$(grep -o 'main\.[^"]*\.js' "$DEPLOY_DIR/index.html" | head -1)
+
+if [ "$SERVED_BUNDLE" = "$EXPECTED_BUNDLE" ]; then
+    echo -e "${GREEN}✓ Frontend serving correct bundle: $SERVED_BUNDLE${NC}"
+else
+    echo -e "${RED}❌ WARNING: Frontend bundle mismatch!${NC}"
+    echo -e "${RED}   Expected: $EXPECTED_BUNDLE${NC}"
+    echo -e "${RED}   Served: $SERVED_BUNDLE${NC}"
+    echo -e "${YELLOW}   This may indicate caching or configuration issues${NC}"
 fi
 
 echo -e "${GREEN}✅ Deployment completed successfully!${NC}"
