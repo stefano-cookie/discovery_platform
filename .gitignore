@@ -60,4 +60,4 @@ server-info-commands.sh
 nginx*.conf
 start-production-local.sh
 *.md
-!README.md
+!README.mdCLAUDE.md
