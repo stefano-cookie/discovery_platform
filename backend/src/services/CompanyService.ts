@@ -380,34 +380,46 @@ export class CompanyService {
         where: { partnerCompanyId: id }
       });
 
-      // 6. Elimina employees
+      // 6. Elimina ActionTokens legati agli employees della company
+      const employeeIds = await tx.partnerEmployee.findMany({
+        where: { partnerCompanyId: id },
+        select: { id: true }
+      }).then(employees => employees.map(e => e.id));
+
+      if (employeeIds.length > 0) {
+        await tx.actionToken.deleteMany({
+          where: { partnerEmployeeId: { in: employeeIds } }
+        });
+      }
+
+      // 7. Elimina employees
       await tx.partnerEmployee.deleteMany({
         where: { partnerCompanyId: id }
       });
 
-      // 7. Elimina utenti assegnati alla company (User records)
+      // 8. Elimina utenti assegnati alla company (User records)
       if (assignedUserIds.length > 0) {
-        // 7a. Elimina UserOfferAccess degli utenti
+        // 8a. Elimina UserOfferAccess degli utenti
         await tx.userOfferAccess.deleteMany({
           where: { userId: { in: assignedUserIds } }
         });
 
-        // 7b. Elimina UserDocument rimasti (dovrebbero essere già stati eliminati con registrations)
+        // 8b. Elimina UserDocument rimasti (dovrebbero essere già stati eliminati con registrations)
         await tx.userDocument.deleteMany({
           where: { userId: { in: assignedUserIds } }
         });
 
-        // 7c. Elimina ChatConversation degli utenti (se esistono)
+        // 8c. Elimina ChatConversation degli utenti (se esistono)
         await tx.chatConversation.deleteMany({
           where: { userId: { in: assignedUserIds } }
         });
 
-        // 7d. Elimina UserProfile degli utenti
+        // 8d. Elimina UserProfile degli utenti
         await tx.userProfile.deleteMany({
           where: { userId: { in: assignedUserIds } }
         });
 
-        // 7e. Elimina UserTransfer records
+        // 8e. Elimina UserTransfer records
         await tx.userTransfer.deleteMany({
           where: {
             OR: [
@@ -418,7 +430,7 @@ export class CompanyService {
           }
         });
 
-        // 7f. Elimina User records
+        // 8f. Elimina User records
         await tx.user.deleteMany({
           where: { id: { in: assignedUserIds } }
         });
@@ -426,7 +438,7 @@ export class CompanyService {
         console.log(`✅ Deleted ${assignedUserIds.length} users assigned to company ${company.name}`);
       }
 
-      // 8. Log dell'azione
+      // 9. Log dell'azione
       await tx.discoveryAdminLog.create({
         data: {
           adminId,
@@ -446,7 +458,7 @@ export class CompanyService {
         }
       });
 
-      // 9. Elimina company
+      // 10. Elimina company
       await tx.partnerCompany.delete({
         where: { id }
       });
