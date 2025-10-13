@@ -926,7 +926,7 @@ const ArchiveCreate: React.FC = () => {
                 <div className="text-sm text-gray-600 mb-1">Progresso Pagamento</div>
                 <div className="w-full bg-gray-200 rounded-full h-4">
                   <div
-                    className="bg-green-600 h-4 rounded-full transition-all"
+                    className="bg-green-600 h-4 rounded-full transition-all max-w-full"
                     style={{ width: `${totals.progress}%` }}
                   ></div>
                 </div>

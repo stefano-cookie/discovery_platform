@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import ConfirmModal from '../../components/UI/ConfirmModal';
+import SuccessModal from '../../components/UI/SuccessModal';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
@@ -54,6 +55,7 @@ const ArchiveDetail: React.FC = () => {
   const [loadingPdfPreview, setLoadingPdfPreview] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
     loadRegistration();
@@ -155,11 +157,17 @@ const ArchiveDetail: React.FC = () => {
       await axios.delete(`${API_URL}/admin/archive/registrations/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      navigate('/admin/archive');
+      setShowDeleteModal(false);
+      setShowSuccessModal(true);
+      // Navigate after showing success modal
+      setTimeout(() => {
+        navigate('/admin/archive');
+      }, 2000);
     } catch (err: any) {
       console.error('Errore eliminazione:', err);
       setError(err.response?.data?.error || 'Errore durante l\'eliminazione');
       setDeleting(false);
+      setShowDeleteModal(false);
     }
   };
 
@@ -333,7 +341,7 @@ const ArchiveDetail: React.FC = () => {
               <div className="pt-2">
                 <div className="flex justify-between mb-2">
                   <span className="text-gray-600">Progresso:</span>
-                  <span className="font-semibold">{Number(registration.paymentProgress).toFixed(1)}%</span>
+                  <span className="font-semibold max-w-full">{Number(registration.paymentProgress).toFixed(1)}%</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                   <div
@@ -465,6 +473,19 @@ const ArchiveDetail: React.FC = () => {
           'I documenti allegati (ZIP e contratti PDF) saranno rimossi dallo storage',
           'Le informazioni di pagamento saranno cancellate'
         ]}
+      />
+
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => {
+          setShowSuccessModal(false);
+          navigate('/admin/archive');
+        }}
+        title="Iscrizione Eliminata!"
+        message="L'iscrizione è stata eliminata con successo dall'archivio"
+        autoClose={true}
+        autoCloseDelay={2000}
       />
     </div>
   );
