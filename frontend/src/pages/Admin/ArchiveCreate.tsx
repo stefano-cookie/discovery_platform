@@ -307,7 +307,7 @@ const ArchiveCreate: React.FC = () => {
     const totalExpected = payments.reduce((sum, p) => sum + parseFloat(p.expectedAmount), 0);
     const totalPaid = payments.reduce((sum, p) => sum + parseFloat(p.paidAmount || '0'), 0);
     const totalOutstanding = totalExpected - totalPaid;
-    const progress = totalExpected > 0 ? (totalPaid / totalExpected) * 100 : 0;
+    const progress = totalExpected > 0 ? Math.min((totalPaid / totalExpected) * 100, 100) : 0;
 
     return { totalExpected, totalPaid, totalOutstanding, progress };
   };

@@ -2074,7 +2074,7 @@ Piattaforma Diamante
             
             <div style="text-align: center;">
               <a href="${inviteUrl}" class="accept-button">
-                ✅ Accetta Invito
+                Accetta Invito
               </a>
             </div>
             
@@ -2165,7 +2165,7 @@ Piattaforma Diamante
             
             <div style="text-align: center;">
               <a href="${inviteUrl}" class="accept-button">
-                ✅ Accetta Invito
+                Accetta Invito
               </a>
             </div>
             
