@@ -8,7 +8,7 @@ import { S3Client } from '@aws-sdk/client-s3';
  * Buckets: discovery-documents-dev, discovery-documents-prod
  * Purpose: User registration documents
  *
- * ACCOUNT 2 - Archive & Notices (stebbijpriolo@gmail.com)
+ * ACCOUNT 2 - Archive & Notices (noreply.discoveryplatform@gmail.com)
  * Account ID: 11eb49867970f932827c4503411e1816
  * Buckets: legacy-archive-contracts, legacy-archive-docs, notice-board-attachments
  * Purpose: Legacy archives and notice board
@@ -53,7 +53,7 @@ class R2ClientFactory {
 
   /**
    * Initialize ACCOUNT 1 - Documents
-   * Email: stefanojpriolo@gmail.com
+   * Email: noreply.discoveryplatform@gmail.com
    */
   private initializeDocumentsAccount(): void {
     // Use CLOUDFLARE_* env vars as configured in production
@@ -97,7 +97,7 @@ class R2ClientFactory {
 
   /**
    * Initialize ACCOUNT 2 - Archive
-   * Email: stebbijpriolo@gmail.com
+   * Email: noreply.discoveryplatform@gmail.com
    */
   private initializeArchiveAccount(): void {
     const accountId = process.env.R2_ARCHIVE_ACCOUNT_ID;
@@ -138,7 +138,7 @@ class R2ClientFactory {
 
   /**
    * Initialize ACCOUNT 2 - Notices (same credentials as Archive)
-   * Email: stebbijpriolo@gmail.com
+   * Email: noreply.discoveryplatform@gmail.com
    */
   private initializeNoticesAccount(): void {
     const accountId = process.env.R2_NOTICES_ACCOUNT_ID;
