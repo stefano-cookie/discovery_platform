@@ -587,10 +587,16 @@ enum RegistrationStatus {
 
 // Sistema Documenti Unificato - Enterprise Document Management
 enum DocumentStatus {
-  PENDING // In attesa di verifica
-  APPROVED // Approvato dal partner
-  REJECTED // Rifiutato con motivazione
+  PENDING // In attesa di verifica partner
+  APPROVED_BY_PARTNER // Approvato dal partner (in attesa Discovery)
+  REJECTED_BY_PARTNER // Rifiutato dal partner con motivazione
+  APPROVED_BY_DISCOVERY // Approvazione finale Discovery
+  REJECTED_BY_DISCOVERY // Rifiutato da Discovery
   EXPIRED // Scaduto (per doc temporanei)
+
+  // LEGACY statuses (deprecated, mantenuti per compatibilità)
+  APPROVED // Alias per APPROVED_BY_PARTNER
+  REJECTED // Alias per REJECTED_BY_PARTNER
 }
 
 enum DocumentType {
@@ -639,6 +645,7 @@ model UserDocument {
   // Partner Check (silenzioso, no email)
   partnerCheckedAt DateTime? // Partner ha checkato (no email)
   partnerCheckedBy String? // ID PartnerEmployee che ha checkato
+  reviewedByPartner Boolean @default(false) // NEW: Partner ha revisionato (approved OR rejected)
 
   // Discovery Approval (finale, con email)
   discoveryApprovedAt      DateTime? // Discovery ha approvato

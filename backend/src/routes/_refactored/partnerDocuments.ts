@@ -11,6 +11,105 @@ import storageService from '../../services/storageService';
 const router = Router();
 const prisma = new PrismaClient();
 
+/**
+ * Helper: Get human-readable label for document type
+ */
+function getDocumentTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    'IDENTITY_CARD': 'Carta d\'Identità',
+    'PASSPORT': 'Passaporto',
+    'DIPLOMA': 'Diploma Superiori',
+    'BACHELOR_DEGREE': 'Laurea Triennale',
+    'MASTER_DEGREE': 'Laurea Magistrale',
+    'TRANSCRIPT': 'Transcript Voti',
+    'CV': 'Curriculum Vitae',
+    'PHOTO': 'Foto Tessera',
+    'RESIDENCE_CERT': 'Certificato di Residenza',
+    'BIRTH_CERT': 'Certificato di Nascita',
+    'CONTRACT_SIGNED': 'Contratto Firmato',
+    'MEDICAL_CERT': 'Certificato Medico',
+    'TESSERA_SANITARIA': 'Tessera Sanitaria',
+    'OTHER': 'Altro Documento'
+  };
+  return labels[type] || type;
+}
+
+/**
+ * Helper: Check if all required documents are reviewed
+ * If yes, auto-advance registration to next step
+ */
+async function checkAndAdvanceRegistration(registrationId: string): Promise<void> {
+  try {
+    const registration = await prisma.registration.findUnique({
+      where: { id: registrationId },
+      include: {
+        userDocuments: true,
+        offer: true
+      }
+    });
+
+    if (!registration) {
+      console.log(`[checkAndAdvanceRegistration] Registration ${registrationId} not found`);
+      return;
+    }
+
+    // Get required documents for this registration type
+    const requiredDocTypes = getRequiredDocumentTypes(registration.offer?.offerType || 'TFA_ROMANIA');
+
+    // Check if all required documents are reviewed (approved OR rejected)
+    const requiredDocs = registration.userDocuments.filter(doc =>
+      requiredDocTypes.includes(doc.type)
+    );
+
+    const allReviewed = requiredDocs.every(doc => doc.reviewedByPartner);
+    const allApproved = requiredDocs.every(doc =>
+      doc.status === 'APPROVED_BY_PARTNER' || doc.status === 'APPROVED'
+    );
+
+    console.log(`[checkAndAdvanceRegistration] Registration ${registrationId}:`);
+    console.log(`  - Required docs: ${requiredDocs.length}`);
+    console.log(`  - All reviewed: ${allReviewed}`);
+    console.log(`  - All approved: ${allApproved}`);
+
+    if (allReviewed && requiredDocs.length > 0) {
+      // All documents reviewed → advance to next step
+      let newStatus = registration.status;
+
+      if (allApproved) {
+        // All approved → move to AWAITING_DISCOVERY_APPROVAL
+        if (registration.status === 'DOCUMENTS_UPLOADED') {
+          newStatus = 'AWAITING_DISCOVERY_APPROVAL';
+        }
+      }
+      // If some rejected, keep status as is (user needs to re-upload)
+
+      if (newStatus !== registration.status) {
+        await prisma.registration.update({
+          where: { id: registrationId },
+          data: { status: newStatus }
+        });
+        console.log(`[checkAndAdvanceRegistration] Registration ${registrationId} advanced to ${newStatus}`);
+      }
+    }
+  } catch (error) {
+    console.error('[checkAndAdvanceRegistration] Error:', error);
+    // Don't throw - this is a non-blocking operation
+  }
+}
+
+/**
+ * Helper: Get required document types for offer type
+ */
+function getRequiredDocumentTypes(offerType: string): string[] {
+  if (offerType === 'TFA_ROMANIA') {
+    return ['IDENTITY_CARD', 'TESSERA_SANITARIA', 'DIPLOMA', 'BACHELOR_DEGREE', 'MASTER_DEGREE'];
+  } else if (offerType === 'CERTIFICATION') {
+    return ['IDENTITY_CARD', 'TESSERA_SANITARIA'];
+  }
+  // Default
+  return ['IDENTITY_CARD', 'TESSERA_SANITARIA'];
+}
+
 // Get pending documents for verification
 router.get('/documents/pending', authenticateUnified, async (req: AuthRequest, res) => {
   try {
@@ -347,9 +446,10 @@ router.get('/documents/:documentId/audit', authenticateUnified, async (req: Auth
 router.post('/documents/:documentId/approve', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const partnerId = req.partner?.id;
+    const partnerEmployeeId = req.partnerEmployee?.id;
     const { documentId } = req.params;
     const { notes } = req.body;
-    
+
     if (!partnerId) {
       return res.status(400).json({ error: 'Partner non trovato' });
     }
@@ -365,7 +465,8 @@ router.post('/documents/:documentId/approve', authenticateUnified, async (req: A
             },
             profile: true
           }
-        }
+        },
+        registration: true
       }
     });
 
@@ -377,10 +478,15 @@ router.post('/documents/:documentId/approve', authenticateUnified, async (req: A
       return res.status(403).json({ error: 'Non autorizzato ad approvare questo documento' });
     }
 
-    // Update document status
+    // Update document status to APPROVED_BY_PARTNER
     await prisma.userDocument.update({
       where: { id: documentId },
-      data: { status: 'APPROVED' }
+      data: {
+        status: 'APPROVED_BY_PARTNER',
+        reviewedByPartner: true,
+        partnerCheckedAt: new Date(),
+        partnerCheckedBy: partnerEmployeeId || partnerId
+      }
     });
 
     // Create audit log
@@ -388,10 +494,17 @@ router.post('/documents/:documentId/approve', authenticateUnified, async (req: A
       data: {
         documentId,
         action: 'APPROVED',
-        performedBy: partnerId,
+        performedBy: partnerEmployeeId || partnerId,
+        previousStatus: document.status,
+        newStatus: 'APPROVED_BY_PARTNER',
         notes: notes || 'Documento approvato dal partner'
       }
     });
+
+    // Check if all documents are reviewed → auto-advance registration
+    if (document.registrationId) {
+      await checkAndAdvanceRegistration(document.registrationId);
+    }
 
     res.json({ success: true, message: 'Documento approvato' });
   } catch (error) {
@@ -404,11 +517,16 @@ router.post('/documents/:documentId/approve', authenticateUnified, async (req: A
 router.post('/documents/:documentId/reject', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const partnerId = req.partner?.id;
+    const partnerEmployeeId = req.partnerEmployee?.id;
     const { documentId } = req.params;
     const { reason, details } = req.body;
-    
+
     if (!partnerId) {
       return res.status(400).json({ error: 'Partner non trovato' });
+    }
+
+    if (!reason || reason.trim().length === 0) {
+      return res.status(400).json({ error: 'La motivazione del rifiuto è obbligatoria' });
     }
 
     const document = await prisma.userDocument.findUnique({
@@ -417,7 +535,20 @@ router.post('/documents/:documentId/reject', authenticateUnified, async (req: Au
         user: {
           include: {
             registrations: {
-              where: { partnerId }
+              where: { partnerId },
+              include: {
+                offer: {
+                  include: { course: true }
+                }
+              }
+            },
+            profile: true
+          }
+        },
+        registration: {
+          include: {
+            offer: {
+              include: { course: true }
             }
           }
         }
@@ -432,12 +563,17 @@ router.post('/documents/:documentId/reject', authenticateUnified, async (req: Au
       return res.status(403).json({ error: 'Non autorizzato a rifiutare questo documento' });
     }
 
-    // Update document status
+    // Update document status to REJECTED_BY_PARTNER
     await prisma.userDocument.update({
       where: { id: documentId },
-      data: { 
-        status: 'REJECTED',
-        rejectionReason: reason
+      data: {
+        status: 'REJECTED_BY_PARTNER',
+        reviewedByPartner: true,
+        rejectionReason: reason,
+        rejectionDetails: details || null,
+        partnerCheckedAt: new Date(),
+        partnerCheckedBy: partnerEmployeeId || partnerId,
+        userNotifiedAt: new Date()
       }
     });
 
@@ -446,12 +582,29 @@ router.post('/documents/:documentId/reject', authenticateUnified, async (req: Au
       data: {
         documentId,
         action: 'REJECTED',
-        performedBy: partnerId,
+        performedBy: partnerEmployeeId || partnerId,
+        previousStatus: document.status,
+        newStatus: 'REJECTED_BY_PARTNER',
         notes: `Motivo: ${reason}${details ? ` - Dettagli: ${details}` : ''}`
       }
     });
 
-    res.json({ success: true, message: 'Documento rifiutato' });
+    // Send rejection email to user
+    await emailService.sendDocumentRejectionEmail(
+      document.user.email,
+      document.user.profile?.nome || 'Utente',
+      document.type,
+      reason,
+      details,
+      document.registrationId || undefined
+    );
+
+    // Check if all documents are reviewed → auto-advance registration
+    if (document.registrationId) {
+      await checkAndAdvanceRegistration(document.registrationId);
+    }
+
+    res.json({ success: true, message: 'Documento rifiutato e utente notificato via email' });
   } catch (error) {
     console.error('Reject document error:', error);
     res.status(500).json({ error: 'Errore interno del server' });

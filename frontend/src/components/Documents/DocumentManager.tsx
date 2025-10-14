@@ -237,10 +237,10 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
     }
   };
 
-  // Handle document check (partner only - no email sent)
+  // Handle document approval (partner only)
   const handleCheck = async (documentId: string, notes?: string) => {
     try {
-      const response = await fetch(`/api/partner/documents/${documentId}/check`, {
+      const response = await fetch(`/api/partner/documents/${documentId}/approve`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -252,15 +252,24 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
       if (response.ok) {
         await fetchDocuments();
         setShowPreview(false);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Errore nell\'approvazione del documento');
       }
     } catch (error) {
-      console.error('Error checking document:', error);
+      console.error('Error approving document:', error);
+      alert('Errore nell\'approvazione del documento');
     }
   };
 
   // Handle document rejection (partner only)
   const handleReject = async (reason: string, details?: string) => {
     if (!documentToReject) return;
+
+    if (!reason || reason.trim().length === 0) {
+      alert('La motivazione del rifiuto è obbligatoria');
+      return;
+    }
 
     try {
       const response = await fetch(`/api/partner/documents/${documentToReject.id}/reject`, {
@@ -276,9 +285,14 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
         await fetchDocuments();
         setShowPreview(false);
         closeRejectModal();
+        alert('Documento rifiutato. L\'utente riceverà una email con la motivazione.');
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Errore nel rifiuto del documento');
       }
     } catch (error) {
       console.error('Error rejecting document:', error);
+      alert('Errore nel rifiuto del documento');
     }
   };
 
@@ -313,9 +327,18 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'APPROVED': return <CheckCircle className="w-5 h-5 text-green-600" />;
-      case 'REJECTED': return <XCircle className="w-5 h-5 text-red-600" />;
-      default: return <Clock className="w-5 h-5 text-yellow-600" />;
+      case 'APPROVED':
+      case 'APPROVED_BY_PARTNER':
+        return <CheckCircle className="w-5 h-5 text-green-600" />;
+      case 'APPROVED_BY_DISCOVERY':
+        return <CheckCircle className="w-5 h-5 text-blue-600" />;
+      case 'REJECTED':
+      case 'REJECTED_BY_PARTNER':
+      case 'REJECTED_BY_DISCOVERY':
+        return <XCircle className="w-5 h-5 text-red-600" />;
+      case 'PENDING':
+      default:
+        return <Clock className="w-5 h-5 text-yellow-600" />;
     }
   };
 
@@ -441,26 +464,29 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
                       {/* Status Badge */}
                       <div className="mt-2">
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          doc.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
-                          doc.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                          (doc.status === 'APPROVED' || doc.status === 'APPROVED_BY_PARTNER') ? 'bg-green-100 text-green-800' :
+                          doc.status === 'APPROVED_BY_DISCOVERY' ? 'bg-blue-100 text-blue-800' :
+                          (doc.status === 'REJECTED' || doc.status === 'REJECTED_BY_PARTNER' || doc.status === 'REJECTED_BY_DISCOVERY') ? 'bg-red-100 text-red-800' :
                           doc.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
                           {getStatusIcon(doc.status)}
                           <span className="ml-1">
-                            {doc.status === 'APPROVED' && 'Checkato dal Partner'}
-                            {doc.status === 'REJECTED' && 'Rifiutato dal Partner'}
-                            {doc.status === 'PENDING' && 'In attesa di verifica'}
+                            {(doc.status === 'APPROVED' || doc.status === 'APPROVED_BY_PARTNER') && '✅ Approvato dal Partner'}
+                            {doc.status === 'APPROVED_BY_DISCOVERY' && '✅ Approvato da Discovery'}
+                            {(doc.status === 'REJECTED' || doc.status === 'REJECTED_BY_PARTNER') && '❌ Rifiutato dal Partner'}
+                            {doc.status === 'REJECTED_BY_DISCOVERY' && '❌ Rifiutato da Discovery'}
+                            {doc.status === 'PENDING' && '⏳ In attesa di revisione'}
                           </span>
                         </span>
-                        {doc.status === 'APPROVED' && doc.verifiedAt && (
+                        {(doc.status === 'APPROVED' || doc.status === 'APPROVED_BY_PARTNER') && doc.partnerCheckedAt && (
                           <p className="text-xs text-green-600 mt-1">
-                            Checkato il {new Date(doc.verifiedAt).toLocaleDateString('it-IT')}
+                            Approvato il {new Date(doc.partnerCheckedAt).toLocaleDateString('it-IT')}
                           </p>
                         )}
                       </div>
-                      
-                      {doc.status === 'REJECTED' && doc.rejectionReason && (
+
+                      {(doc.status === 'REJECTED' || doc.status === 'REJECTED_BY_PARTNER' || doc.status === 'REJECTED_BY_DISCOVERY') && doc.rejectionReason && (
                         <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
                           <div className="flex items-start space-x-2">
                             <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
@@ -496,11 +522,11 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
                     >
                       <Download className="w-4 h-4" />
                     </button>
-                    {allowDelete && doc.status !== 'APPROVED' && (
+                    {allowDelete && doc.status !== 'APPROVED' && doc.status !== 'APPROVED_BY_PARTNER' && doc.status !== 'APPROVED_BY_DISCOVERY' && (
                       <button
                         onClick={() => handleDelete(doc.id)}
-                        className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                        title="Elimina"
+                        className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Elimina documento"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -509,8 +535,8 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
                       <>
                         <button
                           onClick={() => handleCheck(doc.id)}
-                          className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg"
-                          title="Verifica (no email)"
+                          className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          title="✅ Approva documento"
                         >
                           <CheckCircle className="w-4 h-4" />
                         </button>
@@ -519,8 +545,8 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
                             setDocumentToReject(doc);
                             setShowRejectModal(true);
                           }}
-                          className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                          title="Rifiuta"
+                          className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="❌ Rifiuta documento (invia email all'utente)"
                         >
                           <XCircle className="w-4 h-4" />
                         </button>

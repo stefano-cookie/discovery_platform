@@ -8,10 +8,13 @@ export interface UserDocument {
   fileName: string;
   fileSize: number;
   mimeType: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'APPROVED_BY_PARTNER' | 'REJECTED_BY_PARTNER' | 'APPROVED_BY_DISCOVERY' | 'REJECTED_BY_DISCOVERY';
   uploadedAt: string;
   verifiedAt?: string;
   verifiedBy?: string;
+  partnerCheckedAt?: string;
+  partnerCheckedBy?: string;
+  reviewedByPartner?: boolean;
   rejectionReason?: string;
   rejectionDetails?: string;
 }
