@@ -622,7 +622,7 @@ class EmailService {
             
             <div style="text-align: center;">
               <a href="${credentials.loginUrl}" class="login-button">
-                🚀 Accedi alla Piattaforma
+                Accedi alla Piattaforma
               </a>
             </div>
             
@@ -764,7 +764,7 @@ class EmailService {
             
             <div style="text-align: center;">
               <a href="${process.env.FRONTEND_URL}/login" class="login-button">
-                🚀 Accedi alla Piattaforma
+                Accedi alla Piattaforma
               </a>
             </div>
           </div>
@@ -895,7 +895,7 @@ class EmailService {
             
             <div style="text-align: center;">
               <a href="${process.env.FRONTEND_URL}/dashboard" class="dashboard-button">
-                🏠 Accedi alla sua Area Riservata
+                Accedi alla sua Area Riservata
               </a>
             </div>
             
@@ -2402,7 +2402,7 @@ Piattaforma Diamante
             
             <div style="text-align: center;">
               <a href="${data.loginUrl}" class="login-button">
-                🚪 Accedi alla Dashboard
+                Accedi alla Dashboard
               </a>
             </div>
             

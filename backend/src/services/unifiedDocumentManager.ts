@@ -253,7 +253,7 @@ export class UnifiedDocumentManager {
       'certificatoMagistrale': DocumentType.MASTER_DEGREE,
       'pianoStudioTriennale': DocumentType.TRANSCRIPT,
       'pianoStudioMagistrale': DocumentType.TRANSCRIPT,
-      'certificatoMedico': DocumentType.CV,
+      'certificatoMedico': DocumentType.TESSERA_SANITARIA, // Fixed: was DocumentType.CV
       'certificatoNascita': DocumentType.BIRTH_CERT,
       'diplomoLaurea': DocumentType.BACHELOR_DEGREE,
       'pergamenaLaurea': DocumentType.MASTER_DEGREE,
