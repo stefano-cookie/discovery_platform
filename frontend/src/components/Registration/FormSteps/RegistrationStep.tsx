@@ -1218,8 +1218,8 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
                 <div className="space-y-1">
                   <div className="flex justify-between">
                     <span className="font-medium text-gray-500">Tessera Sanitaria:</span>
-                    <span className={`${hasDocument('tesseraSanitaria') ? 'text-green-600' : 'text-gray-400'}`}>
-                      {formatFileInfo(null, 'tesseraSanitaria')}
+                    <span className={`${formData.certificatoMedico || hasDocument('certificatoMedico') ? 'text-green-600' : 'text-gray-400'}`}>
+                      {formatFileInfo(formData.certificatoMedico, 'certificatoMedico')}
                     </span>
                   </div>
                 </div>
