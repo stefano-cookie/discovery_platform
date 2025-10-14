@@ -4,6 +4,7 @@ import { PartnerUser } from '../../types/partner';
 import UserTable from './UserTable';
 import { usePartnerAuth } from '../../hooks/usePartnerAuth';
 import subPartnerApi, { SubPartner } from '../../services/subPartnerApi';
+import { useRealtimeRegistration } from '../../hooks/useRealtimeRegistration';
 
 interface UsersViewProps {
   onNavigateToEnrollmentDetail?: (registrationId: string) => void;
@@ -19,7 +20,8 @@ const UsersView: React.FC<UsersViewProps> = ({ onNavigateToEnrollmentDetail }) =
   const [allUsersStats, setAllUsersStats] = useState({ all: 0, direct: 0, children: 0, orphaned: 0 });
   const [subPartners, setSubPartners] = useState<SubPartner[]>([]);
   const [selectedSubPartner, setSelectedSubPartner] = useState<string>('');
-  
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+
   const isSubPartner = partnerCompany?.parentId != null;
 
   const fetchUsers = async (filter: 'all' | 'direct' | 'children' | 'orphaned' = 'all') => {
@@ -84,6 +86,46 @@ const UsersView: React.FC<UsersViewProps> = ({ onNavigateToEnrollmentDetail }) =
     loadStats();
   }, []);
 
+  // 🔌 WebSocket Real-time Updates
+  const { refreshTrigger } = useRealtimeRegistration(
+    // onStatusChange
+    (payload) => {
+      console.log('[UsersView] 🔄 Registration status changed:', payload);
+      setLastUpdate(new Date());
+      fetchUsers(currentFilter);
+    },
+    // onPaymentUpdate
+    (payload) => {
+      console.log('[UsersView] 💳 Payment updated:', payload);
+      setLastUpdate(new Date());
+      fetchUsers(currentFilter);
+    },
+    // onDocumentUpload
+    (payload) => {
+      console.log('[UsersView] 📄 Document uploaded:', payload);
+      setLastUpdate(new Date());
+      fetchUsers(currentFilter);
+    },
+    // onDocumentApproval
+    (payload) => {
+      console.log('[UsersView] ✅ Document approved:', payload);
+      setLastUpdate(new Date());
+      fetchUsers(currentFilter);
+    },
+    // onDocumentRejection
+    (payload) => {
+      console.log('[UsersView] ❌ Document rejected:', payload);
+      setLastUpdate(new Date());
+      fetchUsers(currentFilter);
+    },
+    // onContractSigned
+    (payload) => {
+      console.log('[UsersView] ✍️ Contract signed:', payload);
+      setLastUpdate(new Date());
+      fetchUsers(currentFilter);
+    }
+  );
+
   // Listen for refresh events from certification steps updates
   useEffect(() => {
     const handleRefresh = () => {
@@ -94,7 +136,7 @@ const UsersView: React.FC<UsersViewProps> = ({ onNavigateToEnrollmentDetail }) =
     window.addEventListener('refreshRegistrations', handleRefresh);
     window.addEventListener('refreshCertificationSteps', handleRefresh);
     window.addEventListener('userStatusUpdated', handleRefresh);
-    
+
     return () => {
       window.removeEventListener('refreshRegistrations', handleRefresh);
       window.removeEventListener('refreshCertificationSteps', handleRefresh);
@@ -169,6 +211,9 @@ const UsersView: React.FC<UsersViewProps> = ({ onNavigateToEnrollmentDetail }) =
             <div className="flex items-center space-x-2 text-sm text-gray-500">
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
               <span>Aggiornato in tempo reale</span>
+              <span className="text-xs text-gray-400">
+                ({lastUpdate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })})
+              </span>
             </div>
           </div>
         </div>

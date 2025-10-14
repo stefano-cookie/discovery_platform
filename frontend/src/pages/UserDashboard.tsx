@@ -5,6 +5,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import UserEnrollmentDetail from '../components/User/EnrollmentDetail';
 import { getUserStatusDisplay, getStatusColors, getStatusBadge } from '../utils/statusTranslations';
 import LogoutDropdown from '../components/UI/LogoutDropdown';
+import { useRealtimeRegistration } from '../hooks/useRealtimeRegistration';
 
 interface UserRegistration {
   id: string;
@@ -125,6 +126,47 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
     }
   );
   const [showLogoutDropdown, setShowLogoutDropdown] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+
+  // 🔌 WebSocket Real-time Updates
+  const { refreshTrigger } = useRealtimeRegistration(
+    // onStatusChange
+    (payload) => {
+      console.log('[UserDashboard] 🔄 Registration status changed:', payload);
+      setLastUpdate(new Date());
+      loadUserData();
+    },
+    // onPaymentUpdate
+    (payload) => {
+      console.log('[UserDashboard] 💳 Payment updated:', payload);
+      setLastUpdate(new Date());
+      loadUserData();
+    },
+    // onDocumentUpload
+    (payload) => {
+      console.log('[UserDashboard] 📄 Document uploaded:', payload);
+      setLastUpdate(new Date());
+      loadUserData();
+    },
+    // onDocumentApproval
+    (payload) => {
+      console.log('[UserDashboard] ✅ Document approved:', payload);
+      setLastUpdate(new Date());
+      loadUserData();
+    },
+    // onDocumentRejection
+    (payload) => {
+      console.log('[UserDashboard] ❌ Document rejected:', payload);
+      setLastUpdate(new Date());
+      loadUserData();
+    },
+    // onContractSigned
+    (payload) => {
+      console.log('[UserDashboard] ✍️ Contract signed:', payload);
+      setLastUpdate(new Date());
+      loadUserData();
+    }
+  );
 
   useEffect(() => {
     loadUserData();
@@ -253,9 +295,18 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
               <h1 className="text-4xl font-bold text-slate-900 tracking-tight">
                 Benvenuto, {profile?.nome || user?.email?.split('@')[0]}
               </h1>
-              <p className="mt-2 text-lg text-slate-600">
-                Gestisci le tue iscrizioni e il tuo profilo
-              </p>
+              <div className="mt-2 flex items-center space-x-3">
+                <p className="text-lg text-slate-600">
+                  Gestisci le tue iscrizioni e il tuo profilo
+                </p>
+                <div className="flex items-center space-x-2 text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <span>Aggiornato in tempo reale</span>
+                  <span className="text-xs text-slate-400">
+                    ({lastUpdate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })})
+                  </span>
+                </div>
+              </div>
             </div>
             <div className="relative">
               <button
