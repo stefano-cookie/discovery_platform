@@ -300,7 +300,29 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
       await authService.register(formData as RegisterRequest);
       onSuccess();
     } catch (err: any) {
-      setError(err.message || 'Errore durante la registrazione');
+      // Gestione errori specifici per una migliore UX
+      let errorMessage = 'Errore durante la registrazione';
+
+      if (err.response?.data?.code === 'EMAIL_ALREADY_EXISTS' ||
+          err.message?.includes('già registrato') ||
+          err.message?.includes('already exists')) {
+        errorMessage = '⚠️ Questa email è già registrata. Prova ad accedere o usa un\'altra email.';
+      } else if (err.message?.includes('password')) {
+        errorMessage = '🔒 La password non rispetta i requisiti di sicurezza richiesti.';
+      } else if (err.message?.includes('codice fiscale')) {
+        errorMessage = '📋 Il codice fiscale risulta già registrato nel sistema.';
+      } else if (err.message?.includes('network') || err.message?.includes('Network')) {
+        errorMessage = '🌐 Errore di connessione. Verifica la tua connessione internet e riprova.';
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+
+      setError(errorMessage);
+
+      // Scroll to top to show error
+      document.querySelector('[data-registration-modal]')?.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setIsLoading(false);
     }
@@ -318,19 +340,29 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
       className="glass-effect"
     >
 
-      <div className="p-6 overflow-y-auto max-h-[calc(95vh-120px)]">
+      <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(100vh-120px)] sm:max-h-[calc(95vh-120px)]" data-registration-modal>
 
           {error && (
-            <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6 rounded-r-lg animate-shake">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+            <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-lg animate-shake shadow-lg">
+              <div className="flex items-start">
+                <div className="flex-shrink-0 mt-0.5">
+                  <svg className="h-6 w-6 text-red-500" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                   </svg>
                 </div>
-                <div className="ml-3">
-                  <p className="text-sm text-red-700 font-medium">{error}</p>
+                <div className="ml-3 flex-1">
+                  <h3 className="text-sm font-bold text-red-800 mb-1">Errore di Registrazione</h3>
+                  <p className="text-sm text-red-700 leading-relaxed">{error}</p>
                 </div>
+                <button
+                  onClick={() => setError(null)}
+                  className="ml-3 flex-shrink-0 text-red-400 hover:text-red-600 transition-colors"
+                  aria-label="Chiudi errore"
+                >
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
               </div>
             </div>
           )}
@@ -409,7 +441,7 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
                 <p className="text-sm text-gray-600">Inserisci le informazioni di base per creare il tuo account</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="relative">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Cognome *
@@ -554,7 +586,7 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="relative">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Data di Nascita *
@@ -756,14 +788,14 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
                 <button
                   onClick={handleNext}
                   disabled={!validateStep1()}
-                  className={`px-8 py-3 rounded-xl font-bold text-sm transition-all duration-300 transform hover:scale-105 hover-lift ${
+                  className={`w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-sm transition-all duration-300 transform hover:scale-105 hover-lift ${
                     validateStep1()
                       ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 shadow-lg shadow-blue-500/25 progress-glow'
                       : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                   }`}
                 >
                   {validateStep1() ? (
-                    <span className="flex items-center space-x-2">
+                    <span className="flex items-center justify-center space-x-2">
                       <span>Continua</span>
                       <svg className="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
@@ -814,7 +846,7 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="relative">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Città *
@@ -844,7 +876,7 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
                 </div>
               </div>
 
-              <div className="w-1/2">
+              <div className="w-full sm:w-1/2">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   CAP *
                 </label>
@@ -969,17 +1001,17 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
                 </p>
               </div>
 
-              <div className="flex justify-between items-center pt-6">
+              <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 pt-6">
                 <button
                   onClick={handleBack}
-                  className="px-6 py-3 border-2 border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 font-semibold flex items-center space-x-2 hover-lift"
+                  className="px-6 py-3 border-2 border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 font-semibold flex items-center justify-center space-x-2 hover-lift"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
                   </svg>
                   <span>Indietro</span>
                 </button>
-                
+
                 <button
                   onClick={handleSubmit}
                   disabled={!validateStep2() || isLoading}
@@ -990,7 +1022,7 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
                   }`}
                 >
                   {isLoading ? (
-                    <span className="flex items-center space-x-2">
+                    <span className="flex items-center justify-center space-x-2">
                       <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -998,7 +1030,7 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
                       <span>Creazione account...</span>
                     </span>
                   ) : validateStep2() ? (
-                    <span className="flex items-center space-x-2">
+                    <span className="flex items-center justify-center space-x-2">
                       <span>Crea Account</span>
                       <svg className="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
