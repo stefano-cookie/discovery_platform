@@ -178,7 +178,8 @@ if [ ${#MISSING_VARS[@]} -gt 0 ]; then
     exit 1
 fi
 
-# 4.3 Create .env from .env.production (dotenv loads .env by default)
+# 4.3 🔥 ANTI-DEPLOYMENT BREAKAGE: Sync .env.production → .env
+echo -e "${YELLOW}🔄 Syncing .env.production → .env...${NC}"
 cp "$DEPLOY_DIR/backend/.env.production" "$DEPLOY_DIR/backend/.env"
 echo -e "${GREEN}✓ Created .env from .env.production${NC}"
 
@@ -189,6 +190,20 @@ if [ -f "$DEPLOY_DIR/backend/.env" ] && [ -r "$DEPLOY_DIR/backend/.env" ]; then
 else
     echo -e "${RED}❌ .env file missing or not readable!${NC}"
     exit 1
+fi
+
+# 4.5 🔐 VERIFY R2 CREDENTIALS SYNC: Ensure .env and .env.production have same R2 key
+echo -e "${YELLOW}🔐 Verifying R2 credentials sync...${NC}"
+ENV_R2_KEY=$(grep "^CLOUDFLARE_SECRET_ACCESS_KEY=" "$DEPLOY_DIR/backend/.env" | cut -d'=' -f2 | tr -d '"' | head -c 20)
+ENV_PROD_R2_KEY=$(grep "^CLOUDFLARE_SECRET_ACCESS_KEY=" "$DEPLOY_DIR/backend/.env.production" | cut -d'=' -f2 | tr -d '"' | head -c 20)
+
+if [ "$ENV_R2_KEY" = "$ENV_PROD_R2_KEY" ]; then
+    echo -e "${GREEN}✓ R2 credentials synchronized between .env and .env.production${NC}"
+else
+    echo -e "${RED}❌ WARNING: R2 credentials MISMATCH detected!${NC}"
+    echo -e "${YELLOW}   Re-syncing .env from .env.production to fix...${NC}"
+    cp "$DEPLOY_DIR/backend/.env.production" "$DEPLOY_DIR/backend/.env"
+    echo -e "${GREEN}✓ R2 credentials re-synchronized${NC}"
 fi
 
 # 5. Installa dipendenze backend
@@ -304,6 +319,45 @@ if [ "$BACKEND_STATUS" != "online" ]; then
     exit 1
 fi
 echo -e "${GREEN}✓ Backend started successfully${NC}"
+
+# 7.5 🔐 TEST R2 CREDENTIALS: Verify R2 connection works after restart
+echo -e "${YELLOW}🧪 Testing R2 credentials after restart...${NC}"
+cd "$DEPLOY_DIR/backend"
+R2_TEST_RESULT=$(node -e "
+const { S3Client, ListBucketsCommand } = require('@aws-sdk/client-s3');
+const dotenv = require('dotenv');
+dotenv.config({ path: '.env' });
+
+const client = new S3Client({
+  region: 'auto',
+  endpoint: process.env.CLOUDFLARE_ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.CLOUDFLARE_ACCESS_KEY_ID,
+    secretAccessKey: process.env.CLOUDFLARE_SECRET_ACCESS_KEY,
+  }
+});
+
+(async () => {
+  try {
+    const response = await client.send(new ListBucketsCommand({}));
+    console.log('R2_OK:' + response.Buckets.length);
+  } catch (error) {
+    console.log('R2_ERROR:' + error.message);
+    process.exit(1);
+  }
+})();
+" 2>&1)
+
+if echo "$R2_TEST_RESULT" | grep -q "R2_OK"; then
+    BUCKET_COUNT=$(echo "$R2_TEST_RESULT" | grep -o 'R2_OK:[0-9]*' | cut -d':' -f2)
+    echo -e "${GREEN}✓ R2 connection verified ($BUCKET_COUNT buckets accessible)${NC}"
+else
+    echo -e "${RED}❌ R2 CREDENTIALS FAILED after restart!${NC}"
+    echo -e "${RED}   Error: $(echo "$R2_TEST_RESULT" | grep 'R2_ERROR' | cut -d':' -f2-)${NC}"
+    echo -e "${YELLOW}   Document uploads will fail until credentials are fixed${NC}"
+    echo -e "${YELLOW}   Check: $DEPLOY_DIR/backend/.env CLOUDFLARE_SECRET_ACCESS_KEY${NC}"
+    # Don't exit - allow manual intervention
+fi
 
 # Ensure frontend proxy server is copied and accessible
 if [ ! -f "$DEPLOY_DIR/frontend-proxy-server.js" ]; then
