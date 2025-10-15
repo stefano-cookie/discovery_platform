@@ -472,10 +472,10 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
                         }`}>
                           {getStatusIcon(doc.status)}
                           <span className="ml-1">
-                            {(doc.status === 'APPROVED' || doc.status === 'APPROVED_BY_PARTNER') && '✅ Approvato dal Partner'}
-                            {doc.status === 'APPROVED_BY_DISCOVERY' && '✅ Approvato da Discovery'}
-                            {(doc.status === 'REJECTED' || doc.status === 'REJECTED_BY_PARTNER') && '❌ Rifiutato dal Partner'}
-                            {doc.status === 'REJECTED_BY_DISCOVERY' && '❌ Rifiutato da Discovery'}
+                            {(doc.status === 'APPROVED' || doc.status === 'APPROVED_BY_PARTNER') && 'Approvato dal Partner'}
+                            {doc.status === 'APPROVED_BY_DISCOVERY' && 'Approvato da Discovery'}
+                            {(doc.status === 'REJECTED' || doc.status === 'REJECTED_BY_PARTNER') && 'Rifiutato dal Partner'}
+                            {doc.status === 'REJECTED_BY_DISCOVERY' && 'Rifiutato da Discovery'}
                             {doc.status === 'PENDING' && '⏳ In attesa di revisione'}
                           </span>
                         </span>

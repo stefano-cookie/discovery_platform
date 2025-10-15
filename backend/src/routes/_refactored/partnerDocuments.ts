@@ -481,26 +481,38 @@ router.post('/documents/:documentId/approve', authenticateUnified, async (req: A
     }
 
     // Update document status to APPROVED_BY_PARTNER
+    // Note: partnerCheckedBy field references User table, so only set if partnerId exists
+    const updateData: any = {
+      status: 'APPROVED_BY_PARTNER',
+      reviewedByPartner: true,
+      partnerCheckedAt: new Date()
+    };
+
+    if (partnerId) {
+      updateData.partnerCheckedBy = partnerId;
+    }
+
     await prisma.userDocument.update({
       where: { id: documentId },
-      data: {
-        status: 'APPROVED_BY_PARTNER',
-        reviewedByPartner: true,
-        partnerCheckedAt: new Date(),
-        partnerCheckedBy: partnerEmployeeId || partnerId
-      }
+      data: updateData
     });
 
     // Create audit log
+    // Note: performedBy field references User table, so only set if partnerId exists
+    const auditData: any = {
+      documentId,
+      action: 'APPROVED',
+      previousStatus: document.status,
+      newStatus: 'APPROVED_BY_PARTNER',
+      notes: notes || `Documento approvato dal ${partnerEmployeeId ? 'collaboratore' : 'partner'}`
+    };
+
+    if (partnerId) {
+      auditData.performedBy = partnerId;
+    }
+
     await prisma.documentAuditLog.create({
-      data: {
-        documentId,
-        action: 'APPROVED',
-        performedBy: partnerEmployeeId || partnerId,
-        previousStatus: document.status,
-        newStatus: 'APPROVED_BY_PARTNER',
-        notes: notes || 'Documento approvato dal partner'
-      }
+      data: auditData
     });
 
     // Check if all documents are reviewed → auto-advance registration
@@ -568,29 +580,41 @@ router.post('/documents/:documentId/reject', authenticateUnified, async (req: Au
     }
 
     // Update document status to REJECTED_BY_PARTNER
+    // Note: partnerCheckedBy field references User table, so only set if partnerId exists
+    const updateData: any = {
+      status: 'REJECTED_BY_PARTNER',
+      reviewedByPartner: true,
+      rejectionReason: reason,
+      rejectionDetails: details || null,
+      partnerCheckedAt: new Date(),
+      userNotifiedAt: new Date()
+    };
+
+    if (partnerId) {
+      updateData.partnerCheckedBy = partnerId;
+    }
+
     await prisma.userDocument.update({
       where: { id: documentId },
-      data: {
-        status: 'REJECTED_BY_PARTNER',
-        reviewedByPartner: true,
-        rejectionReason: reason,
-        rejectionDetails: details || null,
-        partnerCheckedAt: new Date(),
-        partnerCheckedBy: partnerEmployeeId || partnerId,
-        userNotifiedAt: new Date()
-      }
+      data: updateData
     });
 
     // Create audit log
+    // Note: performedBy field references User table, so only set if partnerId exists
+    const auditData: any = {
+      documentId,
+      action: 'REJECTED',
+      previousStatus: document.status,
+      newStatus: 'REJECTED_BY_PARTNER',
+      notes: `Motivo: ${reason}${details ? ` - Dettagli: ${details}` : ''}`
+    };
+
+    if (partnerId) {
+      auditData.performedBy = partnerId;
+    }
+
     await prisma.documentAuditLog.create({
-      data: {
-        documentId,
-        action: 'REJECTED',
-        performedBy: partnerEmployeeId || partnerId,
-        previousStatus: document.status,
-        newStatus: 'REJECTED_BY_PARTNER',
-        notes: `Motivo: ${reason}${details ? ` - Dettagli: ${details}` : ''}`
-      }
+      data: auditData
     });
 
     // Send rejection email to user
