@@ -3,10 +3,12 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '../../hooks/useAuth';
+import { TwoFactorSetup, TwoFactorVerify } from '../User/TwoFactor';
 import Button from '../UI/Button';
 import Input from '../UI/Input';
 import ErrorMessage from '../UI/ErrorMessage';
 import ErrorService, { ErrorDetails } from '../../services/errorService';
+import api from '../../services/api';
 
 const loginSchema = z.object({
   email: z.string().email('Email non valida'),
@@ -20,6 +22,12 @@ const LoginForm: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<ErrorDetails | null>(null);
 
+  // 2FA State
+  const [show2FASetup, setShow2FASetup] = useState(false);
+  const [show2FAVerify, setShow2FAVerify] = useState(false);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [credentials, setCredentials] = useState<{ email: string; password: string } | null>(null);
+
   const {
     register,
     handleSubmit,
@@ -32,12 +40,34 @@ const LoginForm: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      await login(data);
-      
-      // After successful login, App.tsx will handle the redirect based on localStorage pendingReferral
-      // No need to manually navigate here - let the auth state change trigger the redirect
-      
+      setCredentials(data);
+
+      // Call login API directly to intercept 2FA responses
+      const response = await api.post('/auth/login', data);
+
+      // Check for 2FA setup required
+      if (response.data.requires2FASetup) {
+        setShow2FASetup(true);
+        setIsLoading(false);
+        return;
+      }
+
+      // Check for 2FA verification required
+      if (response.data.requires2FA && response.data.sessionToken) {
+        setSessionToken(response.data.sessionToken);
+        setShow2FAVerify(true);
+        setIsLoading(false);
+        return;
+      }
+
+      // Standard login (no 2FA or already verified)
+      const { token, user } = response.data;
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+
+      // Trigger auth state update
+      window.location.reload();
+
     } catch (err: any) {
       const processedError = ErrorService.processApiError(err);
       setError(processedError);
@@ -46,6 +76,62 @@ const LoginForm: React.FC = () => {
     }
   };
 
+  const handle2FASetupComplete = async () => {
+    setShow2FASetup(false);
+    // After setup, require 2FA verification
+    if (credentials) {
+      try {
+        setIsLoading(true);
+        const response = await api.post('/auth/login', credentials);
+
+        if (response.data.requires2FA && response.data.sessionToken) {
+          setSessionToken(response.data.sessionToken);
+          setShow2FAVerify(true);
+        }
+      } catch (err: any) {
+        const processedError = ErrorService.processApiError(err);
+        setError(processedError);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const handle2FAVerifySuccess = (token: string, user: any) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+    window.location.reload();
+  };
+
+  const handle2FACancel = () => {
+    setShow2FASetup(false);
+    setShow2FAVerify(false);
+    setSessionToken(null);
+    setCredentials(null);
+  };
+
+  // Render 2FA Setup modal
+  if (show2FASetup) {
+    return (
+      <TwoFactorSetup
+        onComplete={handle2FASetupComplete}
+        onCancel={handle2FACancel}
+      />
+    );
+  }
+
+  // Render 2FA Verify modal
+  if (show2FAVerify && sessionToken) {
+    return (
+      <TwoFactorVerify
+        sessionToken={sessionToken}
+        onSuccess={handle2FAVerifySuccess}
+        onCancel={handle2FACancel}
+      />
+    );
+  }
+
+  // Render standard login form
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       <div className="space-y-4">
@@ -72,8 +158,8 @@ const LoginForm: React.FC = () => {
 
       {error && (
         <div className="mt-4">
-          <ErrorMessage 
-            message={error.message} 
+          <ErrorMessage
+            message={error.message}
             type={error.type}
             onClose={() => setError(null)}
           />
