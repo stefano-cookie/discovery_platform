@@ -145,6 +145,7 @@ import noticeUploadRoutes from './routes/notices/upload';
 import twoFactorRoutes from './routes/twoFactor';
 import user2faRoutes from './routes/user2fa';
 import activityLogsRoutes from './routes/admin/activityLogs.routes';
+import adminAccountsRoutes from './routes/admin/adminAccounts.routes';
 import diagnosticsRoutes from './routes/diagnostics';
 // TODO: Fix partnerRegistrations.ts - has compilation errors with legacy partner system
 // import partnerRegistrationsRoutes from './routes/_refactored/partnerRegistrations';
@@ -189,6 +190,7 @@ app.use('/api/offer-types', offerTypesRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/archive', archiveRoutes);
 app.use('/api/admin/activity-logs', activityLogsRoutes); // Activity Logging system
+app.use('/api/admin/accounts', adminAccountsRoutes); // Admin Account Management
 app.use('/api/notices/upload', noticeUploadRoutes); // Notice file uploads - MUST be BEFORE main notices routes
 app.use('/api/notices', noticesRoutes); // Notice Board system
 app.use('/api/diagnostics', diagnosticsRoutes); // System diagnostics for production debugging

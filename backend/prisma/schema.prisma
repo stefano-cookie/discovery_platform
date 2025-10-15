@@ -57,6 +57,7 @@ model User {
   noticeReads       NoticeAcknowledgement[] @relation("UserNoticeReads") // Notice lette
   twoFactorSessions TwoFactorSession[] // 2FA sessions
   twoFactorAuditLogs TwoFactorAuditLog[] // 2FA audit logs
+  adminAccount      AdminAccount? // Admin account details (for role ADMIN only)
 }
 
 enum UserRole {
@@ -878,10 +879,33 @@ enum ActionType {
 // DISCOVERY ADMIN SYSTEM
 // ========================================
 
+// Admin Account Management - Multi-Admin System
+model AdminAccount {
+  id          String   @id @default(uuid())
+  userId      String   @unique // FK to User table (role must be ADMIN)
+  displayName String // Full name of the admin
+  email       String   @unique
+  isActive    Boolean  @default(true)
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lastLoginAt DateTime?
+
+  // Relations
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  performedActions    DiscoveryAdminLog[] @relation("AdminPerformer")
+
+  @@index([email])
+  @@index([isActive])
+}
+
 // Log azioni admin Discovery
 model DiscoveryAdminLog {
   id            String              @id @default(uuid())
   adminId       String // User con role ADMIN
+  adminAccountId String? // NEW: Link to AdminAccount for display name
+  performedBy   String? // NEW: Display name of admin who performed action
   action        DiscoveryActionType
   targetType    String // COMPANY, REGISTRATION, USER
   targetId      String
@@ -891,9 +915,11 @@ model DiscoveryAdminLog {
   ipAddress     String?
   createdAt     DateTime            @default(now())
 
-  admin User @relation("DiscoveryActions", fields: [adminId], references: [id])
+  admin        User          @relation("DiscoveryActions", fields: [adminId], references: [id])
+  adminAccount AdminAccount? @relation("AdminPerformer", fields: [adminAccountId], references: [id], onDelete: SetNull)
 
   @@index([adminId, createdAt])
+  @@index([adminAccountId, createdAt])
   @@index([targetType, targetId])
   @@index([action])
 }

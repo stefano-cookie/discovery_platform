@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import twoFactorServiceUnified, { EntityType } from '../services/twoFactorServiceUnified';
 import { validateEncryptionKey } from '../utils/encryption';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { generateUserToken } from '../utils/tokenHelpers';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -124,16 +125,11 @@ router.post('/verify-setup', authenticate, async (req: AuthRequest, res: Respons
     });
 
     // Generate new JWT token with 2FA verified and full access
-    const token = jwt.sign(
-      {
-        id: user.id,
-        type: 'user',
-        role: user.role,
-        twoFactorVerified: true, // 2FA is now verified
-        requires2FASetup: false, // No longer requires setup
-      },
-      process.env.JWT_SECRET!,
-      { expiresIn: '7d' }
+    const token = await generateUserToken(
+      user.id,
+      user.role,
+      true, // twoFactorVerified
+      false // requires2FASetup
     );
 
     return res.json({
@@ -229,15 +225,10 @@ router.post('/verify', async (req: Request, res: Response) => {
       data: { lastLoginAt: new Date() },
     });
 
-    const token = jwt.sign(
-      {
-        id: user.id,
-        type: 'user',
-        role: user.role,
-        twoFactorVerified: true, // Important flag
-      },
-      process.env.JWT_SECRET!,
-      { expiresIn: '7d' }
+    const token = await generateUserToken(
+      user.id,
+      user.role,
+      true // twoFactorVerified
     );
 
     return res.json({
@@ -331,15 +322,10 @@ router.post('/recovery', async (req: Request, res: Response) => {
       data: { lastLoginAt: new Date() },
     });
 
-    const token = jwt.sign(
-      {
-        id: user.id,
-        type: 'user',
-        role: user.role,
-        twoFactorVerified: true,
-      },
-      process.env.JWT_SECRET!,
-      { expiresIn: '7d' }
+    const token = await generateUserToken(
+      user.id,
+      user.role,
+      true // twoFactorVerified
     );
 
     // Get updated status
