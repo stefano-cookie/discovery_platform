@@ -114,7 +114,7 @@ const TwoFactorVerify: React.FC<TwoFactorVerifyProps> = ({
 
   if (sessionExpired) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center py-12 px-4">
+      <div className="min-h-screen max-h-screen overflow-y-auto bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center py-12 px-4">
         <div className="max-w-md w-full bg-white rounded-xl shadow-xl p-8">
           <div className="bg-red-50 border-l-4 border-red-400 rounded-r-lg p-6">
             <div className="flex items-start">
@@ -140,7 +140,7 @@ const TwoFactorVerify: React.FC<TwoFactorVerifyProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center py-12 px-4">
+    <div className="min-h-screen max-h-screen overflow-y-auto bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center py-12 px-4">
       <div className="max-w-md w-full">
         <div className="bg-white rounded-xl shadow-xl p-8">
           <div className="flex flex-col items-center mb-6">
