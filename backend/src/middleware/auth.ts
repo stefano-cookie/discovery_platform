@@ -43,7 +43,19 @@ export const authenticate = async (
     // Special handling for 2FA setup tokens
     // If token has requires2FASetup flag, only allow access to 2FA endpoints
     if (decoded.requires2FASetup) {
-      const is2FAEndpoint = req.path.includes('/2fa/');
+      // Check if the request is for a 2FA endpoint
+      // OriginalUrl will be like /api/user/2fa/setup (full URL)
+      const is2FAEndpoint =
+        req.originalUrl?.includes('/user/2fa') ||
+        req.originalUrl?.includes('/auth/2fa') ||
+        req.path.includes('2fa');
+
+      console.log('[Auth Middleware] 2FA Setup Token detected:', {
+        path: req.path,
+        originalUrl: req.originalUrl,
+        url: req.url,
+        is2FAEndpoint
+      });
 
       if (!is2FAEndpoint) {
         return res.status(403).json({
