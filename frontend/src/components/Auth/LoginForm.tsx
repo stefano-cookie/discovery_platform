@@ -47,6 +47,14 @@ const LoginForm: React.FC = () => {
 
       // Check for 2FA setup required
       if (response.data.requires2FASetup) {
+        // Save temporary token for 2FA setup API calls
+        if (response.data.token) {
+          localStorage.setItem('token', response.data.token);
+        }
+        // Save user data if provided
+        if (response.data.user) {
+          localStorage.setItem('user', JSON.stringify(response.data.user));
+        }
         setShow2FASetup(true);
         setIsLoading(false);
         return;
@@ -76,9 +84,19 @@ const LoginForm: React.FC = () => {
     }
   };
 
-  const handle2FASetupComplete = async () => {
+  const handle2FASetupComplete = async (setupResponse?: any) => {
     setShow2FASetup(false);
-    // After setup, require 2FA verification
+
+    // If setup response includes token and user (backend updated to return these),
+    // user is fully authenticated - no need to re-login
+    if (setupResponse?.token && setupResponse?.user) {
+      localStorage.setItem('token', setupResponse.token);
+      localStorage.setItem('user', JSON.stringify(setupResponse.user));
+      window.location.reload();
+      return;
+    }
+
+    // Legacy flow: After setup, require 2FA verification
     if (credentials) {
       try {
         setIsLoading(true);

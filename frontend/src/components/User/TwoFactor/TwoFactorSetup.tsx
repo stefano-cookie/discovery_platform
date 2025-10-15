@@ -12,7 +12,7 @@ interface TwoFactorSetupData {
 }
 
 interface TwoFactorSetupProps {
-  onComplete: () => void;
+  onComplete: (setupResponse?: any) => void;
   onCancel?: () => void;
 }
 
@@ -62,11 +62,18 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onComplete, onCancel })
     try {
       setLoading(true);
       setError(null);
-      await api.post('/user/2fa/verify-setup', {
+      const response = await api.post('/user/2fa/verify-setup', {
         secret: setupData!.secret,
         code: verificationCode,
         recoveryCodes: setupData!.recoveryCodes,
       });
+
+      // Save response for completion handler
+      setSetupData({
+        ...setupData!,
+        verifyResponse: response.data,
+      } as any);
+
       setActiveStep(2);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Codice non valido. Riprova.');
@@ -333,7 +340,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onComplete, onCancel })
 
               <div className="flex justify-end">
                 <Button
-                  onClick={onComplete}
+                  onClick={() => onComplete((setupData as any)?.verifyResponse)}
                   disabled={!codesCopied && !codesDownloaded}
                   className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700"
                 >

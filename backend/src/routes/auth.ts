@@ -44,10 +44,31 @@ router.post('/login', async (req, res) => {
       // ========== 2FA CHECK (MANDATORY FOR ALL USERS) ==========
       // If 2FA is not configured, force setup
       if (!user.twoFactorEnabled) {
+        // Generate temporary JWT token that allows ONLY access to 2FA setup endpoints
+        const temporaryToken = jwt.sign(
+          {
+            id: user.id,
+            type: 'user',
+            role: user.role,
+            requires2FASetup: true, // Special flag indicating incomplete setup
+            twoFactorVerified: false
+          },
+          process.env.JWT_SECRET!,
+          { expiresIn: '1h' } // Short expiration for setup process
+        );
+
         return res.json({
           requires2FASetup: true,
+          token: temporaryToken, // Provide token for 2FA setup API calls
           userId: user.id,
           message: '2FA setup required to proceed. Please configure two-factor authentication.',
+          user: {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            hasProfile: !!user.profile,
+            emailVerified: user.emailVerified
+          }
         });
       }
 

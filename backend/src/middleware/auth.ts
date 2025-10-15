@@ -25,12 +25,12 @@ export const authenticate = async (
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-    
+
     // Controlla il type del token
     if (decoded.type !== 'user') {
       return res.status(401).json({ error: 'Token non valido per questa risorsa' });
     }
-    
+
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
       include: { partner: true }
@@ -38,6 +38,19 @@ export const authenticate = async (
 
     if (!user || !user.isActive) {
       return res.status(401).json({ error: 'Utente non valido' });
+    }
+
+    // Special handling for 2FA setup tokens
+    // If token has requires2FASetup flag, only allow access to 2FA endpoints
+    if (decoded.requires2FASetup) {
+      const is2FAEndpoint = req.path.includes('/2fa/');
+
+      if (!is2FAEndpoint) {
+        return res.status(403).json({
+          error: 'Devi completare la configurazione 2FA prima di accedere a questa risorsa',
+          requires2FASetup: true
+        });
+      }
     }
 
     req.user = user;

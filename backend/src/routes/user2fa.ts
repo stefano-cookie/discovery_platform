@@ -103,9 +103,59 @@ router.post('/verify-setup', authenticate, async (req: AuthRequest, res: Respons
       });
     }
 
+    // Get updated user data
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        profile: true,
+        partner: true,
+        assignedPartner: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Update last login
+    await prisma.user.update({
+      where: { id: userId },
+      data: { lastLoginAt: new Date() },
+    });
+
+    // Generate new JWT token with 2FA verified and full access
+    const token = jwt.sign(
+      {
+        id: user.id,
+        type: 'user',
+        role: user.role,
+        twoFactorVerified: true, // 2FA is now verified
+        requires2FASetup: false, // No longer requires setup
+      },
+      process.env.JWT_SECRET!,
+      { expiresIn: '7d' }
+    );
+
     return res.json({
       message: 'Two-factor authentication activated successfully',
       twoFactorEnabled: true,
+      token, // Provide new token with full access
+      type: 'user',
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        emailVerified: user.emailVerified,
+        hasProfile: !!user.profile,
+        twoFactorVerified: true,
+        referralCode: user.partner?.referralCode || null,
+        assignedPartner: user.assignedPartner
+          ? {
+              id: user.assignedPartner.id,
+              referralCode: user.assignedPartner.referralCode,
+            }
+          : null,
+      },
     });
   } catch (error) {
     console.error('Error verifying 2FA setup:', error);
