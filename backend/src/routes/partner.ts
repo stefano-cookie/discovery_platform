@@ -4631,15 +4631,15 @@ router.get('/registrations/:registrationId/certification-steps', authenticateUni
       },
       documentsApproved: {
         step: 3,
-        title: 'Documenti Approvati',
-        description: 'Documenti verificati e approvati dal partner (necessario per iscrivere all\'esame)',
-        // ✅ FIX: Partner approval is sufficient for CERTIFICATION courses
-        // When partner approves all docs, status advances to DOCUMENTS_APPROVED automatically
-        completed: ['DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status),
-        completedAt: ['DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? new Date() : null,
-        status: ['DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 'completed' :
-                // In attesa che il partner approvi tutti i documenti
-                (['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'ENROLLED', 'DOCUMENTS_UPLOADED'].includes(registration.status) ? 'current' : 'pending')
+        title: 'Documenti Approvati da Discovery',
+        description: 'Documenti verificati dal partner e approvati da Discovery (necessario per completare l\'iscrizione)',
+        // Partner approves → AWAITING_DISCOVERY_APPROVAL
+        // Discovery approves → DOCUMENTS_APPROVED or DISCOVERY_APPROVED
+        completed: ['DOCUMENTS_APPROVED', 'DISCOVERY_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status),
+        completedAt: ['DOCUMENTS_APPROVED', 'DISCOVERY_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? new Date() : null,
+        status: ['DOCUMENTS_APPROVED', 'DISCOVERY_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 'completed' :
+                // In attesa approvazione Discovery dopo check partner
+                (['AWAITING_DISCOVERY_APPROVAL', 'DOCUMENTS_PARTNER_CHECKED'].includes(registration.status) ? 'current' : 'pending')
       },
       examRegistered: {
         step: 4,

@@ -86,9 +86,9 @@ async function checkAndAdvanceRegistration(registrationId: string): Promise<void
       let newStatus = registration.status;
 
       if (allApproved) {
-        // All approved by partner → move directly to DOCUMENTS_APPROVED (no Discovery check needed)
+        // All approved by partner → move to AWAITING_DISCOVERY_APPROVAL (Discovery must approve before exam completion)
         if (registration.status === 'DOCUMENTS_UPLOADED') {
-          newStatus = 'DOCUMENTS_APPROVED';
+          newStatus = 'AWAITING_DISCOVERY_APPROVAL';
         }
       }
       // If some rejected, keep status as is (user needs to re-upload)
