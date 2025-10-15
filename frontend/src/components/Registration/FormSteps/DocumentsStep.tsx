@@ -503,7 +503,7 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({
                   value={files.certificatoMedico}
                   onChange={(file) => handleFileChange('certificatoMedico', file)}
                   error={errors.certificatoMedico?.message as string}
-                  documentType="certificatoMedico"
+                  documentType="tesseraSanitaria"
                   userId={userId}
                   templateType={templateType}
                 />

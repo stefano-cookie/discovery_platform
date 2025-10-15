@@ -176,13 +176,14 @@ function convertToDocumentType(type: string): DocumentType {
     'certificatoMagistrale': DocumentType.MASTER_DEGREE,
     'pianoStudioTriennale': DocumentType.TRANSCRIPT,
     'pianoStudioMagistrale': DocumentType.TRANSCRIPT,
-    'certificatoMedico': DocumentType.CV,
+    'certificatoMedico': DocumentType.MEDICAL_CERT, // TFA: Certificato medico
+    'tesseraSanitaria': DocumentType.TESSERA_SANITARIA, // CERTIFICATION: Tessera sanitaria
     'certificatoNascita': DocumentType.BIRTH_CERT,
     'diplomoLaurea': DocumentType.BACHELOR_DEGREE,
     'pergamenaLaurea': DocumentType.MASTER_DEGREE,
     'diplomaMaturita': DocumentType.DIPLOMA
   };
-  
+
   return typeMap[type] || DocumentType.OTHER;
 }
 
