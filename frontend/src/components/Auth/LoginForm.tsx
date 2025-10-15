@@ -134,6 +134,7 @@ const LoginForm: React.FC = () => {
       <TwoFactorSetup
         onComplete={handle2FASetupComplete}
         onCancel={handle2FACancel}
+        embedded={true}
       />
     );
   }

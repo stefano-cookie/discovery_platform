@@ -14,9 +14,10 @@ interface TwoFactorSetupData {
 interface TwoFactorSetupProps {
   onComplete: (setupResponse?: any) => void;
   onCancel?: () => void;
+  embedded?: boolean; // When true, removes full-screen layout (used in login flow)
 }
 
-const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onComplete, onCancel }) => {
+const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onComplete, onCancel, embedded = false }) => {
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,15 +110,24 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onComplete, onCancel })
 
   if (!setupData && loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className={embedded ? "flex items-center justify-center py-8" : "min-h-screen bg-gray-50 flex items-center justify-center"}>
         <LoadingSpinner size="lg" />
       </div>
     );
   }
 
+  // Wrapper classes based on embedded mode
+  const wrapperClasses = embedded
+    ? "py-4"
+    : "min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 py-8 px-4 sm:py-12 sm:px-6 lg:px-8";
+
+  const containerClasses = embedded
+    ? "w-full"
+    : "max-w-3xl mx-auto";
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 py-8 px-4 sm:py-12 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto">
+    <div className={wrapperClasses}>
+      <div className={containerClasses}>
         <div className="bg-white rounded-xl shadow-xl p-6 sm:p-8">
           {/* Header */}
           <div className="flex items-center mb-6">
