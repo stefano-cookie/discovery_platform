@@ -445,12 +445,14 @@ router.get('/documents/:documentId/audit', authenticateUnified, async (req: Auth
 // Approve document
 router.post('/documents/:documentId/approve', authenticateUnified, async (req: AuthRequest, res) => {
   try {
+    // Support both legacy partner system and new PartnerCompany system
     const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const partnerEmployeeId = req.partnerEmployee?.id;
     const { documentId } = req.params;
     const { notes } = req.body;
 
-    if (!partnerId) {
+    if (!partnerId && !partnerCompanyId) {
       return res.status(400).json({ error: 'Partner non trovato' });
     }
 
@@ -460,7 +462,7 @@ router.post('/documents/:documentId/approve', authenticateUnified, async (req: A
         user: {
           include: {
             registrations: {
-              where: { partnerId },
+              where: partnerCompanyId ? { partnerCompanyId } : { partnerId },
               include: { offer: true }
             },
             profile: true
@@ -516,12 +518,14 @@ router.post('/documents/:documentId/approve', authenticateUnified, async (req: A
 // Reject document
 router.post('/documents/:documentId/reject', authenticateUnified, async (req: AuthRequest, res) => {
   try {
+    // Support both legacy partner system and new PartnerCompany system
     const partnerId = req.partner?.id;
+    const partnerCompanyId = req.partnerCompany?.id;
     const partnerEmployeeId = req.partnerEmployee?.id;
     const { documentId } = req.params;
     const { reason, details } = req.body;
 
-    if (!partnerId) {
+    if (!partnerId && !partnerCompanyId) {
       return res.status(400).json({ error: 'Partner non trovato' });
     }
 
@@ -535,7 +539,7 @@ router.post('/documents/:documentId/reject', authenticateUnified, async (req: Au
         user: {
           include: {
             registrations: {
-              where: { partnerId },
+              where: partnerCompanyId ? { partnerCompanyId } : { partnerId },
               include: {
                 offer: {
                   include: { course: true }
