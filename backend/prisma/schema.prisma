@@ -24,6 +24,17 @@ model User {
   verificationCode String?   @unique
   codeExpiresAt    DateTime?
 
+  // Two-Factor Authentication (2FA) - Mandatory for all users
+  twoFactorEnabled     Boolean  @default(false)
+  twoFactorSecret      String?  // Encrypted TOTP secret (AES-256-GCM)
+  twoFactorBackupCodes Json?    // Array of hashed recovery codes
+  twoFactorVerifiedAt  DateTime?
+
+  // 2FA Security tracking
+  lastFailedTwoFactorAt    DateTime?
+  failedTwoFactorAttempts  Int @default(0)
+  twoFactorLockedUntil     DateTime?
+
   // Partner assignment (permanent association)
   assignedPartnerId        String? // DEPRECATED: Legacy field pointing to old Partner model
   assignedPartnerCompanyId String? // NEW: Partner company assignment for new system
@@ -44,6 +55,8 @@ model User {
   discoveryActions  DiscoveryAdminLog[] @relation("DiscoveryActions") // Log azioni admin Discovery
   createdNotices    Notice[]            @relation("NoticeCreator") // Notice create (solo ADMIN)
   noticeReads       NoticeAcknowledgement[] @relation("UserNoticeReads") // Notice lette
+  twoFactorSessions TwoFactorSession[] // 2FA sessions
+  twoFactorAuditLogs TwoFactorAuditLog[] // 2FA audit logs
 }
 
 enum UserRole {
@@ -1052,7 +1065,8 @@ enum NoticePriority {
 
 model TwoFactorSession {
   id                String   @id @default(uuid())
-  partnerEmployeeId String
+  partnerEmployeeId String?  // Optional: for Partner employees
+  userId            String?  // Optional: for regular Users
   token             String   @unique // Token temporaneo post-password
   expiresAt         DateTime // 5 minuti di validità
   verified          Boolean  @default(false)
@@ -1060,25 +1074,30 @@ model TwoFactorSession {
   userAgent         String?
   createdAt         DateTime @default(now())
 
-  partnerEmployee PartnerEmployee @relation(fields: [partnerEmployeeId], references: [id], onDelete: Cascade)
+  partnerEmployee PartnerEmployee? @relation(fields: [partnerEmployeeId], references: [id], onDelete: Cascade)
+  user            User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([token])
   @@index([partnerEmployeeId])
+  @@index([userId])
   @@index([expiresAt])
 }
 
 model TwoFactorAuditLog {
   id                String          @id @default(uuid())
-  partnerEmployeeId String
+  partnerEmployeeId String?         // Optional: for Partner employees
+  userId            String?         // Optional: for regular Users
   action            TwoFactorAction // ENABLED|DISABLED|VERIFIED|FAILED|RECOVERY_USED|LOCKED
   ipAddress         String?
   userAgent         String?
   details           Json?
   createdAt         DateTime        @default(now())
 
-  partnerEmployee PartnerEmployee @relation(fields: [partnerEmployeeId], references: [id], onDelete: Cascade)
+  partnerEmployee PartnerEmployee? @relation(fields: [partnerEmployeeId], references: [id], onDelete: Cascade)
+  user            User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([partnerEmployeeId])
+  @@index([userId])
   @@index([action])
   @@index([createdAt])
 }

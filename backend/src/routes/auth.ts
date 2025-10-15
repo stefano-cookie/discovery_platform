@@ -41,34 +41,33 @@ router.post('/login', async (req, res) => {
         });
       }
 
-      // Aggiorna ultimo login
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { lastLoginAt: new Date() }
-      });
+      // ========== 2FA CHECK (MANDATORY FOR ALL USERS) ==========
+      // If 2FA is not configured, force setup
+      if (!user.twoFactorEnabled) {
+        return res.json({
+          requires2FASetup: true,
+          userId: user.id,
+          message: '2FA setup required to proceed. Please configure two-factor authentication.',
+        });
+      }
 
-      const token = jwt.sign(
-        { id: user.id, type: 'user', role: user.role },
-        process.env.JWT_SECRET!,
-        { expiresIn: '7d' }
-      );
+      // If 2FA is enabled, create temporary session and request code
+      if (user.twoFactorEnabled) {
+        const twoFactorServiceUnified = await import('../services/twoFactorServiceUnified');
+        const sessionToken = await twoFactorServiceUnified.default.createTwoFactorSession(
+          twoFactorServiceUnified.EntityType.USER,
+          user.id,
+          req.ip,
+          req.get('User-Agent')
+        );
 
-      return res.json({
-        token,
-        type: 'user',
-        user: {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          emailVerified: user.emailVerified,
-          hasProfile: !!user.profile,
-          referralCode: user.partner?.referralCode || null,
-          assignedPartner: user.assignedPartner ? {
-            id: user.assignedPartner.id,
-            referralCode: user.assignedPartner.referralCode
-          } : null
-        }
-      });
+        return res.json({
+          requires2FA: true,
+          sessionToken,
+          message: 'Enter the 6-digit code from your authenticator app',
+        });
+      }
+      // ========== END 2FA CHECK ==========
     }
     
     // STEP 2: Se non trovato in User, cerca in PartnerEmployee
