@@ -4631,14 +4631,14 @@ router.get('/registrations/:registrationId/certification-steps', authenticateUni
       },
       documentsApproved: {
         step: 3,
-        title: 'Documenti Approvati da Discovery',
-        description: 'Documenti verificati e approvati da Discovery (necessario per iscrivere all\'esame)',
-        // ✅ FIX: I documenti sono approvati SOLO dopo che Discovery li ha confermati
-        // ENROLLED means user uploaded docs but Discovery hasn't approved yet
-        completed: ['DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status),
-        completedAt: ['DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED'].includes(registration.status) ? new Date() : null,
-        status: ['DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 'completed' :
-                // In attesa approvazione Discovery
+        title: 'Documenti Approvati',
+        description: 'Documenti verificati e approvati dal partner (necessario per iscrivere all\'esame)',
+        // ✅ FIX: Partner approval is sufficient for CERTIFICATION courses
+        // When partner approves all docs, status advances to DOCUMENTS_APPROVED automatically
+        completed: ['DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status),
+        completedAt: ['DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? new Date() : null,
+        status: ['DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 'completed' :
+                // In attesa che il partner approvi tutti i documenti
                 (['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'ENROLLED', 'DOCUMENTS_UPLOADED'].includes(registration.status) ? 'current' : 'pending')
       },
       examRegistered: {
