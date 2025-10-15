@@ -524,14 +524,14 @@ const CertificationStepsManagement: React.FC<CertificationStepsManagementProps> 
           </div>
         )}
 
-        {/* Step 3: Documents Checked (Nuovo Workflow) */}
+        {/* Step 3: Documents Review (Nuovo Workflow - Per Documento) */}
         {certificationData.steps.payment.completed && !certificationData.steps.documentsApproved.completed && canManageSteps && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <h4 className="font-medium text-blue-900">3. Verifica Documenti</h4>
                 <p className="text-sm text-blue-700">
-                  Usa il pulsante "CHECK DOCUMENTI" nella sezione documenti sopra
+                  Approva o rifiuta ogni singolo documento nella sezione documenti sopra. La registration avanzerà automaticamente quando tutti i documenti saranno stati revisionati.
                 </p>
               </div>
               <div className="flex items-center space-x-2">
@@ -541,7 +541,7 @@ const CertificationStepsManagement: React.FC<CertificationStepsManagementProps> 
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <span className="text-sm text-green-700 font-medium">
-                      {certificationData.currentStatus === 'DOCUMENTS_PARTNER_CHECKED' && '✓ Documenti checkati - In attesa approvazione Discovery'}
+                      {certificationData.currentStatus === 'DOCUMENTS_PARTNER_CHECKED' && '✓ Documenti revisionati - In attesa approvazione Discovery'}
                       {certificationData.currentStatus === 'AWAITING_DISCOVERY_APPROVAL' && '✓ In attesa approvazione finale Discovery'}
                       {certificationData.currentStatus === 'DISCOVERY_APPROVED' && '✓ Approvato da Discovery'}
                     </span>
@@ -549,7 +549,7 @@ const CertificationStepsManagement: React.FC<CertificationStepsManagementProps> 
                 ) : (
                   <span className="text-sm text-orange-700 italic">
                     {hasAllRequiredDocuments ? (
-                      'Documenti caricati - clicca "CHECK DOCUMENTI" sopra'
+                      'Documenti caricati - approva o rifiuta ogni documento sopra'
                     ) : (
                       `In attesa caricamento documenti (${requiredDocuments.length}/2 caricati)`
                     )}

@@ -14,8 +14,9 @@ interface UnifiedDocument {
   uploaded: boolean;
   uploadedAt?: string;
   documentId?: string;
-  status?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'APPROVED_BY_PARTNER' | 'REJECTED_BY_PARTNER' | 'APPROVED_BY_DISCOVERY' | 'REJECTED_BY_DISCOVERY';
   rejectionReason?: string;
+  rejectionDetails?: string;
   verifiedBy?: string;
   verifiedAt?: string;
   uploadSource?: 'ENROLLMENT' | 'USER_DASHBOARD' | 'PARTNER_PANEL';
@@ -457,23 +458,41 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
       </span>
     );
 
-    // Approval status badges
-    if (document.status === 'APPROVED' || document.isVerified) {
+    // Approval status badges - Updated for new workflow
+    if (document.status === 'APPROVED_BY_DISCOVERY') {
       badges.push(
-        <span key="approved" className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+        <span key="approved-discovery" className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
           <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
           </svg>
-          {allowApproval ? 'Approvato' : 'Verificato'}
+          ✅ Approvato da Discovery
         </span>
       );
-    } else if (document.status === 'REJECTED') {
+    } else if (document.status === 'APPROVED' || document.status === 'APPROVED_BY_PARTNER' || document.isVerified) {
       badges.push(
-        <span key="rejected" className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+        <span key="approved-partner" className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+          <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+          ✅ Approvato dal Partner
+        </span>
+      );
+    } else if (document.status === 'REJECTED' || document.status === 'REJECTED_BY_PARTNER') {
+      badges.push(
+        <span key="rejected-partner" className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
           <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
           </svg>
-          Rifiutato
+          ❌ Rifiutato dal Partner
+        </span>
+      );
+    } else if (document.status === 'REJECTED_BY_DISCOVERY') {
+      badges.push(
+        <span key="rejected-discovery" className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+          <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+          </svg>
+          ❌ Rifiutato da Discovery
         </span>
       );
     } else if (document.status === 'PENDING') {
@@ -482,7 +501,7 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
           <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
           </svg>
-          In verifica
+          ⏳ In attesa di revisione
         </span>
       );
     }
@@ -651,11 +670,16 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
                           Caricato il {formatDate(doc.uploadedAt)}
                         </div>
                       )}
-                      {doc.status === 'REJECTED' && doc.rejectionReason && (
+                      {(doc.status === 'REJECTED' || doc.status === 'REJECTED_BY_PARTNER' || doc.status === 'REJECTED_BY_DISCOVERY') && doc.rejectionReason && (
                         <div className="mt-2 p-2 bg-red-100 border border-red-200 rounded-md">
                           <p className="text-xs text-red-700">
                             <strong>Motivo rifiuto:</strong> {doc.rejectionReason}
                           </p>
+                          {doc.rejectionDetails && (
+                            <p className="text-xs text-red-600 mt-1">
+                              {doc.rejectionDetails}
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
@@ -700,8 +724,31 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
                         />
                       )}
 
-                      {/* NUOVO WORKFLOW: Partner non approva più singoli documenti */}
-                      {/* Il check viene fatto con il pulsante unico "CHECK DOCUMENTI" in fondo */}
+                      {/* NUOVO WORKFLOW: Approve/Reject per singolo documento */}
+                      {allowApproval && doc.uploaded && doc.status === 'PENDING' && (
+                        <>
+                          <button
+                            onClick={() => handleApprove(doc)}
+                            className="inline-flex items-center px-3 py-1.5 border border-green-300 rounded-lg text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 transition-colors duration-200"
+                            title="✅ Approva documento"
+                          >
+                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            Approva
+                          </button>
+                          <button
+                            onClick={() => openRejectModal(doc)}
+                            className="inline-flex items-center px-3 py-1.5 border border-red-300 rounded-lg text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 transition-colors duration-200"
+                            title="❌ Rifiuta documento (invia email all'utente)"
+                          >
+                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                            Rifiuta
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -710,69 +757,63 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
           ))}
         </div>
 
-        {/* NUOVO WORKFLOW: Pulsante CHECK DOCUMENTI per Partner */}
-        {/* Mostra solo se pagamento completato E documenti NON ancora checkati */}
-        {(() => {
-          const paymentCompleted = registrationStatus && [
-            'PAYMENT_COMPLETED',
-            'CONTRACT_GENERATED',
-            'CONTRACT_SIGNED',
-            'DATA_VERIFIED',
-            'DOCUMENTS_UPLOADED'
-          ].includes(registrationStatus);
+        {/* NUOVO WORKFLOW: Progress indicator per revisione documenti */}
+        {mode === 'partner' && allowApproval && registrationId && (() => {
+          const pendingDocs = filteredDocuments.filter(doc => doc.uploaded && doc.status === 'PENDING');
+          const approvedDocs = filteredDocuments.filter(doc => doc.status === 'APPROVED' || doc.status === 'APPROVED_BY_PARTNER');
+          const rejectedDocs = filteredDocuments.filter(doc => doc.status === 'REJECTED' || doc.status === 'REJECTED_BY_PARTNER');
+          const reviewedDocs = approvedDocs.length + rejectedDocs.length;
+          const totalDocs = filteredDocuments.filter(doc => doc.uploaded).length;
 
-          const documentsNotChecked = !['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'EXAM_COMPLETED', 'COMPLETED'].includes(registrationStatus || '');
+          const allReviewed = totalDocs > 0 && pendingDocs.length === 0;
 
-          const canShowCheckButton = mode === 'partner' && allowApproval && registrationId && paymentCompleted && documentsNotChecked;
+          // Mostra progress solo se ci sono documenti da revisionare
+          if (totalDocs === 0) return null;
 
-          return canShowCheckButton ? (
+          return (
             <div className="mt-6 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-t border-gray-200">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <h4 className="text-lg font-semibold text-gray-900 mb-2">
-                    ✓ Check Documenti
+                    📋 Stato Revisione Documenti
                   </h4>
-                  <p className="text-sm text-gray-600">
-                    Verifica che tutti i documenti caricati siano corretti e conformi.
-                    Se i documenti sono ok, clicca "Check Documenti" per proseguire il workflow.
-                    <span className="block mt-1 text-xs text-gray-500">
-                      ⚠️ Non verrà inviata email all'utente - l'approvazione finale sarà fatta da Discovery
-                    </span>
+                  <p className="text-sm text-gray-600 mb-3">
+                    {allReviewed ? (
+                      <span className="text-green-700 font-medium">
+                        ✅ Tutti i documenti sono stati revisionati! La registration avanzerà automaticamente.
+                      </span>
+                    ) : (
+                      <>
+                        Approva o rifiuta ogni singolo documento. La registration avanzerà automaticamente quando tutti i documenti saranno stati revisionati.
+                      </>
+                    )}
                   </p>
+                  <div className="flex items-center space-x-4 text-sm">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                      <span className="font-medium text-green-700">{approvedDocs.length} Approvati</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
+                      <span className="font-medium text-red-700">{rejectedDocs.length} Rifiutati</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
+                      <span className="font-medium text-yellow-700">{pendingDocs.length} In attesa</span>
+                    </div>
+                  </div>
                 </div>
-                <button
-                  onClick={handleCheckAllDocuments}
-                  disabled={loading || uploadedCount < totalCount}
-                  className={`ml-6 inline-flex items-center px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                    uploadedCount >= totalCount
-                      ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 shadow-lg hover:shadow-xl'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }`}
-                >
-                  {loading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Elaborazione...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Check Documenti
-                    </>
-                  )}
-                </button>
+                <div className="ml-6">
+                  <div className="text-center">
+                    <div className={`text-4xl font-bold ${allReviewed ? 'text-green-600' : 'text-blue-600'}`}>
+                      {reviewedDocs}/{totalDocs}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">revisionati</div>
+                  </div>
+                </div>
               </div>
-              {uploadedCount < totalCount && (
-                <div className="mt-3 p-3 bg-orange-100 border border-orange-300 rounded-lg">
-                  <p className="text-sm text-orange-800">
-                    ⚠️ Impossibile procedere: mancano <strong>{totalCount - uploadedCount}</strong> documenti da caricare
-                  </p>
-                </div>
-              )}
             </div>
-          ) : null;
+          );
         })()}
 
         {/* Messaggio quando i documenti sono già stati checkati */}
