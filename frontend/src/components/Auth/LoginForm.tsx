@@ -128,25 +128,29 @@ const LoginForm: React.FC = () => {
     setCredentials(null);
   };
 
-  // Render 2FA Setup modal
+  // Render 2FA Setup - return null and let parent handle via prop
   if (show2FASetup) {
+    // Break out of card layout by rendering in portal or returning special component
     return (
-      <TwoFactorSetup
-        onComplete={handle2FASetupComplete}
-        onCancel={handle2FACancel}
-        embedded={true}
-      />
+      <div className="fixed inset-0 z-50 bg-white">
+        <TwoFactorSetup
+          onComplete={handle2FASetupComplete}
+          onCancel={handle2FACancel}
+        />
+      </div>
     );
   }
 
   // Render 2FA Verify modal
   if (show2FAVerify && sessionToken) {
     return (
-      <TwoFactorVerify
-        sessionToken={sessionToken}
-        onSuccess={handle2FAVerifySuccess}
-        onCancel={handle2FACancel}
-      />
+      <div className="fixed inset-0 z-50 bg-white">
+        <TwoFactorVerify
+          sessionToken={sessionToken}
+          onSuccess={handle2FAVerifySuccess}
+          onCancel={handle2FACancel}
+        />
+      </div>
     );
   }
 

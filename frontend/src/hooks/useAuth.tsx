@@ -21,12 +21,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const initAuth = async () => {
       const storedToken = localStorage.getItem('token');
       const storedUser = localStorage.getItem('user');
-      
+
       if (storedToken && storedUser) {
         try {
-          const userData = JSON.parse(storedUser);
-          setToken(storedToken);
-          setUser(userData);
+          // Decode JWT to check for requires2FASetup flag
+          const tokenPayload = JSON.parse(atob(storedToken.split('.')[1]));
+
+          // If token requires 2FA setup, user is NOT fully authenticated
+          if (tokenPayload.requires2FASetup) {
+            console.log('⚠️ Token requires 2FA setup - user not fully authenticated');
+            // Keep token for 2FA setup API calls but don't mark as authenticated
+            setToken(storedToken);
+            setUser(null); // User is null until 2FA is completed
+          } else {
+            // Normal authenticated user
+            const userData = JSON.parse(storedUser);
+            setToken(storedToken);
+            setUser(userData);
+          }
         } catch (error) {
           console.error('Error parsing stored user data:', error);
           logout();
