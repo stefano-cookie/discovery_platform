@@ -135,6 +135,7 @@ import subPartnersRoutes from './routes/subPartners';
 import offerInheritanceRoutes from './routes/offerInheritance';
 import partnerCouponsRoutes from './routes/_refactored/partnerCoupons';
 import partnerUsersRoutes from './routes/_refactored/partnerUsers';
+import partnerDocumentsRoutes from './routes/_refactored/partnerDocuments';
 import documentUploadUnifiedRoutes from './routes/documentUploadUnified';
 import partnerUnifiedRoutes from './routes/partnerUnified';
 import documentDiagnosticsRoutes from './routes/documentDiagnostics';
@@ -172,6 +173,7 @@ app.use('/api/sub-partners', subPartnersRoutes); // NEW: Sub-partner management 
 app.use('/api/offer-inheritance', offerInheritanceRoutes); // NEW: Offer inheritance system for sub-partners
 app.use('/api/partners', partnerCouponsRoutes); // NEW: Refactored coupon management
 app.use('/api/partners', partnerUsersRoutes); // NEW: Refactored partner users management
+app.use('/api/partner', partnerDocumentsRoutes); // NEW: Refactored partner documents management (per-document approval)
 app.use('/api/registration', registrationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/offers', offerRoutes);
