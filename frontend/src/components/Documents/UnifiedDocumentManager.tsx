@@ -304,7 +304,7 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
 
       await apiRequest({
         method: 'POST',
-        url: `/partners/documents/${docId}/approve`,
+        url: `/partner/documents/${docId}/approve`,
         data: { notes: 'Documento approvato' }
       });
 
@@ -330,7 +330,7 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
 
       await apiRequest({
         method: 'POST',
-        url: `/partners/documents/${docId}/reject`,
+        url: `/partner/documents/${docId}/reject`,
         data: { reason, details }
       });
 
