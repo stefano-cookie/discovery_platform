@@ -498,22 +498,26 @@ router.post('/documents/:documentId/approve', authenticateUnified, async (req: A
     });
 
     // Create audit log
-    // Note: performedBy field references User table, so only set if partnerId exists
-    const auditData: any = {
-      documentId,
-      action: 'APPROVED',
-      previousStatus: document.status,
-      newStatus: 'APPROVED_BY_PARTNER',
-      notes: notes || `Documento approvato dal ${partnerEmployeeId ? 'collaboratore' : 'partner'}`
-    };
+    // Note: performedBy field references User table
+    // For legacy partners: use req.user.id (partner has User account)
+    // For PartnerEmployee: use req.user?.id if exists, otherwise skip audit log
+    const performedById = req.user?.id;
 
-    if (partnerId) {
-      auditData.performedBy = partnerId;
+    if (performedById) {
+      await prisma.documentAuditLog.create({
+        data: {
+          documentId,
+          action: 'APPROVED',
+          performedBy: performedById,
+          previousStatus: document.status,
+          newStatus: 'APPROVED_BY_PARTNER',
+          notes: notes || `Documento approvato dal ${partnerEmployeeId ? 'collaboratore' : 'partner'}`
+        }
+      });
+    } else {
+      // PartnerEmployee doesn't have User account - skip audit log
+      console.log('[AUDIT] Skipping DocumentAuditLog - PartnerEmployee has no User ID');
     }
-
-    await prisma.documentAuditLog.create({
-      data: auditData
-    });
 
     // Check if all documents are reviewed → auto-advance registration
     if (document.registrationId) {
@@ -600,22 +604,26 @@ router.post('/documents/:documentId/reject', authenticateUnified, async (req: Au
     });
 
     // Create audit log
-    // Note: performedBy field references User table, so only set if partnerId exists
-    const auditData: any = {
-      documentId,
-      action: 'REJECTED',
-      previousStatus: document.status,
-      newStatus: 'REJECTED_BY_PARTNER',
-      notes: `Motivo: ${reason}${details ? ` - Dettagli: ${details}` : ''}`
-    };
+    // Note: performedBy field references User table
+    // For legacy partners: use req.user.id (partner has User account)
+    // For PartnerEmployee: use req.user?.id if exists, otherwise skip audit log
+    const performedById = req.user?.id;
 
-    if (partnerId) {
-      auditData.performedBy = partnerId;
+    if (performedById) {
+      await prisma.documentAuditLog.create({
+        data: {
+          documentId,
+          action: 'REJECTED',
+          performedBy: performedById,
+          previousStatus: document.status,
+          newStatus: 'REJECTED_BY_PARTNER',
+          notes: `Motivo: ${reason}${details ? ` - Dettagli: ${details}` : ''}`
+        }
+      });
+    } else {
+      // PartnerEmployee doesn't have User account - skip audit log
+      console.log('[AUDIT] Skipping DocumentAuditLog - PartnerEmployee has no User ID');
     }
-
-    await prisma.documentAuditLog.create({
-      data: auditData
-    });
 
     // Send rejection email to user
     await emailService.sendDocumentRejectionEmail(
