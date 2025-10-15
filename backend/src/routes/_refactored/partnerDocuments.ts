@@ -43,8 +43,9 @@ async function checkAndAdvanceRegistration(registrationId: string): Promise<void
     const registration = await prisma.registration.findUnique({
       where: { id: registrationId },
       include: {
-        userDocuments: true,
-        offer: true
+        userDocuments: {
+          orderBy: { uploadedAt: 'desc' }
+        }
       }
     });
 
@@ -54,12 +55,20 @@ async function checkAndAdvanceRegistration(registrationId: string): Promise<void
     }
 
     // Get required documents for this registration type
-    const requiredDocTypes = getRequiredDocumentTypes(registration.offer?.offerType || 'TFA_ROMANIA');
+    const requiredDocTypes = getRequiredDocumentTypes(registration.offerType);
 
-    // Check if all required documents are reviewed (approved OR rejected)
-    const requiredDocs = registration.userDocuments.filter(doc =>
-      requiredDocTypes.includes(doc.type)
-    );
+    // Get LATEST document per type (in case of re-uploads, ignore old versions)
+    // Documents are already sorted by createdAt DESC from the query
+    const latestDocsByType = new Map<string, any>();
+    registration.userDocuments
+      .filter(doc => requiredDocTypes.includes(doc.type))
+      .forEach(doc => {
+        if (!latestDocsByType.has(doc.type)) {
+          latestDocsByType.set(doc.type, doc);
+        }
+      });
+
+    const requiredDocs = Array.from(latestDocsByType.values());
 
     const allReviewed = requiredDocs.every(doc => doc.reviewedByPartner);
     const allApproved = requiredDocs.every(doc =>
@@ -67,7 +76,8 @@ async function checkAndAdvanceRegistration(registrationId: string): Promise<void
     );
 
     console.log(`[checkAndAdvanceRegistration] Registration ${registrationId}:`);
-    console.log(`  - Required docs: ${requiredDocs.length}`);
+    console.log(`  - Required doc types: ${requiredDocTypes.join(', ')}`);
+    console.log(`  - Latest docs found: ${requiredDocs.length}`);
     console.log(`  - All reviewed: ${allReviewed}`);
     console.log(`  - All approved: ${allApproved}`);
 
@@ -100,7 +110,7 @@ async function checkAndAdvanceRegistration(registrationId: string): Promise<void
 /**
  * Helper: Get required document types for offer type
  */
-function getRequiredDocumentTypes(offerType: string): string[] {
+function getRequiredDocumentTypes(offerType: 'TFA_ROMANIA' | 'CERTIFICATION'): string[] {
   if (offerType === 'TFA_ROMANIA') {
     return ['IDENTITY_CARD', 'TESSERA_SANITARIA', 'DIPLOMA', 'BACHELOR_DEGREE', 'MASTER_DEGREE'];
   } else if (offerType === 'CERTIFICATION') {
