@@ -1681,6 +1681,7 @@ router.get('/logs', authenticate, requireAdmin, async (req: AuthRequest, res) =>
       id: log.id,
       adminId: log.adminId,
       adminEmail: log.admin.email,
+      performedBy: log.performedBy, // Nome e Cognome dell'admin
       action: log.action,
       targetType: log.targetType,
       targetId: log.targetId,

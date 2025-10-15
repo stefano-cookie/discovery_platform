@@ -122,7 +122,7 @@ const TwoFactorVerify: React.FC<TwoFactorVerifyProps> = ({
 
   if (sessionExpired) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
+      <div className="min-h-screen max-h-screen overflow-y-auto bg-gray-50 flex items-center justify-center py-12 px-4">
         <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
           <div className="bg-red-50 border border-red-200 rounded-lg p-6">
             <h2 className="text-xl font-bold text-red-900 mb-3">Sessione Scaduta</h2>
@@ -141,7 +141,7 @@ const TwoFactorVerify: React.FC<TwoFactorVerifyProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
+    <div className="min-h-screen max-h-screen overflow-y-auto bg-gray-50 flex items-center justify-center py-12 px-4">
       <div className="max-w-md w-full">
         <div className="bg-white rounded-lg shadow-lg p-8">
           <div className="flex flex-col items-center mb-6">

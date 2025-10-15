@@ -118,8 +118,8 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onComplete, onCancel, e
 
   // Wrapper classes based on embedded mode
   const wrapperClasses = embedded
-    ? "py-4"
-    : "min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 py-8 px-4 sm:py-12 sm:px-6 lg:px-8";
+    ? "py-4 overflow-y-auto"
+    : "min-h-screen max-h-screen overflow-y-auto bg-gradient-to-br from-blue-50 via-white to-indigo-50 py-8 px-4 sm:py-12 sm:px-6 lg:px-8";
 
   const containerClasses = embedded
     ? "w-full"

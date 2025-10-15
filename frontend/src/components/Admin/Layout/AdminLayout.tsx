@@ -11,8 +11,10 @@ import {
   Search,
   Archive,
   Bell,
+  Shield,
 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
+import { useAdminAccount } from '../../../hooks/useAdminAccount';
 import { GlobalSearch } from './GlobalSearch';
 
 interface NavItem {
@@ -25,13 +27,32 @@ export const AdminLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { adminInfo } = useAdminAccount();
   const [searchOpen, setSearchOpen] = useState(false);
+
+  // Get admin display name from JWT token
+  const [adminDisplayName, setAdminDisplayName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const decoded: any = JSON.parse(atob(token.split('.')[1]));
+        if (decoded.adminDisplayName) {
+          setAdminDisplayName(decoded.adminDisplayName);
+        }
+      } catch (err) {
+        console.error('Error decoding token:', err);
+      }
+    }
+  }, []);
 
   const navItems: NavItem[] = [
     { path: '/admin', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
     { path: '/admin/companies', label: 'Companies', icon: <Building2 className="w-5 h-5" /> },
     { path: '/admin/registrations', label: 'Iscrizioni Globali', icon: <FileText className="w-5 h-5" /> },
     { path: '/admin/users', label: 'Utenti', icon: <Users className="w-5 h-5" /> },
+    { path: '/admin/accounts', label: 'Admin Accounts', icon: <Shield className="w-5 h-5" /> },
     { path: '/admin/notices', label: 'Bacheca', icon: <Bell className="w-5 h-5" /> },
     { path: '/admin/archive', label: 'Archivio', icon: <Archive className="w-5 h-5" /> },
     { path: '/admin/export', label: 'Export & Report', icon: <Download className="w-5 h-5" /> },
@@ -129,13 +150,13 @@ export const AdminLayout: React.FC = () => {
           {/* User Info */}
           <div className="flex items-center gap-3 px-3 py-2 mb-2 bg-white rounded-lg">
             <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-full flex items-center justify-center text-white font-semibold shadow-md">
-              {user?.email?.[0].toUpperCase() || 'A'}
+              {adminDisplayName?.[0]?.toUpperCase() || adminInfo?.nome?.[0]?.toUpperCase() || user?.email?.[0].toUpperCase() || 'A'}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate">
-                {user?.email || 'Admin'}
+                {adminDisplayName || (adminInfo ? `${adminInfo.nome} ${adminInfo.cognome}` : 'Admin')}
               </p>
-              <p className="text-xs text-gray-500">Super Admin</p>
+              <p className="text-xs text-gray-500 truncate">{user?.email || 'admin@discovery.com'}</p>
             </div>
           </div>
 

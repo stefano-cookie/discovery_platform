@@ -7,6 +7,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import emailService from '../services/emailService';
 import SecureTokenService from '../services/secureTokenService';
 import { R2CleanupService } from '../services/r2CleanupService';
+import { generateUserToken } from '../utils/tokenHelpers';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -45,16 +46,12 @@ router.post('/login', async (req, res) => {
       // If 2FA is not configured, force setup
       if (!user.twoFactorEnabled) {
         // Generate temporary JWT token that allows ONLY access to 2FA setup endpoints
-        const temporaryToken = jwt.sign(
-          {
-            id: user.id,
-            type: 'user',
-            role: user.role,
-            requires2FASetup: true, // Special flag indicating incomplete setup
-            twoFactorVerified: false
-          },
-          process.env.JWT_SECRET!,
-          { expiresIn: '1h' } // Short expiration for setup process
+        const temporaryToken = await generateUserToken(
+          user.id,
+          user.role,
+          false, // twoFactorVerified
+          true, // requires2FASetup
+          '1h' // Short expiration for setup process
         );
 
         return res.json({

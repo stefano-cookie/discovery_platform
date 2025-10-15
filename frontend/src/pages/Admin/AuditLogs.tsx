@@ -17,6 +17,7 @@ interface AuditLog {
   id: string;
   adminId: string;
   adminEmail: string;
+  performedBy?: string | null; // Nome e Cognome dell'admin
   action: string;
   targetType: string;
   targetId: string;
@@ -286,7 +287,12 @@ export const AuditLogs: React.FC = () => {
                     <div className="flex items-center gap-2 text-sm">
                       <User className="w-4 h-4 text-gray-400" />
                       <span className="text-gray-600">Admin:</span>
-                      <span className="font-medium text-gray-900">{log.adminEmail}</span>
+                      <span className="font-medium text-gray-900">
+                        {log.performedBy || log.adminEmail}
+                      </span>
+                      {log.performedBy && (
+                        <span className="text-xs text-gray-500">({log.adminEmail})</span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2 text-sm">
