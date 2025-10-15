@@ -121,16 +121,17 @@ router.get('/:id', authenticate, requireAdmin, async (req: Request, res: Respons
 /**
  * POST /api/admin/accounts
  * Create new admin account
+ * NOTE: In production, admin accounts should be created manually via database
  */
 router.post('/', authenticate, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { email, displayName, password } = req.body;
+    const { email, nome, cognome, password } = req.body;
 
     // Validation
-    if (!email || !displayName || !password) {
+    if (!email || !nome || !cognome || !password) {
       return res.status(400).json({
         success: false,
-        error: 'Email, display name, and password are required',
+        error: 'Email, nome, cognome, and password are required',
       });
     }
 
@@ -164,7 +165,8 @@ router.post('/', authenticate, requireAdmin, async (req: Request, res: Response)
     const adminAccount = await prisma.adminAccount.create({
       data: {
         userId: user.id,
-        displayName,
+        nome,
+        cognome,
         email,
         isActive: true,
       },
@@ -192,13 +194,14 @@ router.post('/', authenticate, requireAdmin, async (req: Request, res: Response)
       data: {
         adminId: performingAdmin.id,
         adminAccountId: performingAdminAccount?.id,
-        performedBy: performingAdminAccount?.displayName || performingAdmin.email,
+        performedBy: performingAdminAccount ? `${performingAdminAccount.nome} ${performingAdminAccount.cognome}` : performingAdmin.email,
         action: 'COMPANY_CREATE', // Using existing enum, can add ADMIN_CREATE later
         targetType: 'ADMIN',
         targetId: adminAccount.id,
         newValue: {
           email: adminAccount.email,
-          displayName: adminAccount.displayName,
+          nome: adminAccount.nome,
+          cognome: adminAccount.cognome,
         },
         reason: 'Created new admin account',
       },
@@ -226,7 +229,7 @@ router.post('/', authenticate, requireAdmin, async (req: Request, res: Response)
 router.put('/:id', authenticate, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { displayName, isActive } = req.body;
+    const { nome, cognome, isActive } = req.body;
 
     const existingAccount = await prisma.adminAccount.findUnique({
       where: { id },
@@ -243,7 +246,8 @@ router.put('/:id', authenticate, requireAdmin, async (req: Request, res: Respons
     const updatedAccount = await prisma.adminAccount.update({
       where: { id },
       data: {
-        ...(displayName && { displayName }),
+        ...(nome && { nome }),
+        ...(cognome && { cognome }),
         ...(typeof isActive === 'boolean' && { isActive }),
       },
       include: {
@@ -278,16 +282,18 @@ router.put('/:id', authenticate, requireAdmin, async (req: Request, res: Respons
       data: {
         adminId: performingAdmin.id,
         adminAccountId: performingAdminAccount?.id,
-        performedBy: performingAdminAccount?.displayName || performingAdmin.email,
+        performedBy: performingAdminAccount ? `${performingAdminAccount.nome} ${performingAdminAccount.cognome}` : performingAdmin.email,
         action: 'COMPANY_EDIT', // Using existing enum
         targetType: 'ADMIN',
         targetId: id,
         previousValue: {
-          displayName: existingAccount.displayName,
+          nome: existingAccount.nome,
+          cognome: existingAccount.cognome,
           isActive: existingAccount.isActive,
         },
         newValue: {
-          displayName: updatedAccount.displayName,
+          nome: updatedAccount.nome,
+          cognome: updatedAccount.cognome,
           isActive: updatedAccount.isActive,
         },
         reason: 'Updated admin account',
@@ -357,7 +363,7 @@ router.delete('/:id', authenticate, requireAdmin, async (req: Request, res: Resp
       data: {
         adminId: performingAdmin.id,
         adminAccountId: performingAdminAccount?.id,
-        performedBy: performingAdminAccount?.displayName || performingAdmin.email,
+        performedBy: performingAdminAccount ? `${performingAdminAccount.nome} ${performingAdminAccount.cognome}` : performingAdmin.email,
         action: 'COMPANY_DISABLE', // Using existing enum
         targetType: 'ADMIN',
         targetId: id,

@@ -36,15 +36,15 @@ export async function generateUserToken(
     requires2FASetup,
   };
 
-  // If user is ADMIN, fetch and include display name
+  // If user is ADMIN, fetch and include full name for audit logs
   if (userRole === UserRole.ADMIN) {
     const adminAccount = await prisma.adminAccount.findUnique({
       where: { userId },
-      select: { displayName: true },
+      select: { nome: true, cognome: true },
     });
 
     if (adminAccount) {
-      payload.adminDisplayName = adminAccount.displayName;
+      payload.adminDisplayName = `${adminAccount.nome} ${adminAccount.cognome}`;
     }
   }
 

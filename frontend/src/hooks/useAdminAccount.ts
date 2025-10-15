@@ -6,7 +6,8 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 interface AdminAccountInfo {
   id: string;
   userId: string;
-  displayName: string;
+  nome: string;
+  cognome: string;
   email: string;
   isActive: boolean;
   lastLoginAt: string | null;

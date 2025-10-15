@@ -881,11 +881,12 @@ enum ActionType {
 
 // Admin Account Management - Multi-Admin System
 model AdminAccount {
-  id          String   @id @default(uuid())
-  userId      String   @unique // FK to User table (role must be ADMIN)
-  displayName String // Full name of the admin
-  email       String   @unique
-  isActive    Boolean  @default(true)
+  id      String  @id @default(uuid())
+  userId  String  @unique // FK to User table (role must be ADMIN)
+  nome    String // First name of the admin
+  cognome String // Last name of the admin
+  email   String  @unique
+  isActive Boolean @default(true)
 
   // Timestamps
   createdAt   DateTime @default(now())
