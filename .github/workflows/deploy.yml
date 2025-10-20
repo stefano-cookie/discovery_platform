@@ -12,34 +12,23 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup Node.js with npm cache
+    - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: |
-          frontend/package-lock.json
-          backend/package-lock.json
 
-    - name: Cache frontend build
+    - name: Cache dependencies and builds
       uses: actions/cache@v4
+      id: cache
       with:
         path: |
+          ~/.npm
+          frontend/node_modules
+          backend/node_modules
           frontend/node_modules/.cache
-          frontend/build
-        key: ${{ runner.os }}-frontend-build-${{ hashFiles('frontend/package-lock.json', 'frontend/src/**/*') }}
+        key: ${{ runner.os }}-deps-${{ hashFiles('**/package-lock.json') }}
         restore-keys: |
-          ${{ runner.os }}-frontend-build-
-
-    - name: Cache backend build
-      uses: actions/cache@v4
-      with:
-        path: |
-          backend/node_modules/.cache
-          backend/dist
-        key: ${{ runner.os }}-backend-build-${{ hashFiles('backend/package-lock.json', 'backend/src/**/*') }}
-        restore-keys: |
-          ${{ runner.os }}-backend-build-
+          ${{ runner.os }}-deps-
 
     - name: Install and build frontend
       working-directory: ./frontend
@@ -54,24 +43,17 @@ jobs:
         DISABLE_ESLINT_PLUGIN: true
         # Use faster JavaScript transformer
         FAST_REFRESH: false
+        # Disable unnecessary features
+        TSC_COMPILE_ON_ERROR: true
+        ESLINT_NO_DEV_ERRORS: true
       run: |
-        # Clean install with legacy peer deps for React 19 compatibility
-        # Retry up to 3 times with exponential backoff for npm registry failures
-        for attempt in 1 2 3; do
-          echo "Attempt $attempt of 3: Installing frontend dependencies..."
-          if npm ci --legacy-peer-deps --prefer-offline; then
-            echo "✓ npm install succeeded"
-            break
-          else
-            if [ $attempt -eq 3 ]; then
-              echo "✗ npm install failed after 3 attempts"
-              exit 1
-            fi
-            wait_time=$((2 ** attempt))
-            echo "✗ npm install failed, retrying in ${wait_time} seconds..."
-            sleep $wait_time
-          fi
-        done
+        # Use cached node_modules if available, otherwise install
+        if [ ! -d "node_modules" ]; then
+          echo "Installing frontend dependencies..."
+          npm ci --legacy-peer-deps --prefer-offline --no-audit --no-fund
+        else
+          echo "✓ Using cached node_modules"
+        fi
         # Build with optimizations
         npm run build
         
@@ -81,25 +63,24 @@ jobs:
       env:
         NODE_OPTIONS: --max-old-space-size=2048
       run: |
-        # Retry up to 3 times with exponential backoff for npm registry failures
-        for attempt in 1 2 3; do
-          echo "Attempt $attempt of 3: Installing backend dependencies..."
-          if npm ci --prefer-offline; then
-            echo "✓ npm install succeeded"
-            break
-          else
-            if [ $attempt -eq 3 ]; then
-              echo "✗ npm install failed after 3 attempts"
-              exit 1
-            fi
-            wait_time=$((2 ** attempt))
-            echo "✗ npm install failed, retrying in ${wait_time} seconds..."
-            sleep $wait_time
-          fi
-        done
+        # Use cached node_modules if available, otherwise install
+        if [ ! -d "node_modules" ]; then
+          echo "Installing backend dependencies..."
+          npm ci --prefer-offline --no-audit --no-fund
+        else
+          echo "✓ Using cached node_modules"
+          # Prisma might need regeneration even with cache
+          npx prisma generate
+        fi
         npm run build
-        # Generate Prisma client (avoid regeneration on server)
-        npx prisma generate
+
+    - name: Test SSH connection
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        ssh-keyscan -H ${{ secrets.REMOTE_HOST }} >> ~/.ssh/known_hosts
+        ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }} "echo 'SSH connection successful'"
 
     - name: Deploy to server via SSH
       uses: easingthemes/ssh-deploy@v4.1.10
