@@ -404,35 +404,37 @@ const ArchiveImport: React.FC = () => {
       {parsedData.length > 0 && !importResults && (
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-lg font-semibold mb-4">2. Anteprima Dati ({parsedData.length} iscrizioni)</h2>
-          <div className="overflow-x-auto max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50 sticky top-0">
-                <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">#</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Azienda</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Corso</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Anno</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Pagamenti</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {parsedData.map((reg, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-sm">{index + 1}</td>
-                    <td className="px-4 py-2 text-sm">
-                      {reg.firstName} {reg.lastName}
-                    </td>
-                    <td className="px-4 py-2 text-sm">{reg.email}</td>
-                    <td className="px-4 py-2 text-sm">{reg.companyName}</td>
-                    <td className="px-4 py-2 text-sm">{reg.courseName}</td>
-                    <td className="px-4 py-2 text-sm">{reg.originalYear}</td>
-                    <td className="px-4 py-2 text-sm">{reg.payments.length} rate</td>
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="overflow-auto max-h-96">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50 sticky top-0 z-10">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">#</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Azienda</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Corso</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Anno</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Pagamenti</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {parsedData.map((reg, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-4 py-2 text-sm">{index + 1}</td>
+                      <td className="px-4 py-2 text-sm">
+                        {reg.firstName} {reg.lastName}
+                      </td>
+                      <td className="px-4 py-2 text-sm">{reg.email}</td>
+                      <td className="px-4 py-2 text-sm">{reg.companyName}</td>
+                      <td className="px-4 py-2 text-sm">{reg.courseName}</td>
+                      <td className="px-4 py-2 text-sm">{reg.originalYear}</td>
+                      <td className="px-4 py-2 text-sm">{reg.payments.length} rate</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div className="mt-6 flex justify-end">
