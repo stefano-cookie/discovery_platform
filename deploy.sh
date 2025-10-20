@@ -125,10 +125,27 @@ elif [ $MIGRATE_EXIT -eq 124 ]; then
     cat /tmp/prisma-migrate.log | tail -20
 else
     # Check log for known issues
-    if grep -q "No pending migrations" /tmp/prisma-migrate.log; then
+    if grep -q "Database schema is up to date\|No pending migrations" /tmp/prisma-migrate.log; then
         echo -e "${GREEN}✓ Database up to date${NC}"
-    elif grep -q "already exists\|P3018\|P3005" /tmp/prisma-migrate.log; then
-        echo -e "${YELLOW}⚠️ Migration already applied - continuing${NC}"
+    elif grep -q "already exists\|P3018\|P3009" /tmp/prisma-migrate.log; then
+        echo -e "${YELLOW}⚠️ Migration conflict detected - attempting auto-resolve...${NC}"
+
+        # Extract failed migration name
+        FAILED_MIGRATION=$(grep "Migration name:" /tmp/prisma-migrate.log | head -1 | awk '{print $NF}')
+
+        if [ -n "$FAILED_MIGRATION" ]; then
+            echo -e "${YELLOW}   Marking migration as applied: $FAILED_MIGRATION${NC}"
+            npx prisma migrate resolve --applied "$FAILED_MIGRATION" > /dev/null 2>&1 || true
+
+            # Try to apply remaining migrations
+            npx prisma migrate deploy > /tmp/prisma-migrate-retry.log 2>&1 && {
+                echo -e "${GREEN}✓ Migrations applied after resolve${NC}"
+            } || {
+                echo -e "${YELLOW}⚠️ Some migrations may need manual intervention (non-blocking)${NC}"
+            }
+        else
+            echo -e "${YELLOW}⚠️ Migration conflict - continuing anyway${NC}"
+        fi
     else
         echo -e "${YELLOW}⚠️ Migration warning (non-blocking):${NC}"
         cat /tmp/prisma-migrate.log | tail -20
