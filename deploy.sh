@@ -174,18 +174,23 @@ cd "$DEPLOY_DIR"
 sed -i 's/NODE_ENV.*:.*'"'"'development'"'"'/NODE_ENV: '"'"'production'"'"'/g' ecosystem.config.js
 sed -i 's/PORT.*:.*3001/PORT: 3010/g' ecosystem.config.js
 
-# 8. Reload PM2 processes (zero-downtime)
-echo -e "${YELLOW}🔄 Reloading services...${NC}"
+# 8. Start/Reload PM2 processes
+echo -e "${YELLOW}🔄 Managing PM2 processes...${NC}"
 
-if pm2 list | grep -q "discovery-backend"; then
-    echo -e "${YELLOW}Performing zero-downtime reload...${NC}"
-    pm2 reload discovery-backend --update-env || pm2 restart discovery-backend
+# Check if backend process exists
+if pm2 describe discovery-backend > /dev/null 2>&1; then
+    echo -e "${YELLOW}Processes exist - performing zero-downtime reload...${NC}"
+    pm2 reload discovery-backend --update-env
     pm2 reload discovery-frontend --update-env 2>/dev/null || true
 else
-    echo -e "${YELLOW}Starting fresh processes...${NC}"
+    echo -e "${YELLOW}No existing processes - starting fresh...${NC}"
+    # Delete any old processes first
+    pm2 delete all 2>/dev/null || true
+    # Start new processes
     pm2 start ecosystem.config.js
 fi
 
+# Save PM2 configuration
 pm2 save
 
 # Wait for services to start
