@@ -38,7 +38,7 @@ jobs:
         GENERATE_SOURCEMAP: false
         INLINE_RUNTIME_CHUNK: false
         IMAGE_INLINE_SIZE_LIMIT: 0
-        NODE_OPTIONS: --max-old-space-size=4096
+        NODE_OPTIONS: --max-old-space-size=1536
         # Disable eslint during build for speed
         DISABLE_ESLINT_PLUGIN: true
         # Use faster JavaScript transformer
@@ -61,7 +61,7 @@ jobs:
     - name: Install and build backend
       working-directory: ./backend
       env:
-        NODE_OPTIONS: --max-old-space-size=2048
+        NODE_OPTIONS: --max-old-space-size=1024
       run: |
         # Use cached node_modules if available, otherwise install
         if [ ! -d "node_modules" ]; then
