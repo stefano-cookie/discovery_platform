@@ -6,7 +6,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
     - name: Checkout code
@@ -74,43 +74,29 @@ jobs:
         fi
         npm run build
 
-    - name: Commit build artifacts to repository
+    - name: Run deployment script
       run: |
-        git config user.name "GitHub Actions Bot"
-        git config user.email "actions@github.com"
-        git add -f frontend/build backend/dist backend/node_modules
-        git diff --staged --quiet || git commit -m "build: automated build artifacts [skip ci]"
-        git push origin master || echo "Nothing to push"
+        # Deployment directory
+        DEPLOY_DIR="/var/www/vhosts/cfoeducation.it/discovery_platform_temp"
+        mkdir -p "$DEPLOY_DIR"
 
-    - name: Deploy via SSH with retry
-      uses: appleboy/ssh-action@v1.0.0
-      with:
-        host: ${{ secrets.REMOTE_HOST }}
-        username: ${{ secrets.REMOTE_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        port: 22
-        timeout: 60s
-        command_timeout: 45m
-        script: |
-          set -e
+        # Copy built files from runner workspace to deployment directory
+        echo "📦 Copying frontend build..."
+        rsync -av --delete $GITHUB_WORKSPACE/frontend/build/ $DEPLOY_DIR/frontend/build/
 
-          # Create temp directory
-          TEMP_DIR="/var/www/vhosts/cfoeducation.it/discovery_platform_temp"
-          mkdir -p "$TEMP_DIR"
+        echo "📦 Copying backend dist..."
+        rsync -av --delete $GITHUB_WORKSPACE/backend/dist/ $DEPLOY_DIR/backend/dist/
 
-          # Clone from GitHub directly on server
-          cd "$TEMP_DIR"
+        echo "📦 Copying backend node_modules..."
+        rsync -av --delete $GITHUB_WORKSPACE/backend/node_modules/ $DEPLOY_DIR/backend/node_modules/
 
-          # Remove old files
-          rm -rf ./*
+        echo "📦 Copying deployment scripts..."
+        cp $GITHUB_WORKSPACE/deploy-on-server.sh $DEPLOY_DIR/
+        cp $GITHUB_WORKSPACE/ecosystem.config.js $DEPLOY_DIR/
+        cp -r $GITHUB_WORKSPACE/backend/prisma $DEPLOY_DIR/backend/
+        cp -r $GITHUB_WORKSPACE/backend/templates $DEPLOY_DIR/backend/
 
-          # Clone latest code
-          if [ ! -d ".git" ]; then
-            git clone https://github.com/stefano-cookie/discovery_platform.git .
-          else
-            git fetch origin
-            git reset --hard origin/master
-          fi
-
-          # Run deployment script
-          bash deploy-on-server.sh
+        # Run deployment
+        cd $DEPLOY_DIR
+        echo "🚀 Running deployment script..."
+        bash deploy-on-server.sh
