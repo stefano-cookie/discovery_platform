@@ -16,6 +16,7 @@ interface PaymentDeadline {
   partialAmount?: number;
   paymentStatus?: 'UNPAID' | 'PARTIAL' | 'PAID';
   paymentNumber?: number;
+  paymentType?: 'DEPOSIT' | 'INSTALLMENT';
 }
 
 interface PaymentSectionProps {
@@ -145,9 +146,9 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
       // Get deadline details for success message
       const deadline = deadlines.find(d => d.id === selectedDeadlineId);
       const amount = deadline ? (deadline.amount || 0).toFixed(2) : '0.00';
-      const description = deadline ? 
-        (deadline.paymentNumber === 0 ? 'Acconto' : 
-         deadline.paymentNumber ? `Rata ${deadline.paymentNumber}` : 'Pagamento') : 
+      const description = deadline ?
+        (deadline.paymentType === 'DEPOSIT' ? 'Acconto' :
+         deadline.paymentNumber ? `Rata ${deadline.paymentNumber}` : 'Pagamento') :
         'Pagamento';
       
       showSuccessMessage(
@@ -203,9 +204,9 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
       const totalAmount = deadline ? (deadline.amount || 0).toFixed(2) : '0.00';
       const paidAmount = parseFloat(partialAmount).toFixed(2);
       const totalDelayedAmount = (response.data.delayedAmount || 0).toFixed(2);
-      const description = deadline ? 
-        (deadline.paymentNumber === 0 ? 'Acconto' : 
-         deadline.paymentNumber ? `Rata ${deadline.paymentNumber}` : 'Pagamento') : 
+      const description = deadline ?
+        (deadline.paymentType === 'DEPOSIT' ? 'Acconto' :
+         deadline.paymentNumber ? `Rata ${deadline.paymentNumber}` : 'Pagamento') :
         'Pagamento';
       
       showSuccessMessage(
@@ -385,6 +386,11 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
                     <p className="font-medium text-gray-900">
                       {deadline.description}
                     </p>
+                    {deadline.paymentType === 'DEPOSIT' && (
+                      <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                        Acconto
+                      </span>
+                    )}
                     {deadline.isPaid && (
                       <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
                         Pagato

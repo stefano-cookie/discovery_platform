@@ -100,13 +100,16 @@ router.put('/confirm/:paymentId', authenticate, requireRole(['PARTNER', 'ADMIN']
         for (let i = 2; i <= offer.installments; i++) {
           const dueDate = new Date();
           dueDate.setMonth(dueDate.getMonth() + (offer.installmentFrequency * (i - 1)));
-          
+
           deadlines.push({
             registrationId: registration.id,
             amount: amountPerInstallment,
             dueDate,
             paymentNumber: i,
-            isPaid: false
+            paymentType: 'INSTALLMENT' as const,
+            description: `Rata ${i} di ${offer.installments}`,
+            isPaid: false,
+            paymentStatus: 'UNPAID' as const
           });
         }
 

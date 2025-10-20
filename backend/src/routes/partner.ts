@@ -11,6 +11,7 @@ import storageManager from '../services/storageManager';
 import * as path from 'path';
 import ExcelJS from 'exceljs';
 import { getSocketIO, broadcastRegistrationDeleted } from '../sockets';
+import { activityLogger } from '../services/activityLogger.service';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -1239,6 +1240,27 @@ router.post('/users/:userId/offers/:offerId/grant', authenticateUnified, async (
       });
     }
 
+    // Log partner activity
+    await activityLogger.log({
+      partnerEmployeeId: actionPerformedBy || req.partnerEmployee!.id,
+      partnerCompanyId: partnerCompanyId,
+      action: 'GRANT_OFFER_ACCESS',
+      category: 'WARNING',
+      method: 'POST',
+      endpoint: `/api/partner/users/${userId}/offers/${offerId}/grant`,
+      resourceType: 'USER_OFFER_ACCESS',
+      resourceId: userId,
+      details: {
+        userId,
+        offerId,
+        offerName: offer.name,
+        actionToken: !!actionToken,
+        wasExistingAccess: !!existingAccess
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
     console.log('✅ GRANT SUCCESS: Access granted successfully');
     res.json({ success: true, message: 'Accesso all\'offerta concesso' });
   } catch (error) {
@@ -1312,9 +1334,30 @@ router.post('/users/:userId/offers/:offerId/revoke', authenticateUnified, async 
     // Check if user is orphaned (has no registrations)
     // Note: Revoking offer access doesn't make a user orphaned - only lack of registrations does
     const userIsOrphaned = await isUserOrphaned(userId, partnerCompanyId);
-    
-    res.json({ 
-      success: true, 
+
+    // Log partner activity
+    await activityLogger.log({
+        partnerEmployeeId: req.partnerEmployee!.id,
+        partnerCompanyId: partnerCompanyId,
+        action: 'REVOKE_OFFER_ACCESS',
+        category: 'WARNING',
+        method: 'POST',
+        endpoint: `/api/partner/users/${userId}/offers/${offerId}/revoke`,
+        resourceType: 'USER_OFFER_ACCESS',
+        resourceId: userId,
+        details: {
+          userId,
+          offerId,
+          offerName: offer.name,
+          hadExistingAccess: !!existingAccess,
+          userIsOrphaned
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+    });
+
+    res.json({
+      success: true,
       message: 'Accesso all\'offerta revocato',
       userIsOrphaned,
       info: userIsOrphaned ? 'L\'utente non ha registrazioni attive ed è considerato orfano' : 'L\'utente ha registrazioni attive'
@@ -1460,6 +1503,29 @@ router.post('/coupons', authenticateUnified, async (req: AuthRequest, res) => {
       }
     });
 
+    // Log partner activity
+    await activityLogger.log({
+        partnerEmployeeId: partnerEmployee.id,
+        partnerCompanyId: partnerCompanyId,
+        action: 'CREATE_COUPON',
+        category: 'WARNING',
+        method: 'POST',
+        endpoint: '/api/partner/coupons',
+        resourceType: 'COUPON',
+        resourceId: coupon.id,
+        details: {
+          code,
+          discountType,
+          discountAmount,
+          discountPercent,
+          maxUses,
+          validFrom,
+          validUntil
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+    });
+
     res.json({
       success: true,
       coupon
@@ -1564,17 +1630,43 @@ router.delete('/coupons/:id', authenticateUnified, async (req: AuthRequest, res)
       return res.status(400).json({ error: 'Impossibile eliminare un coupon già utilizzato' });
     }
 
-    // Delete coupon - only if it belongs to this partner company
-    const coupon = await prisma.coupon.deleteMany({
+    // Get coupon details before deleting (for logging)
+    const couponToDelete = await prisma.coupon.findFirst({
       where: {
         id,
         partnerCompanyId: partnerCompanyId
       }
     });
 
-    if (coupon.count === 0) {
+    if (!couponToDelete) {
       return res.status(404).json({ error: 'Coupon non trovato' });
     }
+
+    // Delete coupon - only if it belongs to this partner company
+    await prisma.coupon.delete({
+      where: { id }
+    });
+
+    // Log partner activity
+    await activityLogger.log({
+        partnerEmployeeId: partnerEmployee.id,
+        partnerCompanyId: partnerCompanyId,
+        action: 'DELETE_COUPON',
+        category: 'CRITICAL',
+        method: 'DELETE',
+        endpoint: `/api/partner/coupons/${id}`,
+        resourceType: 'COUPON',
+        resourceId: id,
+        details: {
+          code: couponToDelete.code,
+          discountType: couponToDelete.discountType,
+          discountAmount: couponToDelete.discountAmount,
+          discountPercent: couponToDelete.discountPercent,
+          wasActive: couponToDelete.isActive
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+    });
 
     res.json({ success: true });
   } catch (error) {
@@ -1925,6 +2017,26 @@ router.get('/registrations/:registrationId', authenticateUnified, async (req: Au
       return res.status(404).json({ error: 'Iscrizione non trovata' });
     }
 
+    // Log activity: registration viewed
+    await activityLogger.log({
+      partnerEmployeeId: req.user!.id,
+      partnerCompanyId: partnerCompanyId,
+      action: 'VIEW_REGISTRATION',
+      category: 'INFO',
+      method: 'GET',
+      endpoint: `/api/partner/registrations/${registrationId}`,
+      resourceType: 'REGISTRATION',
+      resourceId: registrationId,
+      details: {
+        registrationStatus: registration.status,
+        userEmail: registration.user.email,
+        offerName: registration.offer?.name || 'Offerta diretta',
+        isReadOnly
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
     res.json({
       id: registration.id,
       status: registration.status,
@@ -2188,13 +2300,14 @@ router.post('/upload-signed-contract', authenticateUnified, uploadContract.singl
           // Create down payment deadline (7 days from now)
           const downPaymentDate = new Date();
           downPaymentDate.setDate(downPaymentDate.getDate() + 7);
-          
+
           await tx.paymentDeadline.create({
             data: {
               registrationId,
               amount: downPayment,
               dueDate: downPaymentDate,
               paymentNumber: 0,
+              paymentType: 'DEPOSIT',
               description: 'Acconto',
               isPaid: false
             }
@@ -2203,17 +2316,18 @@ router.post('/upload-signed-contract', authenticateUnified, uploadContract.singl
           // Create monthly installment deadlines
           const baseDate = new Date();
           baseDate.setDate(baseDate.getDate() + 37); // First installment 30 days after down payment
-          
+
           for (let i = 0; i < installments; i++) {
             const dueDate = new Date(baseDate);
             dueDate.setMonth(dueDate.getMonth() + i);
-            
+
             await tx.paymentDeadline.create({
               data: {
                 registrationId,
                 amount: installmentAmount,
                 dueDate,
                 paymentNumber: i + 1,
+                paymentType: 'INSTALLMENT',
                 description: `Rata ${i + 1} di ${installments}`,
                 isPaid: false
               }
@@ -2226,45 +2340,69 @@ router.post('/upload-signed-contract', authenticateUnified, uploadContract.singl
           const installmentAmount = finalAmount / installments;
           const baseDate = new Date();
           baseDate.setDate(baseDate.getDate() + 7); // First payment 7 days from now
-          
+
           for (let i = 0; i < installments; i++) {
             const dueDate = new Date(baseDate);
             dueDate.setMonth(dueDate.getMonth() + i);
-            
+
             await tx.paymentDeadline.create({
               data: {
                 registrationId,
                 amount: installmentAmount,
                 dueDate,
                 paymentNumber: i + 1,
+                paymentType: 'INSTALLMENT',
                 description: `Rata ${i + 1} di ${installments}`,
                 isPaid: false
               }
             });
           }
-          
+
           console.log(`Created ${installments} payment deadlines for certification enrollment`);
         } else {
           // Single payment
           const dueDate = new Date();
           dueDate.setDate(dueDate.getDate() + 7);
-          
+
           await tx.paymentDeadline.create({
             data: {
               registrationId,
               amount: finalAmount,
               dueDate,
               paymentNumber: 1,
+              paymentType: 'INSTALLMENT',
               description: 'Pagamento unico',
               isPaid: false
             }
           });
-          
+
           console.log('Created single payment deadline');
         }
       } else {
         console.log(`Payment deadlines already exist for registration ${registrationId}, skipping creation`);
       }
+    });
+
+    // Log partner activity
+    await activityLogger.log({
+        partnerEmployeeId: req.user!.id,
+        partnerCompanyId: partnerCompanyId,
+        action: 'UPLOAD_SIGNED_CONTRACT',
+        category: 'CRITICAL',
+        method: 'POST',
+        endpoint: '/api/partner/upload-signed-contract',
+        resourceType: 'REGISTRATION',
+        resourceId: registrationId,
+        details: {
+          fileName: req.file.originalname,
+          fileSize: req.file.size,
+          mimeType: req.file.mimetype,
+          previousStatus: registration.status,
+          newStatus: 'CONTRACT_SIGNED',
+          contractSignedUrl
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
     });
 
     res.json({
@@ -2544,6 +2682,7 @@ router.get('/registrations/:registrationId/deadlines', authenticateUnified, asyn
           amount: finalAmount,
           dueDate: dueDate,
           paymentNumber: 1,
+          paymentType: 'INSTALLMENT',
           description: 'Pagamento Unico',
           isPaid: false,
           paymentStatus: 'UNPAID'
@@ -3885,7 +4024,7 @@ router.get('/registrations/:registrationId/documents/unified', authenticateUnifi
         { type: 'TESSERA_SANITARIA', name: 'Tessera Sanitaria', description: 'Tessera sanitaria o documento che attesti il codice fiscale' }
       ];
     } else {
-      // For TFA, all documents are required
+      // For TFA, all documents are required (excluding OTHER/Altri Documenti)
       documentTypes = [
         { type: 'IDENTITY_CARD', name: 'Carta d\'Identità', description: 'Fronte e retro della carta d\'identità o passaporto in corso di validità' },
         { type: 'TESSERA_SANITARIA', name: 'Tessera Sanitaria', description: 'Tessera sanitaria o documento che attesti il codice fiscale' },
@@ -3894,8 +4033,7 @@ router.get('/registrations/:registrationId/documents/unified', authenticateUnifi
         { type: 'TRANSCRIPT', name: 'Piano di Studio', description: 'Piano di studio con lista esami sostenuti' },
         { type: 'MEDICAL_CERT', name: 'Certificato Medico', description: 'Certificato medico attestante la sana e robusta costituzione fisica e psichica' },
         { type: 'BIRTH_CERT', name: 'Certificato di Nascita', description: 'Certificato di nascita o estratto di nascita dal Comune' },
-        { type: 'DIPLOMA', name: 'Diploma di Laurea', description: 'Diploma di laurea (cartaceo o digitale)' },
-        { type: 'OTHER', name: 'Altri Documenti', description: 'Altri documenti rilevanti' }
+        { type: 'DIPLOMA', name: 'Diploma di Laurea', description: 'Diploma di laurea (cartaceo o digitale)' }
       ];
     }
 
@@ -4194,11 +4332,22 @@ router.post('/users/:userId/documents/upload', authenticateUnified, documentUplo
       where: {
         userId: userId,
         partnerCompanyId: partnerCompanyId
-      }
+      },
+      include: { offer: true }
     });
 
     if (userRegistrations.length === 0) {
       return res.status(403).json({ error: 'Non autorizzato a caricare documenti per questo utente' });
+    }
+
+    // Validate document type for TFA enrollments (reject OTHER/ALTRI_DOCUMENTI)
+    if (registrationId) {
+      const registration = userRegistrations.find(r => r.id === registrationId);
+      if (registration?.offer?.offerType === 'TFA_ROMANIA' && type === 'OTHER') {
+        return res.status(400).json({
+          error: 'Il tipo di documento "Altri Documenti" non è consentito per le iscrizioni TFA. Per favore, seleziona un tipo di documento specifico.'
+        });
+      }
     }
 
     // Use the UnifiedDocumentService to upload
@@ -5681,23 +5830,25 @@ router.post('/users/:userId/reactivate', authenticateUnified, async (req: AuthRe
     if (registration.installments > 1) {
       const installmentAmount = Math.round(Number(registration.finalAmount) / registration.installments);
       const paymentDeadlines = [];
-      
+
       for (let i = 0; i < registration.installments; i++) {
         const dueDate = new Date();
         dueDate.setMonth(dueDate.getMonth() + i + 1);
-        
+
         paymentDeadlines.push({
           registrationId: registration.id,
           paymentNumber: i + 1,
-          installmentNumber: i + 1,
-          amount: i === registration.installments - 1 
+          paymentType: 'INSTALLMENT' as const,
+          description: `Rata ${i + 1} di ${registration.installments}`,
+          amount: i === registration.installments - 1
             ? Number(registration.finalAmount) - (installmentAmount * (registration.installments - 1))
             : installmentAmount,
           dueDate: dueDate,
-          status: 'PENDING' as const
+          isPaid: false,
+          paymentStatus: 'UNPAID' as const
         });
       }
-      
+
       await prisma.paymentDeadline.createMany({
         data: paymentDeadlines
       });
@@ -6151,6 +6302,26 @@ router.patch('/users/:userId/profile', authenticateUnified, async (req: AuthRequ
     const updatedProfile = await prisma.userProfile.update({
       where: { userId },
       data: updateData
+    });
+
+    // Log partner activity
+    await activityLogger.log({
+        partnerEmployeeId: req.partnerEmployee!.id,
+        partnerCompanyId: partnerCompanyId,
+        action: 'UPDATE_USER_PROFILE',
+        category: 'WARNING',
+        method: 'PATCH',
+        endpoint: `/api/partner/users/${userId}/profile`,
+        resourceType: 'USER',
+        resourceId: userId,
+        details: {
+          userId,
+          userEmail: user.email,
+          updatedFields: Object.keys(updateData),
+          codiceFiscaleChanged: codiceFiscale !== user.profile?.codiceFiscale
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
     });
 
     res.json({

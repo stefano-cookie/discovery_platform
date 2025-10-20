@@ -269,6 +269,7 @@ router.post('/registrations/:registrationId/payments/:deadlineId/mark-partial-pa
       await prisma.paymentDeadline.create({
         data: {
           paymentNumber: nextPaymentNumber,
+          paymentType: 'INSTALLMENT',
           amount: remainingAmount,
           dueDate: nextMonth,
           description: `Residuo rata precedente - €${remainingAmount.toFixed(2)}`,

@@ -20,6 +20,11 @@ model User {
   lastLoginAt                  DateTime?
   createdAt                    DateTime  @default(now())
 
+  // Password expiration tracking (90 days policy)
+  passwordChangedAt            DateTime? @default(now())
+  passwordExpiresAt            DateTime?
+  passwordExpiryReminderSentAt DateTime?
+
   // Codice univoco per accesso sicuro al form iscrizione
   verificationCode String?   @unique
   codeExpiresAt    DateTime?
@@ -147,6 +152,11 @@ model PartnerEmployee {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   lastLoginAt DateTime?
+
+  // Password expiration tracking (90 days policy)
+  passwordChangedAt            DateTime? @default(now())
+  passwordExpiresAt            DateTime?
+  passwordExpiryReminderSentAt DateTime?
 
   // Relazioni
   partnerCompany         PartnerCompany       @relation(fields: [partnerCompanyId], references: [id], onDelete: Cascade)
@@ -779,6 +789,9 @@ model PaymentDeadline {
   paidAt         DateTime? // Data effettivo pagamento
   notes          String? // Note sul pagamento
 
+  // Tipo pagamento (acconto o rata)
+  paymentType PaymentType @default(INSTALLMENT)
+
   // Gestione pagamenti parziali
   partialAmount Decimal? // Importo parziale pagato
   paymentStatus PaymentStatus @default(UNPAID)
@@ -786,9 +799,14 @@ model PaymentDeadline {
   registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
 }
 
+enum PaymentType {
+  DEPOSIT     // Acconto
+  INSTALLMENT // Rata
+}
+
 enum PaymentStatus {
   UNPAID // Non pagato
-  PARTIAL // Pagato parzialmente  
+  PARTIAL // Pagato parzialmente
   PAID // Pagato completamente
 }
 
@@ -938,6 +956,7 @@ enum DiscoveryActionType {
   EXPORT_DATA
   DOCUMENT_APPROVAL // Discovery approva documenti
   DOCUMENT_REJECTION // Discovery rifiuta documenti
+  PASSWORD_CHANGE // User/Admin password change
 }
 
 // ========================================

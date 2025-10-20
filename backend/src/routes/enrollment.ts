@@ -486,19 +486,20 @@ router.post('/submit', handleAuthOrVerifiedEmail, upload.fields([
       if (downPayment > 0 && installments > 1) {
         const downPaymentDate = new Date();
         downPaymentDate.setDate(downPaymentDate.getDate() + 7); // 7 days after registration
-        
+
         const downPaymentDeadline = await tx.paymentDeadline.create({
           data: {
             registrationId: registration.id,
             amount: downPayment,
             dueDate: downPaymentDate,
             paymentNumber: 0,
+            paymentType: 'DEPOSIT',
             description: 'Acconto'
           }
         });
         paymentDeadlines.push(downPaymentDeadline);
       }
-      
+
       // Calculate installment dates: first installment 30 days after down payment deadline
       const baseDate = new Date();
       if (downPayment > 0 && installments > 1) {
@@ -506,18 +507,19 @@ router.post('/submit', handleAuthOrVerifiedEmail, upload.fields([
       } else {
         baseDate.setDate(baseDate.getDate() + 7); // 7 days after registration if no down payment
       }
-      
+
       for (let i = 0; i < installments; i++) {
         const dueDate = new Date(baseDate);
         dueDate.setMonth(dueDate.getMonth() + i); // Each installment is 1 month apart
         dueDate.setDate(30); // Always 30th of the month
-        
+
         const deadline = await tx.paymentDeadline.create({
           data: {
             registrationId: registration.id,
             amount: amountPerInstallment,
             dueDate,
             paymentNumber: i + 1,
+            paymentType: 'INSTALLMENT',
             description: `Rata ${i + 1} di ${installments}`
           }
         });

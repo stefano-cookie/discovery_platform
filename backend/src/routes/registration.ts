@@ -13,6 +13,7 @@ import {
   broadcastCouponExpired,
   broadcastNewRegistration
 } from '../sockets';
+import { activityLogger } from '../services/activityLogger.service';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -1028,13 +1029,15 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
         if (registrationOfferType === 'TFA_ROMANIA' && customPayments.length > 1) {
           const downPaymentDate = new Date();
           downPaymentDate.setDate(downPaymentDate.getDate() + 7); // 7 days after registration
-          
+
           await tx.paymentDeadline.create({
             data: {
               registrationId: registration.id,
               amount: 1500,
               dueDate: downPaymentDate,
               paymentNumber: 0,
+              paymentType: 'DEPOSIT',
+              description: 'Acconto',
               isPaid: false
             }
           });
@@ -1061,6 +1064,8 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
                 amount: Math.round(amountPerInstallment * 100) / 100, // Use calculated amount for TFA Romania
                 dueDate: dueDate,
                 paymentNumber: i + 1,
+                paymentType: 'INSTALLMENT',
+                description: `Rata ${i + 1}`,
                 isPaid: false
               }
             });
@@ -1072,17 +1077,19 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
           for (let i = 0; i < customPayments.length; i++) {
             const payment = customPayments[i];
             const dueDate = new Date(payment.dueDate);
-            
+
             await tx.paymentDeadline.create({
               data: {
                 registrationId: registration.id,
                 amount: Number(payment.amount),
                 dueDate: dueDate,
                 paymentNumber: i + 1,
+                paymentType: 'INSTALLMENT',
+                description: `Rata ${i + 1}`,
                 isPaid: false
               }
             });
-            
+
             console.log(`Created custom payment deadline ${i + 1}:`, payment);
           }
         }
@@ -1100,22 +1107,23 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
           // For TFA: down payment is NOT counted as an installment
           // Calculate: (total price - down payment) / number of installments
           const amountPerInstallment = installmentableAmount / installments;
-          
+
           if (downPayment > 0) {
             const downPaymentDate = new Date();
             downPaymentDate.setDate(downPaymentDate.getDate() + 7); // 7 days after registration
-            
+
             const downPaymentDeadline = await tx.paymentDeadline.create({
               data: {
                 registrationId: registration.id,
                 amount: downPayment,
                 dueDate: downPaymentDate,
                 paymentNumber: 0,
+                paymentType: 'DEPOSIT',
                 description: 'Acconto',
                 isPaid: false
               }
             });
-            
+
             console.log(`Created down payment deadline:`, downPaymentDeadline);
           }
           
@@ -1130,13 +1138,14 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
           for (let i = 0; i < installments; i++) {
             const dueDate = new Date(baseDate);
             dueDate.setMonth(dueDate.getMonth() + i); // Each installment is 1 month apart
-            
+
             await tx.paymentDeadline.create({
               data: {
                 registrationId: registration.id,
                 amount: amountPerInstallment,
                 dueDate: dueDate,
                 paymentNumber: i + 1,
+                paymentType: 'INSTALLMENT',
                 description: `Rata ${i + 1} di ${installments}`,
                 isPaid: false
               }
@@ -1145,18 +1154,19 @@ router.post('/additional-enrollment', authenticate, async (req: AuthRequest, res
         } else {
           const dueDate = new Date();
           dueDate.setDate(dueDate.getDate() + 7); // 7 days after registration
-          
+
           const singlePaymentDeadline = await tx.paymentDeadline.create({
             data: {
               registrationId: registration.id,
               amount: finalAmount,
               dueDate: dueDate,
               paymentNumber: 1,
+              paymentType: 'INSTALLMENT',
               description: 'Pagamento unico',
               isPaid: false
             }
           });
-          
+
           console.log(`Created single payment deadline:`, singlePaymentDeadline);
         }
       }
@@ -2654,6 +2664,29 @@ router.post('/course-enrollment', async (req: Request, res: Response) => {
         requestedByEmployeeId: registration.requestedByEmployeeId,
         partnerCompanyId: registration.partnerCompanyId
       });
+
+      // 📊 Activity Log: Partner created new registration
+      if (inferredEmployeeId && partnerOffer.partnerCompanyId) {
+        await activityLogger.logInfo(
+          inferredEmployeeId,
+          partnerOffer.partnerCompanyId,
+          'Nuova iscrizione creata',
+          {
+            resourceType: 'REGISTRATION',
+            resourceId: registration.id,
+            details: {
+              userId: userId,
+              userName: user.profile ? `${user.profile.nome} ${user.profile.cognome}` : user.email,
+              courseName: partnerOffer.course.name,
+              offerType: partnerOffer.offerType,
+              finalAmount: finalAmount,
+              originalAmount: originalAmount,
+              discountApplied: discountAmount,
+              couponCode: coupon?.code
+            }
+          }
+        );
+      }
 
       // Increment coupon usage if used
       if (coupon) {
