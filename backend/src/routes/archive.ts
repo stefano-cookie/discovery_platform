@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { PrismaClient, ArchivePaymentType, ArchivePaymentStatus } from '@prisma/client';
-import { authenticate, AuthRequest } from '../middleware/auth';
+import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import multer from 'multer';
 import archiveStorageService from '../services/archiveStorageService';
 
@@ -37,7 +37,7 @@ const requireAdmin = (req: AuthRequest, res: Response, next: any) => {
 // POST /api/admin/archive/registrations
 // Crea nuova iscrizione archiviata
 // ========================================
-router.post('/registrations', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/registrations', authenticateAdmin, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const {
       // Anagrafica
@@ -184,7 +184,7 @@ router.post('/registrations', authenticate, requireAdmin, async (req: AuthReques
 // GET /api/admin/archive/stats
 // Statistiche dashboard archivio
 // ========================================
-router.get('/stats', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.get('/stats', authenticateAdmin, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     // Totali generali
     const totalRegistrations = await prisma.archivedRegistration.count();
@@ -256,7 +256,7 @@ router.get('/stats', authenticate, requireAdmin, async (req: AuthRequest, res: R
 // GET /api/admin/archive/registrations
 // Lista iscrizioni archiviate con filtri
 // ========================================
-router.get('/registrations', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.get('/registrations', authenticateAdmin, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const {
       page = '1',
@@ -365,7 +365,7 @@ router.get('/registrations', authenticate, requireAdmin, async (req: AuthRequest
 // GET /api/admin/archive/registrations/:id
 // Dettaglio singola iscrizione archiviata
 // ========================================
-router.get('/registrations/:id', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.get('/registrations/:id', authenticateAdmin, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -416,7 +416,7 @@ router.get('/registrations/:id', authenticate, requireAdmin, async (req: AuthReq
 // PATCH /api/admin/archive/registrations/:id
 // Modifica iscrizione archiviata
 // ========================================
-router.patch('/registrations/:id', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.patch('/registrations/:id', authenticateAdmin, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const {
@@ -571,7 +571,7 @@ router.patch('/registrations/:id', authenticate, requireAdmin, async (req: AuthR
 // DELETE /api/admin/archive/registrations/:id
 // Elimina iscrizione archiviata + cleanup R2 files
 // ========================================
-router.delete('/registrations/:id', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.delete('/registrations/:id', authenticateAdmin, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -613,7 +613,7 @@ router.delete('/registrations/:id', authenticate, requireAdmin, async (req: Auth
 // POST /api/admin/archive/import-excel
 // Import massivo da Excel
 // ========================================
-router.post('/import-excel', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/import-excel', authenticateAdmin, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { registrations } = req.body;
 
@@ -710,7 +710,7 @@ router.post('/import-excel', authenticate, requireAdmin, async (req: AuthRequest
 // POST /api/admin/archive/upload-zip
 // Upload file ZIP documenti su R2
 // ========================================
-router.post('/upload-zip', authenticate, requireAdmin, upload.single('zipFile'), async (req: AuthRequest, res: Response) => {
+router.post('/upload-zip', authenticateAdmin, requireAdmin, upload.single('zipFile'), async (req: AuthRequest, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Nessun file ZIP caricato' });
@@ -754,7 +754,7 @@ router.post('/upload-zip', authenticate, requireAdmin, upload.single('zipFile'),
 // POST /api/admin/archive/upload-contract
 // Upload file PDF contratto su R2
 // ========================================
-router.post('/upload-contract', authenticate, requireAdmin, upload.single('contractFile'), async (req: AuthRequest, res: Response) => {
+router.post('/upload-contract', authenticateAdmin, requireAdmin, upload.single('contractFile'), async (req: AuthRequest, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Nessun file PDF caricato' });
@@ -804,7 +804,7 @@ router.post('/upload-contract', authenticate, requireAdmin, upload.single('contr
 // GET /api/admin/archive/contract-preview/:registrationId
 // URL temporaneo per preview PDF contratto (signed URL)
 // ========================================
-router.get('/contract-preview/:registrationId', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.get('/contract-preview/:registrationId', authenticateAdmin, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { registrationId } = req.params;
 
@@ -839,7 +839,7 @@ router.get('/contract-preview/:registrationId', authenticate, requireAdmin, asyn
 // GET /api/admin/archive/download-zip/:registrationId
 // Download ZIP documenti (signed URL temporaneo)
 // ========================================
-router.get('/download-zip/:registrationId', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.get('/download-zip/:registrationId', authenticateAdmin, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { registrationId } = req.params;
 
@@ -874,7 +874,7 @@ router.get('/download-zip/:registrationId', authenticate, requireAdmin, async (r
 // GET /api/admin/archive/download-contract/:registrationId
 // Download PDF contratto (signed URL temporaneo)
 // ========================================
-router.get('/download-contract/:registrationId', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.get('/download-contract/:registrationId', authenticateAdmin, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { registrationId } = req.params;
 
