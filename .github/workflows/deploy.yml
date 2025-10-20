@@ -23,7 +23,25 @@ jobs:
       working-directory: ./frontend
       run: |
         # Clean install with legacy peer deps for React 19 compatibility
-        npm ci --legacy-peer-deps
+        # Retry up to 3 times with exponential backoff for npm registry failures
+        max_attempts=3
+        attempt=1
+        while [ $attempt -le $max_attempts ]; do
+          echo "Attempt $attempt of $max_attempts: Installing frontend dependencies..."
+          if npm ci --legacy-peer-deps; then
+            echo "npm install succeeded"
+            break
+          else
+            if [ $attempt -eq $max_attempts ]; then
+              echo "npm install failed after $max_attempts attempts"
+              exit 1
+            fi
+            wait_time=$((2 ** attempt))
+            echo "npm install failed, retrying in ${wait_time} seconds..."
+            sleep $wait_time
+            attempt=$((attempt + 1))
+          fi
+        done
         # Build with increased memory limit and disable treating warnings as errors
         CI=false NODE_OPTIONS="--max-old-space-size=4096" npm run build
         
@@ -31,7 +49,25 @@ jobs:
     - name: Install and build backend
       working-directory: ./backend
       run: |
-        npm ci
+        # Retry up to 3 times with exponential backoff for npm registry failures
+        max_attempts=3
+        attempt=1
+        while [ $attempt -le $max_attempts ]; do
+          echo "Attempt $attempt of $max_attempts: Installing backend dependencies..."
+          if npm ci; then
+            echo "npm install succeeded"
+            break
+          else
+            if [ $attempt -eq $max_attempts ]; then
+              echo "npm install failed after $max_attempts attempts"
+              exit 1
+            fi
+            wait_time=$((2 ** attempt))
+            echo "npm install failed, retrying in ${wait_time} seconds..."
+            sleep $wait_time
+            attempt=$((attempt + 1))
+          fi
+        done
         npm run build
 
     - name: Deploy to server via SSH
