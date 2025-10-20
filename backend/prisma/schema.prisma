@@ -957,6 +957,7 @@ enum DiscoveryActionType {
   DOCUMENT_APPROVAL // Discovery approva documenti
   DOCUMENT_REJECTION // Discovery rifiuta documenti
   PASSWORD_CHANGE // User/Admin password change
+  ADMIN_LOGIN // Admin login action
 }
 
 // ========================================

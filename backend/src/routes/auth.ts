@@ -185,12 +185,91 @@ router.post('/login', async (req, res) => {
         }
       });
     }
-    
-    // STEP 3: Nessun match trovato
+
+    // STEP 3: Se non trovato in PartnerEmployee, cerca in AdminAccount
+    const adminAccount = await prisma.adminAccount.findUnique({
+      where: { email },
+      include: {
+        user: true
+      }
+    });
+
+    if (adminAccount && adminAccount.user && await bcrypt.compare(password, adminAccount.user.password)) {
+      // Verifica che l'account admin sia attivo
+      if (!adminAccount.isActive) {
+        return res.status(401).json({
+          error: 'Account admin disattivato. Contatta un amministratore.',
+        });
+      }
+
+      // Verifica che l'utente collegato sia attivo e verificato
+      if (!adminAccount.user.isActive) {
+        return res.status(401).json({
+          error: 'Account utente disattivato.',
+        });
+      }
+
+      if (!adminAccount.user.emailVerified) {
+        return res.status(401).json({
+          error: 'Email non verificata. Controlla la tua casella di posta.',
+          needsEmailVerification: true
+        });
+      }
+
+      // Aggiorna lastLoginAt
+      await prisma.adminAccount.update({
+        where: { id: adminAccount.id },
+        data: { lastLoginAt: new Date() }
+      });
+
+      // Log attività admin login
+      await prisma.discoveryAdminLog.create({
+        data: {
+          adminId: adminAccount.userId,
+          adminAccountId: adminAccount.id,
+          performedBy: `${adminAccount.nome} ${adminAccount.cognome}`,
+          action: 'ADMIN_LOGIN',
+          targetType: 'ADMIN',
+          targetId: adminAccount.id,
+          ipAddress: req.ip,
+          newValue: {
+            userAgent: req.get('User-Agent'),
+            timestamp: new Date().toISOString()
+          }
+        }
+      });
+
+      // Genera token JWT per admin
+      const token = jwt.sign(
+        {
+          id: adminAccount.id,
+          userId: adminAccount.userId,
+          type: 'admin',
+          role: 'ADMIN',
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: '7d' }
+      );
+
+      return res.json({
+        token,
+        type: 'admin',
+        user: {
+          id: adminAccount.id,
+          userId: adminAccount.userId,
+          email: adminAccount.email,
+          nome: adminAccount.nome,
+          cognome: adminAccount.cognome,
+          role: 'ADMIN'
+        }
+      });
+    }
+
+    // STEP 4: Nessun match trovato
     return res.status(401).json({ error: 'Credenziali non valide' });
-    
+
   } catch (error) {
-// Console output removed
+    console.error('[LOGIN ERROR]', error);
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
