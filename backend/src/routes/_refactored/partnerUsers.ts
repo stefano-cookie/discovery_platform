@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticatePartner, AuthRequest } from '../../middleware/auth';
 import { DocumentService, upload as documentUpload } from '../../services/documentService';
+import { activityLogger } from '../../services/activityLogger.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -523,8 +524,30 @@ router.post('/users/:userId/documents/upload', authenticatePartner, documentUplo
       }
     });
 
-    res.json({ 
-      success: true, 
+    // Log partner activity
+    await activityLogger.log({
+        partnerEmployeeId: partnerId,
+        partnerCompanyId: req.partner!.partnerCompanyId,
+        action: 'UPLOAD_USER_DOCUMENT',
+        category: 'WARNING',
+        method: 'POST',
+        endpoint: `/api/partner/users/${userId}/documents/upload`,
+        resourceType: 'USER_DOCUMENT',
+        resourceId: document.id,
+        details: {
+          userId,
+          documentType: type,
+          fileName: file.originalname,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+          registrationId: userRegistrations[0].id
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+    });
+
+    res.json({
+      success: true,
       message: 'Documento caricato con successo',
       document
     });

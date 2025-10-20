@@ -13,6 +13,8 @@ import EmployeesManagement from '../components/Partner/Employees/EmployeesManage
 import SubPartnerManagement from '../components/Partner/SubPartnerManagement';
 import LogoutDropdown from '../components/UI/LogoutDropdown';
 import { NoticeProvider } from '../contexts/NoticeContext';
+import PasswordExpiryWarning from '../components/PasswordManagement/PasswordExpiryWarning';
+import ChangePasswordModal from '../components/PasswordManagement/ChangePasswordModal';
 
 const Dashboard: React.FC = () => {
   const { user, logout: userLogout } = useAuth();
@@ -52,6 +54,7 @@ const Dashboard: React.FC = () => {
     getActiveTabFromPath(location.pathname)
   );
   const [showLogoutDropdown, setShowLogoutDropdown] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
   // Update active tab when URL changes
   useEffect(() => {
@@ -117,8 +120,17 @@ const Dashboard: React.FC = () => {
         return (
           <NoticeProvider>
             <div className="flex h-screen bg-gray-50">
-              <Sidebar activeTab={activeTab} onTabChange={handleTabChange} />
+              <Sidebar
+                activeTab={activeTab}
+                onTabChange={handleTabChange}
+                onChangePasswordClick={() => setShowChangePasswordModal(true)}
+              />
               <div className="flex-1 lg:ml-64">
+                {/* Password Expiry Warning */}
+                <PasswordExpiryWarning
+                  onChangePasswordClick={() => setShowChangePasswordModal(true)}
+                />
+
                 <div className="p-6 lg:p-8">
                   {activeTab === 'dashboard' && !partnerCompany?.parentId && (
                     <DashboardView
@@ -138,6 +150,17 @@ const Dashboard: React.FC = () => {
                   {activeTab === 'notices' && <NoticeBoardView />}
                 </div>
               </div>
+
+              {/* Change Password Modal */}
+              <ChangePasswordModal
+                isOpen={showChangePasswordModal}
+                onClose={() => setShowChangePasswordModal(false)}
+                onSuccess={() => {
+                  // Password changed successfully - modal shows success message
+                }}
+                userType="partner"
+                userId={partnerEmployee?.id}
+              />
             </div>
           </NoticeProvider>
         );

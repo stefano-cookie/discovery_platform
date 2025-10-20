@@ -11,11 +11,13 @@ import {
   Search,
   Archive,
   Bell,
-  Shield,
+  KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { useAdminAccount } from '../../../hooks/useAdminAccount';
 import { GlobalSearch } from './GlobalSearch';
+import PasswordExpiryWarning from '../../PasswordManagement/PasswordExpiryWarning';
+import ChangePasswordModal from '../../PasswordManagement/ChangePasswordModal';
 
 interface NavItem {
   path: string;
@@ -29,6 +31,7 @@ export const AdminLayout: React.FC = () => {
   const { user, logout } = useAuth();
   const { adminInfo } = useAdminAccount();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
 
   // Get admin display name from JWT token
   const [adminDisplayName, setAdminDisplayName] = useState<string | null>(null);
@@ -52,11 +55,11 @@ export const AdminLayout: React.FC = () => {
     { path: '/admin/companies', label: 'Companies', icon: <Building2 className="w-5 h-5" /> },
     { path: '/admin/registrations', label: 'Iscrizioni Globali', icon: <FileText className="w-5 h-5" /> },
     { path: '/admin/users', label: 'Utenti', icon: <Users className="w-5 h-5" /> },
-    { path: '/admin/accounts', label: 'Admin Accounts', icon: <Shield className="w-5 h-5" /> },
     { path: '/admin/notices', label: 'Bacheca', icon: <Bell className="w-5 h-5" /> },
     { path: '/admin/archive', label: 'Archivio', icon: <Archive className="w-5 h-5" /> },
     { path: '/admin/export', label: 'Export & Report', icon: <Download className="w-5 h-5" /> },
     { path: '/admin/logs', label: 'Audit Log', icon: <FileCheck className="w-5 h-5" /> },
+    { path: '/admin/password-management', label: 'Gestione Password', icon: <KeyRound className="w-5 h-5" /> },
   ];
 
   const isActive = (path: string) => {
@@ -173,26 +176,27 @@ export const AdminLayout: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Header Bar */}
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 shadow-sm">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">
-              {navItems.find(item => isActive(item.path))?.label || 'Dashboard'}
-            </h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Sistema di gestione globale Discovery
-            </p>
-          </div>
-        </header>
-
         {/* Content Area */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto p-6">
+          {/* Password Expiry Warning */}
+          <PasswordExpiryWarning onChangePasswordClick={() => setChangePasswordOpen(true)} />
+
           <Outlet />
         </div>
       </main>
 
       {/* Global Search Modal */}
       <GlobalSearch isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={changePasswordOpen}
+        onClose={() => setChangePasswordOpen(false)}
+        onSuccess={() => {
+          // Password changed successfully - modal shows success message
+        }}
+        userType="user"
+      />
     </div>
   );
 };

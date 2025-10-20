@@ -6,6 +6,8 @@ import UserEnrollmentDetail from '../components/User/EnrollmentDetail';
 import { getUserStatusDisplay, getStatusColors, getStatusBadge } from '../utils/statusTranslations';
 import LogoutDropdown from '../components/UI/LogoutDropdown';
 import { useRealtimeRegistration } from '../hooks/useRealtimeRegistration';
+import PasswordExpiryWarning from '../components/PasswordManagement/PasswordExpiryWarning';
+import ChangePasswordModal from '../components/PasswordManagement/ChangePasswordModal';
 
 interface UserRegistration {
   id: string;
@@ -126,6 +128,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
     }
   );
   const [showLogoutDropdown, setShowLogoutDropdown] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   // 🔌 WebSocket Real-time Updates
@@ -326,6 +329,11 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
           </div>
         </div>
       </div>
+
+      {/* Password Expiry Warning */}
+      <PasswordExpiryWarning
+        onChangePasswordClick={() => setShowChangePasswordModal(true)}
+      />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Navigation Tabs */}
@@ -1024,15 +1032,15 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
               <div className="px-6 py-5 bg-slate-50 border-b border-slate-200">
                 <div className="flex justify-between items-center">
                   <h3 className="text-xl font-bold text-slate-900">Dati Anagrafici</h3>
-                  <Link
-                    to="/change-password"
+                  <button
+                    onClick={() => setShowChangePasswordModal(true)}
                     className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition-colors duration-200"
                   >
                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m0 0a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9a2 2 0 012-2m0 0V5a2 2 0 012-2h4a2 2 0 012 2v2m-6 9l2 2 4-4" />
                     </svg>
                     Cambia Password
-                  </Link>
+                  </button>
                 </div>
               </div>
               <div className="p-8">
@@ -1204,6 +1212,16 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onRegistrationClick }) =>
         )}
 
       </div>
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={showChangePasswordModal}
+        onClose={() => setShowChangePasswordModal(false)}
+        onSuccess={() => {
+          // Password changed successfully - modal shows success message
+        }}
+        userType="user"
+      />
     </div>
   );
 };

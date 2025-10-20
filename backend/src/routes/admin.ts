@@ -1637,73 +1637,152 @@ router.get('/search', authenticate, requireAdmin, async (req: AuthRequest, res) 
 
 /**
  * GET /api/admin/logs
- * Discovery Admin Audit Logs (azioni degli admin Discovery)
+ * Unified Audit Logs (azioni admin Discovery + partner operations)
  */
 router.get('/logs', authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const { page = '1', limit = '50', action, targetType, dateFrom, dateTo } = req.query;
+    const { page = '1', limit = '50', action, targetType, dateFrom, dateTo, logType } = req.query;
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
     const skip = (pageNum - 1) * limitNum;
 
-    // Build where clause
-    const where: any = {};
-    if (action) where.action = action as string;
-    if (targetType) where.targetType = targetType as string;
+    // Build date filter (common to both queries)
+    const dateFilter: any = {};
     if (dateFrom || dateTo) {
-      where.createdAt = {};
-      if (dateFrom) where.createdAt.gte = new Date(dateFrom as string);
-      if (dateTo) where.createdAt.lte = new Date(dateTo as string);
+      if (dateFrom) dateFilter.gte = new Date(dateFrom as string);
+      if (dateTo) dateFilter.lte = new Date(dateTo as string);
     }
 
-    // Fetch logs with pagination
-    const [logs, total] = await Promise.all([
-      prisma.discoveryAdminLog.findMany({
-        where,
-        include: {
-          admin: {
-            select: {
-              id: true,
-              email: true,
+    // Determine which log types to fetch
+    const fetchAdminLogs = !logType || logType === 'admin' || logType === 'all';
+    const fetchPartnerLogs = !logType || logType === 'partner' || logType === 'all';
+
+    // Build admin log where clause
+    const adminWhere: any = {};
+    if (action) adminWhere.action = action as string;
+    if (targetType) adminWhere.targetType = targetType as string;
+    if (Object.keys(dateFilter).length > 0) adminWhere.createdAt = dateFilter;
+
+    // Build partner log where clause
+    const partnerWhere: any = {};
+    if (action) partnerWhere.action = action as string;
+    if (targetType) partnerWhere.resourceType = targetType as string;
+    if (Object.keys(dateFilter).length > 0) partnerWhere.createdAt = dateFilter;
+
+    // Fetch both log types in parallel
+    const [adminLogs, partnerLogs, adminCount, partnerCount] = await Promise.all([
+      fetchAdminLogs
+        ? prisma.discoveryAdminLog.findMany({
+            where: adminWhere,
+            include: {
+              admin: {
+                select: {
+                  id: true,
+                  email: true,
+                },
+              },
             },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: limitNum,
-        skip,
-      }),
-      prisma.discoveryAdminLog.count({ where }),
+            orderBy: { createdAt: 'desc' },
+            take: limitNum * 2, // Fetch more to ensure we have enough after merging
+          })
+        : Promise.resolve([]),
+      fetchPartnerLogs
+        ? prisma.partnerActivityLog.findMany({
+            where: partnerWhere,
+            include: {
+              partnerEmployee: {
+                select: {
+                  email: true,
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+              partnerCompany: {
+                select: {
+                  name: true,
+                  referralCode: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: limitNum * 2, // Fetch more to ensure we have enough after merging
+          })
+        : Promise.resolve([]),
+      fetchAdminLogs ? prisma.discoveryAdminLog.count({ where: adminWhere }) : Promise.resolve(0),
+      fetchPartnerLogs ? prisma.partnerActivityLog.count({ where: partnerWhere }) : Promise.resolve(0),
     ]);
 
-    // Format response
-    const formattedLogs = logs.map((log) => ({
+    // Format admin logs
+    const formattedAdminLogs = adminLogs.map((log) => ({
       id: log.id,
-      adminId: log.adminId,
-      adminEmail: log.admin.email,
-      performedBy: log.performedBy, // Nome e Cognome dell'admin
+      logType: 'ADMIN' as const,
+      userId: log.adminId,
+      userEmail: log.admin.email,
+      performedBy: log.performedBy || log.admin.email,
       action: log.action,
       targetType: log.targetType,
       targetId: log.targetId,
-      targetName: log.targetId, // TODO: resolve target name based on type
+      targetName: log.targetId,
       previousValue: log.previousValue,
       newValue: log.newValue,
       reason: log.reason,
       ipAddress: log.ipAddress,
       createdAt: log.createdAt,
+      // Admin-specific fields
+      category: 'ADMIN_ACTION' as const,
     }));
 
+    // Format partner logs
+    const formattedPartnerLogs = partnerLogs.map((log) => ({
+      id: log.id,
+      logType: 'PARTNER' as const,
+      userId: log.partnerEmployeeId,
+      userEmail: log.partnerEmployee.email,
+      performedBy: `${log.partnerEmployee.firstName} ${log.partnerEmployee.lastName}`,
+      action: log.action,
+      targetType: log.resourceType || 'UNKNOWN',
+      targetId: log.resourceId || '',
+      targetName: log.resourceId || '',
+      previousValue: null,
+      newValue: log.details,
+      reason: null,
+      ipAddress: log.ipAddress,
+      createdAt: log.createdAt,
+      // Partner-specific fields
+      category: log.category,
+      companyName: log.partnerCompany.name,
+      companyCode: log.partnerCompany.referralCode,
+      method: log.method,
+      endpoint: log.endpoint,
+      isSuccess: log.isSuccess,
+      errorCode: log.errorCode,
+    }));
+
+    // Merge and sort by createdAt
+    const allLogs = [...formattedAdminLogs, ...formattedPartnerLogs].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    // Apply pagination to merged results
+    const paginatedLogs = allLogs.slice(skip, skip + limitNum);
+    const total = adminCount + partnerCount;
+
     res.json({
-      logs: formattedLogs,
+      logs: paginatedLogs,
       pagination: {
         page: pageNum,
         limit: limitNum,
         total,
         pages: Math.ceil(total / limitNum),
       },
+      stats: {
+        adminLogsCount: adminCount,
+        partnerLogsCount: partnerCount,
+      },
     });
   } catch (error) {
-    console.error('Error fetching admin logs:', error);
+    console.error('Error fetching unified audit logs:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

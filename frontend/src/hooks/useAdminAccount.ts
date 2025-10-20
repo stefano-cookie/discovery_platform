@@ -33,7 +33,7 @@ export const useAdminAccount = () => {
         return;
       }
 
-      const response = await axios.get(`${API_URL}/api/admin/accounts/current/info`, {
+      const response = await axios.get(`${API_URL}/admin/accounts/current/info`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
