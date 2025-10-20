@@ -336,15 +336,17 @@ export class CompanyService {
 
       console.log(`🗑️ Deleting company ${company.name} with ${assignedUserIds.length} assigned users`);
 
-      // 1. Elimina documenti degli utenti associati alle registrations (INCLUDING R2 FILES)
-      const registrationIds = await tx.registration.findMany({
-        where: { partnerCompanyId: id },
-        select: { id: true }
-      }).then(regs => regs.map(r => r.id));
-
-      // Delete documents from R2 + database using cleanup service
+      // 1. Elimina TUTTI i documenti degli utenti assegnati (database + R2)
+      // Questo include documenti delle registrations E documenti orfani/in bozza
       const { DocumentCleanupService } = await import('./documentCleanupService');
-      await DocumentCleanupService.deleteRegistrationsDocuments(registrationIds);
+
+      if (assignedUserIds.length > 0) {
+        console.log(`🗑️  Deleting all documents for ${assignedUserIds.length} users...`);
+        for (const userId of assignedUserIds) {
+          const deletedCount = await DocumentCleanupService.deleteUserDocuments(userId);
+          console.log(`   ✅ User ${userId}: ${deletedCount} documents deleted from R2+DB`);
+        }
+      }
 
       // 2. Elimina payment deadlines
       await tx.paymentDeadline.deleteMany({
@@ -404,22 +406,17 @@ export class CompanyService {
           where: { userId: { in: assignedUserIds } }
         });
 
-        // 8b. Elimina UserDocument rimasti (dovrebbero essere già stati eliminati con registrations)
-        await tx.userDocument.deleteMany({
-          where: { userId: { in: assignedUserIds } }
-        });
-
-        // 8c. Elimina ChatConversation degli utenti (se esistono)
+        // 8b. Elimina ChatConversation degli utenti (se esistono)
         await tx.chatConversation.deleteMany({
           where: { userId: { in: assignedUserIds } }
         });
 
-        // 8d. Elimina UserProfile degli utenti
+        // 8c. Elimina UserProfile degli utenti
         await tx.userProfile.deleteMany({
           where: { userId: { in: assignedUserIds } }
         });
 
-        // 8e. Elimina UserTransfer records
+        // 8d. Elimina UserTransfer records
         await tx.userTransfer.deleteMany({
           where: {
             OR: [
@@ -430,7 +427,7 @@ export class CompanyService {
           }
         });
 
-        // 8f. Elimina User records
+        // 8e. Elimina User records
         await tx.user.deleteMany({
           where: { id: { in: assignedUserIds } }
         });

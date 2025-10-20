@@ -9,6 +9,31 @@ const prisma = new PrismaClient();
  */
 export class DocumentCleanupService {
   /**
+   * Extract R2 key from URL or return key as-is
+   * Handles both formats:
+   * - Full URL: https://bucket-name.r2.cloudflarestorage.com/documents/...
+   * - Key only: documents/...
+   */
+  private static extractR2Key(urlOrKey: string): string {
+    if (!urlOrKey) return '';
+
+    // If it's a full URL, extract the key part
+    if (urlOrKey.startsWith('http://') || urlOrKey.startsWith('https://')) {
+      try {
+        const url = new URL(urlOrKey);
+        // Remove leading slash if present
+        return url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname;
+      } catch (error) {
+        console.warn(`⚠️  Invalid URL format: ${urlOrKey}, using as-is`);
+        return urlOrKey;
+      }
+    }
+
+    // Already a key
+    return urlOrKey;
+  }
+
+  /**
    * Delete a single document (database + R2)
    */
   static async deleteDocument(documentId: string): Promise<void> {
@@ -25,8 +50,9 @@ export class DocumentCleanupService {
     // Delete from R2 first
     try {
       if (document.url) {
-        await storageManager.deleteFile(document.url);
-        console.log(`🗑️  Deleted from R2: ${document.url}`);
+        const key = this.extractR2Key(document.url);
+        await storageManager.deleteFile(key);
+        console.log(`🗑️  Deleted from R2: ${key} (from: ${document.url})`);
       }
     } catch (error: any) {
       console.error(`❌ Error deleting from R2 (continuing with DB delete):`, error.message);
