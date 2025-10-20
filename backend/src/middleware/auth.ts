@@ -116,7 +116,7 @@ export const authenticatePartner = async (
   }
 };
 
-// Middleware unificato che accetta entrambi i tipi
+// Middleware unificato che accetta user, partner e admin tokens
 export const authenticateUnified = async (
   req: AuthRequest,
   res: Response,
@@ -130,8 +130,28 @@ export const authenticateUnified = async (
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-    
-    if (decoded.type === 'user') {
+
+    if (decoded.type === 'admin') {
+      const adminAccount = await prisma.adminAccount.findUnique({
+        where: { id: decoded.id },
+        include: { user: true }
+      });
+
+      if (!adminAccount || !adminAccount.isActive) {
+        return res.status(401).json({ error: 'Account admin non valido' });
+      }
+
+      if (!adminAccount.user || !adminAccount.user.isActive) {
+        return res.status(401).json({ error: 'Utente collegato non valido' });
+      }
+
+      // Set req.user to the underlying User record with admin metadata
+      req.user = {
+        ...adminAccount.user,
+        adminAccountId: adminAccount.id,
+        type: 'admin'
+      };
+    } else if (decoded.type === 'user') {
       const user = await prisma.user.findUnique({
         where: { id: decoded.id },
         include: { partner: true }
@@ -141,7 +161,7 @@ export const authenticateUnified = async (
         return res.status(401).json({ error: 'Utente non valido' });
       }
 
-      req.user = user;
+      req.user = { ...user, type: 'user' };
       req.partner = user.partner;
 
       // For legacy partners, find the corresponding PartnerCompany
@@ -166,10 +186,11 @@ export const authenticateUnified = async (
 
       req.partnerEmployee = partnerEmployee;
       req.partnerCompany = partnerEmployee.partnerCompany;
+      req.user = { ...partnerEmployee, type: 'partner' } as any;
     } else {
       return res.status(401).json({ error: 'Tipo token non riconosciuto' });
     }
-    
+
     next();
   } catch (error) {
     return res.status(401).json({ error: 'Token non valido' });
@@ -193,4 +214,49 @@ export const requirePartnerRole = (roles: string[]) => {
     }
     next();
   };
+};
+
+// Middleware per Admin (account amministrativi)
+export const authenticateAdmin = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    // Support token from Authorization header or query parameter (for downloads)
+    const token = req.headers.authorization?.split(' ')[1] || req.query.token as string;
+    if (!token) {
+      return res.status(401).json({ error: 'Token mancante' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+
+    // Controlla il type del token
+    if (decoded.type !== 'admin') {
+      return res.status(401).json({ error: 'Token non valido per questa risorsa' });
+    }
+
+    const adminAccount = await prisma.adminAccount.findUnique({
+      where: { id: decoded.id },
+      include: { user: true }
+    });
+
+    if (!adminAccount || !adminAccount.isActive) {
+      return res.status(401).json({ error: 'Account admin non valido' });
+    }
+
+    if (!adminAccount.user || !adminAccount.user.isActive) {
+      return res.status(401).json({ error: 'Utente collegato non valido' });
+    }
+
+    // Set req.user to the underlying User record for compatibility
+    req.user = {
+      ...adminAccount.user,
+      adminAccountId: adminAccount.id
+    };
+
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Token non valido' });
+  }
 };

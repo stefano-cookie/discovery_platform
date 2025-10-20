@@ -33,7 +33,39 @@ export const authenticateSocket = async (
       return next(new Error('Invalid token'));
     }
 
-    // Check if it's a partner token (type: 'partner') or user token (userId)
+    // Check token type: 'admin', 'partner', or standard user token
+    if (decoded.type === 'admin') {
+      // Admin Account token
+      const adminAccount = await prisma.adminAccount.findUnique({
+        where: { id: decoded.id },
+        include: { user: true },
+      });
+
+      if (!adminAccount || !adminAccount.isActive) {
+        return next(new Error('Admin account not found or inactive'));
+      }
+
+      if (!adminAccount.user || !adminAccount.user.isActive) {
+        return next(new Error('Associated user account is inactive'));
+      }
+
+      // Attach admin data to socket
+      const socketData: SocketData = {
+        userId: adminAccount.userId,
+        role: 'ADMIN',
+        email: adminAccount.email,
+        partnerId: undefined,
+      };
+
+      socket.data = socketData;
+
+      console.log(
+        `[WebSocket] Authenticated Admin: ${adminAccount.email} (${adminAccount.nome} ${adminAccount.cognome})`
+      );
+
+      return next();
+    }
+
     if (decoded.type === 'partner') {
       // Partner Employee token
       const partnerEmployee = await prisma.partnerEmployee.findUnique({

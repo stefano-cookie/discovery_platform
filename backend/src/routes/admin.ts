@@ -1,6 +1,6 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authenticate, AuthRequest } from '../middleware/auth';
+import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import CompanyService from '../services/CompanyService';
 import CourseService from '../services/CourseService';
 import RegistrationService from '../services/RegistrationService';
@@ -34,7 +34,7 @@ const requireAdmin = (req: AuthRequest, res: express.Response, next: express.Nex
  * GET /api/admin/dashboard/stats
  * Statistiche globali piattaforma per dashboard Discovery
  */
-router.get('/dashboard/stats', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.get('/dashboard/stats', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const stats = await CompanyService.getDashboardStats();
     res.json(stats);
@@ -52,7 +52,7 @@ router.get('/dashboard/stats', authenticate, requireAdmin, async (req: AuthReque
  * GET /api/admin/courses
  * Lista tutti i template di corsi disponibili
  */
-router.get('/courses', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.get('/courses', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const courses = await CourseService.listCourses();
     res.json(courses);
@@ -70,7 +70,7 @@ router.get('/courses', authenticate, requireAdmin, async (req: AuthRequest, res)
  * GET /api/admin/companies
  * Lista tutte le company con statistiche
  */
-router.get('/companies', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.get('/companies', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const companies = await CompanyService.listCompanies();
 
@@ -102,7 +102,7 @@ router.get('/companies', authenticate, requireAdmin, async (req: AuthRequest, re
  * GET /api/admin/companies/:id
  * Dettaglio company singola con revenue breakdown
  */
-router.get('/companies/:id', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.get('/companies/:id', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const company = await CompanyService.getCompanyById(id);
@@ -178,7 +178,7 @@ router.get('/companies/:id', authenticate, requireAdmin, async (req: AuthRequest
  * POST /api/admin/companies
  * Crea nuova company + primo admin + invito email
  */
-router.post('/companies', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.post('/companies', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const {
       name,
@@ -257,7 +257,7 @@ router.post('/companies', authenticate, requireAdmin, async (req: AuthRequest, r
  * DELETE /api/admin/companies/:id
  * Elimina company e tutti i dati associati (employees, registrations, documents, etc.)
  */
-router.delete('/companies/:id', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.delete('/companies/:id', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const adminId = req.user!.id;
@@ -281,7 +281,7 @@ router.delete('/companies/:id', authenticate, requireAdmin, async (req: AuthRequ
  * PATCH /api/admin/companies/:id
  * Aggiorna company
  */
-router.patch('/companies/:id', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.patch('/companies/:id', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const { name, isActive, isPremium, canCreateChildren, commissionPerUser } = req.body;
@@ -318,7 +318,7 @@ router.patch('/companies/:id', authenticate, requireAdmin, async (req: AuthReque
  * DELETE /api/admin/companies/:id/permanent
  * Elimina definitivamente company e tutti i dati associati (hard delete)
  */
-router.delete('/companies/:id/permanent', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.delete('/companies/:id/permanent', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
 
@@ -349,7 +349,7 @@ router.delete('/companies/:id/permanent', authenticate, requireAdmin, async (req
  * GET /api/admin/registrations
  * Lista globale iscrizioni con filtri avanzati
  */
-router.get('/registrations', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.get('/registrations', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const {
       companyId,
@@ -386,7 +386,7 @@ router.get('/registrations', authenticate, requireAdmin, async (req: AuthRequest
  * GET /api/admin/registrations/:id
  * Dettaglio iscrizione completo
  */
-router.get('/registrations/:id', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.get('/registrations/:id', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const registration = await RegistrationService.getRegistrationById(id);
@@ -415,7 +415,7 @@ router.get('/registrations/:id', authenticate, requireAdmin, async (req: AuthReq
  */
 router.patch(
   '/registrations/:id/transfer',
-  authenticate,
+  authenticateAdmin,
   requireAdmin,
   async (req: AuthRequest, res) => {
     try {
@@ -459,7 +459,7 @@ router.patch(
  * GET /api/admin/registrations/pending-approval
  * Lista iscrizioni in attesa di approvazione Discovery
  */
-router.get('/registrations/pending-approval', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.get('/registrations/pending-approval', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const {
       companyId,
@@ -578,7 +578,7 @@ router.get('/registrations/pending-approval', authenticate, requireAdmin, async 
  * PATCH /api/admin/registrations/:id/approve
  * Discovery approva iscrizione (approvazione finale con email)
  */
-router.patch('/registrations/:id/approve', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.patch('/registrations/:id/approve', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const { notes } = req.body;
@@ -634,7 +634,7 @@ router.patch('/registrations/:id/approve', authenticate, requireAdmin, async (re
  * PATCH /api/admin/registrations/:id/reject
  * Discovery rifiuta iscrizione (con motivo e email)
  */
-router.patch('/registrations/:id/reject', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.patch('/registrations/:id/reject', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
@@ -700,7 +700,7 @@ router.patch('/registrations/:id/reject', authenticate, requireAdmin, async (req
  * GET /api/admin/courses
  * Lista tutti i course templates con commissioni Discovery
  */
-router.get('/courses', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.get('/courses', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const courses = await CourseService.listCourses();
     res.json(courses);
@@ -714,7 +714,7 @@ router.get('/courses', authenticate, requireAdmin, async (req: AuthRequest, res)
  * GET /api/admin/courses/:id
  * Dettaglio course template
  */
-router.get('/courses/:id', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.get('/courses/:id', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const course = await CourseService.getCourseById(id);
@@ -734,7 +734,7 @@ router.get('/courses/:id', authenticate, requireAdmin, async (req: AuthRequest, 
  * GET /api/admin/revenue/companies
  * Revenue dettagliato per tutte le company
  */
-router.get('/revenue/companies', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.get('/revenue/companies', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const revenueData = await CompanyService.getCompanyRevenue();
     res.json(revenueData);
@@ -752,7 +752,7 @@ router.get('/revenue/companies', authenticate, requireAdmin, async (req: AuthReq
  * GET /api/admin/users
  * Lista utenti con filtri
  */
-router.get('/users', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.get('/users', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { role, search, page = '1', limit = '50' } = req.query;
 
@@ -822,7 +822,7 @@ router.get('/users', authenticate, requireAdmin, async (req: AuthRequest, res) =
  * GET /api/admin/users/:id
  * Dettaglio utente singolo
  */
-router.get('/users/:id', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.get('/users/:id', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
 
@@ -890,7 +890,7 @@ router.get('/users/:id', authenticate, requireAdmin, async (req: AuthRequest, re
  * - Solo partner autonomi (non collaboratori)
  * - Audit log completo
  */
-router.post('/users/transfer', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.post('/users/transfer', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { userId, toPartnerCompanyId, reason } = req.body;
 
@@ -1018,7 +1018,7 @@ router.post('/users/transfer', authenticate, requireAdmin, async (req: AuthReque
  * GET /api/admin/documents/:documentId/preview
  * Preview documento (inline - per PDF e immagini)
  */
-router.get('/documents/:documentId/preview', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.get('/documents/:documentId/preview', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { documentId } = req.params;
 
@@ -1048,7 +1048,7 @@ router.get('/documents/:documentId/preview', authenticate, requireAdmin, async (
  * GET /api/admin/documents/:documentId/download
  * Download documento
  */
-router.get('/documents/:documentId/download', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.get('/documents/:documentId/download', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { documentId } = req.params;
 
@@ -1082,7 +1082,7 @@ router.get('/documents/:documentId/download', authenticate, requireAdmin, async 
  * GET /api/admin/export/registrations
  * Export Excel registrazioni globali
  */
-router.get('/export/registrations', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.get('/export/registrations', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { companyId, courseId, status, dateFrom, dateTo } = req.query;
 
@@ -1147,7 +1147,7 @@ router.get('/export/registrations', authenticate, requireAdmin, async (req: Auth
  * GET /api/admin/export/revenue
  * Export Excel revenue per company con breakdown commissioni
  */
-router.get('/export/revenue', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.get('/export/revenue', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { dateFrom, dateTo, onlyActive, includeBreakdown } = req.query;
 
@@ -1284,7 +1284,7 @@ router.get('/export/revenue', authenticate, requireAdmin, async (req: AuthReques
  * GET /api/admin/export/users
  * Export Excel utenti con dati completi
  */
-router.get('/export/users', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.get('/export/users', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { companyId, role, status, emailVerified, hasRegistrations } = req.query;
 
@@ -1406,7 +1406,7 @@ router.get('/export/users', authenticate, requireAdmin, async (req: AuthRequest,
  * GET /api/admin/search
  * Ricerca globale attraverso companies, utenti, iscrizioni, dipendenti, corsi
  */
-router.get('/search', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.get('/search', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { q, category = 'all', limit = 10 } = req.query;
 
@@ -1639,7 +1639,7 @@ router.get('/search', authenticate, requireAdmin, async (req: AuthRequest, res) 
  * GET /api/admin/logs
  * Unified Audit Logs (azioni admin Discovery + partner operations)
  */
-router.get('/logs', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+router.get('/logs', authenticateAdmin, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { page = '1', limit = '50', action, targetType, dateFrom, dateTo, logType } = req.query;
 

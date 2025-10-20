@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
-import { authenticate, AuthRequest } from '../middleware/auth';
+import { authenticate, authenticateUnified, AuthRequest } from '../middleware/auth';
 import emailService from '../services/emailService';
 import { activityLogger } from '../services/activityLogger.service';
 
@@ -236,7 +236,7 @@ router.post('/partner/change-password', async (req, res) => {
 /**
  * Check password expiration status for authenticated user
  */
-router.get('/check-expiration', authenticate, async (req: AuthRequest, res) => {
+router.get('/check-expiration', authenticateUnified, async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.id;
     const userType = req.user?.type; // 'user' or 'partner'

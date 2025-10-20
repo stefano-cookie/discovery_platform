@@ -6,7 +6,7 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient, UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { authenticate } from '../../middleware/auth';
+import { authenticateAdmin } from '../../middleware/auth';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -24,7 +24,7 @@ const requireAdmin = (req: Request, res: Response, next: any) => {
  * GET /api/admin/accounts
  * List all admin accounts
  */
-router.get('/', authenticate, requireAdmin, async (req: Request, res: Response) => {
+router.get('/', authenticateAdmin, requireAdmin, async (req: Request, res: Response) => {
   try {
     const adminAccounts = await prisma.adminAccount.findMany({
       include: {
@@ -63,7 +63,7 @@ router.get('/', authenticate, requireAdmin, async (req: Request, res: Response) 
  * GET /api/admin/accounts/:id
  * Get single admin account details
  */
-router.get('/:id', authenticate, requireAdmin, async (req: Request, res: Response) => {
+router.get('/:id', authenticateAdmin, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -123,7 +123,7 @@ router.get('/:id', authenticate, requireAdmin, async (req: Request, res: Respons
  * Create new admin account
  * NOTE: In production, admin accounts should be created manually via database
  */
-router.post('/', authenticate, requireAdmin, async (req: Request, res: Response) => {
+router.post('/', authenticateAdmin, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { email, nome, cognome, password } = req.body;
 
@@ -226,7 +226,7 @@ router.post('/', authenticate, requireAdmin, async (req: Request, res: Response)
  * PUT /api/admin/accounts/:id
  * Update admin account
  */
-router.put('/:id', authenticate, requireAdmin, async (req: Request, res: Response) => {
+router.put('/:id', authenticateAdmin, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { nome, cognome, isActive } = req.body;
@@ -319,7 +319,7 @@ router.put('/:id', authenticate, requireAdmin, async (req: Request, res: Respons
  * DELETE /api/admin/accounts/:id
  * Deactivate admin account (soft delete)
  */
-router.delete('/:id', authenticate, requireAdmin, async (req: Request, res: Response) => {
+router.delete('/:id', authenticateAdmin, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const performingAdmin = (req as any).user;
@@ -390,7 +390,7 @@ router.delete('/:id', authenticate, requireAdmin, async (req: Request, res: Resp
  * GET /api/admin/accounts/current/info
  * Get current admin account info
  */
-router.get('/current/info', authenticate, requireAdmin, async (req: Request, res: Response) => {
+router.get('/current/info', authenticateAdmin, requireAdmin, async (req: Request, res: Response) => {
   try {
     const currentUser = (req as any).user;
 
