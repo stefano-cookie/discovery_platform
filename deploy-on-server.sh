@@ -269,14 +269,16 @@ sed -i 's/PORT.*:.*3001/PORT: 3010/g' "$DEPLOY_DIR/ecosystem.config.js.tmp"
 mv "$DEPLOY_DIR/ecosystem.config.js.tmp" "$DEPLOY_DIR/ecosystem.config.js"
 echo -e "${GREEN}✓ Ecosystem config prepared for production${NC}"
 
-# 7.2 Zero-downtime reload with PM2
+# 7.2 Zero-downtime reload with PM2 (preserva GitHub runner!)
 echo -e "${YELLOW}🔄 Performing zero-downtime reload...${NC}"
 cd "$DEPLOY_DIR"
 
 # Check if processes already exist
 if pm2 list | grep -q "discovery-backend"; then
     echo -e "${YELLOW}Reloading existing processes (zero-downtime)...${NC}"
-    pm2 reload ecosystem.config.js --update-env
+    # Reload SOLO i processi discovery, NON toccare altri processi
+    pm2 reload discovery-backend --update-env || pm2 restart discovery-backend
+    pm2 reload discovery-frontend --update-env 2>/dev/null || true
 else
     echo -e "${YELLOW}Starting fresh PM2 processes...${NC}"
     pm2 start ecosystem.config.js
