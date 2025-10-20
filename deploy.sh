@@ -107,25 +107,33 @@ if [ -d "node_modules/.prisma/client" ]; then
     echo -e "${GREEN}✓ Prisma Client available${NC}"
 else
     echo -e "${YELLOW}⚠️ Generating Prisma Client...${NC}"
-    npx prisma generate
+    timeout 60 npx prisma generate || {
+        echo -e "${RED}❌ Prisma generate timeout${NC}"
+        exit 1
+    }
 fi
 
-# Run migrations - mark existing as applied if needed
-npx prisma migrate deploy 2>&1 | tee /tmp/prisma-migrate.log && {
-    echo -e "${GREEN}✓ Migrations applied${NC}"
-} || {
+# Run migrations with timeout to prevent hanging
+echo -e "${YELLOW}Running database migrations (max 60s)...${NC}"
+timeout 60 npx prisma migrate deploy > /tmp/prisma-migrate.log 2>&1
+MIGRATE_EXIT=$?
+
+if [ $MIGRATE_EXIT -eq 0 ]; then
+    echo -e "${GREEN}✓ Migrations applied successfully${NC}"
+elif [ $MIGRATE_EXIT -eq 124 ]; then
+    echo -e "${RED}❌ Migration timeout - skipping and continuing${NC}"
+    cat /tmp/prisma-migrate.log | tail -20
+else
+    # Check log for known issues
     if grep -q "No pending migrations" /tmp/prisma-migrate.log; then
         echo -e "${GREEN}✓ Database up to date${NC}"
     elif grep -q "already exists\|P3018\|P3005" /tmp/prisma-migrate.log; then
-        echo -e "${YELLOW}⚠️ Migration conflict - marking as applied...${NC}"
-        # Mark migrations as applied without executing them
-        npx prisma migrate resolve --applied "20251006112611_init_new_partner_system" 2>/dev/null || true
-        echo -e "${GREEN}✓ Migration conflicts resolved${NC}"
+        echo -e "${YELLOW}⚠️ Migration already applied - continuing${NC}"
     else
-        echo -e "${YELLOW}⚠️ Migration warning (non-blocking)${NC}"
+        echo -e "${YELLOW}⚠️ Migration warning (non-blocking):${NC}"
         cat /tmp/prisma-migrate.log | tail -20
     fi
-}
+fi
 
 # 7. Setup PM2 configuration
 echo -e "${YELLOW}🔄 Configuring PM2...${NC}"
