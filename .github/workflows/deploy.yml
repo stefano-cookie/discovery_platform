@@ -38,7 +38,7 @@ jobs:
         GENERATE_SOURCEMAP: false
         INLINE_RUNTIME_CHUNK: false
         IMAGE_INLINE_SIZE_LIMIT: 0
-        NODE_OPTIONS: --max-old-space-size=1536
+        NODE_OPTIONS: --max-old-space-size=1024 --expose-gc
         # Disable eslint during build for speed
         DISABLE_ESLINT_PLUGIN: true
         # Use faster JavaScript transformer
@@ -47,13 +47,19 @@ jobs:
         TSC_COMPILE_ON_ERROR: true
         ESLINT_NO_DEV_ERRORS: true
       run: |
+        # Clear build directory to free space
+        rm -rf build
         # Use cached node_modules if available, otherwise install
         if [ ! -d "node_modules" ]; then
           echo "Installing frontend dependencies..."
           npm ci --legacy-peer-deps --prefer-offline --no-audit --no-fund
         else
           echo "✓ Using cached node_modules"
+          # Clear webpack cache to save memory
+          rm -rf node_modules/.cache
         fi
+        # Free memory before build
+        sync && echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
         # Build with optimizations
         npm run build
         
@@ -61,7 +67,7 @@ jobs:
     - name: Install and build backend
       working-directory: ./backend
       env:
-        NODE_OPTIONS: --max-old-space-size=1024
+        NODE_OPTIONS: --max-old-space-size=768
       run: |
         # Use cached node_modules if available, otherwise install
         if [ ! -d "node_modules" ]; then
