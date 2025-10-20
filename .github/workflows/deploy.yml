@@ -77,11 +77,14 @@ jobs:
     - name: Create deployment archive
       run: |
         tar czf deploy.tar.gz \
+          --exclude='deploy.tar.gz' \
           --exclude='.git' \
           --exclude='.github' \
           --exclude='frontend/node_modules' \
           --exclude='backend/.env*' \
           --exclude='*.log' \
+          --exclude='.DS_Store' \
+          --warning=no-file-changed \
           .
         ls -lh deploy.tar.gz
 
