@@ -74,14 +74,6 @@ jobs:
         fi
         npm run build
 
-    - name: Test SSH connection
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
-        chmod 600 ~/.ssh/deploy_key
-        ssh-keyscan -H ${{ secrets.REMOTE_HOST }} >> ~/.ssh/known_hosts
-        ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }} "echo 'SSH connection successful'"
-
     - name: Deploy to server via SSH
       uses: easingthemes/ssh-deploy@v4.1.10
       env:
