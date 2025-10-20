@@ -195,28 +195,28 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Change password
+// Change password (DEPRECATED - use /api/password/user/change-password instead)
 router.post('/change-password', authenticate, async (req: AuthRequest, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    
+
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ error: 'Password corrente e nuova password sono obbligatorie' });
     }
-    
+
     const user = await prisma.user.findUnique({
       where: { id: req.user.id }
     });
-    
+
     if (!user) {
       return res.status(404).json({ error: 'Utente non trovato' });
     }
-    
+
     const valid = await bcrypt.compare(currentPassword, user.password);
     if (!valid) {
       return res.status(400).json({ error: 'Password corrente errata' });
     }
-    
+
     // Valida la nuova password
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&;.]{8,}$/;
     if (!passwordRegex.test(newPassword)) {
@@ -224,17 +224,35 @@ router.post('/change-password', authenticate, async (req: AuthRequest, res) => {
         error: 'La password deve essere di almeno 8 caratteri e contenere almeno una maiuscola, una minuscola e un numero'
       });
     }
-    
+
+    // Check if new password is same as current
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+    if (isSamePassword) {
+      return res.status(400).json({
+        error: 'La nuova password deve essere diversa dalla password corrente'
+      });
+    }
+
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    
+
+    // Calculate expiration date (90 days from now)
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + 90);
+
     await prisma.user.update({
       where: { id: req.user.id },
       data: {
-        password: hashedPassword
+        password: hashedPassword,
+        passwordChangedAt: new Date(),
+        passwordExpiresAt: expiryDate,
+        passwordExpiryReminderSentAt: null
       }
     });
-    
-    res.json({ success: true });
+
+    // Send confirmation email
+    await emailService.sendPasswordChangeConfirmation(user.email, user.role);
+
+    res.json({ success: true, message: 'Password modificata con successo. La nuova password scadrà tra 90 giorni.' });
   } catch (error) {
 // Console output removed
     res.status(500).json({ error: 'Errore interno del server' });

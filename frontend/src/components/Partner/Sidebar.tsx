@@ -6,9 +6,10 @@ import LogoutDropdown from '../UI/LogoutDropdown';
 interface SidebarProps {
   activeTab: 'dashboard' | 'users' | 'notices' | 'coupons' | 'offers' | 'collaborators' | 'sub-partners';
   onTabChange: (tab: 'dashboard' | 'users' | 'notices' | 'coupons' | 'offers' | 'collaborators' | 'sub-partners') => void;
+  onChangePasswordClick?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, onChangePasswordClick }) => {
   const { partnerEmployee, partnerCompany, logout } = usePartnerAuth();
   const { unreadCount } = useNotices(); // Get unread notices count from shared context
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -244,7 +245,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
                 {/* Divider */}
                 <div className="border-t border-gray-600 pt-3">
                   {/* Employee Info */}
-                  <div className="flex items-center">
+                  <div className="flex items-center mb-3">
                     <div className="flex-shrink-0">
                       <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center">
                         <span className="text-white text-sm font-medium">
@@ -302,6 +303,19 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
                       />
                     </div>
                   </div>
+
+                  {/* Change Password Button */}
+                  {onChangePasswordClick && (
+                    <button
+                      onClick={onChangePasswordClick}
+                      className="w-full flex items-center justify-center px-3 py-2 text-sm font-medium text-gray-300 bg-gray-700 rounded-md hover:bg-gray-600 hover:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                      </svg>
+                      Cambia Password
+                    </button>
+                  )}
                 </div>
               </div>
             )}

@@ -147,6 +147,7 @@ import user2faRoutes from './routes/user2fa';
 import activityLogsRoutes from './routes/admin/activityLogs.routes';
 import adminAccountsRoutes from './routes/admin/adminAccounts.routes';
 import diagnosticsRoutes from './routes/diagnostics';
+import passwordManagementRoutes from './routes/passwordManagement';
 // TODO: Fix partnerRegistrations.ts - has compilation errors with legacy partner system
 // import partnerRegistrationsRoutes from './routes/_refactored/partnerRegistrations';
 
@@ -163,6 +164,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/auth/2fa', twoFactorRoutes); // Two-Factor Authentication routes (Partner)
 app.use('/api/user/2fa', user2faRoutes); // Two-Factor Authentication routes (User)
+app.use('/api/password', passwordManagementRoutes); // Password management for all roles
 
 // UNIFIED STORAGE ROUTES - Must be BEFORE legacy routes for proper override
 app.use('/api/document-upload-unified', documentUploadUnifiedRoutes);
@@ -235,11 +237,16 @@ app.get('/api/health/websocket', (_req, res) => {
   }
 });
 
+// Start password expiry check scheduler
+import { startPasswordExpiryCheckJob } from './jobs/passwordExpiryChecker';
+startPasswordExpiryCheckJob();
+
 const server = httpServer.listen(PORT, () => {
   const host = process.env.HOST || 'localhost';
   console.log(`✅ Server running on http://${host}:${PORT}`);
   console.log(`🔌 WebSocket server ready on ws://${host}:${PORT}`);
   console.log(`📁 Upload base path: ${StorageConfig.uploadBasePath}`);
+  console.log(`🔐 Password expiry check scheduler active`);
 });
 
 server.on('error', (err) => {
