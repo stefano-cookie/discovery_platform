@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { authenticateUnified, AuthRequest } from '../middleware/auth';
 import { generateUniqueId } from '../utils/idGenerator';
 import { OfferInheritanceService } from '../services/offerInheritanceService';
+import { activityLogger } from '../services/activityLogger.service';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -319,6 +320,27 @@ router.post('/', authenticateUnified, async (req: AuthRequest, res) => {
       }
     });
 
+    // 📊 Activity Log: Partner created new offer
+    if (req.partnerEmployee?.id && partnerCompanyId) {
+      await activityLogger.logInfo(
+        req.partnerEmployee.id,
+        partnerCompanyId,
+        'Nuova offerta creata',
+        {
+          resourceType: 'OFFER',
+          resourceId: offer.id,
+          details: {
+            offerName: offer.name,
+            courseName: offer.course.name,
+            offerType: offer.offerType,
+            totalAmount: offer.totalAmount,
+            installments: offer.installments,
+            referralLink: offer.referralLink
+          }
+        }
+      );
+    }
+
     // After creating the offer, automatically create inherited offers for all sub-partners
     try {
       await OfferInheritanceService.syncInheritedOffers(partnerCompanyId);
@@ -395,6 +417,9 @@ router.delete('/:id', authenticateUnified, async (req: AuthRequest, res) => {
       where: {
         id: req.params.id,
         partnerCompanyId: partnerCompanyId
+      },
+      include: {
+        course: true
       }
     });
 
@@ -404,8 +429,8 @@ router.delete('/:id', authenticateUnified, async (req: AuthRequest, res) => {
 
     // Block offer deletion for child companies
     if (partnerCompany.parentId) {
-      return res.status(403).json({ 
-        error: 'Child companies cannot delete offers. Only parent companies can delete their offers.' 
+      return res.status(403).json({
+        error: 'Child companies cannot delete offers. Only parent companies can delete their offers.'
       });
     }
 
@@ -415,14 +440,34 @@ router.delete('/:id', authenticateUnified, async (req: AuthRequest, res) => {
     });
 
     if (registrationCount > 0) {
-      return res.status(400).json({ 
-        error: 'Cannot delete offer with existing registrations' 
+      return res.status(400).json({
+        error: 'Cannot delete offer with existing registrations'
       });
     }
 
     await prisma.partnerOffer.delete({
       where: { id: req.params.id }
     });
+
+    // 📊 Activity Log: Partner deleted offer
+    if (req.partnerEmployee?.id && partnerCompanyId) {
+      await activityLogger.logWarning(
+        req.partnerEmployee.id,
+        partnerCompanyId,
+        'Offerta eliminata',
+        {
+          resourceType: 'OFFER',
+          resourceId: offer.id,
+          details: {
+            offerName: offer.name,
+            courseName: offer.course.name,
+            offerType: offer.offerType,
+            totalAmount: offer.totalAmount,
+            referralLink: offer.referralLink
+          }
+        }
+      );
+    }
 
     res.json({ message: 'Offer deleted successfully' });
   } catch (error) {

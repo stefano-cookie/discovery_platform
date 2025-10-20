@@ -491,7 +491,7 @@ router.get('/available-courses', authenticate, async (req: AuthRequest, res: Res
       return res.status(401).json({ error: 'Utente non autenticato' });
     }
     
-    // Get user's assigned partner
+    // Get user's assigned partner (legacy or new system)
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -504,20 +504,40 @@ router.get('/available-courses', authenticate, async (req: AuthRequest, res: Res
               where: { isActive: true }
             }
           }
+        },
+        assignedPartnerCompany: {
+          include: {
+            offers: {
+              include: {
+                course: true
+              },
+              where: { isActive: true }
+            }
+          }
         }
       }
     });
-    
+
+    // Check both legacy partner and new partner company
     const partner = user?.assignedPartner;
-    if (!partner) {
-      return res.json({ 
+    const partnerCompany = user?.assignedPartnerCompany;
+
+    // If user has no partner assigned (orphan user), return empty courses
+    if (!partner && !partnerCompany) {
+      console.log('👤 Orphan user - no partner assigned, returning empty courses');
+      return res.json({
         courses: [],
-        message: 'Nessun partner assegnato. Contatta il supporto per ottenere accesso ai corsi.'
+        message: 'Nessun partner assegnato. Le tue iscrizioni sono gestite direttamente.'
       });
     }
 
-    if (!partner.offers || partner.offers.length === 0) {
-      return res.json({ 
+    // Use partner company offers if available, otherwise use legacy partner offers
+    const offers = partnerCompany?.offers || partner?.offers || [];
+    const partnerId = partner?.id;
+    const partnerCompanyId = partnerCompany?.id;
+
+    if (offers.length === 0) {
+      return res.json({
         courses: [],
         message: 'Il tuo partner non ha corsi attivi al momento. Contattalo per maggiori informazioni.'
       });
@@ -525,9 +545,12 @@ router.get('/available-courses', authenticate, async (req: AuthRequest, res: Res
 
     // Get user's registrations (original offers they signed up for)
     const userRegistrations = await prisma.registration.findMany({
-      where: { 
+      where: {
         userId,
-        partnerId: partner.id 
+        OR: [
+          partnerId ? { partnerId } : {},
+          partnerCompanyId ? { partnerCompanyId } : {}
+        ].filter(obj => Object.keys(obj).length > 0)
       },
       include: {
         offer: {
@@ -542,7 +565,10 @@ router.get('/available-courses', authenticate, async (req: AuthRequest, res: Res
     const userOfferAccess = await prisma.userOfferAccess.findMany({
       where: {
         userId,
-        partnerId: partner.id,
+        OR: [
+          partnerId ? { partnerId } : {},
+          partnerCompanyId ? { partnerCompanyId } : {}
+        ].filter(obj => Object.keys(obj).length > 0),
         enabled: true
       }
     });
@@ -551,15 +577,15 @@ router.get('/available-courses', authenticate, async (req: AuthRequest, res: Res
     const originalOfferIds = new Set(
       userRegistrations.map(reg => reg.partnerOfferId).filter(Boolean)
     );
-    
+
     const additionalOfferIds = new Set(
       userOfferAccess.map(access => access.offerId)
     );
-    
+
     // DEBUG LOGS
     console.log('=== DEBUG /user/available-courses ===');
     console.log('User ID:', userId);
-    console.log('Partner offers count:', partner.offers?.length);
+    console.log('Partner offers count:', offers.length);
     console.log('User registrations:', userRegistrations.map(r => ({ id: r.partnerOfferId, name: r.offer?.name })));
     console.log('User offer access:', userOfferAccess.map(a => ({ offerId: a.offerId, enabled: a.enabled })));
     console.log('Original offer IDs:', Array.from(originalOfferIds));
@@ -572,7 +598,7 @@ router.get('/available-courses', authenticate, async (req: AuthRequest, res: Res
     ]);
 
     // Show ONLY partner-enabled additional courses (NOT original enrollment courses)
-    const availableCourses = partner.offers
+    const availableCourses = offers
       .filter(offer => {
         // Only show courses that the partner has specifically enabled for this user
         // Exclude original enrollment courses (they appear in "My Registrations")
@@ -731,10 +757,7 @@ router.put('/change-password', authenticate, async (req: AuthRequest, res: Respo
 
     // Send password change confirmation email
     try {
-      await emailService.sendPasswordChangeConfirmation(user.email, {
-        nome: user.profile?.nome || user.email.split('@')[0],
-        timestamp: new Date().toLocaleString('it-IT')
-      });
+      await emailService.sendPasswordChangeConfirmation(user.email, user.role);
     } catch (emailError) {
       console.error('Failed to send password change confirmation email:', emailError);
       // Don't fail the request if email fails

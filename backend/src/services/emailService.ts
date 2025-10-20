@@ -16,18 +16,31 @@ class EmailService {
 
   constructor() {
     this.fromEmail = process.env.EMAIL_FROM || 'noreply@diamante.com';
-    
-    const config: EmailConfig = {
-      host: process.env.EMAIL_HOST || 'smtp.ethereal.email',
-      port: parseInt(process.env.EMAIL_PORT || '587'),
-      secure: process.env.EMAIL_SECURE === 'true',
-      auth: {
-        user: process.env.EMAIL_USER || 'ethereal.user',
-        pass: process.env.EMAIL_PASS || 'ethereal.pass'
-      }
-    };
 
-    this.transporter = nodemailer.createTransport(config);
+    // In development, use a mock transporter if email credentials are not provided
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const hasEmailConfig = process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS;
+
+    if (isDevelopment && !hasEmailConfig) {
+      console.log('⚠️  EMAIL SERVICE: Running in DEV mode without email config - emails will be logged only');
+      // Create a mock transporter that logs instead of sending
+      this.transporter = nodemailer.createTransport({
+        streamTransport: true,
+        newline: 'unix',
+        buffer: true
+      } as any);
+    } else {
+      const config: EmailConfig = {
+        host: process.env.EMAIL_HOST || 'smtp.ethereal.email',
+        port: parseInt(process.env.EMAIL_PORT || '587'),
+        secure: process.env.EMAIL_SECURE === 'true',
+        auth: {
+          user: process.env.EMAIL_USER || 'ethereal.user',
+          pass: process.env.EMAIL_PASS || 'ethereal.pass'
+        }
+      };
+      this.transporter = nodemailer.createTransport(config);
+    }
   }
 
   async sendEmailVerification(email: string, verificationLink: string): Promise<void> {
@@ -55,13 +68,25 @@ class EmailService {
 
     try {
       const info = await this.transporter.sendMail(mailOptions);
-      console.log('Email sent:', info.messageId);
-      
-      if (process.env.NODE_ENV === 'development' && info.previewURL) {
-        console.log('Preview email:', nodemailer.getTestMessageUrl(info));
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📧 [DEV] Email verification link:', verificationLink);
+        console.log('📧 [DEV] Recipient:', email);
+        if (info.previewURL) {
+          console.log('📧 [DEV] Preview:', nodemailer.getTestMessageUrl(info));
+        }
+      } else {
+        console.log('✅ Email sent:', info.messageId);
       }
     } catch (error) {
-      console.error('Email sending error:', error);
+      console.error('⚠️  Email sending error:', error);
+
+      // In development, don't throw - just log the error
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📧 [DEV] Email not sent, but continuing (verification link logged above)');
+        return;
+      }
+
       throw new Error('Unable to send verification email');
     }
   }
@@ -668,36 +693,7 @@ class EmailService {
     `;
   }
 
-  async sendPasswordChangeConfirmation(email: string, userData: { nome: string, timestamp: string }): Promise<void> {
-    const mailOptions = {
-      from: this.fromEmail,
-      to: email,
-      subject: '🔒 Password modificata con successo - Piattaforma Diamante',
-      html: this.getPasswordChangeConfirmationTemplate(userData),
-      text: `
-        Ciao ${userData.nome},
-        
-        Ti confermiamo che la tua password è stata modificata con successo.
-        
-        Data e ora modifica: ${userData.timestamp}
-        
-        Se non hai effettuato tu questa modifica, contattaci immediatamente per mettere in sicurezza il tuo account.
-        
-        Cordiali saluti,
-        Il Team di Piattaforma Diamante
-      `
-    };
-
-    try {
-      await this.transporter.sendMail(mailOptions);
-      console.log('Password change confirmation email sent to:', email);
-    } catch (error) {
-      console.error('Error sending password change confirmation email:', error);
-      throw new Error('Unable to send password change confirmation email');
-    }
-  }
-
-  private getPasswordChangeConfirmationTemplate(userData: { nome: string, timestamp: string }): string {
+  private getPasswordChangeConfirmationTemplateOld(userData: { nome: string, timestamp: string }): string {
     return `
       <!DOCTYPE html>
       <html lang="it">
@@ -2707,6 +2703,247 @@ Piattaforma Discovery
     `;
 
     return { html, text };
+  }
+
+  /**
+   * Send password change confirmation email
+   */
+  async sendPasswordChangeConfirmation(email: string, userRole: string): Promise<void> {
+    const roleLabel = userRole === 'ADMIN' ? 'Amministratore' : userRole === 'PARTNER' ? 'Partner' : 'Utente';
+
+    const mailOptions = {
+      from: this.fromEmail,
+      to: email,
+      subject: 'Conferma Modifica Password - Piattaforma Discovery',
+      html: this.getPasswordChangeConfirmationTemplate(roleLabel),
+      text: `
+Gentile ${roleLabel},
+
+Ti confermiamo che la tua password è stata modificata con successo.
+
+Dettagli modifica:
+- Data e ora: ${new Date().toLocaleString('it-IT')}
+- La nuova password scadrà tra 90 giorni
+
+Se non hai effettuato tu questa modifica, contatta immediatamente il supporto tecnico.
+
+Cordiali saluti,
+Il team Piattaforma Discovery
+      `
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log(`✉️ Email conferma cambio password inviata a: ${email}`);
+    } catch (error) {
+      console.error('Errore invio email conferma cambio password:', error);
+      throw error;
+    }
+  }
+
+  private getPasswordChangeConfirmationTemplate(roleLabel: string): string {
+    return `
+      <!DOCTYPE html>
+      <html lang="it">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Conferma Modifica Password</title>
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #28a745 0%, #20903a 100%); color: white; padding: 40px 30px; text-align: center; }
+          .content { padding: 30px; }
+          .info-box { background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 20px; margin: 20px 0; }
+          .warning-box { background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 20px; margin: 20px 0; }
+          .footer { background-color: #f8fafc; padding: 25px 30px; text-align: center; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0; font-size: 24px;">Password Modificata</h1>
+          </div>
+
+          <div class="content">
+            <p>Gentile <strong>${roleLabel}</strong>,</p>
+
+            <p>Ti confermiamo che la tua password è stata modificata con successo.</p>
+
+            <div class="info-box">
+              <h4 style="margin-top: 0; color: #28a745;">Dettagli modifica:</h4>
+              <ul style="margin: 10px 0;">
+                <li><strong>Data e ora:</strong> ${new Date().toLocaleString('it-IT')}</li>
+                <li><strong>Scadenza nuova password:</strong> ${new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toLocaleDateString('it-IT')}</li>
+                <li><strong>Giorni di validità:</strong> 90 giorni</li>
+              </ul>
+            </div>
+
+            <div class="warning-box">
+              <h4 style="margin-top: 0; color: #856404;">Importante:</h4>
+              <p style="margin-bottom: 0;">Se <strong>non hai effettuato tu</strong> questa modifica, contatta <strong>immediatamente</strong> il supporto tecnico. Il tuo account potrebbe essere compromesso.</p>
+            </div>
+
+            <p style="font-size: 14px; color: #666; margin-top: 30px;">
+              <strong>Promemoria:</strong><br>
+              Riceverai notifiche via email quando la tua password sarà prossima alla scadenza (2 giorni prima e quando scade).
+            </p>
+          </div>
+
+          <div class="footer">
+            <p><strong>Piattaforma Discovery</strong><br>
+            Sistema di Gestione Formazione Professionale</p>
+            <p style="font-size: 12px; margin-top: 15px;">
+              Questo messaggio è stato inviato automaticamente. Per assistenza, contatta il supporto tecnico.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  /**
+   * Send password expiry reminder email
+   */
+  async sendPasswordExpiryReminder(email: string, userRole: string, daysUntilExpiry: number): Promise<void> {
+    const roleLabel = userRole === 'ADMIN' ? 'Amministratore' : userRole === 'PARTNER' ? 'Partner' : 'Utente';
+    const urgencyLevel = daysUntilExpiry === 0 ? 'CRITICO' : daysUntilExpiry <= 2 ? 'URGENTE' : 'NORMALE';
+
+    // Customize subject based on expiry status
+    const subject = daysUntilExpiry === 0
+      ? 'PASSWORD SCADUTA - Azione Richiesta Immediatamente'
+      : `Password in scadenza - ${daysUntilExpiry} ${daysUntilExpiry === 1 ? 'giorno' : 'giorni'} rimanenti`;
+
+    const mailOptions = {
+      from: this.fromEmail,
+      to: email,
+      subject,
+      html: this.getPasswordExpiryReminderTemplate(roleLabel, daysUntilExpiry, urgencyLevel),
+      text: `
+Gentile ${roleLabel},
+
+${daysUntilExpiry === 0 ? 'ATTENZIONE CRITICA: La tua password è SCADUTA!' : urgencyLevel === 'URGENTE' ? 'ATTENZIONE: ' : ''}${daysUntilExpiry === 0 ? 'Non puoi più accedere alla piattaforma finché non modifichi la password.' : `La tua password scadrà tra ${daysUntilExpiry} ${daysUntilExpiry === 1 ? 'giorno' : 'giorni'}.`}
+
+Per ${daysUntilExpiry === 0 ? 'ripristinare' : 'continuare'} l'accesso alla piattaforma, devi modificare la tua password ${daysUntilExpiry === 0 ? 'IMMEDIATAMENTE' : 'al più presto'}.
+
+Come modificare la password:
+1. Accedi alla piattaforma
+2. Vai alle Impostazioni del tuo profilo
+3. Seleziona "Cambia Password"
+4. Inserisci la password corrente e la nuova password
+
+La nuova password deve:
+- Essere di almeno 8 caratteri
+- Contenere almeno una lettera maiuscola
+- Contenere almeno una lettera minuscola
+- Contenere almeno un numero
+
+${daysUntilExpiry === 0 ? 'IMPORTANTE: Dopo aver modificato la password potrai accedere nuovamente alla piattaforma.' : 'ATTENZIONE: Dopo la scadenza non potrai più accedere alla piattaforma finché non modifichi la password.'}
+
+Cordiali saluti,
+Il team Piattaforma Discovery
+      `
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log(`✉️ Email promemoria scadenza password inviata a: ${email} (${daysUntilExpiry} giorni)`);
+    } catch (error) {
+      console.error('Errore invio email promemoria scadenza password:', error);
+      throw error;
+    }
+  }
+
+  private getPasswordExpiryReminderTemplate(roleLabel: string, daysUntilExpiry: number, urgencyLevel: string): string {
+    const isCritical = urgencyLevel === 'CRITICO';
+    const isUrgent = urgencyLevel === 'URGENTE';
+    const headerColor = isCritical ? '#dc2626' : isUrgent ? '#dc3545' : '#0066cc';
+
+    const title = daysUntilExpiry === 0 ? 'Password Scaduta' : 'Password in Scadenza';
+    const daysText = daysUntilExpiry === 0 ? 'SCADUTA' : `${daysUntilExpiry} ${daysUntilExpiry === 1 ? 'GIORNO' : 'GIORNI'}`;
+
+    return `
+      <!DOCTYPE html>
+      <html lang="it">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${title}</title>
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, ${headerColor} 0%, ${headerColor}dd 100%); color: white; padding: 40px 30px; text-align: center; }
+          .content { padding: 30px; }
+          .warning-box { background-color: ${isCritical || isUrgent ? '#f8d7da' : '#fff3cd'}; border: 2px solid ${isCritical || isUrgent ? '#f5c6cb' : '#ffeaa7'}; border-radius: 8px; padding: 20px; margin: 20px 0; }
+          .button { background-color: ${headerColor}; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block; margin: 20px 0; }
+          .checklist { background-color: #f8f9fa; border-left: 4px solid ${headerColor}; padding: 15px 20px; margin: 20px 0; }
+          .footer { background-color: #f8fafc; padding: 25px 30px; text-align: center; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0; font-size: 24px;">${title}</h1>
+            <div style="font-size: 32px; font-weight: bold; margin-top: 15px;">${daysText}</div>
+          </div>
+
+          <div class="content">
+            <p>Gentile <strong>${roleLabel}</strong>,</p>
+
+            ${isCritical ? '<p style="font-size: 18px; color: #dc2626; font-weight: bold;">ATTENZIONE CRITICA: La tua password è SCADUTA!</p>' : isUrgent ? '<p style="font-size: 18px; color: #dc3545; font-weight: bold;">ATTENZIONE: La tua password scadrà molto presto!</p>' : ''}
+
+            <p>${daysUntilExpiry === 0 ? 'La tua password è <strong>scaduta</strong>. Non puoi più accedere alla piattaforma finché non la modifichi.' : `Ti informiamo che la tua password scadrà tra <strong>${daysUntilExpiry} ${daysUntilExpiry === 1 ? 'giorno' : 'giorni'}</strong>.`}</p>
+
+            <div class="warning-box">
+              <h4 style="margin-top: 0; color: ${isCritical || isUrgent ? '#721c24' : '#856404'};">
+                ${isCritical || isUrgent ? 'Azione Richiesta Immediatamente' : 'Cosa fare'}
+              </h4>
+              <p style="margin-bottom: 0;">
+                ${daysUntilExpiry === 0
+                  ? 'Devi modificare la password <strong>IMMEDIATAMENTE</strong> per ripristinare l\'accesso alla piattaforma.'
+                  : isUrgent
+                  ? 'Dopo la scadenza <strong>non potrai più accedere</strong> alla piattaforma finché non modifichi la password. Cambia la password ORA per evitare interruzioni.'
+                  : 'Per continuare ad accedere alla piattaforma senza interruzioni, ti preghiamo di modificare la tua password al più presto.'}
+              </p>
+            </div>
+
+            <h3>Come modificare la password:</h3>
+            <div class="checklist">
+              <ol style="margin: 0; padding-left: 20px;">
+                <li>Accedi alla piattaforma</li>
+                <li>Vai alle <strong>Impostazioni</strong> del tuo profilo</li>
+                <li>Seleziona "<strong>Cambia Password</strong>"</li>
+                <li>Inserisci la password corrente e la nuova password</li>
+              </ol>
+            </div>
+
+            <h3>Requisiti nuova password:</h3>
+            <div class="checklist">
+              <ul style="margin: 0; padding-left: 20px;">
+                <li>Almeno <strong>8 caratteri</strong></li>
+                <li>Almeno <strong>una lettera maiuscola</strong></li>
+                <li>Almeno <strong>una lettera minuscola</strong></li>
+                <li>Almeno <strong>un numero</strong></li>
+              </ul>
+            </div>
+
+            <p style="font-size: 14px; color: #666; margin-top: 30px;">
+              <strong>Nota:</strong> La nuova password avrà una validità di 90 giorni.
+            </p>
+          </div>
+
+          <div class="footer">
+            <p><strong>Piattaforma Discovery</strong><br>
+            Sistema di Gestione Formazione Professionale</p>
+            <p style="font-size: 12px; margin-top: 15px;">
+              Questo messaggio è stato inviato automaticamente. Per assistenza, contatta il supporto tecnico.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
   }
 }
 
