@@ -180,17 +180,13 @@ echo -e "${YELLOW}🔄 Managing PM2 processes...${NC}"
 # Delete any old frontend processes (no longer needed - Nginx serves frontend)
 pm2 delete discovery-frontend 2>/dev/null || true
 
-# Check if backend process exists
-if pm2 describe discovery-backend > /dev/null 2>&1; then
-    echo -e "${YELLOW}Backend exists - performing zero-downtime reload...${NC}"
-    pm2 reload discovery-backend --update-env
-else
-    echo -e "${YELLOW}Starting backend for first time...${NC}"
-    # Delete any other old processes
-    pm2 delete all 2>/dev/null || true
-    # Start backend
-    pm2 start ecosystem.config.js
-fi
+# Always do a clean restart to avoid cluster mode issues
+echo -e "${YELLOW}Performing clean restart...${NC}"
+pm2 delete discovery-backend 2>/dev/null || true
+pm2 start ecosystem.config.js
+
+# Wait for process to stabilize
+sleep 3
 
 # Save PM2 configuration
 pm2 save
