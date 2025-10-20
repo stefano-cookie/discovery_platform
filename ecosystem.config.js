@@ -27,24 +27,8 @@ module.exports = {
       error_file: './logs/backend-error.log',
       out_file: './logs/backend-out.log',
       log_file: './logs/backend-combined.log'
-    },
-    {
-      name: 'discovery-frontend',
-      script: 'frontend-proxy-server.js',
-      cwd: './',
-      instances: 1,
-      autorestart: true,
-      watch: false,
-      max_memory_restart: '512M',
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3000
-      },
-      log_date_format: 'YYYY-MM-DD HH:mm Z',
-      error_file: './logs/frontend-error.log',
-      out_file: './logs/frontend-out.log',
-      log_file: './logs/frontend-combined.log'
     }
+    // Frontend is served directly by Nginx, no PM2 process needed
   ],
 
   deploy: {

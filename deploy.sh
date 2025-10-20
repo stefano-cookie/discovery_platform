@@ -177,16 +177,18 @@ sed -i 's/PORT.*:.*3001/PORT: 3010/g' ecosystem.config.js
 # 8. Start/Reload PM2 processes
 echo -e "${YELLOW}🔄 Managing PM2 processes...${NC}"
 
+# Delete any old frontend processes (no longer needed - Nginx serves frontend)
+pm2 delete discovery-frontend 2>/dev/null || true
+
 # Check if backend process exists
 if pm2 describe discovery-backend > /dev/null 2>&1; then
-    echo -e "${YELLOW}Processes exist - performing zero-downtime reload...${NC}"
+    echo -e "${YELLOW}Backend exists - performing zero-downtime reload...${NC}"
     pm2 reload discovery-backend --update-env
-    pm2 reload discovery-frontend --update-env 2>/dev/null || true
 else
-    echo -e "${YELLOW}No existing processes - starting fresh...${NC}"
-    # Delete any old processes first
+    echo -e "${YELLOW}Starting backend for first time...${NC}"
+    # Delete any other old processes
     pm2 delete all 2>/dev/null || true
-    # Start new processes
+    # Start backend
     pm2 start ecosystem.config.js
 fi
 
