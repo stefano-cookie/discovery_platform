@@ -513,21 +513,30 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
     return new Date(dateString).toLocaleDateString('it-IT');
   };
 
+  // Get required document types based on template type
+  const getRequiredDocumentTypes = () => {
+    if (templateType === 'CERTIFICATION') {
+      return ['IDENTITY_CARD', 'TESSERA_SANITARIA'];
+    } else if (templateType === 'TFA') {
+      return ['IDENTITY_CARD', 'TESSERA_SANITARIA', 'DIPLOMA', 'BACHELOR_DEGREE', 'MASTER_DEGREE', 'TRANSCRIPT', 'MEDICAL_CERT', 'BIRTH_CERT'];
+    }
+    return [];
+  };
+
   // Filter documents by template type
   const getFilteredDocuments = () => {
-    if (templateType === 'CERTIFICATION') {
-      return documents.filter(doc => 
-        ['IDENTITY_CARD', 'TESSERA_SANITARIA'].includes(doc.type) ||
-        ['cartaIdentita', 'certificatoMedico'].includes(doc.type)
-      );
+    const requiredTypes = getRequiredDocumentTypes();
+    if (requiredTypes.length > 0) {
+      return documents.filter(doc => requiredTypes.includes(doc.type));
     }
-    return documents; // TFA shows all documents
+    return documents;
   };
 
   const filteredDocuments = getFilteredDocuments();
+  const requiredDocTypes = getRequiredDocumentTypes();
+  const requiredCount = requiredDocTypes.length;
   const uploadedCount = filteredDocuments.filter(doc => doc.uploaded).length;
-  const totalCount = filteredDocuments.length;
-  const completionPercentage = totalCount > 0 ? Math.round((uploadedCount / totalCount) * 100) : 0;
+  const completionPercentage = requiredCount > 0 ? Math.round((uploadedCount / requiredCount) * 100) : 0;
 
   if (loading) {
     return (
@@ -576,7 +585,7 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
             <div>
               <h2 className="text-xl font-bold text-gray-900">Gestione Documenti</h2>
               <p className="text-sm text-gray-600 mt-1">
-                <span className="font-medium text-blue-600">{uploadedCount}</span> di <span className="font-medium">{totalCount}</span> documenti caricati
+                <span className="font-medium text-blue-600">{uploadedCount}</span> di <span className="font-medium">{requiredCount}</span> documenti richiesti caricati
               </p>
             </div>
           </div>
@@ -762,13 +771,12 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
           const pendingDocs = filteredDocuments.filter(doc => doc.uploaded && doc.status === 'PENDING');
           const approvedDocs = filteredDocuments.filter(doc => doc.status === 'APPROVED' || doc.status === 'APPROVED_BY_PARTNER');
           const rejectedDocs = filteredDocuments.filter(doc => doc.status === 'REJECTED' || doc.status === 'REJECTED_BY_PARTNER');
-          const reviewedDocs = approvedDocs.length + rejectedDocs.length;
-          const totalDocs = filteredDocuments.filter(doc => doc.uploaded).length;
+          const uploadedRequiredDocs = filteredDocuments.filter(doc => doc.uploaded).length;
 
-          const allReviewed = totalDocs > 0 && pendingDocs.length === 0;
+          const allReviewed = uploadedRequiredDocs > 0 && pendingDocs.length === 0;
 
           // Mostra progress solo se ci sono documenti da revisionare
-          if (totalDocs === 0) return null;
+          if (uploadedRequiredDocs === 0) return null;
 
           return (
             <div className="mt-6 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-t border-gray-200">
@@ -806,9 +814,9 @@ const UnifiedDocumentManager: React.FC<UnifiedDocumentManagerProps> = ({
                 <div className="ml-6">
                   <div className="text-center">
                     <div className={`text-4xl font-bold ${allReviewed ? 'text-green-600' : 'text-blue-600'}`}>
-                      {reviewedDocs}/{totalDocs}
+                      {approvedDocs.length}/{requiredCount}
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">revisionati</div>
+                    <div className="text-xs text-gray-500 mt-1">approvati/richiesti</div>
                   </div>
                 </div>
               </div>
