@@ -495,22 +495,38 @@ router.get('/available-courses', authenticate, async (req: AuthRequest, res: Res
       return res.status(401).json({ error: 'Utente non autenticato' });
     }
     
-    // Get user with partner assignment
+    // Get user with partner assignment (legacy or new system)
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
-        assignedPartner: true
+        assignedPartner: true,
+        assignedPartnerCompany: true
       }
     });
-    
-    if (!user || !user.assignedPartner) {
-      return res.status(404).json({ error: 'Partner non assegnato' });
+
+    // Check both legacy partner and new partner company
+    const partner = user?.assignedPartner;
+    const partnerCompany = user?.assignedPartnerCompany;
+
+    // If user has no partner assigned (orphan user), return empty courses
+    if (!user || (!partner && !partnerCompany)) {
+      console.log('👤 Orphan user (userClean.ts) - no partner assigned, returning empty courses');
+      return res.json({
+        courses: [],
+        message: 'Nessun partner assegnato. Le tue iscrizioni sono gestite direttamente.'
+      });
     }
     
     // Get partner's offers with visibility settings
+    const partnerId = partner?.id;
+    const partnerCompanyId = partnerCompany?.id;
+
     const partnerOffers = await prisma.partnerOffer.findMany({
-      where: { 
-        partnerId: user.assignedPartner.id,
+      where: {
+        OR: [
+          partnerId ? { partnerId } : {},
+          partnerCompanyId ? { partnerCompanyId } : {}
+        ].filter(obj => Object.keys(obj).length > 0),
         isActive: true
       },
       include: {
@@ -733,6 +749,20 @@ router.post('/documents', authenticate, upload.single('document'), async (req: A
 
     if (!type) {
       return res.status(400).json({ error: 'Tipo documento non specificato' });
+    }
+
+    // Validate document type for TFA enrollments (reject OTHER/ALTRI_DOCUMENTI)
+    if (registrationId) {
+      const registration = await prisma.registration.findFirst({
+        where: { id: registrationId, userId },
+        include: { offer: true }
+      });
+
+      if (registration?.offer?.offerType === 'TFA_ROMANIA' && type === 'OTHER') {
+        return res.status(400).json({
+          error: 'Il tipo di documento "Altri Documenti" non è consentito per le iscrizioni TFA. Per favore, seleziona un tipo di documento specifico.'
+        });
+      }
     }
 
     console.log('📤 Upload request:', { userId, type, registrationId, fileName: file.originalname });
