@@ -9,6 +9,7 @@ set -e
 DEPLOY_DIR="/var/www/vhosts/cfoeducation.it/discovery.cfoeducation.it"
 BACKUP_DIR="$HOME/backups"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+SCRIPT_DIR="$(pwd)"  # Remember where we started (deploy-temp)
 
 # Colors
 GREEN='\033[0;32m'
@@ -155,13 +156,15 @@ fi
 # 7. Setup PM2 configuration
 echo -e "${YELLOW}🔄 Configuring PM2...${NC}"
 
-# Note: We're already in the deploy-temp directory where ecosystem.config.js was extracted
-# Copy it to the final deployment directory
+# Go back to script directory where ecosystem.config.js was extracted
+cd "$SCRIPT_DIR"
+
 if [ -f "ecosystem.config.js" ]; then
     cp ecosystem.config.js "$DEPLOY_DIR/ecosystem.config.js"
     echo -e "${GREEN}✓ Ecosystem config copied${NC}"
 else
-    echo -e "${RED}❌ ERROR: ecosystem.config.js not found${NC}"
+    echo -e "${RED}❌ ERROR: ecosystem.config.js not found in $SCRIPT_DIR${NC}"
+    ls -la "$SCRIPT_DIR" | head -20
     exit 1
 fi
 
