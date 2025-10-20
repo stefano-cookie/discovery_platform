@@ -53,6 +53,60 @@ router.post('/login', async (req, res) => {
         });
       }
 
+      // ========== 2FA CHECK (MANDATORY FOR ADMIN) ==========
+      // If 2FA is not configured, force setup
+      if (!adminAccount.user.twoFactorEnabled) {
+        // Generate temporary JWT token that allows ONLY access to 2FA setup endpoints
+        const temporaryToken = await generateUserToken(
+          adminAccount.userId,
+          'ADMIN',
+          false, // twoFactorVerified
+          true, // requires2FASetup
+          '1h' // Short expiration for setup process
+        );
+
+        return res.json({
+          requires2FASetup: true,
+          token: temporaryToken, // Provide token for 2FA setup API calls
+          userId: adminAccount.userId,
+          type: 'admin',
+          message: '2FA setup required to proceed. Please configure two-factor authentication.',
+          user: {
+            id: adminAccount.id,
+            userId: adminAccount.userId,
+            email: adminAccount.email,
+            nome: adminAccount.nome,
+            cognome: adminAccount.cognome,
+            role: 'ADMIN',
+            emailVerified: adminAccount.user.emailVerified
+          }
+        });
+      }
+
+      // If 2FA is enabled, create temporary session and request code
+      if (adminAccount.user.twoFactorEnabled) {
+        const twoFactorServiceUnified = await import('../services/twoFactorServiceUnified');
+        const sessionToken = await twoFactorServiceUnified.default.createTwoFactorSession(
+          twoFactorServiceUnified.EntityType.USER,
+          adminAccount.userId,
+          req.ip,
+          req.get('User-Agent')
+        );
+
+        return res.json({
+          requires2FA: true,
+          sessionToken,
+          type: 'admin',
+          adminAccountId: adminAccount.id,
+          message: 'Enter the 6-digit code from your authenticator app',
+        });
+      }
+      // ========== END 2FA CHECK ==========
+
+      // Se si arriva qui, significa che non c'è 2FA (non dovrebbe mai succedere per admin)
+      // Ma manteniamo questo fallback per sicurezza
+      console.warn('[AUTH] Admin login without 2FA - this should not happen!', adminAccount.email);
+
       // Aggiorna lastLoginAt
       await prisma.adminAccount.update({
         where: { id: adminAccount.id },

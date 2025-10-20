@@ -249,9 +249,10 @@ export const authenticateAdmin = async (
       return res.status(401).json({ error: 'Utente collegato non valido' });
     }
 
-    // Set req.user to the underlying User record for compatibility
+    // Set req.user to the underlying User record with ADMIN role override
     req.user = {
       ...adminAccount.user,
+      role: 'ADMIN', // Force ADMIN role for admin accounts
       adminAccountId: adminAccount.id
     };
 

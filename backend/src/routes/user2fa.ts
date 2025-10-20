@@ -212,6 +212,7 @@ router.post('/verify', async (req: Request, res: Response) => {
         profile: true,
         partner: true,
         assignedPartner: true,
+        adminAccount: true, // Include admin account if exists
       },
     });
 
@@ -225,6 +226,63 @@ router.post('/verify', async (req: Request, res: Response) => {
       data: { lastLoginAt: new Date() },
     });
 
+    // Check if this is an admin user
+    const isAdmin = user.role === 'ADMIN' && user.adminAccount;
+
+    if (isAdmin && user.adminAccount) {
+      // Admin login - update admin account lastLoginAt
+      await prisma.adminAccount.update({
+        where: { id: user.adminAccount.id },
+        data: { lastLoginAt: new Date() },
+      });
+
+      // Log admin login
+      await prisma.discoveryAdminLog.create({
+        data: {
+          adminId: user.id,
+          adminAccountId: user.adminAccount.id,
+          performedBy: `${user.adminAccount.nome} ${user.adminAccount.cognome}`,
+          action: 'ADMIN_LOGIN',
+          targetType: 'ADMIN',
+          targetId: user.adminAccount.id,
+          ipAddress: req.ip,
+          newValue: {
+            userAgent: req.headers['user-agent'],
+            timestamp: new Date().toISOString(),
+            via2FA: true,
+          },
+        },
+      });
+
+      // Generate admin token
+      const adminToken = jwt.sign(
+        {
+          id: user.adminAccount.id,
+          userId: user.id,
+          type: 'admin',
+          role: 'ADMIN',
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: '7d' }
+      );
+
+      return res.json({
+        message: 'Authentication completed',
+        token: adminToken,
+        type: 'admin',
+        user: {
+          id: user.adminAccount.id,
+          userId: user.id,
+          email: user.adminAccount.email,
+          nome: user.adminAccount.nome,
+          cognome: user.adminAccount.cognome,
+          role: 'ADMIN',
+          twoFactorVerified: true,
+        },
+      });
+    }
+
+    // Regular user login
     const token = await generateUserToken(
       user.id,
       user.role,
