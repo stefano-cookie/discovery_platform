@@ -5,8 +5,8 @@ on:
     branches: [master]
 
 jobs:
-  deploy:
-    runs-on: self-hosted
+  build:
+    runs-on: ubuntu-latest
     
     steps:
     - name: Checkout code
@@ -17,15 +17,13 @@ jobs:
       with:
         node-version: '20'
 
-    - name: Cache dependencies and builds
+    - name: Cache dependencies
       uses: actions/cache@v4
-      id: cache
       with:
         path: |
           ~/.npm
           frontend/node_modules
           backend/node_modules
-          frontend/node_modules/.cache
         key: ${{ runner.os }}-deps-${{ hashFiles('**/package-lock.json') }}
         restore-keys: |
           ${{ runner.os }}-deps-
@@ -33,52 +31,52 @@ jobs:
     - name: Install and build frontend
       working-directory: ./frontend
       env:
-        # Optimization flags for faster builds
         CI: false
         GENERATE_SOURCEMAP: false
         INLINE_RUNTIME_CHUNK: false
         IMAGE_INLINE_SIZE_LIMIT: 0
-        NODE_OPTIONS: --max-old-space-size=1024 --expose-gc
-        # Disable eslint during build for speed
+        NODE_OPTIONS: --max-old-space-size=4096
         DISABLE_ESLINT_PLUGIN: true
-        # Use faster JavaScript transformer
         FAST_REFRESH: false
-        # Disable unnecessary features
         TSC_COMPILE_ON_ERROR: true
         ESLINT_NO_DEV_ERRORS: true
       run: |
-        # Clear build directory to free space
-        rm -rf build
-        # Use cached node_modules if available, otherwise install
-        if [ ! -d "node_modules" ]; then
-          echo "Installing frontend dependencies..."
-          npm ci --legacy-peer-deps --prefer-offline --no-audit --no-fund
-        else
-          echo "✓ Using cached node_modules"
-          # Clear webpack cache to save memory
-          rm -rf node_modules/.cache
-        fi
-        # Free memory before build
-        sync && echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
-        # Build with optimizations
+        npm ci --legacy-peer-deps --prefer-offline --no-audit --no-fund
         npm run build
-        
 
     - name: Install and build backend
       working-directory: ./backend
       env:
-        NODE_OPTIONS: --max-old-space-size=768
+        NODE_OPTIONS: --max-old-space-size=2048
       run: |
-        # Use cached node_modules if available, otherwise install
-        if [ ! -d "node_modules" ]; then
-          echo "Installing backend dependencies..."
-          npm ci --prefer-offline --no-audit --no-fund
-        else
-          echo "✓ Using cached node_modules"
-          # Prisma might need regeneration even with cache
-          npx prisma generate
-        fi
+        npm ci --prefer-offline --no-audit --no-fund
+        npx prisma generate
         npm run build
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-artifacts
+        path: |
+          frontend/build/
+          backend/dist/
+          backend/node_modules/
+          backend/prisma/
+          backend/templates/
+          deploy-on-server.sh
+          ecosystem.config.js
+        retention-days: 1
+
+  deploy:
+    needs: build
+    runs-on: self-hosted
+
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: build-artifacts
+        path: ./artifacts
 
     - name: Run deployment script
       run: |
@@ -86,21 +84,21 @@ jobs:
         DEPLOY_DIR="/var/www/vhosts/cfoeducation.it/discovery_platform_temp"
         mkdir -p "$DEPLOY_DIR"
 
-        # Copy built files from runner workspace to deployment directory
+        # Copy built files to deployment directory
         echo "📦 Copying frontend build..."
-        rsync -av --delete $GITHUB_WORKSPACE/frontend/build/ $DEPLOY_DIR/frontend/build/
+        rsync -av --delete ./artifacts/frontend/build/ $DEPLOY_DIR/frontend/build/
 
         echo "📦 Copying backend dist..."
-        rsync -av --delete $GITHUB_WORKSPACE/backend/dist/ $DEPLOY_DIR/backend/dist/
+        rsync -av --delete ./artifacts/backend/dist/ $DEPLOY_DIR/backend/dist/
 
         echo "📦 Copying backend node_modules..."
-        rsync -av --delete $GITHUB_WORKSPACE/backend/node_modules/ $DEPLOY_DIR/backend/node_modules/
+        rsync -av --delete ./artifacts/backend/node_modules/ $DEPLOY_DIR/backend/node_modules/
 
         echo "📦 Copying deployment scripts..."
-        cp $GITHUB_WORKSPACE/deploy-on-server.sh $DEPLOY_DIR/
-        cp $GITHUB_WORKSPACE/ecosystem.config.js $DEPLOY_DIR/
-        cp -r $GITHUB_WORKSPACE/backend/prisma $DEPLOY_DIR/backend/
-        cp -r $GITHUB_WORKSPACE/backend/templates $DEPLOY_DIR/backend/
+        cp ./artifacts/deploy-on-server.sh $DEPLOY_DIR/
+        cp ./artifacts/ecosystem.config.js $DEPLOY_DIR/
+        cp -r ./artifacts/backend/prisma $DEPLOY_DIR/backend/
+        cp -r ./artifacts/backend/templates $DEPLOY_DIR/backend/
 
         # Run deployment
         cd $DEPLOY_DIR
