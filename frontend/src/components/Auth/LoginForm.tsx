@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { TwoFactorSetup, TwoFactorVerify } from '../User/TwoFactor';
 import Button from '../UI/Button';
@@ -19,6 +20,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 const LoginForm: React.FC = () => {
   const { login } = useAuth();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<ErrorDetails | null>(null);
 
@@ -73,8 +75,15 @@ const LoginForm: React.FC = () => {
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
 
-      // Trigger auth state update
-      window.location.reload();
+      // Redirect based on role
+      console.log('🎯 Direct login successful, user role:', user.role);
+      if (user.role === 'ADMIN') {
+        console.log('➡️ Redirecting ADMIN to /admin');
+        navigate('/admin', { replace: true });
+      } else {
+        console.log('➡️ Reloading for USER/PARTNER');
+        window.location.reload();
+      }
 
     } catch (err: any) {
       const processedError = ErrorService.processApiError(err);
@@ -92,7 +101,13 @@ const LoginForm: React.FC = () => {
     if (setupResponse?.token && setupResponse?.user) {
       localStorage.setItem('token', setupResponse.token);
       localStorage.setItem('user', JSON.stringify(setupResponse.user));
-      window.location.reload();
+
+      // Redirect based on role
+      if (setupResponse.user.role === 'ADMIN') {
+        navigate('/admin', { replace: true });
+      } else {
+        window.location.reload();
+      }
       return;
     }
 
@@ -118,7 +133,16 @@ const LoginForm: React.FC = () => {
   const handle2FAVerifySuccess = (token: string, user: any) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(user));
-    window.location.reload();
+
+    // Redirect based on role/type
+    console.log('🎯 2FA verified successfully, user role:', user.role);
+    if (user.role === 'ADMIN') {
+      console.log('➡️ Redirecting ADMIN to /admin');
+      navigate('/admin', { replace: true });
+    } else {
+      console.log('➡️ Reloading for USER/PARTNER');
+      window.location.reload();
+    }
   };
 
   const handle2FACancel = () => {

@@ -100,13 +100,22 @@ const PartnerLoginRoute: React.FC<{ isAuthenticated: boolean }> = ({ isAuthentic
 
 const DashboardRoute: React.FC<{ userRole: string | null }> = ({ userRole }) => {
   console.log('🏢 Dashboard route - user role check:', userRole);
-  
+
+  // ADMIN should NEVER access /dashboard - redirect to /admin
+  if (userRole === 'ADMIN') {
+    console.log('🚫 ADMIN attempted to access /dashboard - redirecting to /admin');
+    return <Navigate to="/admin" replace />;
+  }
+
   if (userRole === 'USER') {
     console.log('👤 Loading UserDashboard');
     return <UserDashboard />;
-  } else {
-    console.log('🏢 Loading Partner/Admin Dashboard');
+  } else if (userRole === 'PARTNER') {
+    console.log('🏢 Loading Partner Dashboard');
     return <Dashboard />;
+  } else {
+    console.log('❓ Unknown role, redirecting to login');
+    return <Navigate to="/login" replace />;
   }
 };
 
