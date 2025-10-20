@@ -59,5 +59,6 @@ sync-db*.sh
 server-info-commands.sh
 nginx*.conf
 start-production-local.sh
+monitor-workflow.sh
 *.md
 !README.mdCLAUDE.md
