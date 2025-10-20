@@ -15,6 +15,22 @@ api.interceptors.request.use(
     // Check for both user and partner tokens
     const partnerToken = localStorage.getItem('partnerToken');
     const userToken = localStorage.getItem('token');
+    const userData = localStorage.getItem('user');
+
+    // Determine token type by checking user data
+    let tokenType = 'none';
+    let userRole = null;
+    if (partnerToken) {
+      tokenType = 'partner';
+    } else if (userToken && userData) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        userRole = parsedUser.role;
+        tokenType = userRole === 'ADMIN' ? 'admin' : 'user';
+      } catch (e) {
+        tokenType = 'user';
+      }
+    }
 
     // Prioritize partner token if it exists (for partner routes)
     // This ensures partner employees can access partner resources
@@ -25,7 +41,8 @@ api.interceptors.request.use(
       method: config.method,
       hasPartnerToken: !!partnerToken,
       hasUserToken: !!userToken,
-      usingToken: partnerToken ? 'partner' : (userToken ? 'user' : 'none')
+      userRole,
+      usingToken: tokenType
     });
 
     if (token) {

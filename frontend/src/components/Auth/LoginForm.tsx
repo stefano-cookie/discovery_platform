@@ -75,11 +75,11 @@ const LoginForm: React.FC = () => {
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
 
-      // Redirect based on role
+      // Redirect based on role - use full page reload for admin
       console.log('🎯 Direct login successful, user role:', user.role);
       if (user.role === 'ADMIN') {
-        console.log('➡️ Redirecting ADMIN to /admin');
-        navigate('/admin', { replace: true });
+        console.log('➡️ Redirecting ADMIN to /admin via window.location');
+        window.location.href = '/admin';
       } else {
         console.log('➡️ Reloading for USER/PARTNER');
         window.location.reload();
@@ -131,14 +131,27 @@ const LoginForm: React.FC = () => {
   };
 
   const handle2FAVerifySuccess = (token: string, user: any) => {
+    console.log('🎯 2FA verified successfully, full user data:', user);
+    console.log('🔑 Token to save:', token.substring(0, 20) + '...');
+
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(user));
 
-    // Redirect based on role/type
-    console.log('🎯 2FA verified successfully, user role:', user.role);
+    // Verify what was saved
+    const savedToken = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    console.log('✅ Saved to localStorage:', {
+      tokenSaved: !!savedToken,
+      userSaved: !!savedUser,
+      userRole: user.role
+    });
+
+    // Redirect based on role/type - use full page reload for admin to ensure clean state
     if (user.role === 'ADMIN') {
-      console.log('➡️ Redirecting ADMIN to /admin');
-      navigate('/admin', { replace: true });
+      console.log('➡️ Redirecting ADMIN to /admin via window.location');
+      setTimeout(() => {
+        window.location.href = '/admin';
+      }, 100); // Small delay to ensure localStorage is written
     } else {
       console.log('➡️ Reloading for USER/PARTNER');
       window.location.reload();
