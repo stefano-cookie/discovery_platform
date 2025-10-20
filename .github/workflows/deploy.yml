@@ -98,6 +98,8 @@ jobs:
           fi
         done
         npm run build
+        # Generate Prisma client (avoid regeneration on server)
+        npx prisma generate
 
     - name: Deploy to server via SSH
       uses: easingthemes/ssh-deploy@v4.1.10
@@ -107,7 +109,7 @@ jobs:
         REMOTE_USER: ${{ secrets.REMOTE_USER || '' }}
         SOURCE: "./"
         TARGET: "/var/www/vhosts/cfoeducation.it/discovery_platform_temp/"
-        EXCLUDE: ".git/,.github/,node_modules/,backend/.env,backend/.env.production,frontend/.env,*.log,.DS_Store"
+        EXCLUDE: ".git/,.github/,frontend/node_modules/,backend/.env,backend/.env.production,frontend/.env,*.log,.DS_Store"
           
     - name: Execute deployment script on server
       uses: appleboy/ssh-action@v1.0.0
