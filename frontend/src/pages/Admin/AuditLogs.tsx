@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   FileText,
   Filter,
@@ -12,12 +12,14 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import api from '../../services/api';
+import { io, Socket } from 'socket.io-client';
 
 interface AuditLog {
   id: string;
-  adminId: string;
-  adminEmail: string;
-  performedBy?: string | null; // Nome e Cognome dell'admin
+  logType: 'ADMIN' | 'PARTNER';
+  userId: string;
+  userEmail: string;
+  performedBy: string;
   action: string;
   targetType: string;
   targetId: string;
@@ -27,6 +29,14 @@ interface AuditLog {
   reason: string | null;
   ipAddress: string | null;
   createdAt: string;
+  category: string;
+  // Partner-specific fields
+  companyName?: string;
+  companyCode?: string;
+  method?: string;
+  endpoint?: string;
+  isSuccess?: boolean;
+  errorCode?: string;
 }
 
 interface Pagination {
@@ -52,13 +62,103 @@ export const AuditLogs: React.FC = () => {
     targetType: '',
     dateFrom: '',
     dateTo: '',
+    logType: 'all', // 'all', 'admin', 'partner'
   });
 
   const [showFilters, setShowFilters] = useState(false);
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [newLogsCount, setNewLogsCount] = useState(0);
 
   useEffect(() => {
     fetchLogs();
   }, [pagination.page, filters]);
+
+  // WebSocket Connection for Real-time Logs
+  useEffect(() => {
+    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+    // Remove /api suffix if present for WebSocket connection
+    const wsUrl = apiUrl.replace(/\/api$/, '');
+    console.log('[AuditLogs] Connecting to WebSocket:', `${wsUrl}/activity-logs`);
+
+    const activitySocket = io(`${wsUrl}/activity-logs`, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
+    });
+
+    activitySocket.on('connect', () => {
+      console.log('[AuditLogs] ✅ WebSocket connected successfully');
+      setIsConnected(true);
+
+      // Subscribe to activity logs
+      console.log('[AuditLogs] 📡 Subscribing to activity logs...');
+      activitySocket.emit('subscribe', {
+        // Empty filters = get all logs
+      });
+    });
+
+    activitySocket.on('disconnect', () => {
+      console.log('[AuditLogs] ❌ WebSocket disconnected');
+      setIsConnected(false);
+    });
+
+    activitySocket.on('connect_error', (error: any) => {
+      console.error('[AuditLogs] ❌ WebSocket connection error:', error);
+    });
+
+    activitySocket.on('subscribed', (data: any) => {
+      console.log('[AuditLogs] ✅ Successfully subscribed to activity logs:', data);
+    });
+
+    activitySocket.on('activityLog', (logEntry: any) => {
+      console.log('[AuditLogs] 🔔 NEW LOG RECEIVED IN REAL-TIME:', logEntry);
+
+      // Convert activityLog format to AuditLog format
+      const newLog: AuditLog = {
+        id: `temp-${Date.now()}`, // Temporary ID
+        logType: 'PARTNER',
+        userId: logEntry.partnerEmployeeId,
+        userEmail: '',
+        performedBy: logEntry.partnerEmployeeId,
+        action: logEntry.action,
+        targetType: logEntry.resourceType || '',
+        targetId: logEntry.resourceId || '',
+        targetName: '',
+        previousValue: null,
+        newValue: logEntry.details,
+        reason: null,
+        ipAddress: logEntry.ipAddress || null,
+        createdAt: new Date().toISOString(),
+        category: logEntry.category,
+        companyName: '',
+        companyCode: '',
+        method: logEntry.method,
+        endpoint: logEntry.endpoint,
+        isSuccess: logEntry.isSuccess !== false,
+        errorCode: logEntry.errorCode,
+      };
+
+      // Add new log to the top of the list
+      setLogs(prevLogs => [newLog, ...prevLogs]);
+      setNewLogsCount(prev => prev + 1);
+
+      // Update total count
+      setPagination(prev => ({
+        ...prev,
+        total: prev.total + 1
+      }));
+    });
+
+    setSocket(activitySocket);
+
+    // Cleanup on unmount
+    return () => {
+      activitySocket.emit('unsubscribe');
+      activitySocket.disconnect();
+    };
+  }, []);
 
   const fetchLogs = async () => {
     try {
@@ -72,6 +172,7 @@ export const AuditLogs: React.FC = () => {
       if (filters.targetType) params.append('targetType', filters.targetType);
       if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
       if (filters.dateTo) params.append('dateTo', filters.dateTo);
+      if (filters.logType && filters.logType !== 'all') params.append('logType', filters.logType);
 
       const response = await api.get(`/admin/logs?${params.toString()}`);
       setLogs(response.data.logs);
@@ -121,8 +222,23 @@ export const AuditLogs: React.FC = () => {
       targetType: '',
       dateFrom: '',
       dateTo: '',
+      logType: 'all',
     });
     setPagination(prev => ({ ...prev, page: 1 }));
+  };
+
+  const getLogTypeBadge = (logType: 'ADMIN' | 'PARTNER') => {
+    if (logType === 'ADMIN') {
+      return 'bg-purple-100 text-purple-700 border-purple-200';
+    }
+    return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+  };
+
+  const getCategoryBadge = (category: string) => {
+    if (category === 'CRITICAL') return 'bg-red-100 text-red-700 border-red-200';
+    if (category === 'WARNING') return 'bg-orange-100 text-orange-700 border-orange-200';
+    if (category === 'INFO') return 'bg-blue-100 text-blue-700 border-blue-200';
+    return 'bg-gray-100 text-gray-700 border-gray-200';
   };
 
   return (
@@ -150,7 +266,7 @@ export const AuditLogs: React.FC = () => {
             Filtri
           </button>
 
-          {(filters.action || filters.targetType || filters.dateFrom || filters.dateTo) && (
+          {(filters.action || filters.targetType || filters.dateFrom || filters.dateTo || filters.logType !== 'all') && (
             <button
               onClick={resetFilters}
               className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
@@ -158,6 +274,33 @@ export const AuditLogs: React.FC = () => {
               <XCircle className="w-4 h-4" />
               Reset Filtri
             </button>
+          )}
+
+          {/* WebSocket Connection Status */}
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${
+            isConnected
+              ? 'bg-green-50 text-green-700 border border-green-200'
+              : 'bg-gray-50 text-gray-500 border border-gray-200'
+          }`}>
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+            {isConnected ? 'Real-time attivo' : 'Disconnesso'}
+          </div>
+
+          {/* New Logs Counter */}
+          {newLogsCount > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-sm font-medium">
+              <AlertCircle className="w-4 h-4" />
+              {newLogsCount} {newLogsCount === 1 ? 'nuovo log' : 'nuovi log'}
+              <button
+                onClick={() => {
+                  setNewLogsCount(0);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="ml-2 text-xs underline hover:text-blue-900"
+              >
+                Visualizza
+              </button>
+            </div>
           )}
         </div>
 
@@ -176,41 +319,46 @@ export const AuditLogs: React.FC = () => {
       {showFilters && (
         <div className="mb-6 p-6 bg-white rounded-xl border border-gray-200 shadow-sm">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Filtri Ricerca</h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tipo Log
+              </label>
+              <select
+                value={filters.logType}
+                onChange={(e) => setFilters({ ...filters, logType: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="all">Tutti</option>
+                <option value="admin">Solo Admin</option>
+                <option value="partner">Solo Partner</option>
+              </select>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Azione
               </label>
-              <select
+              <input
+                type="text"
+                placeholder="es. LOGIN, CREATE..."
                 value={filters.action}
                 onChange={(e) => setFilters({ ...filters, action: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">Tutte le azioni</option>
-                <option value="COMPANY_CREATE">Company Create</option>
-                <option value="COMPANY_EDIT">Company Edit</option>
-                <option value="COMPANY_DISABLE">Company Disable</option>
-                <option value="USER_TRANSFER">User Transfer</option>
-                <option value="REGISTRATION_TRANSFER">Registration Transfer</option>
-                <option value="EXPORT_DATA">Export Data</option>
-              </select>
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Tipo Target
               </label>
-              <select
+              <input
+                type="text"
+                placeholder="es. COMPANY, USER..."
                 value={filters.targetType}
                 onChange={(e) => setFilters({ ...filters, targetType: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">Tutti i tipi</option>
-                <option value="COMPANY">Company</option>
-                <option value="USER">User</option>
-                <option value="REGISTRATION">Registration</option>
-                <option value="SYSTEM">System</option>
-              </select>
+              />
             </div>
 
             <div>
@@ -273,10 +421,33 @@ export const AuditLogs: React.FC = () => {
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
+                  <div className="flex items-center gap-3 mb-2 flex-wrap">
+                    {/* Log Type Badge */}
+                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold border ${getLogTypeBadge(log.logType)}`}>
+                      {log.logType}
+                    </span>
+
+                    {/* Action Badge */}
                     <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border ${getActionColor(log.action)}`}>
                       {log.action.replace(/_/g, ' ')}
                     </span>
+
+                    {/* Category Badge (for partner logs) */}
+                    {log.logType === 'PARTNER' && log.category !== 'ADMIN_ACTION' && (
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold border ${getCategoryBadge(log.category)}`}>
+                        {log.category}
+                      </span>
+                    )}
+
+                    {/* Success/Error Badge (for partner logs) */}
+                    {log.logType === 'PARTNER' && log.isSuccess !== undefined && (
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold border ${
+                        log.isSuccess ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'
+                      }`}>
+                        {log.isSuccess ? 'SUCCESS' : 'ERROR'}
+                      </span>
+                    )}
+
                     <span className="flex items-center gap-1 text-sm text-gray-600">
                       <Clock className="w-4 h-4" />
                       {formatDate(log.createdAt)}
@@ -286,21 +457,40 @@ export const AuditLogs: React.FC = () => {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm">
                       <User className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-600">Admin:</span>
+                      <span className="text-gray-600">{log.logType === 'ADMIN' ? 'Admin:' : 'Partner:'}</span>
                       <span className="font-medium text-gray-900">
-                        {log.performedBy || log.adminEmail}
+                        {log.performedBy}
                       </span>
-                      {log.performedBy && (
-                        <span className="text-xs text-gray-500">({log.adminEmail})</span>
-                      )}
+                      <span className="text-xs text-gray-500">({log.userEmail})</span>
                     </div>
 
-                    <div className="flex items-center gap-2 text-sm">
-                      {getTargetIcon(log.targetType)}
-                      <span className="text-gray-600">Target:</span>
-                      <span className="font-medium text-gray-900">{log.targetName}</span>
-                      <span className="text-xs text-gray-500">({log.targetType})</span>
-                    </div>
+                    {/* Partner Company Info */}
+                    {log.logType === 'PARTNER' && log.companyName && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Building2 className="w-4 h-4 text-gray-400" />
+                        <span className="text-gray-600">Azienda:</span>
+                        <span className="font-medium text-gray-900">{log.companyName}</span>
+                        <span className="text-xs text-gray-500">({log.companyCode})</span>
+                      </div>
+                    )}
+
+                    {/* Target Info */}
+                    {log.targetType && log.targetType !== 'UNKNOWN' && (
+                      <div className="flex items-center gap-2 text-sm">
+                        {getTargetIcon(log.targetType)}
+                        <span className="text-gray-600">Target:</span>
+                        <span className="font-medium text-gray-900">{log.targetName || log.targetId}</span>
+                        <span className="text-xs text-gray-500">({log.targetType})</span>
+                      </div>
+                    )}
+
+                    {/* HTTP Method & Endpoint (for partner logs) */}
+                    {log.logType === 'PARTNER' && log.method && log.endpoint && (
+                      <div className="flex items-center gap-2 text-sm font-mono text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                        <span className="font-semibold text-indigo-600">{log.method}</span>
+                        <span>{log.endpoint}</span>
+                      </div>
+                    )}
 
                     {log.reason && (
                       <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
