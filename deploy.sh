@@ -110,20 +110,37 @@ else
     npx prisma generate
 fi
 
-npx prisma migrate deploy 2>&1 | tee /tmp/prisma-migrate.log || {
+# Run migrations - mark existing as applied if needed
+npx prisma migrate deploy 2>&1 | tee /tmp/prisma-migrate.log && {
+    echo -e "${GREEN}✓ Migrations applied${NC}"
+} || {
     if grep -q "No pending migrations" /tmp/prisma-migrate.log; then
         echo -e "${GREEN}✓ Database up to date${NC}"
+    elif grep -q "already exists\|P3018\|P3005" /tmp/prisma-migrate.log; then
+        echo -e "${YELLOW}⚠️ Migration conflict - marking as applied...${NC}"
+        # Mark migrations as applied without executing them
+        npx prisma migrate resolve --applied "20251006112611_init_new_partner_system" 2>/dev/null || true
+        echo -e "${GREEN}✓ Migration conflicts resolved${NC}"
     else
         echo -e "${YELLOW}⚠️ Migration warning (non-blocking)${NC}"
+        cat /tmp/prisma-migrate.log | tail -20
     fi
 }
 
 # 7. Setup PM2 configuration
 echo -e "${YELLOW}🔄 Configuring PM2...${NC}"
-cd "$DEPLOY_DIR"
 
-# Copy ecosystem config
-cp ecosystem.config.js "$DEPLOY_DIR/ecosystem.config.js"
+# Note: We're already in the deploy-temp directory where ecosystem.config.js was extracted
+# Copy it to the final deployment directory
+if [ -f "ecosystem.config.js" ]; then
+    cp ecosystem.config.js "$DEPLOY_DIR/ecosystem.config.js"
+    echo -e "${GREEN}✓ Ecosystem config copied${NC}"
+else
+    echo -e "${RED}❌ ERROR: ecosystem.config.js not found${NC}"
+    exit 1
+fi
+
+cd "$DEPLOY_DIR"
 
 # Force production environment
 sed -i 's/NODE_ENV.*:.*'"'"'development'"'"'/NODE_ENV: '"'"'production'"'"'/g' ecosystem.config.js

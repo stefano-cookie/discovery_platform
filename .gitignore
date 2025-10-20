@@ -62,3 +62,4 @@ start-production-local.sh
 monitor-workflow.sh
 *.md
 !README.mdCLAUDE.md
+webhook-deploy-server.js
