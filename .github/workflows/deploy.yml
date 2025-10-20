@@ -74,23 +74,41 @@ jobs:
         fi
         npm run build
 
-    - name: Deploy to server via SSH
-      uses: easingthemes/ssh-deploy@v4.1.10
-      env:
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY || '' }}
-        REMOTE_HOST: ${{ secrets.REMOTE_HOST || '' }}
-        REMOTE_USER: ${{ secrets.REMOTE_USER || '' }}
-        SOURCE: "./"
-        TARGET: "/var/www/vhosts/cfoeducation.it/discovery_platform_temp/"
-        EXCLUDE: ".git/,.github/,frontend/node_modules/,backend/.env,backend/.env.production,frontend/.env,*.log,.DS_Store"
-          
-    - name: Execute deployment script on server
+    - name: Create deployment archive
+      run: |
+        tar czf deploy.tar.gz \
+          --exclude='.git' \
+          --exclude='.github' \
+          --exclude='frontend/node_modules' \
+          --exclude='backend/.env*' \
+          --exclude='*.log' \
+          .
+        ls -lh deploy.tar.gz
+
+    - name: Deploy via SCP and execute
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.REMOTE_HOST }}
+        username: ${{ secrets.REMOTE_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        source: "deploy.tar.gz"
+        target: "/tmp/"
+        timeout: 10m
+        command_timeout: 10m
+
+    - name: Extract and deploy on server
       uses: appleboy/ssh-action@v1.0.0
       with:
-        host: ${{ secrets.REMOTE_HOST || '' }}
-        username: ${{ secrets.REMOTE_USER || '' }}
-        key: ${{ secrets.SSH_PRIVATE_KEY || '' }}
+        host: ${{ secrets.REMOTE_HOST }}
+        username: ${{ secrets.REMOTE_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
         command_timeout: 30m
         script: |
+          # Extract archive
+          mkdir -p /var/www/vhosts/cfoeducation.it/discovery_platform_temp
           cd /var/www/vhosts/cfoeducation.it/discovery_platform_temp
+          tar xzf /tmp/deploy.tar.gz
+          rm /tmp/deploy.tar.gz
+
+          # Run deployment
           bash deploy-on-server.sh
