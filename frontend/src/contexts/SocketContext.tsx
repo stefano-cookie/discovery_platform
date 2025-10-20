@@ -35,6 +35,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const connect = useCallback(() => {
     // Don't create multiple connections
     if (socket?.connected) {
+      console.log('[Socket] Already connected, skipping');
       return;
     }
 
@@ -42,8 +43,11 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     const token = localStorage.getItem('token') || localStorage.getItem('partnerToken');
 
     if (!token) {
+      console.log('[Socket] No token found, skipping connection');
       return;
     }
+
+    console.log('[Socket] Connecting with token:', token.substring(0, 20) + '...');
 
     // Remove /api suffix if present - Socket.IO connects to server root
     const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -85,10 +89,9 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       setIsConnected(false);
       setIsAuthenticated(false);
 
-      // If authentication failed, clear token
-      if (error.message?.includes('token') || error.message?.includes('Authentication')) {
-        localStorage.removeItem('token');
-      }
+      // DON'T clear the token automatically - it might be valid for HTTP requests
+      // The socket will retry with the current token
+      console.warn('[Socket] Connection failed but keeping token - will retry');
     });
 
     // Welcome message (indicates successful auth)
