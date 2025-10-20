@@ -4,6 +4,7 @@ import { authenticateUnified, AuthRequest } from '../../middleware/auth';
 import { DocumentService } from '../../services/documentService';
 import UnifiedDocumentService from '../../services/unifiedDocumentService';
 import emailService from '../../services/emailService';
+import { activityLogger } from '../../services/activityLogger.service';
 import * as fs from 'fs';
 import { DocumentPathResolver } from '../../config/storage';
 import storageService from '../../services/storageService';
@@ -70,35 +71,53 @@ async function checkAndAdvanceRegistration(registrationId: string): Promise<void
 
     const requiredDocs = Array.from(latestDocsByType.values());
 
+    const allRequiredDocsPresent = requiredDocs.length === requiredDocTypes.length;
     const allReviewed = requiredDocs.every(doc => doc.reviewedByPartner);
     const allApproved = requiredDocs.every(doc =>
       doc.status === 'APPROVED_BY_PARTNER' || doc.status === 'APPROVED'
     );
 
     console.log(`[checkAndAdvanceRegistration] Registration ${registrationId}:`);
-    console.log(`  - Required doc types: ${requiredDocTypes.join(', ')}`);
+    console.log(`  - Offer type: ${registration.offerType}`);
+    console.log(`  - Current status: ${registration.status}`);
+    console.log(`  - Required doc types (${requiredDocTypes.length}): ${requiredDocTypes.join(', ')}`);
     console.log(`  - Latest docs found: ${requiredDocs.length}`);
+    console.log(`  - Document types found: ${requiredDocs.map(d => d.type).join(', ')}`);
+    console.log(`  - All required docs present: ${allRequiredDocsPresent}`);
     console.log(`  - All reviewed: ${allReviewed}`);
     console.log(`  - All approved: ${allApproved}`);
 
-    if (allReviewed && requiredDocs.length > 0) {
-      // All documents reviewed → advance to next step
+    // Check if all required documents are present and reviewed
+    if (allRequiredDocsPresent && allReviewed) {
+      // All required documents uploaded and reviewed → advance to next step
       let newStatus = registration.status;
 
       if (allApproved) {
         // All approved by partner → move to AWAITING_DISCOVERY_APPROVAL (Discovery must approve before exam completion)
         if (registration.status === 'DOCUMENTS_UPLOADED') {
           newStatus = 'AWAITING_DISCOVERY_APPROVAL';
+          console.log(`[checkAndAdvanceRegistration] ✅ All documents approved - advancing to AWAITING_DISCOVERY_APPROVAL`);
         }
+      } else {
+        // Some documents rejected - keep status for user to re-upload
+        console.log(`[checkAndAdvanceRegistration] ⚠️ Some documents rejected - staying in ${registration.status}`);
       }
-      // If some rejected, keep status as is (user needs to re-upload)
 
       if (newStatus !== registration.status) {
         await prisma.registration.update({
           where: { id: registrationId },
           data: { status: newStatus }
         });
-        console.log(`[checkAndAdvanceRegistration] Registration ${registrationId} advanced to ${newStatus}`);
+        console.log(`[checkAndAdvanceRegistration] ✅ Registration ${registrationId} advanced from ${registration.status} to ${newStatus}`);
+      }
+    } else {
+      if (!allRequiredDocsPresent) {
+        const missingTypes = requiredDocTypes.filter(type => !requiredDocs.some(doc => doc.type === type));
+        console.log(`[checkAndAdvanceRegistration] ⚠️ Missing required documents: ${missingTypes.join(', ')}`);
+      }
+      if (!allReviewed) {
+        const unreviewed = requiredDocs.filter(doc => !doc.reviewedByPartner);
+        console.log(`[checkAndAdvanceRegistration] ⚠️ Unreviewed documents: ${unreviewed.map(d => d.type).join(', ')}`);
       }
     }
   } catch (error) {
@@ -112,7 +131,16 @@ async function checkAndAdvanceRegistration(registrationId: string): Promise<void
  */
 function getRequiredDocumentTypes(offerType: 'TFA_ROMANIA' | 'CERTIFICATION'): string[] {
   if (offerType === 'TFA_ROMANIA') {
-    return ['IDENTITY_CARD', 'TESSERA_SANITARIA', 'DIPLOMA', 'BACHELOR_DEGREE', 'MASTER_DEGREE'];
+    return [
+      'IDENTITY_CARD',
+      'TESSERA_SANITARIA',
+      'DIPLOMA',
+      'BACHELOR_DEGREE',
+      'MASTER_DEGREE',
+      'TRANSCRIPT',
+      'MEDICAL_CERT',
+      'BIRTH_CERT'
+    ];
   } else if (offerType === 'CERTIFICATION') {
     return ['IDENTITY_CARD', 'TESSERA_SANITARIA'];
   }
@@ -534,6 +562,30 @@ router.post('/documents/:documentId/approve', authenticateUnified, async (req: A
       await checkAndAdvanceRegistration(document.registrationId);
     }
 
+    // Log partner activity
+    if (partnerCompanyId && partnerEmployeeId) {
+      await activityLogger.log({
+          partnerEmployeeId,
+          partnerCompanyId,
+          action: 'APPROVE_DOCUMENT',
+          category: 'CRITICAL',
+          method: 'POST',
+          endpoint: `/api/partner/documents/${documentId}/approve`,
+          resourceType: 'USER_DOCUMENT',
+          resourceId: documentId,
+          details: {
+            documentType: document.type,
+            userId: document.userId,
+            userEmail: document.user.email,
+            registrationId: document.registrationId,
+            previousStatus: document.status,
+            notes: notes || 'Documento approvato'
+          },
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+      });
+    }
+
     res.json({ success: true, message: 'Documento approvato' });
   } catch (error) {
     console.error('Approve document error:', error);
@@ -648,6 +700,31 @@ router.post('/documents/:documentId/reject', authenticateUnified, async (req: Au
     // Check if all documents are reviewed → auto-advance registration
     if (document.registrationId) {
       await checkAndAdvanceRegistration(document.registrationId);
+    }
+
+    // Log partner activity
+    if (partnerCompanyId && partnerEmployeeId) {
+      await activityLogger.log({
+          partnerEmployeeId,
+          partnerCompanyId,
+          action: 'REJECT_DOCUMENT',
+          category: 'CRITICAL',
+          method: 'POST',
+          endpoint: `/api/partner/documents/${documentId}/reject`,
+          resourceType: 'USER_DOCUMENT',
+          resourceId: documentId,
+          details: {
+            documentType: document.type,
+            userId: document.userId,
+            userEmail: document.user.email,
+            registrationId: document.registrationId,
+            previousStatus: document.status,
+            rejectionReason: reason,
+            rejectionDetails: details
+          },
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+      });
     }
 
     res.json({ success: true, message: 'Documento rifiutato e utente notificato via email' });
