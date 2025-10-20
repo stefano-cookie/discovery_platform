@@ -16,6 +16,8 @@ module.exports = {
       env_production: {
         NODE_ENV: 'production',
         PORT: 3010,
+        // Encryption key for 2FA
+        ENCRYPTION_KEY: 'bd958e9b011af387f3e8597b2265a80649c1d2062a8e0702beca53c0d4bec99e',
         // Cloudflare R2 Configuration
         CLOUDFLARE_ACCOUNT_ID: '96e7e20557789c11d012aca51dc21a27',
         CLOUDFLARE_ACCESS_KEY_ID: 'd023a41ae650f8d50a9b6fae8d5fca4b',
