@@ -3822,15 +3822,24 @@ router.post('/registrations/:registrationId/complete-exam', authenticateUnified,
 
     // Verify registration belongs to this partner and is in EXAM_REGISTERED state
     const registration = await prisma.registration.findFirst({
-      where: { 
-        id: registrationId, 
+      where: {
+        id: registrationId,
         partnerCompanyId,
-        status: 'EXAM_REGISTERED' 
+        status: 'EXAM_REGISTERED'
       }
     });
 
     if (!registration) {
       return res.status(404).json({ error: 'Iscrizione non trovata o non in stato corretto' });
+    }
+
+    // IMPORTANT: Verify that Discovery admin has approved the registration before allowing exam completion
+    // @ts-ignore - discoveryApprovedAt exists in schema but TypeScript may have stale cache
+    if (!registration.discoveryApprovedAt) {
+      return res.status(403).json({
+        error: 'L\'iscrizione deve essere approvata da Discovery prima di poter completare l\'esame',
+        details: 'Attendere l\'approvazione amministrativa prima di procedere'
+      });
     }
 
     // Update status to COMPLETED and record completion
