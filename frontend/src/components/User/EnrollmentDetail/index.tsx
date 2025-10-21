@@ -8,6 +8,15 @@ import TfaSteps from './TfaSteps';
 import CertificationSteps from './CertificationSteps';
 import { getUserStatusDisplay, getStatusTranslation } from '../../../utils/statusTranslations';
 
+interface CertificationStep {
+  step: number;
+  title: string;
+  description: string;
+  completed: boolean;
+  completedAt: string | null;
+  status: 'completed' | 'current' | 'pending';
+}
+
 interface UserRegistration {
   id: string;
   courseId: string;
@@ -41,6 +50,13 @@ interface UserRegistration {
   totalPaid?: number;
   remainingAmount?: number;
   delayedAmount?: number;
+  steps?: {
+    enrollment?: CertificationStep;
+    payment?: CertificationStep;
+    documentsApproved?: CertificationStep;
+    examRegistered?: CertificationStep;
+    examCompleted?: CertificationStep;
+  };
 }
 
 interface UserEnrollmentDetailProps {

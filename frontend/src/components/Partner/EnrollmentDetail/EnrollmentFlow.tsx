@@ -8,6 +8,7 @@ interface EnrollmentFlowProps {
   registrationId: string;
   offerType?: string;
   examDate?: string;
+  registration?: any; // Optional full registration object with payment data
 }
 
 interface FlowStep {
@@ -18,7 +19,7 @@ interface FlowStep {
   status: 'completed' | 'current' | 'pending';
 }
 
-const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId, offerType, examDate }) => {
+const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId, offerType, examDate, registration }) => {
   const [currentStatus, setCurrentStatus] = useState(status);
   const [currentExamDate, setCurrentExamDate] = useState(examDate);
   const [isSettingExamDate, setIsSettingExamDate] = useState(false);
@@ -170,15 +171,41 @@ const EnrollmentFlow: React.FC<EnrollmentFlowProps> = ({ status, registrationId,
       },
       {
         id: 'payment',
-        title: 'Pagamento',
-        description: 'In attesa del pagamento tramite bonifico',
+        title: (() => {
+          // Check if all deadlines are paid (if registration data available)
+          if (registration?.deadlines) {
+            const allPaid = registration.deadlines.every((d: any) => d.paymentStatus === 'PAID');
+            return allPaid ? 'Pagamento Completato' : 'Pagamento';
+          }
+          // Fallback: use status to infer payment state
+          return ['ENROLLED', 'DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(currentStatus)
+            ? 'Pagamento Completato' : 'Pagamento';
+        })(),
+        description: (() => {
+          // Check if all deadlines are paid (if registration data available)
+          if (registration?.deadlines) {
+            const allPaid = registration.deadlines.every((d: any) => d.paymentStatus === 'PAID');
+            return allPaid ? 'Tutti i pagamenti sono stati completati' : 'In attesa del pagamento tramite bonifico';
+          }
+          // Fallback
+          return 'In attesa del pagamento tramite bonifico';
+        })(),
         icon: (
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
           </svg>
         ),
-        status: currentStatus === 'PENDING' ? 'current' :
-               ['ENROLLED', 'DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(currentStatus) ? 'completed' : 'pending'
+        status: (() => {
+          // Check if all deadlines are paid
+          if (registration?.deadlines) {
+            const allPaid = registration.deadlines.every((d: any) => d.paymentStatus === 'PAID');
+            return allPaid ? 'completed' as const :
+                   (currentStatus === 'PENDING' ? 'current' as const : 'pending' as const);
+          }
+          // Fallback
+          return currentStatus === 'PENDING' ? 'current' as const :
+                 (['ENROLLED', 'DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(currentStatus) ? 'completed' as const : 'pending' as const);
+        })()
       },
       {
         id: 'documents_approved',

@@ -293,6 +293,60 @@ router.get('/registrations/:registrationId', authenticate, async (req: AuthReque
       return sum;
     }, 0);
 
+    // Calculate certification steps if applicable
+    let steps = undefined;
+    if (registration.offer?.offerType === 'CERTIFICATION') {
+      const allDeadlinesPaid = registration.deadlines.every(d => d.paymentStatus === 'PAID');
+
+      steps = {
+        enrollment: {
+          step: 1,
+          title: 'Iscrizione Completata',
+          description: 'La tua iscrizione al corso di certificazione è stata completata',
+          completed: true,
+          completedAt: registration.createdAt.toISOString(),
+          status: 'completed' as const
+        },
+        payment: {
+          step: 2,
+          title: allDeadlinesPaid ? 'Pagamento Completato' : 'Pagamento',
+          description: allDeadlinesPaid ? 'Tutti i pagamenti sono stati completati' : 'In attesa del pagamento tramite bonifico',
+          completed: allDeadlinesPaid,
+          completedAt: allDeadlinesPaid ? registration.deadlines.find(d => d.paymentStatus === 'PAID')?.paidAt?.toISOString() : null,
+          status: allDeadlinesPaid ? 'completed' as const :
+                  (['PENDING', 'DATA_VERIFIED', 'DOCUMENTS_UPLOADED', 'DOCUMENTS_PARTNER_CHECKED', 'CONTRACT_GENERATED', 'CONTRACT_SIGNED'].includes(registration.status) ? 'current' as const : 'pending' as const)
+        },
+        documentsApproved: {
+          step: 3,
+          title: 'Documenti Approvati',
+          description: 'Carta d\'identità e tessera sanitaria verificate',
+          completed: ['DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status),
+          completedAt: ['DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ?
+                       (registration.enrolledAt?.toISOString() || new Date().toISOString()) : null,
+          status: registration.status === 'ENROLLED' && allDeadlinesPaid ? 'current' as const :
+                  (['DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 'completed' as const : 'pending' as const)
+        },
+        examRegistered: {
+          step: 4,
+          title: 'Iscritto all\'Esame',
+          description: 'Iscrizione all\'esame di certificazione confermata',
+          completed: ['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) || !!registration.examDate,
+          completedAt: registration.examDate?.toISOString() || null,
+          status: registration.status === 'DOCUMENTS_APPROVED' ? 'current' as const :
+                  (['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) || !!registration.examDate ? 'completed' as const : 'pending' as const)
+        },
+        examCompleted: {
+          step: 5,
+          title: 'Esame Sostenuto',
+          description: 'Esame di certificazione completato con successo',
+          completed: registration.status === 'COMPLETED' || !!registration.examCompletedDate,
+          completedAt: registration.examCompletedDate?.toISOString() || null,
+          status: registration.status === 'EXAM_REGISTERED' || !!registration.examDate ? 'current' as const :
+                  (registration.status === 'COMPLETED' || !!registration.examCompletedDate ? 'completed' as const : 'pending' as const)
+        }
+      };
+    }
+
     res.json({
       registration: {
         id: registration.id,
@@ -326,7 +380,8 @@ router.get('/registrations/:registrationId', authenticate, async (req: AuthReque
           partialAmount: deadline.partialAmount ? Number(deadline.partialAmount) : null,
           paymentStatus: deadline.paymentStatus,
           notes: deadline.notes
-        }))
+        })),
+        steps // Add steps for CERTIFICATION enrollments
       }
     });
   } catch (error) {
@@ -1318,10 +1373,12 @@ router.get('/certification-steps/:registrationId', authenticate, async (req: Aut
       },
       payment: {
         step: 2,
-        title: 'Pagamento Completato',
-        description: 'Tutti i pagamenti devono essere completati',
+        title: allDeadlinesPaid ? 'Pagamento Completato' : 'Pagamento',
+        description: allDeadlinesPaid ? 'Tutti i pagamenti sono stati completati' : 'In attesa del pagamento tramite bonifico',
         completed: allDeadlinesPaid,
         completedAt: allDeadlinesPaid ? registration.deadlines.find(d => d.paymentStatus === 'PAID')?.paidAt : null,
+        // Status current: PENDING -> CONTRACT_SIGNED (user must pay)
+        // Status completed: all deadlines paid
         status: allDeadlinesPaid ? 'completed' as const :
                 (['PENDING', 'DATA_VERIFIED', 'DOCUMENTS_UPLOADED', 'DOCUMENTS_PARTNER_CHECKED', 'CONTRACT_GENERATED', 'CONTRACT_SIGNED'].includes(registration.status) ? 'current' as const : 'pending' as const)
       },

@@ -1,6 +1,15 @@
 import React from 'react';
 import { getUserStatusMessage } from '../../../utils/statusMessages';
 
+interface CertificationStep {
+  step: number;
+  title: string;
+  description: string;
+  completed: boolean;
+  completedAt: string | null;
+  status: 'completed' | 'current' | 'pending';
+}
+
 interface UserEnrollmentFlowProps {
   status: string;
   registration: any;
@@ -17,72 +26,64 @@ interface FlowStep {
 const UserEnrollmentFlow: React.FC<UserEnrollmentFlowProps> = ({ status, registration }) => {
   // Definisco gli step del workflow per l'utente
   const getFlowSteps = (): FlowStep[] => {
-    // Per CERTIFICATION, mostra tutti e 5 gli step
-    if (registration?.offerType === 'CERTIFICATION') {
+    // Per CERTIFICATION, usa gli step dal backend se disponibili
+    if (registration?.offerType === 'CERTIFICATION' && registration?.steps) {
+      const backendSteps = registration.steps;
       const steps: FlowStep[] = [
         {
           id: 'enrollment',
-          title: 'Iscrizione Completata',
-          description: 'Hai completato con successo il form di iscrizione',
+          title: backendSteps.enrollment?.title || 'Iscrizione Completata',
+          description: backendSteps.enrollment?.description || 'Hai completato con successo il form di iscrizione',
           icon: (
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           ),
-          status: 'completed' // Sempre completato se arriviamo qui
+          status: backendSteps.enrollment?.status || 'completed'
         },
         {
           id: 'payment',
-          title: 'Pagamento Completato',
-          description: 'Pagamento tramite bonifico bancario',
+          title: backendSteps.payment?.title || 'Pagamento',
+          description: backendSteps.payment?.description || 'Pagamento tramite bonifico bancario',
           icon: (
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
             </svg>
           ),
-          status: status === 'PENDING' ? 'current' :
-                 ['ENROLLED', 'DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(status) ? 'completed' : 'pending'
+          status: backendSteps.payment?.status || 'pending'
         },
         {
           id: 'documents_approved',
-          title: 'Documenti Approvati',
-          description: 'Carta d\'identità e tessera sanitaria verificate',
+          title: backendSteps.documentsApproved?.title || 'Documenti Approvati',
+          description: backendSteps.documentsApproved?.description || 'Carta d\'identità e tessera sanitaria verificate',
           icon: (
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           ),
-          // NUOVO WORKFLOW: Quando status è ENROLLED, documenti ancora in verifica (current)
-          // Quando status è DOCUMENTS_PARTNER_CHECKED/AWAITING_DISCOVERY_APPROVAL/DISCOVERY_APPROVED, documenti verificati (completed)
-          status: status === 'ENROLLED' ? 'current' :
-                 ['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(status) ? 'completed' : 'pending'
+          status: backendSteps.documentsApproved?.status || 'pending'
         },
         {
           id: 'exam_registered',
-          title: 'Iscritto all\'Esame',
-          description: 'Iscrizione all\'esame di certificazione confermata',
+          title: backendSteps.examRegistered?.title || 'Iscritto all\'Esame',
+          description: backendSteps.examRegistered?.description || 'Iscrizione all\'esame di certificazione confermata',
           icon: (
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           ),
-          // NUOVO WORKFLOW: Dopo che documenti sono stati checkati dal partner e approvati da Discovery
-          // questo step diventa "current" (in attesa di iscrizione esame)
-          status: ['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED'].includes(status) ? 'current' :
-                 ['EXAM_REGISTERED', 'COMPLETED'].includes(status) ? 'completed' : 'pending'
+          status: backendSteps.examRegistered?.status || 'pending'
         },
         {
           id: 'exam_completed',
-          title: 'Esame Sostenuto',
-          description: 'Esame di certificazione completato con successo',
+          title: backendSteps.examCompleted?.title || 'Esame Sostenuto',
+          description: backendSteps.examCompleted?.description || 'Esame di certificazione completato con successo',
           icon: (
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
             </svg>
           ),
-          status: status === 'EXAM_REGISTERED' ? 'current' :
-                 status === 'EXAM_COMPLETED' ? 'current' :
-                 status === 'COMPLETED' ? 'completed' : 'pending'
+          status: backendSteps.examCompleted?.status || 'pending'
         }
       ];
       return steps;
