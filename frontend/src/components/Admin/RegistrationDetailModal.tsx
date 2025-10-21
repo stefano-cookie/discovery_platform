@@ -33,6 +33,8 @@ interface Registration {
   finalAmount: number;
   originalAmount: number;
   installments: number;
+  discoveryApprovedAt?: string | null;
+  discoveryApprovedBy?: string | null;
   user: {
     id: string;
     email: string;
@@ -223,8 +225,14 @@ export const RegistrationDetailModal: React.FC<RegistrationDetailModalProps> = (
     return labels[type] || type;
   };
 
-  const canApprove = registration?.status === 'DOCUMENTS_PARTNER_CHECKED' ||
-                     registration?.status === 'AWAITING_DISCOVERY_APPROVAL';
+  // Allow approval if:
+  // 1. Status is DOCUMENTS_PARTNER_CHECKED or AWAITING_DISCOVERY_APPROVAL (normal flow)
+  // 2. OR discoveryApprovedAt is NULL (recovery mode - for enrollments that advanced without admin approval)
+  const canApprove = (
+    registration?.status === 'DOCUMENTS_PARTNER_CHECKED' ||
+    registration?.status === 'AWAITING_DISCOVERY_APPROVAL' ||
+    !registration?.discoveryApprovedAt
+  );
 
   if (!isOpen) return null;
 
