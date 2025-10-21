@@ -473,6 +473,101 @@ UPDATE "User" SET role = 'ADMIN' WHERE email = 'stefanojpriolo@gmail.com';
 
 ---
 
-**Version**: 16.1.0
-**Last Updated**: 2025-10-20
-**Status**: Active Development - Company Deletion R2 Cleanup Fixed
+### 11. ~~Production Issues - Multiple Critical Fixes~~ ✅ RISOLTO
+
+**Problems:**
+1. **PaymentDeadline.paymentType Column Missing** - Migration not applied
+2. **Content-Disposition Header Error** - Non-ASCII characters in filename
+3. **User Redirect to /login During Registration** - 401 errors during enrollment flow
+4. **Socket Authentication Errors** - Invalid signature errors
+5. **Orphaned Documents in R2** - Duplicate uploads not cleaning old files
+
+**Root Causes:**
+1. **Database**: Migration `20251017154830_add_payment_type_to_payment_deadline` marked as applied but enum/column not created
+2. **Headers**: Filenames with accented characters (e.g., "carta d'identità.pdf") caused invalid HTTP header
+3. **API Interceptor**: Too aggressive 401 redirect - triggered during registration/enrollment flows
+4. **Socket**: Frontend using old/invalid tokens from previous sessions
+5. **Document Upload**: No cleanup of old documents when user re-uploads same document type
+
+**Solutions Implemented:**
+
+#### 1. Database Migration Fix
+- ✅ Manually applied missing `PaymentType` enum creation
+- ✅ Added `paymentType` column to `PaymentDeadline` table
+- ✅ Verified migration in production database
+```sql
+CREATE TYPE "PaymentType" AS ENUM ('DEPOSIT', 'INSTALLMENT');
+ALTER TABLE "PaymentDeadline" ADD COLUMN "paymentType" "PaymentType" NOT NULL DEFAULT 'INSTALLMENT';
+UPDATE "PaymentDeadline" SET "paymentType" = 'DEPOSIT' WHERE "paymentNumber" = 0;
+```
+
+#### 2. Content-Disposition Header Sanitization
+- ✅ Added `sanitizeFilename()` function to remove non-ASCII characters
+- ✅ Applied RFC 6266 compliant filename sanitization
+- ✅ Handles accented characters, diacritics, and special chars
+- **File**: `backend/src/middleware/unifiedDownload.ts` (lines 9-23, 47-48, 97-98)
+
+#### 3. API Interceptor Exclusions
+- ✅ Excluded registration/enrollment routes from auto-redirect on 401
+- ✅ Added routes: `/registration/`, `/auth/verify-email`, `/auth/send-email-verification`, `/auth/verify-code`
+- ✅ Prevents redirect during legitimate unauthenticated flows
+- **File**: `frontend/src/services/api.ts` (lines 63-68)
+
+#### 4. Document Upload Cleanup (Prevents Orphaned Files)
+- ✅ Check for existing document of same type before upload
+- ✅ Delete old document from R2 when new one is uploaded
+- ✅ Delete old database record to prevent duplicates
+- ✅ Applied to both user and partner upload endpoints
+- **Files Modified:**
+  - `backend/src/routes/userClean.ts` (lines 770-807: user upload)
+  - `backend/src/services/documentService.ts` (lines 79-111: partner upload)
+
+**Technical Details:**
+
+**Database Migration:**
+- Migration file exists but enum/column were not created
+- Applied manually to production database
+- Verified with `\d "PaymentDeadline"` - column now present
+
+**Filename Sanitization:**
+- Uses NFD normalization + diacritic removal
+- Removes non-ASCII characters (regex: `/[^\x20-\x7E]/g`)
+- Fallback to "download" if empty after sanitization
+
+**Document Cleanup Logic:**
+```typescript
+// Before upload, find existing document
+const existingDoc = await prisma.userDocument.findFirst({
+  where: { userId, type, registrationId }
+});
+
+// Delete from R2 and database
+if (existingDoc) {
+  await storageManager.deleteFile(existingDoc.url);
+  await prisma.userDocument.delete({ where: { id: existingDoc.id } });
+}
+
+// Then upload new document
+```
+
+**Deployment:**
+- Backend: Built and deployed with rsync
+- Frontend: Built and deployed with rsync
+- PM2 restart: Backend restarted successfully
+- No errors in production logs after deployment
+
+**Files Modified:**
+- Backend:
+  - `backend/src/middleware/unifiedDownload.ts` (sanitization)
+  - `backend/src/routes/userClean.ts` (document cleanup)
+  - `backend/src/services/documentService.ts` (document cleanup)
+- Frontend:
+  - `frontend/src/services/api.ts` (API interceptor)
+- Database:
+  - Manual migration applied to production
+
+---
+
+**Version**: 16.2.0
+**Last Updated**: 2025-10-21
+**Status**: Active Development - Production Issues Fixed

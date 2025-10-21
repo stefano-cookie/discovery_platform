@@ -59,18 +59,22 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Don't redirect on 401 if it's a login attempt
-    const isLoginAttempt = error.config?.url?.includes('/auth/login') ||
-                          error.config?.url?.includes('/auth/register');
+    // Don't redirect on 401 if it's a login/registration/enrollment flow
+    const isExcludedRoute = error.config?.url?.includes('/auth/login') ||
+                           error.config?.url?.includes('/auth/register') ||
+                           error.config?.url?.includes('/registration/') ||
+                           error.config?.url?.includes('/auth/verify-email') ||
+                           error.config?.url?.includes('/auth/send-email-verification') ||
+                           error.config?.url?.includes('/auth/verify-code');
 
     console.log('❌ API Error:', {
       url: error.config?.url,
       status: error.response?.status,
       error: error.response?.data?.error,
-      isLoginAttempt
+      isExcludedRoute
     });
 
-    if (error.response?.status === 401 && !isLoginAttempt) {
+    if (error.response?.status === 401 && !isExcludedRoute) {
       const errorMessage = error.response?.data?.error || '';
 
       // Only redirect if token is truly invalid/expired (not permission issues)

@@ -76,6 +76,40 @@ export class DocumentService {
     uploadSource: UploadSource = UploadSource.USER_DASHBOARD,
     userRole: UserRole = UserRole.USER
   ) {
+    // Check for existing document of the same type for this user/registration
+    const existingDoc = await prisma.userDocument.findFirst({
+      where: {
+        userId,
+        type,
+        registrationId
+      },
+      orderBy: { uploadedAt: 'desc' }
+    });
+
+    // If existing document found, delete from R2 and database
+    if (existingDoc) {
+      console.log('🗑️ Found existing document, deleting old version:', {
+        id: existingDoc.id,
+        type: existingDoc.type,
+        key: existingDoc.url
+      });
+
+      try {
+        // Delete from R2
+        await storageManager.deleteFile(existingDoc.url);
+        console.log('✅ Old document deleted from R2:', existingDoc.url);
+      } catch (deleteError) {
+        console.warn('⚠️ Could not delete old document from R2 (may not exist):', deleteError);
+        // Continue anyway - the old DB record will be deleted
+      }
+
+      // Delete from database
+      await prisma.userDocument.delete({
+        where: { id: existingDoc.id }
+      });
+      console.log('✅ Old document deleted from database');
+    }
+
     // Generate checksum for integrity
     const checksum = crypto.createHash('sha256')
       .update(file.buffer)

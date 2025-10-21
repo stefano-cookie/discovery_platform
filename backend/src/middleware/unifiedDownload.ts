@@ -1,10 +1,26 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from './auth';
 import storageManager from '../services/storageManager';
 import path from 'path';
 
 const prisma = new PrismaClient();
+
+/**
+ * Sanitize filename for Content-Disposition header (RFC 6266)
+ * Removes non-ASCII characters and ensures valid header format
+ */
+function sanitizeFilename(filename: string): string {
+  if (!filename) return 'download';
+
+  // Remove or replace problematic characters
+  return filename
+    .normalize('NFD') // Decompose accented characters
+    .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+    .replace(/[^\x20-\x7E]/g, '') // Remove non-ASCII characters
+    .replace(/["\\]/g, '') // Remove quotes and backslashes
+    .trim() || 'download';
+}
 
 /**
  * Unified download middleware that handles both local files and R2 URLs
@@ -27,8 +43,9 @@ class UnifiedDownloadMiddleware {
 
       console.log('📦 Download result:', { storageType, hasSignedUrl: !!downloadResult.signedUrl });
 
-      // Set headers
-      res.setHeader('Content-Disposition', `attachment; filename="${filename || downloadResult.fileName}"`);
+      // Set headers with sanitized filename
+      const safeFilename = sanitizeFilename(filename || downloadResult.fileName);
+      res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
       res.setHeader('Content-Type', mimeType || downloadResult.mimeType || 'application/octet-stream');
 
       if (storageType === 'local') {
@@ -76,8 +93,9 @@ class UnifiedDownloadMiddleware {
 
       console.log('🎬 Stream result:', { storageType, hasSignedUrl: !!downloadResult.signedUrl });
 
-      // Set headers for inline display
-      res.setHeader('Content-Disposition', `inline; filename="${filename || downloadResult.fileName}"`);
+      // Set headers for inline display with sanitized filename
+      const safeFilename = sanitizeFilename(filename || downloadResult.fileName);
+      res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
       res.setHeader('Content-Type', mimeType || downloadResult.mimeType || 'application/pdf');
 
       if (storageType === 'local') {
