@@ -93,8 +93,22 @@ async function checkAndAdvanceRegistration(registrationId: string): Promise<void
       let newStatus = registration.status;
 
       if (allApproved) {
-        // All approved by partner → move to AWAITING_DISCOVERY_APPROVAL (Discovery must approve before exam completion)
-        if (registration.status === 'DOCUMENTS_UPLOADED') {
+        // All approved by partner → check offer type for different workflows
+        if (registration.offerType === 'CERTIFICATION' && registration.status === 'ENROLLED') {
+          // CERTIFICATION workflow: ENROLLED → DOCUMENTS_APPROVED (if payment is complete)
+          const deadlines = await prisma.paymentDeadline.findMany({
+            where: { registrationId }
+          });
+          const allDeadlinesPaid = deadlines.length > 0 && deadlines.every(d => d.paymentStatus === 'PAID');
+
+          if (allDeadlinesPaid) {
+            newStatus = 'DOCUMENTS_APPROVED';
+            console.log(`[checkAndAdvanceRegistration] ✅ CERTIFICATION: All documents approved + payment complete - advancing to DOCUMENTS_APPROVED`);
+          } else {
+            console.log(`[checkAndAdvanceRegistration] ⚠️ CERTIFICATION: All documents approved but payment not complete - staying in ENROLLED`);
+          }
+        } else if (registration.status === 'DOCUMENTS_UPLOADED') {
+          // TFA workflow: DOCUMENTS_UPLOADED → AWAITING_DISCOVERY_APPROVAL
           newStatus = 'AWAITING_DISCOVERY_APPROVAL';
           console.log(`[checkAndAdvanceRegistration] ✅ All documents approved - advancing to AWAITING_DISCOVERY_APPROVAL`);
         }

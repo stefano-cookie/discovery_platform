@@ -3559,12 +3559,12 @@ router.post('/documents/:documentId/verify', authenticateUnified, async (req: Au
             });
 
             if (regWithOffer?.offer?.offerType === 'CERTIFICATION') {
-              // For certification, check if both IDENTITY_CARD and TESSERA_SANITARIA are approved
+              // For certification, check if both IDENTITY_CARD and TESSERA_SANITARIA are approved by partner
               const requiredDocs = await prisma.userDocument.findMany({
                 where: {
                   userId: document.user.id,
                   type: { in: ['IDENTITY_CARD', 'TESSERA_SANITARIA'] },
-                  status: 'APPROVED'
+                  status: { in: ['APPROVED_BY_PARTNER', 'APPROVED', 'APPROVED_BY_DISCOVERY'] }
                 }
               });
 
