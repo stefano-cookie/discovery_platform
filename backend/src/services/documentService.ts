@@ -439,11 +439,15 @@ export class DocumentService {
       });
     }
 
-    // Aggiorna lo status della registrazione
+    // Aggiorna lo status della registrazione e imposta i campi di approvazione Discovery
     await prisma.registration.update({
       where: { id: registrationId },
       data: {
-        status: 'ENROLLED'
+        status: 'ENROLLED',
+        // @ts-ignore - discoveryApprovedAt exists in schema but TypeScript may have stale cache
+        discoveryApprovedAt: new Date(),
+        // @ts-ignore - discoveryApprovedBy exists in schema but TypeScript may have stale cache
+        discoveryApprovedBy: adminId
       }
     });
 
