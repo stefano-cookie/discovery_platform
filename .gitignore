@@ -63,3 +63,4 @@ monitor-workflow.sh
 *.md
 !README.mdCLAUDE.md
 webhook-deploy-server.js
+CLAUDE.md
