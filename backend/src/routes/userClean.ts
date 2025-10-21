@@ -1322,38 +1322,38 @@ router.get('/certification-steps/:registrationId', authenticate, async (req: Aut
         description: 'Tutti i pagamenti devono essere completati',
         completed: allDeadlinesPaid,
         completedAt: allDeadlinesPaid ? registration.deadlines.find(d => d.paymentStatus === 'PAID')?.paidAt : null,
-        status: allDeadlinesPaid ? 'completed' as const : 
-                (registration.status === 'ENROLLED' ? 'current' as const : 'pending' as const)
+        status: allDeadlinesPaid ? 'completed' as const :
+                (['PENDING', 'DATA_VERIFIED', 'DOCUMENTS_UPLOADED', 'DOCUMENTS_PARTNER_CHECKED', 'CONTRACT_GENERATED', 'CONTRACT_SIGNED'].includes(registration.status) ? 'current' as const : 'pending' as const)
       },
       documentsApproved: {
         step: 3,
         title: 'Documenti Approvati',
         description: 'Carta d\'identità e tessera sanitaria verificate',
-        // NUOVO WORKFLOW: Include i nuovi status intermedi
-        completed: ['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status),
-        completedAt: ['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ?
-                     new Date() : null,
+        // Completed only when status is DOCUMENTS_APPROVED or later
+        completed: ['DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status),
+        completedAt: ['DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ?
+                     (registration.enrolledAt || new Date()) : null,
         status: registration.status === 'ENROLLED' && allDeadlinesPaid ? 'current' as const :
-                (['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 'completed' as const : 'pending' as const)
+                (['DOCUMENTS_APPROVED', 'EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) ? 'completed' as const : 'pending' as const)
       },
       examRegistered: {
         step: 4,
         title: 'Iscritto all\'Esame',
         description: 'Iscrizione all\'esame di certificazione confermata',
-        // NUOVO WORKFLOW: Questo step è "current" dopo che Discovery ha approvato
+        // Completed when exam date is set or status is EXAM_REGISTERED/COMPLETED
         completed: ['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) || !!registration.examDate,
-        completedAt: registration.status === 'EXAM_REGISTERED' ? registration.createdAt : registration.examDate,
-        status: ['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL', 'DISCOVERY_APPROVED', 'DOCUMENTS_APPROVED'].includes(registration.status) ? 'current' as const :
+        completedAt: registration.examDate,
+        status: registration.status === 'DOCUMENTS_APPROVED' ? 'current' as const :
                 (['EXAM_REGISTERED', 'COMPLETED'].includes(registration.status) || !!registration.examDate ? 'completed' as const : 'pending' as const)
       },
       examCompleted: {
         step: 5,
         title: 'Esame Sostenuto',
         description: 'Esame di certificazione completato con successo',
-        completed: !!registration.examCompletedDate,
+        completed: registration.status === 'COMPLETED' || !!registration.examCompletedDate,
         completedAt: registration.examCompletedDate,
-        status: registration.status === 'EXAM_REGISTERED' ? 'current' as const :
-                (registration.status === 'COMPLETED' ? 'completed' as const : 'pending' as const)
+        status: registration.status === 'EXAM_REGISTERED' || !!registration.examDate ? 'current' as const :
+                (registration.status === 'COMPLETED' || !!registration.examCompletedDate ? 'completed' as const : 'pending' as const)
       }
     };
     

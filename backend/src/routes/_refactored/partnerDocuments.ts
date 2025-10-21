@@ -557,33 +557,43 @@ router.post('/documents/:documentId/approve', authenticateUnified, async (req: A
       console.log('[AUDIT] Skipping DocumentAuditLog - PartnerEmployee has no User ID');
     }
 
-    // Check if all documents are reviewed → auto-advance registration
+    // Check if all documents are reviewed → auto-advance registration (non-blocking)
     if (document.registrationId) {
-      await checkAndAdvanceRegistration(document.registrationId);
+      try {
+        await checkAndAdvanceRegistration(document.registrationId);
+      } catch (advanceError) {
+        console.error('Error auto-advancing registration (non-critical):', advanceError);
+        // Continue - don't fail the approval if state advancement fails
+      }
     }
 
-    // Log partner activity
+    // Log partner activity (non-blocking)
     if (partnerCompanyId && partnerEmployeeId) {
-      await activityLogger.log({
-          partnerEmployeeId,
-          partnerCompanyId,
-          action: 'APPROVE_DOCUMENT',
-          category: 'CRITICAL',
-          method: 'POST',
-          endpoint: `/api/partner/documents/${documentId}/approve`,
-          resourceType: 'USER_DOCUMENT',
-          resourceId: documentId,
-          details: {
-            documentType: document.type,
-            userId: document.userId,
-            userEmail: document.user.email,
-            registrationId: document.registrationId,
-            previousStatus: document.status,
-            notes: notes || 'Documento approvato'
-          },
-          ipAddress: req.ip,
-          userAgent: req.get('User-Agent')
-      });
+      try {
+        await activityLogger.log({
+            partnerEmployeeId,
+            partnerCompanyId,
+            action: 'APPROVE_DOCUMENT',
+            category: 'CRITICAL',
+            method: 'POST',
+            endpoint: `/api/partner/documents/${documentId}/approve`,
+            resourceType: 'USER_DOCUMENT',
+            resourceId: documentId,
+            details: {
+              documentType: document.type,
+              userId: document.userId,
+              userEmail: document.user.email,
+              registrationId: document.registrationId,
+              previousStatus: document.status,
+              notes: notes || 'Documento approvato'
+            },
+            ipAddress: req.ip,
+            userAgent: req.get('User-Agent')
+        });
+      } catch (logError) {
+        console.error('Error logging activity (non-critical):', logError);
+        // Continue - don't fail the approval if logging fails
+      }
     }
 
     res.json({ success: true, message: 'Documento approvato' });
@@ -687,47 +697,79 @@ router.post('/documents/:documentId/reject', authenticateUnified, async (req: Au
       console.log('[AUDIT] Skipping DocumentAuditLog - PartnerEmployee has no User ID');
     }
 
-    // Send rejection email to user
-    await emailService.sendDocumentRejectionEmail(
-      document.user.email,
-      document.user.profile?.nome || 'Utente',
-      document.type,
-      reason,
-      details,
-      document.registrationId || undefined
-    );
+    // Send rejection email to user (non-blocking)
+    let emailSent = false;
+    try {
+      // Validate email and user data before sending
+      if (!document.user.email) {
+        console.error('[EMAIL] Cannot send rejection email - user email is missing');
+      } else {
+        const userName = document.user.profile?.nome || document.user.profile?.cognome || 'Utente';
+        emailSent = await emailService.sendDocumentRejectionEmail(
+          document.user.email,
+          userName,
+          document.type,
+          reason,
+          details,
+          document.registrationId || undefined
+        );
+        if (!emailSent) {
+          console.warn('[EMAIL] Document rejection email could not be sent (non-critical)');
+        } else {
+          console.log('[EMAIL] Document rejection email sent successfully to:', document.user.email);
+        }
+      }
+    } catch (emailError) {
+      console.error('[EMAIL] Error sending rejection email (non-critical):', emailError);
+      // Continue - don't fail the rejection if email fails
+    }
 
-    // Check if all documents are reviewed → auto-advance registration
+    // Check if all documents are reviewed → auto-advance registration (non-blocking)
     if (document.registrationId) {
-      await checkAndAdvanceRegistration(document.registrationId);
+      try {
+        await checkAndAdvanceRegistration(document.registrationId);
+      } catch (advanceError) {
+        console.error('Error auto-advancing registration (non-critical):', advanceError);
+        // Continue - don't fail the rejection if state advancement fails
+      }
     }
 
-    // Log partner activity
+    // Log partner activity (non-blocking)
     if (partnerCompanyId && partnerEmployeeId) {
-      await activityLogger.log({
-          partnerEmployeeId,
-          partnerCompanyId,
-          action: 'REJECT_DOCUMENT',
-          category: 'CRITICAL',
-          method: 'POST',
-          endpoint: `/api/partner/documents/${documentId}/reject`,
-          resourceType: 'USER_DOCUMENT',
-          resourceId: documentId,
-          details: {
-            documentType: document.type,
-            userId: document.userId,
-            userEmail: document.user.email,
-            registrationId: document.registrationId,
-            previousStatus: document.status,
-            rejectionReason: reason,
-            rejectionDetails: details
-          },
-          ipAddress: req.ip,
-          userAgent: req.get('User-Agent')
-      });
+      try {
+        await activityLogger.log({
+            partnerEmployeeId,
+            partnerCompanyId,
+            action: 'REJECT_DOCUMENT',
+            category: 'CRITICAL',
+            method: 'POST',
+            endpoint: `/api/partner/documents/${documentId}/reject`,
+            resourceType: 'USER_DOCUMENT',
+            resourceId: documentId,
+            details: {
+              documentType: document.type,
+              userId: document.userId,
+              userEmail: document.user.email,
+              registrationId: document.registrationId,
+              previousStatus: document.status,
+              rejectionReason: reason,
+              rejectionDetails: details
+            },
+            ipAddress: req.ip,
+            userAgent: req.get('User-Agent')
+        });
+      } catch (logError) {
+        console.error('Error logging activity (non-critical):', logError);
+        // Continue - don't fail the rejection if logging fails
+      }
     }
 
-    res.json({ success: true, message: 'Documento rifiutato e utente notificato via email' });
+    res.json({
+      success: true,
+      message: emailSent
+        ? 'Documento rifiutato e utente notificato via email'
+        : 'Documento rifiutato (email non inviata)'
+    });
   } catch (error) {
     console.error('Reject document error:', error);
     res.status(500).json({ error: 'Errore interno del server' });

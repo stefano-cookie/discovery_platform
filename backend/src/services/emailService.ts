@@ -926,8 +926,15 @@ class EmailService {
     registrationId?: string
   ): Promise<boolean> {
     try {
+      console.log('[EMAIL] Attempting to send document rejection email:', {
+        to: userEmail,
+        userName,
+        documentType,
+        registrationId
+      });
+
       const template = this.getDocumentRejectionTemplate(userName, documentType, reason, details);
-      
+
       const mailOptions = {
         from: this.fromEmail,
         to: userEmail,
@@ -937,15 +944,24 @@ class EmailService {
       };
 
       const result = await this.transporter.sendMail(mailOptions);
-      console.log('Document rejection email sent successfully:', result.messageId);
+      console.log('[EMAIL] Document rejection email sent successfully:', {
+        messageId: result.messageId,
+        to: userEmail,
+        accepted: result.accepted,
+        rejected: result.rejected
+      });
 
       if (process.env.NODE_ENV === 'development' && result.previewURL) {
-        console.log('Preview email:', nodemailer.getTestMessageUrl(result));
+        console.log('[EMAIL] Preview email:', nodemailer.getTestMessageUrl(result));
       }
 
       return true;
     } catch (error) {
-      console.error('Failed to send document rejection email:', error);
+      console.error('[EMAIL] Failed to send document rejection email:', {
+        error: error instanceof Error ? error.message : String(error),
+        to: userEmail,
+        stack: error instanceof Error ? error.stack : undefined
+      });
       return false;
     }
   }

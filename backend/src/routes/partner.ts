@@ -3568,17 +3568,25 @@ router.post('/documents/:documentId/verify', authenticateUnified, async (req: Au
                 }
               });
 
-              // If both documents are approved, automatically advance to DOCUMENTS_APPROVED only
-              if (requiredDocs.length === 2) {
+              // Check if all payment deadlines are paid
+              const deadlines = await prisma.paymentDeadline.findMany({
+                where: { registrationId: registration.id }
+              });
+              const allDeadlinesPaid = deadlines.length > 0 && deadlines.every(d => d.paymentStatus === 'PAID');
+
+              // If both documents are approved AND payment is complete, advance to DOCUMENTS_APPROVED
+              if (requiredDocs.length === 2 && allDeadlinesPaid) {
                 if (registration.status === 'ENROLLED') {
-                  // Only transition: ENROLLED → DOCUMENTS_APPROVED (stop here)
+                  // Only transition: ENROLLED → DOCUMENTS_APPROVED (when payment is complete)
                   await prisma.registration.update({
                     where: { id: registration.id },
                     data: { status: 'DOCUMENTS_APPROVED' }
                   });
-                  
+
                   console.log('Auto-advanced certification to DOCUMENTS_APPROVED:', registration.id);
                 }
+              } else if (requiredDocs.length === 2 && !allDeadlinesPaid) {
+                console.log('Certification documents approved but payment not complete:', registration.id);
               }
             }
           }
