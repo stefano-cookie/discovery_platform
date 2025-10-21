@@ -14,6 +14,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import api from '../../services/api';
+import ErrorModal from '../UI/ErrorModal';
 
 // Helper per ottenere il token JWT
 const getAuthToken = () => {
@@ -103,6 +104,8 @@ export const RegistrationDetailModal: React.FC<RegistrationDetailModalProps> = (
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [showError, setShowError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     if (isOpen && registrationId) {
@@ -133,7 +136,9 @@ export const RegistrationDetailModal: React.FC<RegistrationDetailModalProps> = (
       onClose();
     } catch (error: any) {
       console.error('Error approving registration:', error);
-      alert(error.response?.data?.error || 'Errore durante approvazione');
+      setErrorMessage(error.response?.data?.error || error.response?.data?.message || 'Errore durante l\'approvazione dell\'iscrizione');
+      setShowError(true);
+      setShowApproveConfirm(false);
     } finally {
       setActionLoading(false);
     }
@@ -626,6 +631,14 @@ export const RegistrationDetailModal: React.FC<RegistrationDetailModalProps> = (
             </div>
           </div>
         )}
+
+        {/* Error Modal */}
+        <ErrorModal
+          isOpen={showError}
+          onClose={() => setShowError(false)}
+          title="Errore durante l'approvazione"
+          message={errorMessage}
+        />
       </div>
     </div>
   );
