@@ -549,23 +549,36 @@ router.post('/documents/:documentId/approve', authenticateUnified, async (req: A
       data: updateData
     });
 
-    // Create audit log
+    // Create audit log (non-blocking)
     // Note: performedBy field references User table
     // For legacy partners: use req.user.id (partner has User account)
-    // For PartnerEmployee: use req.user?.id if exists, otherwise skip audit log
-    const performedById = req.user?.id;
+    // For PartnerEmployee: skip audit log (they don't have User accounts)
+    if (partnerId && req.user?.id) {
+      try {
+        // Verify the user ID exists in User table before creating audit log
+        const userExists = await prisma.user.findUnique({
+          where: { id: req.user.id },
+          select: { id: true }
+        });
 
-    if (performedById) {
-      await prisma.documentAuditLog.create({
-        data: {
-          documentId,
-          action: 'APPROVED',
-          performedBy: performedById,
-          previousStatus: document.status,
-          newStatus: 'APPROVED_BY_PARTNER',
-          notes: notes || `Documento approvato dal ${partnerEmployeeId ? 'collaboratore' : 'partner'}`
+        if (userExists) {
+          await prisma.documentAuditLog.create({
+            data: {
+              documentId,
+              action: 'APPROVED',
+              performedBy: req.user.id,
+              previousStatus: document.status,
+              newStatus: 'APPROVED_BY_PARTNER',
+              notes: notes || 'Documento approvato dal partner'
+            }
+          });
+        } else {
+          console.log('[AUDIT] Skipping DocumentAuditLog - User ID not found in User table');
         }
-      });
+      } catch (auditError) {
+        console.error('Error creating DocumentAuditLog (non-critical):', auditError);
+        // Continue - don't fail the approval if audit log creation fails
+      }
     } else {
       // PartnerEmployee doesn't have User account - skip audit log
       console.log('[AUDIT] Skipping DocumentAuditLog - PartnerEmployee has no User ID');
@@ -689,23 +702,36 @@ router.post('/documents/:documentId/reject', authenticateUnified, async (req: Au
       data: updateData
     });
 
-    // Create audit log
+    // Create audit log (non-blocking)
     // Note: performedBy field references User table
     // For legacy partners: use req.user.id (partner has User account)
-    // For PartnerEmployee: use req.user?.id if exists, otherwise skip audit log
-    const performedById = req.user?.id;
+    // For PartnerEmployee: skip audit log (they don't have User accounts)
+    if (partnerId && req.user?.id) {
+      try {
+        // Verify the user ID exists in User table before creating audit log
+        const userExists = await prisma.user.findUnique({
+          where: { id: req.user.id },
+          select: { id: true }
+        });
 
-    if (performedById) {
-      await prisma.documentAuditLog.create({
-        data: {
-          documentId,
-          action: 'REJECTED',
-          performedBy: performedById,
-          previousStatus: document.status,
-          newStatus: 'REJECTED_BY_PARTNER',
-          notes: `Motivo: ${reason}${details ? ` - Dettagli: ${details}` : ''}`
+        if (userExists) {
+          await prisma.documentAuditLog.create({
+            data: {
+              documentId,
+              action: 'REJECTED',
+              performedBy: req.user.id,
+              previousStatus: document.status,
+              newStatus: 'REJECTED_BY_PARTNER',
+              notes: `Motivo: ${reason}${details ? ` - Dettagli: ${details}` : ''}`
+            }
+          });
+        } else {
+          console.log('[AUDIT] Skipping DocumentAuditLog - User ID not found in User table');
         }
-      });
+      } catch (auditError) {
+        console.error('Error creating DocumentAuditLog (non-critical):', auditError);
+        // Continue - don't fail the rejection if audit log creation fails
+      }
     } else {
       // PartnerEmployee doesn't have User account - skip audit log
       console.log('[AUDIT] Skipping DocumentAuditLog - PartnerEmployee has no User ID');
