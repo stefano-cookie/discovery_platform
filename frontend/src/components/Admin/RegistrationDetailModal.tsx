@@ -276,13 +276,7 @@ export const RegistrationDetailModal: React.FC<RegistrationDetailModalProps> = (
                       <CheckCircle2 className="w-5 h-5" />
                       Approva
                     </button>
-                    <button
-                      onClick={() => setShowRejectForm(true)}
-                      className="flex items-center gap-2 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-                    >
-                      <XCircle className="w-5 h-5" />
-                      Rifiuta
-                    </button>
+                    {/* Reject button removed - not needed for certification flow */}
                   </div>
                 )}
               </div>

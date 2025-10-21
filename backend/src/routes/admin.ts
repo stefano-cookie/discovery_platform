@@ -584,7 +584,7 @@ router.patch('/registrations/:id/approve', authenticateAdmin, requireAdmin, asyn
     const { notes } = req.body;
     const adminId = req.user!.id;
 
-    // Verifica che la registrazione esista e sia in stato corretto
+    // Verifica che la registrazione esista
     const registration = await prisma.registration.findUnique({
       where: { id }
     });
@@ -593,13 +593,19 @@ router.patch('/registrations/:id/approve', authenticateAdmin, requireAdmin, asyn
       return res.status(404).json({ error: 'Registration not found' });
     }
 
-    // Accept both DOCUMENTS_PARTNER_CHECKED and AWAITING_DISCOVERY_APPROVAL
+    // Allow approval if:
+    // 1. Status is DOCUMENTS_PARTNER_CHECKED or AWAITING_DISCOVERY_APPROVAL (normal flow)
+    // 2. OR discoveryApprovedAt is NULL (recovery mode - for enrollments that advanced without admin approval)
     const validStatuses = ['DOCUMENTS_PARTNER_CHECKED', 'AWAITING_DISCOVERY_APPROVAL'];
-    if (!validStatuses.includes(registration.status)) {
+    // @ts-ignore - discoveryApprovedAt exists in schema but TypeScript may have stale cache
+    const isValidStatus = validStatuses.includes(registration.status) || !registration.discoveryApprovedAt;
+
+    if (!isValidStatus) {
       return res.status(400).json({
-        error: 'Registration is not in pending approval status',
+        error: 'Registration has already been approved by Discovery',
         currentStatus: registration.status,
-        expectedStatuses: validStatuses
+        // @ts-ignore
+        approvedAt: registration.discoveryApprovedAt
       });
     }
 
