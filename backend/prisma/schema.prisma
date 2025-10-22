@@ -398,8 +398,8 @@ model Coupon {
   partnerCompany PartnerCompany? @relation("CompanyCoupons", fields: [partnerCompanyId], references: [id])
   uses           CouponUse[]
 
-  @@unique([partnerId, code])
-  @@index([partnerCompanyId])
+  @@unique([partnerCompanyId, code])
+  @@index([partnerId])
 }
 
 enum DiscountType {

@@ -218,12 +218,6 @@ async function applyCouponAndRecordUsage(
       return { finalAmount: baseAmount, couponApplied: false, discountApplied: 0 };
     }
 
-    // Check usage limits
-    if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) {
-      console.warn(`Coupon ${couponCode} has reached usage limit: ${coupon.usedCount}/${coupon.maxUses}`);
-      return { finalAmount: baseAmount, couponApplied: false, discountApplied: 0 };
-    }
-
     // Calculate discount
     let finalAmount = baseAmount;
     let discountApplied = 0;
@@ -237,6 +231,27 @@ async function applyCouponAndRecordUsage(
       finalAmount = Math.max(0, baseAmount - discountApplied);
     }
 
+    // Atomic increment with usage limit check (prevents race condition)
+    const updatedCoupon = await tx.coupon.updateMany({
+      where: {
+        id: coupon.id,
+        // Only increment if under maxUses limit (or no limit)
+        OR: [
+          { maxUses: null },
+          { usedCount: { lt: coupon.maxUses || 0 } }
+        ]
+      },
+      data: {
+        usedCount: { increment: 1 }
+      }
+    });
+
+    // If no rows were updated, the coupon reached max uses
+    if (updatedCoupon.count === 0) {
+      console.warn(`Coupon ${couponCode} has reached usage limit (race condition prevented)`);
+      return { finalAmount: baseAmount, couponApplied: false, discountApplied: 0 };
+    }
+
     // Record coupon usage
     const couponUse = await tx.couponUse.create({
       data: {
@@ -247,23 +262,20 @@ async function applyCouponAndRecordUsage(
       }
     });
 
-    // Increment usage counter
-    const updatedCoupon = await tx.coupon.update({
-      where: { id: coupon.id },
-      data: {
-        usedCount: { increment: 1 }
-      }
+    // Fetch updated coupon to check if it should be deactivated
+    const finalCoupon = await tx.coupon.findUnique({
+      where: { id: coupon.id }
     });
 
     // Check if coupon should be deactivated (reached max uses)
     let shouldBroadcastExpired = false;
-    if (updatedCoupon.maxUses && updatedCoupon.usedCount >= updatedCoupon.maxUses) {
+    if (finalCoupon && finalCoupon.maxUses && finalCoupon.usedCount >= finalCoupon.maxUses) {
       await tx.coupon.update({
         where: { id: coupon.id },
         data: { isActive: false }
       });
       shouldBroadcastExpired = true;
-      console.log(`Coupon ${couponCode} deactivated after reaching usage limit: ${updatedCoupon.usedCount}/${updatedCoupon.maxUses}`);
+      console.log(`Coupon ${couponCode} deactivated after reaching usage limit: ${finalCoupon.usedCount}/${finalCoupon.maxUses}`);
     }
 
     console.log(`Applied coupon ${couponCode}: ${baseAmount} -> ${finalAmount} (discount: ${discountApplied})`);
@@ -2143,13 +2155,17 @@ router.post('/validate-coupon', async (req, res) => {
       });
     }
 
-    // Find coupon globally (no partner restriction)
+    // Find coupon with partner restriction
     const coupon = await prisma.coupon.findFirst({
       where: {
         code: couponCode,
         isActive: true,
         validFrom: { lte: new Date() },
-        validUntil: { gte: new Date() }
+        validUntil: { gte: new Date() },
+        OR: [
+          { partnerId: partnerId },
+          { partnerCompanyId: partnerId }
+        ]
       }
     });
 

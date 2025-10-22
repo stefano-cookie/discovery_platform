@@ -16,6 +16,7 @@ const couponSchema = z.object({
   discountType: z.string().min(1, 'Tipo sconto richiesto'),
   discountAmount: z.number()
     .min(0.01, 'Importo deve essere maggiore di 0')
+    .max(10000, 'Lo sconto massimo è di €10.000')
     .optional(),
   discountPercent: z.number()
     .min(1, 'Percentuale deve essere tra 1 e 100')
