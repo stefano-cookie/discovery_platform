@@ -584,12 +584,26 @@ router.patch('/registrations/:id/approve', authenticateAdmin, requireAdmin, asyn
     const { notes } = req.body;
     const adminId = req.user!.id;
 
+    console.log('🔍 [ADMIN APPROVAL] Starting approval process:', {
+      registrationId: id,
+      adminId,
+      notes
+    });
+
     // Verifica che la registrazione esista
     const registration = await prisma.registration.findUnique({
       where: { id }
     });
 
+    console.log('🔍 [ADMIN APPROVAL] Registration found:', {
+      id: registration?.id,
+      status: registration?.status,
+      discoveryApprovedAt: (registration as any)?.discoveryApprovedAt,
+      discoveryApprovedBy: (registration as any)?.discoveryApprovedBy
+    });
+
     if (!registration) {
+      console.error('❌ [ADMIN APPROVAL] Registration not found:', id);
       return res.status(404).json({ error: 'Registration not found' });
     }
 
@@ -600,7 +614,14 @@ router.patch('/registrations/:id/approve', authenticateAdmin, requireAdmin, asyn
     // @ts-ignore - discoveryApprovedAt exists in schema but TypeScript may have stale cache
     const isValidStatus = validStatuses.includes(registration.status) || !registration.discoveryApprovedAt;
 
+    console.log('🔍 [ADMIN APPROVAL] Status validation:', {
+      status: registration.status,
+      validStatuses,
+      isValidStatus
+    });
+
     if (!isValidStatus) {
+      console.error('❌ [ADMIN APPROVAL] Invalid status for approval');
       return res.status(400).json({
         error: 'Registration has already been approved by Discovery',
         currentStatus: registration.status,
@@ -609,12 +630,19 @@ router.patch('/registrations/:id/approve', authenticateAdmin, requireAdmin, asyn
       });
     }
 
+    console.log('✅ [ADMIN APPROVAL] Calling DocumentService.discoveryApproveRegistration...');
+
     // Approva iscrizione tramite DocumentService
     const result = await DocumentService.discoveryApproveRegistration(
       id,
       adminId,
       notes
     );
+
+    console.log('✅ [ADMIN APPROVAL] DocumentService completed successfully:', {
+      documentsApproved: result.documentsApproved,
+      emailSent: result.emailSent
+    });
 
     res.json({
       success: true,
@@ -628,10 +656,15 @@ router.patch('/registrations/:id/approve', authenticateAdmin, requireAdmin, asyn
       emailSent: result.emailSent
     });
   } catch (error: any) {
-    console.error('Error approving registration:', error);
+    console.error('❌ [ADMIN APPROVAL] Error approving registration:', {
+      error: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     res.status(500).json({
       error: 'Internal server error',
-      message: error.message
+      message: error.message,
+      details: error.stack
     });
   }
 });

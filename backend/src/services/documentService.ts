@@ -388,6 +388,12 @@ export class DocumentService {
     adminId: string,
     notes?: string
   ) {
+    console.log('🔍 [DocumentService] discoveryApproveRegistration called:', {
+      registrationId,
+      adminId,
+      notes
+    });
+
     // Trova tutti i documenti della registrazione
     const documents = await prisma.userDocument.findMany({
       where: { registrationId },
@@ -409,9 +415,17 @@ export class DocumentService {
       }
     });
 
+    console.log('🔍 [DocumentService] Documents found:', {
+      count: documents.length,
+      documentIds: documents.map(d => d.id)
+    });
+
     if (documents.length === 0) {
+      console.error('❌ [DocumentService] No documents found for registration:', registrationId);
       throw new Error('Nessun documento trovato per questa iscrizione');
     }
+
+    console.log('🔍 [DocumentService] Approving all documents...');
 
     // Approva tutti i documenti
     await prisma.userDocument.updateMany({
@@ -422,6 +436,8 @@ export class DocumentService {
         discoveryApprovedBy: adminId
       }
     });
+
+    console.log('✅ [DocumentService] Documents approved, creating action logs...');
 
     // Log approvazione Discovery per ogni documento
     for (const doc of documents) {
@@ -439,17 +455,37 @@ export class DocumentService {
       });
     }
 
+    console.log('✅ [DocumentService] Action logs created, updating registration status...');
+
     // Aggiorna lo status della registrazione e imposta i campi di approvazione Discovery
-    await prisma.registration.update({
-      where: { id: registrationId },
-      data: {
-        status: 'ENROLLED',
-        // @ts-ignore - discoveryApprovedAt exists in schema but TypeScript may have stale cache
-        discoveryApprovedAt: new Date(),
-        // @ts-ignore - discoveryApprovedBy exists in schema but TypeScript may have stale cache
-        discoveryApprovedBy: adminId
-      }
-    });
+    const updateData: any = {
+      status: 'ENROLLED',
+      discoveryApprovedAt: new Date(),
+      discoveryApprovedBy: adminId
+    };
+
+    console.log('🔍 [DocumentService] Update data:', updateData);
+
+    try {
+      const updatedRegistration = await prisma.registration.update({
+        where: { id: registrationId },
+        data: updateData
+      });
+
+      console.log('✅ [DocumentService] Registration updated successfully:', {
+        id: updatedRegistration.id,
+        status: updatedRegistration.status,
+        discoveryApprovedAt: (updatedRegistration as any).discoveryApprovedAt,
+        discoveryApprovedBy: (updatedRegistration as any).discoveryApprovedBy
+      });
+    } catch (updateError: any) {
+      console.error('❌ [DocumentService] Failed to update registration:', {
+        error: updateError.message,
+        stack: updateError.stack,
+        updateData
+      });
+      throw updateError;
+    }
 
     // Log azione admin Discovery
     await prisma.discoveryAdminLog.create({
