@@ -457,35 +457,18 @@ export class DocumentService {
 
     console.log('✅ [DocumentService] Action logs created, updating registration status...');
 
-    // Aggiorna lo status della registrazione e imposta i campi di approvazione Discovery
-    const updateData: any = {
-      status: 'ENROLLED',
-      discoveryApprovedAt: new Date(),
-      discoveryApprovedBy: adminId
-    };
+    // Aggiorna solo lo status della registrazione (i campi discoveryApprovedAt/By causano errore Prisma)
+    // L'approvazione Discovery viene tracciata tramite DiscoveryAdminLog
+    console.log('🔍 [DocumentService] Updating registration status to ENROLLED');
 
-    console.log('🔍 [DocumentService] Update data:', updateData);
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        status: 'ENROLLED'
+      }
+    });
 
-    try {
-      const updatedRegistration = await prisma.registration.update({
-        where: { id: registrationId },
-        data: updateData
-      });
-
-      console.log('✅ [DocumentService] Registration updated successfully:', {
-        id: updatedRegistration.id,
-        status: updatedRegistration.status,
-        discoveryApprovedAt: (updatedRegistration as any).discoveryApprovedAt,
-        discoveryApprovedBy: (updatedRegistration as any).discoveryApprovedBy
-      });
-    } catch (updateError: any) {
-      console.error('❌ [DocumentService] Failed to update registration:', {
-        error: updateError.message,
-        stack: updateError.stack,
-        updateData
-      });
-      throw updateError;
-    }
+    console.log('✅ [DocumentService] Registration status updated successfully');
 
     // Log azione admin Discovery
     await prisma.discoveryAdminLog.create({
