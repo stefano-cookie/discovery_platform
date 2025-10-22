@@ -115,7 +115,7 @@ const EnrollmentStep: React.FC<EnrollmentStepProps> = ({ data, formData, onNext,
       // Use the specific course from the offer
       const courseFromOffer: Course = {
         id: offerInfo.course.id,
-        name: offerInfo.name,
+        name: offerInfo.course.name, // Use course name, not offer name
         description: offerInfo.course.description || '',
         totalAmount: Number(offerInfo.totalAmount),
         isActive: offerInfo.course.isActive,

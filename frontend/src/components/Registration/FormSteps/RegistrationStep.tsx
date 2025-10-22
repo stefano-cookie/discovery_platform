@@ -1332,8 +1332,8 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
                     )}
                   </div>
                   <div className="ml-3">
-                    <h5 className="text-sm font-semibold text-blue-900">{offerInfo.name}</h5>
-                    <p className="text-xs text-blue-700 mt-1">{offerInfo.course.description || 'Corso selezionato'}</p>
+                    <h5 className="text-sm font-semibold text-blue-900">{offerInfo.course.name}</h5>
+                    <p className="text-xs text-blue-700 mt-1">{offerInfo.name}</p>
                     
                     {/* Show discount notice if applicable */}
                     {paymentInfo.originalAmount !== paymentInfo.finalAmount && (
@@ -1368,30 +1368,38 @@ const RegistrationStep: React.FC<RegistrationStepProps> = ({
             );
           })()}
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div>
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between border-b pb-2">
               <span className="font-medium text-gray-500">
-                {offerInfo?.offerType === 'CERTIFICATION' ? 'Certificazione:' : 'Corso Selezionato:'}
+                {offerInfo?.offerType === 'CERTIFICATION' ? 'Certificazione:' : 'Corso:'}
               </span>
-              <p className="text-gray-900">
-                {offerInfo ? offerInfo.name : (formData.courseId || 'Non selezionato')}
+              <p className="text-gray-900 font-semibold">
+                {offerInfo ? offerInfo.course.name : (formData.courseId || 'Non selezionato')}
               </p>
             </div>
-            <div>
+            <div className="flex justify-between border-b pb-2">
+              <span className="font-medium text-gray-500">Nome Offerta:</span>
+              <p className="text-gray-900">
+                {offerInfo ? offerInfo.name : 'Non selezionato'}
+              </p>
+            </div>
+            <div className="flex justify-between">
               <span className="font-medium text-gray-500">Piano di Pagamento:</span>
               <p className="text-gray-900">
                 {formData.paymentPlan || 'Piano predefinito partner'}
               </p>
             </div>
-            
-            {/* Show partner info if available */}
-            {formData.referralCode && (
-              <div className="md:col-span-2">
+          </div>
+
+          {/* Show partner info if available */}
+          {formData.referralCode && (
+            <div className="mt-3 pt-3 border-t">
+              <div className="flex justify-between">
                 <span className="font-medium text-gray-500">Codice Referral Partner:</span>
                 <p className="text-green-600 font-medium">{formData.referralCode}</p>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Opzioni finali */}
