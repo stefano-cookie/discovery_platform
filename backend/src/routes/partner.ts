@@ -2,7 +2,7 @@ import { Router, Response as ExpressResponse } from 'express';
 import { PrismaClient, DocumentStatus } from '@prisma/client';
 // Auto-progression fix for certification status
 import { authenticate, authenticateUnified, requireRole, requirePartnerRole, AuthRequest } from '../middleware/auth';
-import { ContractService } from '../services/contractService';
+import { ContractServicePDFKit } from '../services/contractServicePDFKit';
 import { DocumentService, upload as documentUpload } from '../services/documentService';
 // import UnifiedDocumentService from '../services/unifiedDocumentService'; // OBSOLETO - ora usa DocumentService
 import multer from 'multer';
@@ -31,7 +31,7 @@ async function isUserOrphaned(userId: string, partnerCompanyId: string): Promise
   // UserOfferAccess (offer permissions) don't affect orphaned status
   return registrations === 0;
 }
-const contractService = new ContractService();
+const contractService = new ContractServicePDFKit();
 
 /**
  * Calculate the project root directory

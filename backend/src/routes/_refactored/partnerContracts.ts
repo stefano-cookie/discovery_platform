@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticatePartner, AuthRequest } from '../../middleware/auth';
-import { ContractService } from '../../services/contractService';
+import { ContractServicePDFKit } from '../../services/contractServicePDFKit';
 import multer from 'multer';
 import * as path from 'path';
 import * as fs from 'fs';
 
 const router = Router();
 const prisma = new PrismaClient();
-const contractService = new ContractService();
+const contractService = new ContractServicePDFKit();
 
 // Configure multer for contract uploads - Use process.cwd() for consistency
 const contractStorage = multer.diskStorage({

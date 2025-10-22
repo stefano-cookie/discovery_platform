@@ -3,14 +3,14 @@ import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import emailService from '../services/emailService';
 import SecureTokenService from '../services/secureTokenService';
-import { ContractService } from '../services/contractService';
+import { ContractServicePDFKit } from '../services/contractServicePDFKit';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import unifiedDownload from '../middleware/unifiedDownload';
 import storageManager from '../services/storageManager';
 
-const contractService = new ContractService();
+const contractService = new ContractServicePDFKit();
 const router = Router();
 const prisma = new PrismaClient();
 
