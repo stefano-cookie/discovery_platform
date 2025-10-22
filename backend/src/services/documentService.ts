@@ -503,6 +503,26 @@ export class DocumentService {
 
     console.log('✅ [DocumentService] Registration status updated successfully to', targetStatus);
 
+    // Verify the update was successful
+    const verifyUpdate = await prisma.$queryRaw<Array<{
+      status: string;
+      discoveryApprovedAt: Date | null;
+      discoveryApprovedBy: string | null;
+      enrolledAt: Date | null;
+    }>>`
+      SELECT status, "discoveryApprovedAt", "discoveryApprovedBy", "enrolledAt"
+      FROM "Registration"
+      WHERE id = ${registrationId}
+    `;
+
+    console.log('✅ [DocumentService] Verification query result:', {
+      registrationId,
+      status: verifyUpdate[0]?.status,
+      discoveryApprovedAt: verifyUpdate[0]?.discoveryApprovedAt,
+      discoveryApprovedBy: verifyUpdate[0]?.discoveryApprovedBy,
+      enrolledAt: verifyUpdate[0]?.enrolledAt
+    });
+
     // Log azione admin Discovery
     await prisma.discoveryAdminLog.create({
       data: {

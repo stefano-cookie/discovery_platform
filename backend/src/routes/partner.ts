@@ -3769,9 +3769,21 @@ router.post('/registrations/:registrationId/exam-date', authenticateUnified, asy
       });
     }
 
-    // Verify that Discovery has approved the registration
-    // @ts-ignore - discoveryApprovedAt exists in schema but TypeScript may have stale cache
-    if (!registration.discoveryApprovedAt) {
+    // Verify that Discovery has approved the registration using raw SQL
+    // Prisma may not recognize discoveryApprovedAt field due to cache issues
+    const approvalCheck = await prisma.$queryRaw<Array<{ discoveryApprovedAt: Date | null }>>`
+      SELECT "discoveryApprovedAt"
+      FROM "Registration"
+      WHERE id = ${registrationId}
+    `;
+
+    console.log('🔍 [Exam Registration] Discovery approval check:', {
+      registrationId,
+      discoveryApprovedAt: approvalCheck[0]?.discoveryApprovedAt,
+      hasApproval: !!approvalCheck[0]?.discoveryApprovedAt
+    });
+
+    if (!approvalCheck[0]?.discoveryApprovedAt) {
       return res.status(403).json({
         error: 'L\'iscrizione deve essere approvata da Discovery prima di poter registrare l\'esame',
         details: 'Attendere l\'approvazione amministrativa prima di procedere'
@@ -3821,9 +3833,21 @@ router.post('/registrations/:registrationId/complete-exam', authenticateUnified,
       return res.status(404).json({ error: 'Iscrizione non trovata o non in stato corretto' });
     }
 
-    // IMPORTANT: Verify that Discovery admin has approved the registration before allowing exam completion
-    // @ts-ignore - discoveryApprovedAt exists in schema but TypeScript may have stale cache
-    if (!registration.discoveryApprovedAt) {
+    // Verify that Discovery has approved the registration using raw SQL
+    // Prisma may not recognize discoveryApprovedAt field due to cache issues
+    const approvalCheck = await prisma.$queryRaw<Array<{ discoveryApprovedAt: Date | null }>>`
+      SELECT "discoveryApprovedAt"
+      FROM "Registration"
+      WHERE id = ${registrationId}
+    `;
+
+    console.log('🔍 [Exam Completion] Discovery approval check:', {
+      registrationId,
+      discoveryApprovedAt: approvalCheck[0]?.discoveryApprovedAt,
+      hasApproval: !!approvalCheck[0]?.discoveryApprovedAt
+    });
+
+    if (!approvalCheck[0]?.discoveryApprovedAt) {
       return res.status(403).json({
         error: 'L\'iscrizione deve essere approvata da Discovery prima di poter completare l\'esame',
         details: 'Attendere l\'approvazione amministrativa prima di procedere'
