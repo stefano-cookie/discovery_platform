@@ -3558,37 +3558,9 @@ router.post('/documents/:documentId/verify', authenticateUnified, async (req: Au
               include: { offer: true }
             });
 
-            if (regWithOffer?.offer?.offerType === 'CERTIFICATION') {
-              // For certification, check if both IDENTITY_CARD and TESSERA_SANITARIA are approved by partner
-              const requiredDocs = await prisma.userDocument.findMany({
-                where: {
-                  userId: document.user.id,
-                  type: { in: ['IDENTITY_CARD', 'TESSERA_SANITARIA'] },
-                  status: { in: ['APPROVED_BY_PARTNER', 'APPROVED', 'APPROVED_BY_DISCOVERY'] }
-                }
-              });
-
-              // Check if all payment deadlines are paid
-              const deadlines = await prisma.paymentDeadline.findMany({
-                where: { registrationId: registration.id }
-              });
-              const allDeadlinesPaid = deadlines.length > 0 && deadlines.every(d => d.paymentStatus === 'PAID');
-
-              // If both documents are approved AND payment is complete, advance to DOCUMENTS_APPROVED
-              if (requiredDocs.length === 2 && allDeadlinesPaid) {
-                if (registration.status === 'ENROLLED') {
-                  // Only transition: ENROLLED → DOCUMENTS_APPROVED (when payment is complete)
-                  await prisma.registration.update({
-                    where: { id: registration.id },
-                    data: { status: 'DOCUMENTS_APPROVED' }
-                  });
-
-                  console.log('Auto-advanced certification to DOCUMENTS_APPROVED:', registration.id);
-                }
-              } else if (requiredDocs.length === 2 && !allDeadlinesPaid) {
-                console.log('Certification documents approved but payment not complete:', registration.id);
-              }
-            }
+            // Auto-advancement removed - now handled only in DocumentService.discoveryApproveRegistration
+            // Partner document approval advances to AWAITING_DISCOVERY_APPROVAL
+            // Discovery approval handles transition to ENROLLED or DOCUMENTS_APPROVED
           }
         }
       }
@@ -3781,13 +3753,29 @@ router.post('/registrations/:registrationId/exam-date', authenticateUnified, asy
       return res.status(400).json({ error: 'Data esame obbligatoria' });
     }
 
-    // Verify registration belongs to this partner
+    // Verify registration belongs to this partner and is in DOCUMENTS_APPROVED state
     const registration = await prisma.registration.findFirst({
-      where: { id: registrationId, partnerCompanyId }
+      where: {
+        id: registrationId,
+        partnerCompanyId,
+        status: 'DOCUMENTS_APPROVED'
+      }
     });
 
     if (!registration) {
-      return res.status(404).json({ error: 'Iscrizione non trovata' });
+      return res.status(404).json({
+        error: 'Iscrizione non trovata o non in stato corretto',
+        details: 'L\'iscrizione deve essere nello stato DOCUMENTS_APPROVED per registrare l\'esame'
+      });
+    }
+
+    // Verify that Discovery has approved the registration
+    // @ts-ignore - discoveryApprovedAt exists in schema but TypeScript may have stale cache
+    if (!registration.discoveryApprovedAt) {
+      return res.status(403).json({
+        error: 'L\'iscrizione deve essere approvata da Discovery prima di poter registrare l\'esame',
+        details: 'Attendere l\'approvazione amministrativa prima di procedere'
+      });
     }
 
     // Update exam date and status for certification workflow
@@ -3971,29 +3959,8 @@ router.post('/registrations/:registrationId/bulk-verify', authenticateUnified, a
       }
     });
 
-    if (regWithOffer?.offer?.offerType === 'CERTIFICATION') {
-      // Check approved documents for this user
-      const approvedDocs = await prisma.userDocument.findMany({
-        where: {
-          userId: regWithOffer.userId,
-          type: { in: ['IDENTITY_CARD', 'TESSERA_SANITARIA'] },
-          status: 'APPROVED'
-        }
-      });
-
-      if (approvedDocs.length === 2) {
-        // If both documents are approved, automatically advance to DOCUMENTS_APPROVED only
-        if (regWithOffer.status === 'ENROLLED') {
-          // Only transition: ENROLLED → DOCUMENTS_APPROVED (stop here)
-          await prisma.registration.update({
-            where: { id: registrationId },
-            data: { status: 'DOCUMENTS_APPROVED' }
-          });
-          
-          console.log('Auto-advanced certification to DOCUMENTS_APPROVED (bulk):', registrationId);
-        }
-      }
-    }
+    // Auto-advancement removed - now handled only in DocumentService.discoveryApproveRegistration
+    // Bulk document verification by partner should not trigger state advancement
 
     res.json({
       message: 'Verifica documenti completata',
@@ -4197,35 +4164,12 @@ router.post('/documents/:documentId/approve', authenticateUnified, async (req: A
 
         if (regWithOffer?.offer?.offerType === 'CERTIFICATION') {
           // For certification, check if both IDENTITY_CARD and TESSERA_SANITARIA are approved
-          const requiredDocs = await prisma.userDocument.findMany({
-            where: {
-              userId: document.user.id,
-              type: { in: ['IDENTITY_CARD', 'TESSERA_SANITARIA'] },
-              status: 'APPROVED'
-            }
-          });
-
-          console.log('Checking auto-approval for certification:', {
+          // Auto-advancement removed - now handled only in DocumentService.discoveryApproveRegistration
+          // Partner approval should not trigger state advancement to DOCUMENTS_APPROVED
+          console.log('Partner approved document for certification:', {
             registrationId: registration.id,
-            approvedDocs: requiredDocs.length,
-            requiredDocsTypes: requiredDocs.map(d => d.type)
+            documentType: document.type
           });
-
-          // If both documents are approved, automatically advance through the workflow
-          if (requiredDocs.length === 2) {
-            if (registration.status === 'ENROLLED') {
-              // First transition: ENROLLED → DOCUMENTS_APPROVED
-              await prisma.registration.update({
-                where: { id: registration.id },
-                data: { status: 'DOCUMENTS_APPROVED' }
-              });
-              
-              console.log('Auto-advanced certification to DOCUMENTS_APPROVED:', registration.id);
-            }
-            
-            // Auto-progression stops at DOCUMENTS_APPROVED
-            // The partner must manually advance to EXAM_REGISTERED
-          }
         }
       }
     }

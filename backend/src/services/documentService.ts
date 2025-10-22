@@ -457,20 +457,51 @@ export class DocumentService {
 
     console.log('✅ [DocumentService] Action logs created, updating registration status...');
 
+    // Fetch registration to determine offer type and auto-advancement logic
+    const registration = await prisma.registration.findUnique({
+      where: { id: registrationId },
+      include: {
+        offer: true
+      }
+    });
+
+    if (!registration) {
+      throw new Error('Registration not found');
+    }
+
+    // Determine target status based on offer type
+    let targetStatus = 'ENROLLED';
+
+    // For CERTIFICATION: auto-advance to DOCUMENTS_APPROVED if payment is complete
+    if (registration.offer?.offerType === 'CERTIFICATION') {
+      const deadlines = await prisma.paymentDeadline.findMany({
+        where: { registrationId }
+      });
+      const allDeadlinesPaid = deadlines.length > 0 && deadlines.every(d => d.paymentStatus === 'PAID');
+
+      if (allDeadlinesPaid) {
+        targetStatus = 'DOCUMENTS_APPROVED';
+        console.log('🔍 [DocumentService] Auto-advancing CERTIFICATION to DOCUMENTS_APPROVED (payment complete)');
+      } else {
+        console.log('🔍 [DocumentService] CERTIFICATION stays at ENROLLED (payment incomplete)');
+      }
+    }
+
     // Aggiorna registration usando SQL raw per bypassare problema Prisma Client cache
     // Prisma Client non riconosce i campi discoveryApprovedAt/By anche dopo regenerate
-    console.log('🔍 [DocumentService] Updating registration status to ENROLLED with SQL');
+    console.log('🔍 [DocumentService] Updating registration status to', targetStatus, 'with SQL');
 
     await prisma.$executeRaw`
       UPDATE "Registration"
       SET
-        status = 'ENROLLED',
+        status = ${targetStatus}::"RegistrationStatus",
         "discoveryApprovedAt" = NOW(),
-        "discoveryApprovedBy" = ${adminId}
+        "discoveryApprovedBy" = ${adminId},
+        "enrolledAt" = CASE WHEN "enrolledAt" IS NULL THEN NOW() ELSE "enrolledAt" END
       WHERE id = ${registrationId}
     `;
 
-    console.log('✅ [DocumentService] Registration status updated successfully');
+    console.log('✅ [DocumentService] Registration status updated successfully to', targetStatus);
 
     // Log azione admin Discovery
     await prisma.discoveryAdminLog.create({
