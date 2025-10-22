@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { PrismaClient, ArchivePaymentType, ArchivePaymentStatus } from '@prisma/client';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import multer from 'multer';
+import crypto from 'crypto';
 import archiveStorageService from '../services/archiveStorageService';
 
 const router = Router();
@@ -711,16 +712,37 @@ router.post('/import-excel', authenticateAdmin, requireAdmin, async (req: AuthRe
 // Upload file ZIP documenti su R2
 // ========================================
 router.post('/upload-zip', authenticateAdmin, requireAdmin, upload.single('zipFile'), async (req: AuthRequest, res: Response) => {
+  const startTime = Date.now();
+  const requestId = crypto.randomBytes(8).toString('hex');
+
   try {
+    console.log(`[Archive:${requestId}] 📥 ZIP upload request started`);
+
     if (!req.file) {
+      console.warn(`[Archive:${requestId}] ❌ No file in request`);
       return res.status(400).json({ error: 'Nessun file ZIP caricato' });
     }
 
     const { registrationId, companyName, userName, originalYear } = req.body;
 
     if (!registrationId || !companyName || !userName || !originalYear) {
+      console.warn(`[Archive:${requestId}] ❌ Missing metadata`, { registrationId, companyName, userName, originalYear });
       return res.status(400).json({ error: 'Metadata mancanti (registrationId, companyName, userName, originalYear)' });
     }
+
+    // Validate file size
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    if (req.file.size > maxSize) {
+      console.warn(`[Archive:${requestId}] ❌ File too large: ${req.file.size} bytes`);
+      return res.status(400).json({ error: 'Il file ZIP è troppo grande (max 50MB)' });
+    }
+
+    console.log(`[Archive:${requestId}] ✅ Request validated:`, {
+      fileName: req.file.originalname,
+      size: `${(req.file.size / 1024 / 1024).toFixed(2)} MB`,
+      registrationId,
+      company: companyName,
+    });
 
     // Upload su R2 bucket documenti
     const result = await archiveStorageService.uploadArchiveZip(
@@ -734,6 +756,9 @@ router.post('/upload-zip', authenticateAdmin, requireAdmin, upload.single('zipFi
       }
     );
 
+    const duration = Date.now() - startTime;
+    console.log(`[Archive:${requestId}] ✅ ZIP upload completed in ${duration}ms`);
+
     res.json({
       success: true,
       url: result.url,
@@ -742,10 +767,16 @@ router.post('/upload-zip', authenticateAdmin, requireAdmin, upload.single('zipFi
       originalName: req.file.originalname
     });
   } catch (error: any) {
-    console.error('[Archive] Errore upload ZIP:', error);
+    const duration = Date.now() - startTime;
+    console.error(`[Archive:${requestId}] ❌ ZIP upload failed after ${duration}ms:`, {
+      error: error.message,
+      stack: error.stack?.split('\n').slice(0, 3).join('\n'),
+    });
+
     res.status(500).json({
       error: 'Errore durante l\'upload del file ZIP',
-      details: error.message
+      details: error.message,
+      requestId
     });
   }
 });
@@ -755,22 +786,44 @@ router.post('/upload-zip', authenticateAdmin, requireAdmin, upload.single('zipFi
 // Upload file PDF contratto su R2
 // ========================================
 router.post('/upload-contract', authenticateAdmin, requireAdmin, upload.single('contractFile'), async (req: AuthRequest, res: Response) => {
+  const startTime = Date.now();
+  const requestId = crypto.randomBytes(8).toString('hex');
+
   try {
+    console.log(`[Archive:${requestId}] 📥 PDF contract upload request started`);
+
     if (!req.file) {
+      console.warn(`[Archive:${requestId}] ❌ No file in request`);
       return res.status(400).json({ error: 'Nessun file PDF caricato' });
     }
 
     // Verifica che sia PDF
     const ext = req.file.originalname.split('.').pop()?.toLowerCase();
     if (ext !== 'pdf') {
+      console.warn(`[Archive:${requestId}] ❌ Invalid file type: ${ext}`);
       return res.status(400).json({ error: 'Solo file PDF sono permessi per i contratti' });
     }
 
     const { registrationId, companyName, userName, originalYear } = req.body;
 
     if (!registrationId || !companyName || !userName || !originalYear) {
+      console.warn(`[Archive:${requestId}] ❌ Missing metadata`, { registrationId, companyName, userName, originalYear });
       return res.status(400).json({ error: 'Metadata mancanti (registrationId, companyName, userName, originalYear)' });
     }
+
+    // Validate file size
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    if (req.file.size > maxSize) {
+      console.warn(`[Archive:${requestId}] ❌ File too large: ${req.file.size} bytes`);
+      return res.status(400).json({ error: 'Il file PDF è troppo grande (max 50MB)' });
+    }
+
+    console.log(`[Archive:${requestId}] ✅ Request validated:`, {
+      fileName: req.file.originalname,
+      size: `${(req.file.size / 1024 / 1024).toFixed(2)} MB`,
+      registrationId,
+      company: companyName,
+    });
 
     // Upload su R2 bucket contratti
     const result = await archiveStorageService.uploadContractPdf(
@@ -784,6 +837,9 @@ router.post('/upload-contract', authenticateAdmin, requireAdmin, upload.single('
       }
     );
 
+    const duration = Date.now() - startTime;
+    console.log(`[Archive:${requestId}] ✅ PDF contract upload completed in ${duration}ms`);
+
     res.json({
       success: true,
       url: result.url,
@@ -792,10 +848,16 @@ router.post('/upload-contract', authenticateAdmin, requireAdmin, upload.single('
       originalName: req.file.originalname
     });
   } catch (error: any) {
-    console.error('[Archive] Errore upload contratto PDF:', error);
+    const duration = Date.now() - startTime;
+    console.error(`[Archive:${requestId}] ❌ PDF contract upload failed after ${duration}ms:`, {
+      error: error.message,
+      stack: error.stack?.split('\n').slice(0, 3).join('\n'),
+    });
+
     res.status(500).json({
       error: 'Errore durante l\'upload del contratto PDF',
-      details: error.message
+      details: error.message,
+      requestId
     });
   }
 });

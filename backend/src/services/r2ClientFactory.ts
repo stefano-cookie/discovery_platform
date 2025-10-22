@@ -75,6 +75,14 @@ class R2ClientFactory {
         accessKeyId,
         secretAccessKey,
       },
+      requestHandler: {
+        requestTimeout: 60000, // 60 seconds timeout for large files
+        httpsAgent: {
+          maxSockets: 50, // Connection pooling for concurrent uploads
+          keepAlive: true,
+        },
+      },
+      maxAttempts: 3, // Retry failed requests up to 3 times with exponential backoff
     });
 
     // Environment-specific bucket - use exact names from .env
@@ -117,6 +125,14 @@ class R2ClientFactory {
         accessKeyId,
         secretAccessKey,
       },
+      requestHandler: {
+        requestTimeout: 60000, // 60 seconds timeout for large files
+        httpsAgent: {
+          maxSockets: 50, // Connection pooling for concurrent uploads
+          keepAlive: true,
+        },
+      },
+      maxAttempts: 3, // Retry failed requests up to 3 times with exponential backoff
     });
 
     // Archive uses two buckets but we'll manage them separately
@@ -158,6 +174,14 @@ class R2ClientFactory {
         accessKeyId,
         secretAccessKey,
       },
+      requestHandler: {
+        requestTimeout: 60000, // 60 seconds timeout for large files
+        httpsAgent: {
+          maxSockets: 50, // Connection pooling for concurrent uploads
+          keepAlive: true,
+        },
+      },
+      maxAttempts: 3, // Retry failed requests up to 3 times with exponential backoff
     });
 
     const bucketName = process.env.R2_NOTICES_BUCKET_NAME || 'notice-board-attachments';

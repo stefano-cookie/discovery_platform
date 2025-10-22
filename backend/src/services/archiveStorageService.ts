@@ -3,6 +3,61 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import crypto from 'crypto';
 import { r2ClientFactory, R2Account } from './r2ClientFactory';
 
+/**
+ * Utility function to retry async operations with exponential backoff
+ */
+async function retryWithBackoff<T>(
+  operation: () => Promise<T>,
+  operationName: string,
+  maxRetries: number = 3,
+  initialDelay: number = 1000
+): Promise<T> {
+  let lastError: any;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const result = await operation();
+      if (attempt > 0) {
+        console.log(`[ArchiveStorage] ✅ ${operationName} succeeded on attempt ${attempt + 1}`);
+      }
+      return result;
+    } catch (error: any) {
+      lastError = error;
+      const isLastAttempt = attempt === maxRetries - 1;
+
+      // Check if error is retryable
+      const isRetryable =
+        error.name === 'NetworkingError' ||
+        error.name === 'TimeoutError' ||
+        error.$metadata?.httpStatusCode === 503 ||
+        error.$metadata?.httpStatusCode === 429 ||
+        error.code === 'ECONNRESET' ||
+        error.code === 'ETIMEDOUT';
+
+      if (!isRetryable || isLastAttempt) {
+        console.error(`[ArchiveStorage] ❌ ${operationName} failed:`, {
+          attempt: attempt + 1,
+          error: error.message,
+          name: error.name,
+          code: error.code,
+          statusCode: error.$metadata?.httpStatusCode,
+        });
+        throw error;
+      }
+
+      const delay = initialDelay * Math.pow(2, attempt);
+      console.warn(`[ArchiveStorage] ⚠️  ${operationName} failed (attempt ${attempt + 1}/${maxRetries}), retrying in ${delay}ms...`, {
+        error: error.message,
+        name: error.name,
+      });
+
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError;
+}
+
 interface ArchiveUploadResult {
   key: string;
   url: string;
@@ -91,7 +146,15 @@ class ArchiveStorageService {
     // Struttura: archive-registrations/{year}/{companyName}/{timestamp}-{randomId}-{fileName}
     const key = `archive-registrations/${metadata.originalYear}/${this.sanitizePath(metadata.companyName)}/${timestamp}-${randomId}-${sanitizedFileName}`;
 
-    try {
+    console.log(`[ArchiveStorage] 📤 Starting ZIP upload:`, {
+      originalName,
+      key,
+      size: `${(buffer.length / 1024 / 1024).toFixed(2)} MB`,
+      registrationId: metadata.registrationId,
+      company: metadata.companyName,
+    });
+
+    const uploadOperation = async () => {
       const command = new PutObjectCommand({
         Bucket: this.docsBucketName,
         Key: key,
@@ -107,12 +170,27 @@ class ArchiveStorageService {
         },
       });
 
-      await config.client.send(command);
+      return await config.client.send(command);
+    };
+
+    try {
+      await retryWithBackoff(
+        uploadOperation,
+        `ZIP upload (${sanitizedFileName})`,
+        3,
+        1000
+      );
 
       // Genera URL pubblico se configurato, altrimenti usa endpoint
       const url = this.docsPublicUrl
         ? `${this.docsPublicUrl}/${key}`
         : `${config.endpoint}/${this.docsBucketName}/${key}`;
+
+      console.log(`[ArchiveStorage] ✅ ZIP upload successful:`, {
+        key,
+        url,
+        size: buffer.length,
+      });
 
       return {
         key,
@@ -121,10 +199,11 @@ class ArchiveStorageService {
         mimeType: 'application/zip',
       };
     } catch (error: any) {
-      console.error('[ArchiveStorageService] ZIP upload error:', {
+      console.error('[ArchiveStorage] ❌ ZIP upload failed after all retries:', {
         message: error.message,
         bucket: this.docsBucketName,
         key,
+        registrationId: metadata.registrationId,
       });
       throw new Error(`Failed to upload archive ZIP: ${error.message || error}`);
     }
@@ -153,7 +232,15 @@ class ArchiveStorageService {
     // Struttura: contracts/{year}/{companyName}/{timestamp}-{randomId}-{fileName}
     const key = `contracts/${metadata.originalYear}/${this.sanitizePath(metadata.companyName)}/${timestamp}-${randomId}-${sanitizedFileName}`;
 
-    try {
+    console.log(`[ArchiveStorage] 📤 Starting PDF contract upload:`, {
+      originalName,
+      key,
+      size: `${(buffer.length / 1024 / 1024).toFixed(2)} MB`,
+      registrationId: metadata.registrationId,
+      company: metadata.companyName,
+    });
+
+    const uploadOperation = async () => {
       const command = new PutObjectCommand({
         Bucket: this.contractsBucketName,
         Key: key,
@@ -170,12 +257,27 @@ class ArchiveStorageService {
         },
       });
 
-      await config.client.send(command);
+      return await config.client.send(command);
+    };
+
+    try {
+      await retryWithBackoff(
+        uploadOperation,
+        `PDF contract upload (${sanitizedFileName})`,
+        3,
+        1000
+      );
 
       // Genera URL pubblico (necessario per preview PDF)
       const url = this.contractsPublicUrl
         ? `${this.contractsPublicUrl}/${key}`
         : `${config.endpoint}/${this.contractsBucketName}/${key}`;
+
+      console.log(`[ArchiveStorage] ✅ PDF contract upload successful:`, {
+        key,
+        url,
+        size: buffer.length,
+      });
 
       return {
         key,
@@ -184,10 +286,11 @@ class ArchiveStorageService {
         mimeType: 'application/pdf',
       };
     } catch (error: any) {
-      console.error('[ArchiveStorageService] Contract PDF upload error:', {
+      console.error('[ArchiveStorage] ❌ PDF contract upload failed after all retries:', {
         message: error.message,
         bucket: this.contractsBucketName,
         key,
+        registrationId: metadata.registrationId,
       });
       throw new Error(`Failed to upload contract PDF: ${error.message || error}`);
     }
@@ -202,23 +305,42 @@ class ArchiveStorageService {
     this.ensureConfigured();
 
     const config = r2ClientFactory.getClient(R2Account.ARCHIVE);
+    const bucketName = bucketType === 'contracts' ? this.contractsBucketName : this.docsBucketName;
 
-    try {
-      const bucketName = bucketType === 'contracts' ? this.contractsBucketName : this.docsBucketName;
+    console.log(`[ArchiveStorage] 🔗 Generating signed URL:`, {
+      key,
+      bucketType,
+      bucket: bucketName,
+    });
 
+    const generateUrlOperation = async () => {
       const command = new GetObjectCommand({
         Bucket: bucketName,
         Key: key,
       });
 
-      const signedUrl = await getSignedUrl(config.client, command, {
+      return await getSignedUrl(config.client, command, {
         expiresIn: 3600,
       });
+    };
 
+    try {
+      const signedUrl = await retryWithBackoff(
+        generateUrlOperation,
+        `Signed URL generation (${key})`,
+        3,
+        500
+      );
+
+      console.log(`[ArchiveStorage] ✅ Signed URL generated successfully for key: ${key}`);
       return signedUrl;
-    } catch (error) {
-      console.error('[ArchiveStorageService] Signed URL error:', error);
-      throw new Error(`Failed to generate download URL: ${error}`);
+    } catch (error: any) {
+      console.error('[ArchiveStorage] ❌ Signed URL generation failed:', {
+        key,
+        bucketType,
+        error: error.message,
+      });
+      throw new Error(`Failed to generate download URL: ${error.message || error}`);
     }
   }
 
