@@ -85,18 +85,20 @@ echo -e "${GREEN}✓ Backend deployed${NC}"
 echo -e "${YELLOW}🔐 Setting up environment...${NC}"
 
 if [ ! -f "$DEPLOY_DIR/backend/.env.production" ]; then
-    # Try to restore from backup first
-    LATEST_BACKUP=$(ls -t "$BACKUP_DIR/.env.production.backup_"* 2>/dev/null | head -1)
-    if [ -n "$LATEST_BACKUP" ]; then
-        echo -e "${YELLOW}⚠️ Restoring .env.production from backup${NC}"
-        cp "$LATEST_BACKUP" "$DEPLOY_DIR/backend/.env.production"
-    # If no backup, use the template from deployment package
-    elif [ -f "$SCRIPT_DIR/backend/.env.production.template" ]; then
-        echo -e "${YELLOW}⚠️ Creating .env.production from template${NC}"
+    # Prefer template from deployment (always up-to-date) over old backups
+    if [ -f "$SCRIPT_DIR/backend/.env.production.template" ]; then
+        echo -e "${YELLOW}⚠️ Creating .env.production from deployment template${NC}"
         cp "$SCRIPT_DIR/backend/.env.production.template" "$DEPLOY_DIR/backend/.env.production"
+    # Fallback to backup if template not available
     else
-        echo -e "${RED}❌ CRITICAL: .env.production not found and no template available!${NC}"
-        exit 1
+        LATEST_BACKUP=$(ls -t "$BACKUP_DIR/.env.production.backup_"* 2>/dev/null | head -1)
+        if [ -n "$LATEST_BACKUP" ]; then
+            echo -e "${YELLOW}⚠️ Restoring .env.production from backup (template not found)${NC}"
+            cp "$LATEST_BACKUP" "$DEPLOY_DIR/backend/.env.production"
+        else
+            echo -e "${RED}❌ CRITICAL: .env.production not found, no template, and no backup available!${NC}"
+            exit 1
+        fi
     fi
 fi
 
