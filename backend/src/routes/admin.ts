@@ -395,8 +395,22 @@ router.get('/registrations/:id', authenticateAdmin, requireAdmin, async (req: Au
       return res.status(404).json({ error: 'Registration not found' });
     }
 
+    // Fetch discoveryApproved fields using raw SQL (Prisma Client cache issue)
+    const discoveryFields = await prisma.$queryRaw<Array<{
+      discoveryApprovedAt: Date | null;
+      discoveryApprovedBy: string | null;
+    }>>`
+      SELECT "discoveryApprovedAt", "discoveryApprovedBy"
+      FROM "Registration"
+      WHERE id = ${id}
+    `;
+
+    const discoveryData = discoveryFields[0] || { discoveryApprovedAt: null, discoveryApprovedBy: null };
+
     res.json({
       ...registration,
+      discoveryApprovedAt: discoveryData.discoveryApprovedAt,
+      discoveryApprovedBy: discoveryData.discoveryApprovedBy,
       finalAmount: Number(registration.finalAmount),
       originalAmount: Number(registration.originalAmount),
       partnerCommission: registration.partnerCommission
