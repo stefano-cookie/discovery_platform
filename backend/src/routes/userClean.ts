@@ -14,6 +14,34 @@ const contractService = new ContractServicePDFKit();
 const router = Router();
 const prisma = new PrismaClient();
 
+// Helper function to find project root directory
+function getProjectRoot(): string {
+  // In development: __dirname is like /path/to/project/backend/src/routes
+  // In production: __dirname is like /path/to/project/backend/dist/routes
+
+  let currentDir = __dirname;
+
+  // Walk up the directory tree to find the project root
+  // Look for package.json or backend directory to identify project root
+  while (currentDir !== path.dirname(currentDir)) { // Not at filesystem root
+    const parentDir = path.dirname(currentDir);
+
+    // Check if parent contains backend directory (indicating project root)
+    if (fs.existsSync(path.join(parentDir, 'backend')) &&
+        (fs.existsSync(path.join(parentDir, 'package.json')) ||
+         fs.existsSync(path.join(parentDir, 'frontend')))) {
+      console.log(`[USER_ROUTES] Found project root: ${parentDir}`);
+      return parentDir;
+    }
+
+    currentDir = parentDir;
+  }
+
+  // Fallback: use process.cwd() if we can't find the root
+  console.log(`[USER_ROUTES] Could not find project root, using process.cwd(): ${process.cwd()}`);
+  return process.cwd();
+}
+
 // Multer configuration for user document uploads - using memory storage for R2
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -1059,15 +1087,18 @@ router.get('/download-contract-template/:registrationId', authenticate, async (r
   try {
     const userId = req.user?.id;
     const { registrationId } = req.params;
-    
+
+    console.log(`[USER_CONTRACT_DOWNLOAD] Starting download for registration: ${registrationId}, user: ${userId}`);
+
     if (!userId) {
+      console.log('[USER_CONTRACT_DOWNLOAD] Error: User not authenticated');
       return res.status(401).json({ error: 'Utente non autenticato' });
     }
-    
+
     const registration = await prisma.registration.findFirst({
-      where: { 
+      where: {
         id: registrationId,
-        userId 
+        userId
       },
       include: {
         offer: {
@@ -1077,25 +1108,32 @@ router.get('/download-contract-template/:registrationId', authenticate, async (r
         }
       }
     });
-    
+
     if (!registration) {
+      console.log(`[USER_CONTRACT_DOWNLOAD] Error: Registration not found for ID: ${registrationId}`);
       return res.status(404).json({ error: 'Iscrizione non trovata' });
     }
-    
+
+    console.log(`[USER_CONTRACT_DOWNLOAD] Registration found, contractTemplateUrl: ${registration.contractTemplateUrl}`);
+
     // Allow download if registration is verified or contract already exists
     // (contract can be generated on-demand for verification purposes)
     if (registration.status === 'PENDING' && !registration.contractTemplateUrl) {
+      console.log('[USER_CONTRACT_DOWNLOAD] Error: Contract not available for pending registration');
       return res.status(403).json({ error: 'Contratto non ancora disponibile. Completa prima l\'iscrizione.' });
     }
-    
+
     // If contract doesn't exist, generate it
     if (!registration.contractTemplateUrl) {
-      console.log('[USER_CONTRACT_DOWNLOAD] Generating contract for user...');
-      
+      console.log('[USER_CONTRACT_DOWNLOAD] Generating new contract...');
+
       try {
         const pdfBuffer = await contractService.generateContract(registrationId);
+        console.log(`[USER_CONTRACT_DOWNLOAD] Contract generated, buffer size: ${pdfBuffer.length}`);
+
         const contractUrl = await contractService.saveContract(registrationId, pdfBuffer);
-        
+        console.log(`[USER_CONTRACT_DOWNLOAD] Contract saved to: ${contractUrl}`);
+
         // Update registration with contract URL
         await prisma.registration.update({
           where: { id: registrationId },
@@ -1104,65 +1142,66 @@ router.get('/download-contract-template/:registrationId', authenticate, async (r
             contractGeneratedAt: new Date()
           }
         });
-        
+
         // Send the generated PDF
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="contratto_precompilato_${registrationId}.pdf"`);
+        console.log('[USER_CONTRACT_DOWNLOAD] Sending generated PDF buffer');
         return res.send(pdfBuffer);
       } catch (generateError) {
         console.error('[USER_CONTRACT_DOWNLOAD] Error generating contract:', generateError);
         return res.status(500).json({ error: 'Errore nella generazione del contratto' });
       }
     }
-    
-    // Try different path resolutions
-    let filePath = path.resolve(__dirname, '../..', registration.contractTemplateUrl.substring(1));
-    
-    if (!fs.existsSync(filePath)) {
-      // Try with process.cwd()
-      filePath = path.join(process.cwd(), registration.contractTemplateUrl);
-      
-      if (!fs.existsSync(filePath)) {
-        // Try without leading slash
-        filePath = path.join(process.cwd(), registration.contractTemplateUrl.substring(1));
-        
-        if (!fs.existsSync(filePath)) {
-          console.log(`[USER_CONTRACT_DOWNLOAD] File not found at: ${filePath}, regenerating contract...`);
-          
-          // Regenerate the contract if file doesn't exist
-          try {
-            const pdfBuffer = await contractService.generateContract(registrationId);
-            const contractUrl = await contractService.saveContract(registrationId, pdfBuffer);
-            
-            // Update registration with new contract URL
-            await prisma.registration.update({
-              where: { id: registrationId },
-              data: {
-                contractTemplateUrl: contractUrl,
-                contractGeneratedAt: new Date()
-              }
-            });
-            
-            // Update the file path with the new location
-            filePath = path.join(process.cwd(), contractUrl.substring(1));
-            console.log(`[USER_CONTRACT_DOWNLOAD] Contract regenerated at: ${filePath}`);
-          } catch (regenError) {
-            console.error('[USER_CONTRACT_DOWNLOAD] Error regenerating contract:', regenError);
-            return res.status(500).json({ error: 'Errore nella rigenerazione del contratto' });
+
+    // If contract already exists, serve the file - Use project root for consistency
+    const projectRoot = getProjectRoot();
+    const contractPath = path.join(projectRoot, 'backend', registration.contractTemplateUrl.substring(1)); // Remove leading slash
+    console.log(`[USER_CONTRACT_DOWNLOAD] Attempting to serve existing contract from: ${contractPath}`);
+
+    if (!fs.existsSync(contractPath)) {
+      console.log(`[USER_CONTRACT_DOWNLOAD] Error: Contract file not found at path: ${contractPath}`);
+      console.log(`[USER_CONTRACT_DOWNLOAD] Current directory: ${__dirname}`);
+      console.log(`[USER_CONTRACT_DOWNLOAD] Attempting to regenerate contract...`);
+
+      // Regenerate the contract if file doesn't exist
+      try {
+        const pdfBuffer = await contractService.generateContract(registrationId);
+        console.log(`[USER_CONTRACT_DOWNLOAD] Contract regenerated, buffer size: ${pdfBuffer.length}`);
+
+        const contractUrl = await contractService.saveContract(registrationId, pdfBuffer);
+        console.log(`[USER_CONTRACT_DOWNLOAD] Contract saved to: ${contractUrl}`);
+
+        // Update registration with new contract URL
+        await prisma.registration.update({
+          where: { id: registrationId },
+          data: {
+            contractTemplateUrl: contractUrl,
+            contractGeneratedAt: new Date()
           }
-        }
+        });
+
+        // Send the generated PDF
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="contratto_precompilato_${registrationId}.pdf"`);
+        console.log('[USER_CONTRACT_DOWNLOAD] Sending regenerated PDF buffer');
+        return res.send(pdfBuffer);
+      } catch (regenError) {
+        console.error('[USER_CONTRACT_DOWNLOAD] Error regenerating contract:', regenError);
+        console.error('[USER_CONTRACT_DOWNLOAD] Error stack:', regenError instanceof Error ? regenError.stack : 'No stack trace');
+        return res.status(500).json({ error: 'Errore nella rigenerazione del contratto' });
       }
     }
-    
-    console.log(`[USER_CONTRACT_DOWNLOAD] Serving contract from: ${filePath}`);
+
+    console.log('[USER_CONTRACT_DOWNLOAD] File exists, sending...');
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="contratto_precompilato_${registrationId}.pdf"`);
-    
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.pipe(res);
+    res.sendFile(contractPath);
+
   } catch (error) {
-    console.error('[USER_CONTRACT_DOWNLOAD] Error:', error);
-    res.status(500).json({ error: 'Errore interno del server' });
+    console.error('[USER_CONTRACT_DOWNLOAD] Full error details:', error);
+    console.error('[USER_CONTRACT_DOWNLOAD] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    res.status(500).json({ error: 'Errore durante il download del contratto' });
   }
 });
 
