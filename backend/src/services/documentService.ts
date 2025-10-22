@@ -457,16 +457,18 @@ export class DocumentService {
 
     console.log('✅ [DocumentService] Action logs created, updating registration status...');
 
-    // Aggiorna solo lo status della registrazione (i campi discoveryApprovedAt/By causano errore Prisma)
-    // L'approvazione Discovery viene tracciata tramite DiscoveryAdminLog
-    console.log('🔍 [DocumentService] Updating registration status to ENROLLED');
+    // Aggiorna registration usando SQL raw per bypassare problema Prisma Client cache
+    // Prisma Client non riconosce i campi discoveryApprovedAt/By anche dopo regenerate
+    console.log('🔍 [DocumentService] Updating registration status to ENROLLED with SQL');
 
-    await prisma.registration.update({
-      where: { id: registrationId },
-      data: {
-        status: 'ENROLLED'
-      }
-    });
+    await prisma.$executeRaw`
+      UPDATE "Registration"
+      SET
+        status = 'ENROLLED',
+        "discoveryApprovedAt" = NOW(),
+        "discoveryApprovedBy" = ${adminId}
+      WHERE id = ${registrationId}
+    `;
 
     console.log('✅ [DocumentService] Registration status updated successfully');
 
