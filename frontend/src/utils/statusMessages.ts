@@ -55,6 +55,14 @@ export const getStatusMessage = (
 
   // Messaggi specifici per CERTIFICATION
   const certificationMessages: Record<string, StatusMessage> = {
+    PENDING: {
+      partner: 'Nuova iscrizione. In attesa del pagamento.',
+      user: 'Iscrizione completata! Procedi con il pagamento per attivare la certificazione.'
+    },
+    CONTRACT_SIGNED: {
+      partner: 'Iscrizione confermata. In attesa del pagamento.',
+      user: 'Iscrizione confermata! Procedi con il pagamento per attivare la certificazione.'
+    },
     ENROLLED: {
       partner: 'Pagamento ricevuto. Verifica documenti utente.',
       user: 'Pagamento ricevuto! Il partner verificherà i tuoi documenti.'
