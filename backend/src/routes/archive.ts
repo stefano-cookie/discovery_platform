@@ -464,6 +464,28 @@ router.patch('/registrations/:id', authenticateAdmin, requireAdmin, async (req: 
       return res.status(404).json({ error: 'Iscrizione archiviata non trovata' });
     }
 
+    // IMPORTANTE: Se i file documenti vengono sostituiti, elimina i vecchi da R2
+    // per prevenire file orfani
+    if (documentsZipKey !== undefined && documentsZipKey !== existing.documentsZipKey && existing.documentsZipKey) {
+      try {
+        await archiveStorageService.deleteFile(existing.documentsZipKey, 'docs');
+        console.log(`[Archive] ✅ Deleted old ZIP: ${existing.documentsZipKey}`);
+      } catch (error: any) {
+        console.error(`[Archive] ⚠️ Failed to delete old ZIP: ${existing.documentsZipKey}`, error.message);
+        // Don't block update if R2 cleanup fails
+      }
+    }
+
+    if (contractPdfKey !== undefined && contractPdfKey !== existing.contractPdfKey && existing.contractPdfKey) {
+      try {
+        await archiveStorageService.deleteFile(existing.contractPdfKey, 'contracts');
+        console.log(`[Archive] ✅ Deleted old PDF: ${existing.contractPdfKey}`);
+      } catch (error: any) {
+        console.error(`[Archive] ⚠️ Failed to delete old PDF: ${existing.contractPdfKey}`, error.message);
+        // Don't block update if R2 cleanup fails
+      }
+    }
+
     // Se i pagamenti sono modificati, ricalcola totali
     let totalExpected: number | any = existing.totalExpected;
     let totalPaid: number | any = existing.totalPaid;
